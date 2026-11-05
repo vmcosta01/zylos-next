@@ -582,7 +582,7 @@ impl EvidenceLedger {
 
         Ok(LedgerStats {
             total_entries: total as u64,
-            latest_sequence: latest.map(|(s, _)| s as u64),
+            latest_sequence: latest.as_ref().map(|(s, _)| *s as u64),
             latest_entry_hash: latest.map(|(_, h)| h),
             merkle_root,
             evidence_type_counts: type_counts
@@ -868,13 +868,14 @@ mod tests {
 
         let root = ledger.merkle_root().await.unwrap();
         assert!(root.is_some());
+        let expected_root = root.unwrap();
 
         // Generate and verify proof for each entry
         let entries = ledger.list_entries(0, 10).await.unwrap();
         for entry in &entries {
             let proof = ledger.merkle_proof(&entry.id).await.unwrap();
             assert!(verify_merkle_proof(&proof));
-            assert_eq!(proof.root, root.unwrap());
+            assert_eq!(proof.root, expected_root);
         }
     }
 

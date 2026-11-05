@@ -28,6 +28,7 @@ members = [
     "crates/zylos-desktop",
     "crates/zylos-goals",
     "crates/zylos-browser-takeover",
+    "crates/zylos-evidence-ledger",
     "tests/zylos-e2e",
 ]
 
@@ -105,6 +106,7 @@ zylos-ag-ui = { path = "crates/zylos-ag-ui" }
 zylos-desktop = { path = "crates/zylos-desktop" }
 zylos-goals = { path = "crates/zylos-goals" }
 zylos-browser-takeover = { path = "crates/zylos-browser-takeover" }
+zylos-evidence-ledger = { path = "crates/zylos-evidence-ledger" }
 async-stream = "0.3"
 serde_urlencoded = "0.7"
 

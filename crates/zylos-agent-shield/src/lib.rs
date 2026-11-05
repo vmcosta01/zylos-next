@@ -178,6 +178,19 @@ pub enum AuditEventType {
     ConfigChanged,
 }
 
+impl std::fmt::Display for AuditEventType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::PiiDetected => write!(f, "pii_detected"),
+            Self::CredentialBlocked => write!(f, "credential_blocked"),
+            Self::OutboundFiltered => write!(f, "outbound_filtered"),
+            Self::PolicyViolation => write!(f, "policy_violation"),
+            Self::ScanCompleted => write!(f, "scan_completed"),
+            Self::ConfigChanged => write!(f, "config_changed"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Severity {
@@ -625,7 +638,7 @@ async fn persist_audit(pool: &SqlitePool, entry: &AuditEntry) -> Result<(), Shie
     )
     .bind(&entry.id)
     .bind(entry.timestamp.to_rfc3339())
-    .bind(format!("{:?}", entry.event_type))
+    .bind(entry.event_type.to_string())
     .bind(&entry.actor)
     .bind(&entry.target)
     .bind(&entry.details)
@@ -745,8 +758,10 @@ mod tests {
 
     #[test]
     fn test_mask_for_log_short() {
+        // Short strings (<=4 chars) are fully masked for security
         assert_eq!(mask_for_log("ab"), "**");
-        assert_eq!(mask_for_log("abcd"), "ab**");
+        assert_eq!(mask_for_log("abcd"), "****");
+        // Longer strings show first 2 chars + rest masked
         assert_eq!(mask_for_log("abcdef"), "ab****");
     }
 
