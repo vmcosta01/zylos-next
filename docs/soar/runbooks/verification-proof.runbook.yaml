@@ -1,0 +1,75 @@
+---
+metadata:
+  name: verification-proof
+  version: "1.0"
+  trigger: "proof_request OR panel_vote_triggered"
+  audience: ["dev_pleno", "dev_senior", "sre"]
+  estimated_duration_minutes: 15
+  tags: ["verification", "proof", "panel", "adversarial"]
+  related_playbooks:
+    - "../playbooks/adversarial-audit.md"
+
+preconditions:
+  - check: "Proof engine compiled"
+    command: "cargo build -p zylos-proof 2>&1 | tail -1"
+    expected: "exit_code:0"
+    on_failure: "abort"
+  - check: "Panel crate available"
+    command: "cargo build -p zylos-panel 2>&1 | tail -1"
+    expected: "exit_code:0"
+    on_failure: "abort"
+
+steps:
+  - id: "build_proof"
+    action: "execute"
+    command: "cargo run -p zylos-proof --bin proof-builder -- --input claims.json"
+    timeout_seconds: 60
+    on_success: "run_panel"
+    on_failure: "report_incomplete"
+  - id: "run_panel"
+    action: "execute"
+    command: "cargo run -p zylos-panel --bin adversarial-judge -- --proof proof-output.json"
+    timeout_seconds: 120
+    human_approval_required: false
+    on_success: "check_decision"
+    on_failure: "escalate_refutation"
+  - id: "check_decision"
+    action: "validate"
+    command: "python3 -c \"import sys,json; d=json.load(open('panel-decision.json')); sys.exit(0 if d['aprovado'] else 1)\""
+    expected: "exit_code:0"
+    on_success: "deliver_result"
+    on_failure: "escalate_refutation"
+  - id: "report_incomplete"
+    action: "notify"
+    command: "echo 'Proof incomplete' >> /tmp/zylos-verification.log"
+  - id: "escalate_refutation"
+    action: "notify"
+    command: "echo 'Panel refuted' >> /tmp/zylos-verification.log"
+  - id: "deliver_result"
+    action: "execute"
+    command: "cp panel-decision.json ~/.local/share/zylos/verification/latest.json"
+
+validation:
+  - check: "Proof has grounded evidence"
+    command: "cargo run -p zylos-proof --bin verify-grounded"
+    expected: "exit_code:0"
+  - check: "Panel decision file exists"
+    command: "test -f panel-decision.json && echo ok"
+    expected: "ok"
+
+rollback:
+  - id: "discard_proof"
+    action: "execute"
+    command: "rm -f proof-output.json panel-decision.json"
+
+escalation:
+  max_retries: 1
+  escalation_path:
+    - level: "dev_senior"
+      contact: "#zylos-verification Slack"
+      timeout_minutes: 10
+
+audit:
+  log_level: "debug"
+  capture_output: true
+  immutable_log: true

@@ -1,0 +1,44 @@
+slug: feishu
+display_name: Feishu (Lark)
+auth_url: https://open.feishu.cn/open-apis/authen/v1/index
+token_url: https://open.feishu.cn/open-apis/authen/v1/access_token
+client_id: "${FEISHU_APP_ID}"
+client_secret: "${FEISHU_APP_SECRET}"
+redirect_uri: http://localhost:9090/callback/feishu
+scopes:
+  - im:message:send_as_bot
+  - contact:user.base:readonly
+  - calendar:calendar:readonly
+requires_approval: true
+rate_limit_rpm: 100
+actions:
+  - id: send_message
+    description: Send a message to a chat or user
+    method: POST
+    url_template: https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type={receive_id_type}
+    requires_approval: true
+    body_schema:
+      type: object
+      required: [receive_id, msg_type, content]
+      properties:
+        receive_id: { type: string }
+        msg_type: { type: string, enum: [text, post, image, interactive] }
+        content: { type: string }
+
+  - id: list_chats
+    description: List chats the bot is in
+    method: GET
+    url_template: https://open.feishu.cn/open-apis/im/v1/chats?page_size={page_size}&page_token={page_token}
+    requires_approval: false
+
+  - id: get_user_info
+    description: Get user information by user_id
+    method: GET
+    url_template: https://open.feishu.cn/open-apis/contact/v3/users/{user_id}
+    requires_approval: false
+
+  - id: list_calendar_events
+    description: List calendar events for the primary calendar
+    method: GET
+    url_template: https://open.feishu.cn/open-apis/calendar/v4/calendars/primary/events?time_min={time_min}&time_max={time_max}&page_size={page_size}
+    requires_approval: false

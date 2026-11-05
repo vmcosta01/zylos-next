@@ -1,0 +1,54 @@
+slug: github
+display_name: GitHub
+auth_url: https://github.com/login/oauth/authorize
+token_url: https://github.com/login/oauth/access_token
+client_id: "${GITHUB_CLIENT_ID}"
+client_secret: "${GITHUB_CLIENT_SECRET}"
+redirect_uri: http://localhost:9090/callback/github
+scopes:
+  - repo
+  - read:user
+  - read:org
+requires_approval: false
+rate_limit_rpm: 300
+actions:
+  - id: create_issue
+    description: Create an issue on a repository
+    method: POST
+    url_template: https://api.github.com/repos/{owner}/{repo}/issues
+    requires_approval: false
+    body_schema:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string }
+        body: { type: string }
+        labels: { type: array, items: { type: string } }
+        assignees: { type: array, items: { type: string } }
+
+  - id: create_pull_request
+    description: Create a pull request
+    method: POST
+    url_template: https://api.github.com/repos/{owner}/{repo}/pulls
+    requires_approval: true
+    body_schema:
+      type: object
+      required: [title, head, base]
+      properties:
+        title: { type: string }
+        body: { type: string }
+        head: { type: string }
+        base: { type: string }
+        draft: { type: boolean }
+
+  - id: list_repos
+    description: List repositories for the authenticated user
+    method: GET
+    url_template: https://api.github.com/user/repos?type={type}&sort={sort}&per_page={per_page}
+    requires_approval: false
+
+  - id: get_file_contents
+    description: Get contents of a file from a repository
+    method: GET
+    url_template: https://api.github.com/repos/{owner}/{repo}/contents/{path}?ref={ref}
+    requires_approval: false

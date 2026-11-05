@@ -1,0 +1,23 @@
+[package]
+name = "zylos-sentinel"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+description = "AIOps health scanner with pure-function detectors, normalized signatures, privacy-first output, and rate-limited incident reporting for Zylos-Next"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+sha2 = "0.10"
+hex = { workspace = true }
+chrono = { version = "0.4", features = ["serde"] }
+tokio = { workspace = true, features = ["fs", "sync", "time"] }
+tracing = { workspace = true }
+zylos-proof = { path = "../zylos-proof" }
+
+[dev-dependencies]
+tempfile = "3"

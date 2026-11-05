@@ -1,0 +1,148 @@
+metadata:
+  name: "deploy-cicd"
+  version: "1.0"
+  trigger: "pr_merged_to_main OR release_tag_created OR hotfix_required OR rollback_requested"
+  audience: ["dev_pleno", "dev_senior", "sre"]
+  estimated_duration_minutes: 45
+  tags: ["deploy", "cicd", "release", "soar-executable"]
+  related_playbooks:
+    - "../playbooks/stakeholder-communication.md"
+    - "../playbooks/disaster-recovery.md"
+    - "../playbooks/vendor-dependency-pivot.md"
+
+preconditions:
+  - check: "Git repository is clean"
+    command: "git status --porcelain | wc -l"
+    expected: "0"
+    on_failure: "abort"
+  - check: "Rust toolchain available"
+    command: "rustc --version"
+    expected: "exit_code:0"
+    on_failure: "abort"
+  - check: "Docker daemon running"
+    command: "docker info > /dev/null 2>&1"
+    expected: "exit_code:0"
+    on_failure: "abort"
+  - check: "GitHub CLI authenticated"
+    command: "gh auth status"
+    expected: "exit_code:0"
+    on_failure: "abort"
+
+steps:
+  - id: "run_tests"
+    action: "execute"
+    command: "cargo test --all-features --workspace"
+    timeout_seconds: 600
+    retry:
+      max_attempts: 1
+      delay_seconds: 0
+    on_success: "build_wasm"
+    on_failure: "notify_test_failure"
+
+  - id: "build_wasm"
+    action: "execute"
+    command: "cd apps/zylos-cockpit && trunk build --release"
+    timeout_seconds: 600
+    on_success: "build_docker"
+    on_failure: "notify_build_failure"
+
+  - id: "build_docker"
+    action: "execute"
+    command: "docker build -t zylosdev/zylos-staging:$(git rev-parse --short HEAD) ."
+    timeout_seconds: 300
+    on_success: "push_image"
+    on_failure: "notify_build_failure"
+
+  - id: "push_image"
+    action: "execute"
+    command: "docker push zylosdev/zylos-staging:$(git rev-parse --short HEAD)"
+    timeout_seconds: 180
+    human_approval_required: false
+    on_success: "deploy_staging"
+    on_failure: "notify_push_failure"
+
+  - id: "deploy_staging"
+    action: "execute"
+    command: "kubectl set image deployment/zylos-staging zylos=zylosdev/zylos-staging:$(git rev-parse --short HEAD)"
+    timeout_seconds: 120
+    on_success: "health_check_staging"
+    on_failure: "rollback_staging"
+
+  - id: "health_check_staging"
+    action: "validate"
+    command: "curl -sf --max-time 10 https://staging.zylos.dev/health"
+    expected: '{"status":"ok"}'
+    timeout_seconds: 30
+    retry:
+      max_attempts: 3
+      delay_seconds: 15
+    on_success: "notify_success"
+    on_failure: "rollback_staging"
+
+  - id: "rollback_staging"
+    action: "execute"
+    command: "kubectl rollout undo deployment/zylos-staging"
+    timeout_seconds: 60
+    on_success: "notify_rollback"
+
+  - id: "notify_test_failure"
+    action: "notify"
+    command: "echo 'SOAR ALERT: Tests failed. Check CI logs.'"
+    timeout_seconds: 5
+
+  - id: "notify_build_failure"
+    action: "notify"
+    command: "echo 'SOAR ALERT: Build failed. Check build logs.'"
+    timeout_seconds: 5
+
+  - id: "notify_push_failure"
+    action: "notify"
+    command: "echo 'SOAR ALERT: Docker push failed. Check registry auth.'"
+    timeout_seconds: 5
+
+  - id: "notify_success"
+    action: "notify"
+    command: "echo 'SOAR INFO: Staging deploy successful.'"
+    timeout_seconds: 5
+
+  - id: "notify_rollback"
+    action: "notify"
+    command: "echo 'SOAR ALERT: Staging deploy failed. Rollback executed.'"
+    timeout_seconds: 5
+
+validation:
+  - check: "Staging health endpoint responds"
+    command: "curl -sf --max-time 10 https://staging.zylos.dev/health"
+    expected: '{"status":"ok"}'
+  - check: "Deployed version matches expected"
+    command: "curl -sf https://staging.zylos.dev/health | jq -r .version"
+    expected: "$(git rev-parse --short HEAD)"
+  - check: "No error spike in monitoring"
+    command: "echo 'Check Grafana dashboard manually'"
+    expected: "manual_verification"
+
+rollback:
+  - id: "kubectl_undo"
+    action: "execute"
+    command: "kubectl rollout undo deployment/zylos-staging"
+    timeout_seconds: 60
+  - id: "verify_rollback"
+    action: "validate"
+    command: "curl -sf --max-time 10 https://staging.zylos.dev/health"
+    expected: '{"status":"ok"}'
+    timeout_seconds: 30
+
+escalation:
+  max_retries: 1
+  escalation_path:
+    - level: "dev_senior"
+      contact: "#zylos-devs Slack"
+      timeout_minutes: 10
+    - level: "sre_on_call"
+      contact: "PagerDuty on-call"
+      timeout_minutes: 20
+
+audit:
+  log_level: "info"
+  capture_output: true
+  immutable_log: true

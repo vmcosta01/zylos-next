@@ -1,0 +1,77 @@
+# Security Incident Response Playbook
+# Matches Playbook struct in crates/zylos-soar/src/playbook.rs
+# States: detect → triage → isolate → investigate → remediate → post-mortem
+
+name: security-incident-response
+version: "1.0"
+
+triggers:
+  - expression: 'event.category == "Breach" && event.severity == "Critical"'
+  - expression: 'event.category == "Anomaly" && event.severity == "High"'
+
+roles:
+  incident_commander: "on-call-security-lead"
+  executor: "zylos-agent-soar"
+  approver: "security-manager"
+
+states:
+  - name: detect
+    auto: true
+    runbook: "collect-initial-evidence"
+    timeout_minutes: 5
+    escalation: "on-call-security-lead"
+    next:
+      - to: triage
+
+  - name: triage
+    auto: true
+    # No runbook — uses TriageEngine.classify() for deterministic classification
+    timeout_minutes: 10
+    escalation: "on-call-security-lead"
+    next:
+      - condition: "triage.action == \"IsolateAndNotify\""
+        to: isolate
+      - condition: "triage.action == \"EnrichAndAssign\""
+        to: investigate
+      - condition: "triage.action == \"Suppress\""
+        to: closed
+
+  - name: isolate
+    auto: false
+    approval_required: true
+    runbook: "isolate-compromised-host"
+    timeout_minutes: 15
+    escalation: "incident-commander"
+    next:
+      - to: investigate
+
+  - name: investigate
+    auto: true
+    runbook: "forensic-analysis"
+    timeout_minutes: 60
+    escalation: "on-call-security-lead"
+    next:
+      - to: remediate
+
+  - name: remediate
+    auto: false
+    approval_required: true
+    runbook: "remove-malware-and-restore"
+    timeout_minutes: 30
+    escalation: "incident-commander"
+    next:
+      - to: post_mortem
+
+  - name: post_mortem
+    auto: true
+    actions:
+      - generate_postmortem
+      - update_metrics
+      - notify_stakeholders
+    terminal: true
+
+  - name: closed
+    auto: true
+    actions:
+      - log_false_positive
+    terminal: true

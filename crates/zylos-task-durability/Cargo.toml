@@ -1,0 +1,24 @@
+[package]
+name = "zylos-task-durability"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+description = "Task durability via SQL leases with heartbeat, LostLeaseError, maintenance loop, and circuit breaker for Zylos-Next (OpenMuse/OpenDuet-inspired)"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+chrono = { version = "0.4", features = ["serde"] }
+tokio = { workspace = true, features = ["fs", "sync", "time", "rt-multi-thread"] }
+rusqlite = { workspace = true }
+uuid = { workspace = true }
+tracing = { workspace = true }
+zylos-core = { path = "../zylos-core" }
+blake3 = "1.8.7"
+
+[dev-dependencies]
+tempfile = { workspace = true }

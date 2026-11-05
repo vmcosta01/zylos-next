@@ -1,0 +1,54 @@
+[package]
+name = "zylos-integrations"
+version = "0.1.0"
+edition = "2021"
+description = "SaaS OAuth integration catalog for zylos-gateway"
+license = "MIT"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
+
+# OAuth2
+oauth2 = "4"
+
+# Encryption
+aes-gcm = "0.10"
+rand = "0.8"
+zeroize = "1"
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+
+# Database
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
+
+# Error handling
+thiserror = "1"
+anyhow = "1"
+
+# Logging
+tracing = "0.1"
+
+# UUID
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Utilities
+dirs = "5"
+hex = "0.4"
+sha2 = "0.10"
+base64 = "0.22"
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3"
+mockall = "0.13"

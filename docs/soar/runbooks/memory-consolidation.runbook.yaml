@@ -1,0 +1,79 @@
+---
+metadata:
+  name: memory-consolidation
+  version: "1.0"
+  trigger: "memory_decay_threshold OR consolidation_schedule"
+  audience: ["dev_pleno", "dev_senior", "sre"]
+  estimated_duration_minutes: 20
+  tags: ["memory", "consolidation", "maintenance"]
+  related_playbooks:
+    - "../playbooks/adversarial-audit.md"
+
+preconditions:
+  - check: "Memory system running"
+    command: "pgrep -f zylos-memory || echo ok"
+    expected: "exit_code:0"
+    on_failure: "abort"
+  - check: "SQLite database accessible"
+    command: "sqlite3 ~/.local/share/zylos/memory.db 'SELECT count(*) FROM memories;'"
+    expected: "exit_code:0"
+    on_failure: "warn"
+
+steps:
+  - id: "check_decay"
+    action: "execute"
+    command: "cargo run -p zylos-memory-system --bin consolidate -- --check-decay"
+    timeout_seconds: 60
+    on_success: "run_consolidation"
+    on_failure: "notify_issue"
+  - id: "run_consolidation"
+    action: "execute"
+    command: "cargo run -p zylos-memory-system --bin consolidate -- --mode full"
+    timeout_seconds: 300
+    human_approval_required: false
+    on_success: "validate_integrity"
+    on_failure: "rollback_consolidation"
+  - id: "validate_integrity"
+    action: "validate"
+    command: "cargo test -p zylos-memory-system -- --test-threads=1"
+    expected: "exit_code:0"
+    timeout_seconds: 120
+  - id: "notify_issue"
+    action: "notify"
+    command: "echo 'Memory consolidation issue detected' >> /tmp/zylos-alerts.log"
+    on_success: "escalate"
+  - id: "rollback_consolidation"
+    action: "execute"
+    command: "cp ~/.local/share/zylos/memory.db.bak ~/.local/share/zylos/memory.db"
+    timeout_seconds: 30
+
+validation:
+  - check: "Memory count stable"
+    command: "sqlite3 ~/.local/share/zylos/memory.db 'SELECT count(*) FROM memories;'"
+    expected: "exit_code:0"
+  - check: "No orphaned vectors"
+    command: "cargo run -p zylos-memory-system --bin validate -- --check-orphans"
+    expected: "exit_code:0"
+
+rollback:
+  - id: "restore_backup"
+    action: "execute"
+    command: "cp ~/.local/share/zylos/memory.db.bak ~/.local/share/zylos/memory.db"
+  - id: "restart_memory"
+    action: "execute"
+    command: "systemctl restart zylos-memory 2>/dev/null || true"
+
+escalation:
+  max_retries: 2
+  escalation_path:
+    - level: "dev_senior"
+      contact: "#zylos-devs Slack"
+      timeout_minutes: 10
+    - level: "tech_lead"
+      contact: "#zylos-emergency Slack"
+      timeout_minutes: 30
+
+audit:
+  log_level: "info"
+  capture_output: true
+  immutable_log: true

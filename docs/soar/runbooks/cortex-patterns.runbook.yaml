@@ -1,0 +1,93 @@
+---
+metadata:
+  name: cortex-patterns
+  version: "1.0"
+  trigger: "cortex_verification_requested OR cerebelo_checkpoint_stale"
+  audience: ["dev_senior", "sre"]
+  estimated_duration_minutes: 25
+  tags: ["cortex", "proof", "resolver", "panel", "cerebelo", "learn"]
+  related_playbooks:
+    - "../playbooks/adversarial-audit.md"
+
+preconditions:
+  - check: "All CORTEX crates compiled"
+    command: "cargo build -p zylos-proof -p zylos-resolver -p zylos-panel -p zylos-cerebelo -p zylos-learn 2>&1 | tail -1"
+    expected: "exit_code:0"
+    on_failure: "abort"
+  - check: "Shadow repo initialized"
+    command: "test -d ~/.local/share/zylos/shadow-git && echo ok || cargo run -p zylos-cerebelo --bin init-shadow"
+    expected: "ok"
+    on_failure: "warn"
+
+steps:
+  - id: "verify_audit_chain"
+    action: "validate"
+    command: "cargo run -p zylos-cerebelo --bin verify-chain"
+    expected: "exit_code:0"
+    timeout_seconds: 30
+    on_success: "check_test_ratchet"
+    on_failure: "halt_and_alert"
+  - id: "check_test_ratchet"
+    action: "validate"
+    command: "cargo run -p zylos-cerebelo --bin ratchet-check"
+    expected: "exit_code:0"
+    timeout_seconds: 60
+    on_success: "run_resolver"
+    on_failure: "block_delivery"
+  - id: "run_resolver"
+    action: "execute"
+    command: "cargo run -p zylos-resolver --bin resolve -- --max-depth 3 --max-nodes 50"
+    timeout_seconds: 300
+    on_success: "run_panel_judgment"
+    on_failure: "checkpoint_partial"
+  - id: "run_panel_judgment"
+    action: "execute"
+    command: "cargo run -p zylos-panel --bin judge -- --lenses all"
+    timeout_seconds: 120
+    on_success: "record_learning"
+    on_failure: "escalate_refutation"
+  - id: "record_learning"
+    action: "execute"
+    command: "cargo run -p zylos-learn --bin record-outcome -- --from-panel"
+    timeout_seconds: 30
+  - id: "halt_and_alert"
+    action: "notify"
+    command: "echo 'CORTEX audit chain broken — HALT' >> /tmp/zylos-cortex-alerts.log"
+  - id: "block_delivery"
+    action: "notify"
+    command: "echo 'Test ratchet violated — delivery blocked' >> /tmp/zylos-cortex-alerts.log"
+  - id: "checkpoint_partial"
+    action: "execute"
+    command: "cargo run -p zylos-resolver --bin checkpoint-save -- --partial"
+    timeout_seconds: 30
+
+validation:
+  - check: "Audit chain intact"
+    command: "cargo run -p zylos-cerebelo --bin verify-chain"
+    expected: "exit_code:0"
+  - check: "Resolver frontier empty or checkpointed"
+    command: "cargo run -p zylos-resolver --bin status"
+    expected: "exit_code:0"
+  - check: "Panel decision recorded"
+    command: "test -f ~/.local/share/zylos/panel/latest.json && echo ok"
+    expected: "ok"
+
+rollback:
+  - id: "rewind_shadow"
+    action: "execute"
+    command: "cargo run -p zylos-cerebelo --bin rewind -- --to last-known-good"
+  - id: "clear_resolver_state"
+    action: "execute"
+    command: "rm -f ~/.local/share/zylos/checkpoints/resolver-*.json"
+
+escalation:
+  max_retries: 1
+  escalation_path:
+    - level: "tech_lead"
+      contact: "#zylos-cortex Slack"
+      timeout_minutes: 10
+
+audit:
+  log_level: "debug"
+  capture_output: true
+  immutable_log: true

@@ -1,0 +1,44 @@
+slug: wechat_work
+display_name: WeCom (WeChat Work)
+auth_url: https://login.work.weixin.qq.com/wwlogin/sso/login
+token_url: https://qyapi.weixin.qq.com/cgi-bin/gettoken
+client_id: "${WECHAT_CORP_ID}"
+client_secret: "${WECHAT_CORP_SECRET}"
+redirect_uri: http://localhost:9090/callback/wechat
+scopes: []
+requires_approval: true
+rate_limit_rpm: 120
+actions:
+  - id: send_message
+    description: Send application message to user or department
+    method: POST
+    url_template: https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token={token}
+    requires_approval: true
+    body_schema:
+      type: object
+      required: [touser, msgtype, agentid]
+      properties:
+        touser: { type: string }
+        toparty: { type: string }
+        totag: { type: string }
+        msgtype: { type: string, enum: [text, image, voice, video, file, markdown] }
+        agentid: { type: integer }
+        text: { type: object }
+
+  - id: list_users
+    description: List department members
+    method: GET
+    url_template: https://qyapi.weixin.qq.com/cgi-bin/user/list?access_token={token}&department_id={dept_id}
+    requires_approval: false
+
+  - id: list_departments
+    description: List sub-departments
+    method: GET
+    url_template: https://qyapi.weixin.qq.com/cgi-bin/department/list?access_token={token}&id={id}
+    requires_approval: false
+
+  - id: get_user_info
+    description: Get detailed user information by userid
+    method: GET
+    url_template: https://qyapi.weixin.qq.com/cgi-bin/user/get?access_token={token}&userid={userid}
+    requires_approval: false

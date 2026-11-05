@@ -1,0 +1,35 @@
+[package]
+name = "zylos-verification"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "VERIFICATION_PROOF: Ground enum, Proof engine, Guardrail short-circuit, Adversarial panel, ToT reasoning"
+
+[dependencies]
+zylos-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+jsonschema = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+regex = "1"
+handlebars = "5"
+sha2 = { workspace = true }
+hex = { workspace = true }
+zylos-vlm-ocr = { path = "../zylos-vlm-ocr", optional = true }
+
+[features]
+default = []
+ocr = ["dep:zylos-vlm-ocr"]
+
+[dev-dependencies]
+criterion = { workspace = true }
+proptest = { workspace = true }
+tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
+
+[[bench]]
+name = "verification"
+harness = false

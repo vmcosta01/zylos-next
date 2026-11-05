@@ -1,0 +1,472 @@
+# Engenharia Reversa: LangChain Docs (langchain-ai/docs)
+
+**Data:** 2026-11-04
+**Fonte:** https://github.com/langchain-ai/docs (README.md, package.json, pyproject.toml, Makefile, src/docs.json)
+**Análise por:** Hermes Subagent
+**Profundidade:** Análise baseada em arquivos de configuração públicos; código-fonte do pipeline (`pipeline/`) não inspecionado diretamente.
+
+---
+
+## 1. Arquitetura e Stack Principal
+
+### Stack Tecnológica Completa
+
+| Camada | Tecnologia | Versão/Nota |
+|--------|-----------|-------------|
+| Gerador de Site | Mintlify (tema "aspen") | Proprietário, deploy via `/build` |
+| Conteúdo | MDX (Markdown + JSX) | Formato primário |
+| Pipeline de Build | Python 3.13+ | `pipeline.cli:main` via `uv run docs` |
+| Package Manager (Python) | uv | >=0.9.26 |
+| Package Manager (Node) | npm | Para Mintlify CLI |
+| Sandbox Interativo | `@langchain/docs-sandbox` | ^0.0.24 (npm privado) |
+| Linting de Código | Ruff + ty (type checker) | Ruff com regras ALL, ty para tipos |
+| Linting de Prosa | Vale | Versão pinnada em `.mise.toml` |
+| Spell Check | Codespell | Dicionário custom `src/.codespellignore` |
+| Markdown Lint | markdownlint-cli | Opcional, instalado via npm |
+| Link Checking | Mintlify CLI + htmltest | Com filtro custom (`scripts/filter_mint_broken_links.py`) |
+| Testes | pytest + pytest-asyncio | Com socket blocking (`--disable-socket`) |
+| Analytics | Google Tag Manager | GTM-MBBX68ST |
+| Fonts | TWK Lausanne (headings) + Inter (body) | Custom woff2 |
+| Code Highlighting | Catppuccin (latte/mocha) | Light/dark themes |
+| Icons | Tabler | Biblioteca de ícones |
+
+### Dependências Python Notáveis (do pyproject.toml)
+O pipeline de docs é **ele próprio um projeto LangChain pesado**:
+- `langchain[mcp]>=1.4.6` — Core LangChain com MCP
+- `langgraph>=1.2.5` — Orquestração de agentes
+- `langsmith>=0.14.12` — Observabilidade
+- `deepagents[quickjs]>=0.7.22` + `managed-deepagents>=0.9.5` — Agentes autônomos
+- `langchain-anthropic`, `langchain-openai`, `langchain-google-genai` — Múltiplos providers
+- `fastmcp>=4.0.0` — MCP server framework
+- `tavily-python` — Search API para agentes
+- `daytona>=0.100.0` + `langchain-daytona` — Sandboxes de código
+- `openevals>=0.2.2` — Avaliação de agentes
+- `slack-sdk` — Integração Slack
+- `cryptography>=46.0.0` — Criptografia
+- `nbconvert`, `nbformat`, `ipython` — Processamento de notebooks
+- `beautifulsoup4`, `markdownify` — Conversão HTML/markdown
+- `psycopg[binary,pool]` + `langgraph-checkpoint-postgres` — Persistência PostgreSQL
+
+**Insight crítico:** O repo de documentação não é apenas conteúdo estático — é um **projeto Python ativo** que usa todo o ecossistema LangChain para validar code samples, gerar traces, e testar integrações.
+
+### Separação de Sites
+1. **docs.langchain.com** — Documentação conceitual/tutoriais (este repo, Mintlify)
+2. **reference.langchain.com** — API reference gerada (repo separado)
+3. **chat.langchain.com** — Assistente IA sobre a documentação
+
+---
+
+## 2. Componentes Principais e Responsabilidades
+
+### Estrutura de Diretórios Detalhada
+```
+build/                          # Artefatos de build (NUNCA editar)
+pipeline/                       # Código Python do build pipeline
+  cli.py                        # Entry point: `docs` CLI
+  preprocessors/
+    link_map.py                 # Mapa de cross-references @[ref]
+  tools/notebook/
+    convert.py                  # Conversão Jupyter → MDX
+scripts/
+  extract_code_snippets.py      # Extração Bluehawk-compatible
+  generate_code_snippet_mdx.py  # Geração de MDX a partir de snippets
+  test_code_samples.py          # Execução/teste de code samples
+  check_cross_refs.py           # Validação de @[ref] cross-references
+  filter_mint_broken_links.py   # Filtro de falso-positivos em link check
+  check-legacy-doc-links.sh     # Verificação de links legados
+  install-vale.sh               # Instalador pinado do Vale
+src/
+  docs.json                     # Config Mintlify (180KB+, navegação completa)
+  langsmith/                    # Docs LangSmith
+  oss/                          # LangChain, LangGraph, Deep Agents
+    python/                     # Docs Python
+    javascript/                 # Docs JavaScript/TypeScript
+  snippets/                     # MDX reutilizável (link preprocessing especial)
+  code-samples/                 # Código executável validado em CI
+  .codespellignore              # Dicionário custom de termos aceitos
+tests/                          # Testes do pipeline (pytest)
+packages.yml                    # Metadados de pacotes (índices, downloads)
+Makefile                        # 30+ targets de build/lint/test
+pyproject.toml                  # Dependências Python completas
+.mise.toml                      # Version pinning (Vale, uv, etc.)
+htmltest-mint-export.yml        # Config htmltest (external URLs only)
+.agents/skills/                 # Skills para Claude Code (symlinked)
+```
+
+### CLI Customizado (`docs`) — Entry Point: `pipeline.cli:main`
+Comandos disponíveis:
+- `docs dev` — Dev server com watch + hot reload (porta 3000)
+- `docs build` — Build estático com opção `--watch`
+- `docs migrate <path>` — MkDocs → Mintlify
+- `docs migrate-docusaurus <path>` — Docusaurus → Mintlify
+- `docs mv <old> <new>` — Move + atualização automática de refs cruzadas
+
+### Sistema de Code Samples (Diferencial Importante)
+O LangChain Docs trata exemplos de código como **artefatos testados**, não snippets estáticos:
+
+1. **Extração:** `scripts/extract_code_snippets.py` extrai trechos de `src/code-samples/` usando tags Bluehawk-compatible (line-based)
+2. **Geração:** `scripts/generate_code_snippet_mdx.py` converte snippets em MDX importável
+3. **Teste:** `scripts/test_code_samples.py` executa todos os samples em CI
+   - Suporte a execução concorrente (`CODE_SAMPLE_JOBS=N`, default 4)
+   - Serialização forçada para samples que compartilham fixtures LangSmith
+   - Socket blocking por padrão (`--disable-socket`) para evitar chamadas externas acidentais
+4. **Tracing:** `make update-code-sample-traces` roda samples com LangSmith tracing ativo
+   - Gera share links públicos armazenados em `src/code-samples/trace-links.json`
+   - Regenera MDX para mostrar "View example trace" nos docs
+   - Metadata tag `LANGSMITH_DOCS_SNIPPET=` para correlacionar traces
+5. **Validação:** Samples podem usar `assert` e `print`; são tratados como código real, não ilustração
+
+### Sistema de Cross-References (`@[ref]`)
+- Sintaxe customizada `@[ref]` em arquivos fonte
+- Validada por `scripts/check_cross_refs.py` contra `pipeline/preprocessors/link_map.py`
+- Target `make check-cross-refs` em CI
+- Permite refatoração segura: `docs mv` atualiza tanto paths quanto refs
+
+### Pipeline de Qualidade Multi-Camada
+```
+make lint          → ruff format + ruff check + ty check + codespell
+make lint_md       → markdownlint em src/**/*.md(x)
+make lint_prose    → Vale com regras customizadas
+make format-check  → Verificação sem modificação (CI)
+make check-mdx     → Valida componentes JSX desconhecidos + sintaxe estrangeira (:::note)
+make check-openapi → Validação de specs OpenAPI (ex: langsmith/agent-server-openapi.json)
+make broken-links-with-anchors → Link check completo com âncoras + redirects
+make test          → pytest com socket blocking
+make test-code-samples → Execução real de todos os code samples
+```
+
+---
+
+## 3. Padrões de Documentação e Estrutura de Conteúdo
+
+### Formatos de Arquivo
+| Formato | Uso | Status |
+|---------|-----|--------|
+| `.mdx` | Conteúdo padrão | ✅ Preferido |
+| `.md` | Markdown simples | ✅ Aceito |
+| `.ipynb` | Notebooks Jupyter | ⚠️ Convertidos no build, NÃO recomendados para novo conteúdo |
+| `.py` (code-samples) | Código executável testado | ✅ Obrigatório para exemplos |
+| Assets | Imagens/fontes | Copiados para build |
+
+### Navegação Multi-Produto (de docs.json — 180KB)
+A navegação é organizada por **produto × linguagem × tópico**:
+
+**Produtos documentados:**
+1. **Managed Deep Agents** (LangSmith) — BETA
+2. **Deep Agents** (open-source)
+3. **LangChain** (core Python + JavaScript)
+4. **LangGraph** (Python + JavaScript)
+5. **LangSmith** (plataforma)
+6. **Integrations** (terceiros)
+
+**Estrutura de navegação por produto:**
+- Overview / Get Started
+- Core Components / Capabilities
+- Advanced Usage / Patterns
+- Frontend / Integrations
+- Testing / Evaluation
+- Production / Deployment
+- Changelog
+
+**Tabs de linguagem:** Python e JavaScript com páginas paralelas (ex: `oss/python/langgraph/quickstart` vs `oss/javascript/langgraph/quickstart`)
+
+### Configuração Visual (docs.json)
+- **Tema:** Aspen (Mintlify)
+- **Cores:** Primary `#161F34`, Light `#7FC8FF`, Dark `#006DDD`
+- **Background:** Light `#FFFFFF`, Dark `#030710`
+- **Aparência:** System default, não forçado
+- **Code blocks:** Catppuccin Latte (light) / Mocha (dark)
+- **Eyebrows:** Breadcrumbs
+- **Font:** TWK Lausanne 700 (headings), Inter 400 (body)
+
+### Contextual Options (Menu de contexto por página)
+- Copy, View source
+- llms.txt (padrão emergente para LLM consumption)
+- ChatGPT, Claude, MCP, Cursor, VS Code — integração direta com ferramentas de IA
+
+### Redirects Massivos
+O `docs.json` contém **centenas de redirects** mapeando paths antigos para novos, especialmente:
+- Renumbering de seções em quickstarts (ex: `#2-define-state` → `#3-define-state`)
+- Migração de paths MkDocs/Docusaurus para Mintlify
+- `--check-redirects` no link checker valida que todos os destinations resolvem
+
+### Banner Promocional
+Banner dismissível no topo para eventos (ex: "Interrupt is coming to San Francisco March 24–25")
+
+---
+
+## 4. Integrações com LangChain / LangGraph / LangSmith
+
+### Integração Profunda com LangSmith
+- **Tracing de code samples:** Cada exemplo pode gerar um trace público no LangSmith
+- **Share links:** Armazenados em `trace-links.json`, renderizados como "View example trace"
+- **Managed Deep Agents:** Documentação extensa de deployment no LangSmith
+- **Observability:** Seção dedicada em cada produto
+- **Evals:** `openevals` integrado ao pipeline de teste
+
+### Integração com LangGraph
+- Documentação completa da Graph API (state, control flow, send commands)
+- Checkpointers (PostgreSQL, SQLite) documentados com código testado
+- Persistence, fault tolerance, time travel, interrupts
+- Subgraphs e multi-agent patterns
+
+### Integração com Deep Agents / Managed Deep Agents
+- **Deep Agents (OSS):** Tools, backends, permissions, sandboxes, browser-use, interpreters, event streaming, skills, memory, retrieval, context engineering, subagents, human-in-the-loop, middleware, frontend patterns, protocols (ACP, MCP, A2A, AG-UI)
+- **Managed Deep Agents (LangSmith):** Agent definition, instructions, skills, tools, search, connections, MCP connectors, middleware, memory, sandboxes, browser-use, subagents, identity, channels (Slack, HTTP), schedules, evals, runtime, local development, deploy, MCP endpoint, custom frontend, context hub, CLI
+
+### Protocolos Documentados
+- **MCP (Model Context Protocol):** Tools, connections, auth
+- **ACP (Agent Communication Protocol)**
+- **A2A (Agent-to-Agent)**
+- **AG-UI (Agent-User Interface)**
+
+### Integrações de Frontend
+- CopilotKit, AI Elements, Assistant UI, OpenUI
+- Generative UI patterns (controlled, declarative, open-ended)
+
+### Sandbox Providers
+- Daytona (`langchain-daytona`) — Sandboxes de código remoto
+- QuickJS (`langchain-quickjs`) — Runtime JS leve
+- Browser Use — Automação de navegador
+
+---
+
+## 5. Capacidades de Search e Indexação
+
+### Busca Nativa Mintlify
+- Search integrado da plataforma Mintlify
+- Não há configuração visível de Algolia/Meilisearch/Typesense no docs.json
+- Delegado inteiramente à infraestrutura Mintlify
+
+### llms.txt
+- **Endpoint dedicado:** `https://docs.langchain.com/llms.txt`
+- Acessível via menu contextual de cada página
+- Padrão emergente para consumo de documentação por LLMs
+- Permite que agentes externos indexem e consultem a docs programaticamente
+
+### Assistente IA (chat.langchain.com)
+- Botão "Ask AI" na navbar
+- Responde perguntas sobre documentação usando contexto dos docs
+- Produto separado, integração não detalhada neste repo
+
+### Contextual AI Integrations
+Cada página oferece export direto para:
+- ChatGPT, Claude — prompts pré-formatados
+- MCP — Model Context Protocol server
+- Cursor, VS Code — contexto de IDE
+
+### Indexação Externa
+- Google Site Verification configurada
+- Canonical URL definida
+- GTM para analytics de busca/comportamento
+
+### Limitações
+- Search opaco (dependente de Mintlify)
+- Sem API de search pública documentada
+- Export offline enterprise-only
+
+---
+
+## 6. Pontos Fortes e Fracos
+
+### ✅ Pontos Fortes
+
+1. **Code samples como artefatos testados** — Exemplos são executados em CI com tracing LangSmith; nunca ficam stale. Sistema Bluehawk-compatible de extração line-based permite manter código em arquivos `.py` reais enquanto gera MDX.
+
+2. **Cross-references validadas (`@[ref]`)** — Sistema customizado que permite refatoração segura de estrutura; `docs mv` atualiza paths e refs automaticamente; CI falha se alguma ref quebrar.
+
+3. **Pipeline de qualidade multi-camada** — Ruff + ty + Vale + Codespell + markdownlint + MDX validation + OpenAPI check + link checking com anchors + redirects. Cada camada pega um tipo diferente de erro.
+
+4. **Multi-produto unificado com tabs de linguagem** — Um repo, um site, 6+ produtos, Python/JS paralelos. Navegação estruturada por produto × capability × lifecycle stage.
+
+5. **llms.txt + contextual AI exports** — Preparado para consumo por LLMs desde o design; cada página exportável para ChatGPT/Claude/MCP/Cursor/VSCode.
+
+6. **Redirects massivos com validação** — Centenas de redirects mapeiam evolução da estrutura; `--check-redirects` garante que nenhum destination está quebrado.
+
+7. **Separação fonte/build rigorosa** — `src/` é única fonte de verdade; `build/` é derivado descartável. Nunca editar build diretamente.
+
+8. **Skills para Claude Code** — `.agents/skills/` symlinked para `.claude/skills/`; contribuidores com Claude Code têm assistência contextual.
+
+9. **Documentação de troubleshooting exaustiva** — Problemas conhecidos (venv parsing, Node version, KaTeX VERSION placeholder) com workarounds documentados no README e Makefile.
+
+10. **Testes com socket blocking** — `--disable-socket --allow-unix-socket` previne chamadas externas acidentais em testes; segurança por padrão.
+
+### ❌ Pontos Fracos / Riscos
+
+1. **Dependência forte de Mintlify** — Plataforma proprietária; tema, navegação, search, deploy tudo vinculado. Migração futura seria extremamente custosa apesar das ferramentas de migração *de entrada*.
+
+2. **docs.json monolítico (180KB+)** — Um único arquivo JSON define toda a navegação de 6+ produtos. Edição propensa a conflitos de merge; difícil de revisar em PR.
+
+3. **Jupyter notebooks desencorajados** — Formato natural para ecossistema Python/LangChain, mas PRs com `.ipynb` são rejeitados. Conversão existe mas é legacy.
+
+4. **Search opaco e não customizável** — Delegado à Mintlify sem API pública, relevância tunable, ou analytics de busca visíveis.
+
+5. **Export offline enterprise-only** — `mint export` requer plano pago; limitação para uso air-gapped, mirror interno, ou compliance.
+
+6. **Node.js version sensitivity** — Mintlify não suporta Node 25+; requer nvm management. Makefile tem check explícito e falha com mensagem clara, mas ainda é friction.
+
+7. **Virtual env conflicts** — Mintlify tenta parsear `.venv/` se rodado do root; workaround obrigatório via Make commands ou `cd build`.
+
+8. **KaTeX VERSION placeholder hack** — Makefile contém sed patch para substituir `__VERSION__` em `katex.mjs` do Mintlify; fragilidade de dependência interna de terceiro.
+
+9. **Snippet link preprocessing não óbvio** — Links em `src/snippets/` passam por transformação especial; armadilha documentada mas fácil de errar.
+
+10. **Dependências Python pesadas para um repo de docs** — 30+ pacotes incluindo langchain, langgraph, deepagents, daytona, etc. Setup de ambiente complexo para contribuidores externos.
+
+---
+
+## 7. Lições Aplicáveis ao Zylos-Next
+
+### Para Documentação dos 6 Sistemas Core
+
+#### 1. Code Samples como Artefatos de Primeira Classe
+**Lição mais valiosa.** Não tratar exemplos como texto estático:
+- Manter código em arquivos `.py`/`.ts` reais sob `src/code-samples/<system>/`
+- Extrair snippets via tags line-based (Bluehawk ou similar)
+- Executar todos os samples em CI com timeout e socket blocking
+- Gerar traces/share links quando aplicável
+- Falhar o build se qualquer sample quebrar
+
+#### 2. Sistema de Cross-References Validadas
+Implementar equivalente ao `@[ref]`:
+- Sintaxe customizada para refs internas entre os 6 sistemas
+- Script de validação em CI (`check-cross-refs`)
+- CLI `mv` que atualiza refs automaticamente durante refatoração
+- Prevenir link rot silencioso
+
+#### 3. Pipeline de Qualidade Multi-Camada Adaptado
+Para português e contexto Zylos:
+```
+lint-code      → Ruff/ruff-format (Python) ou ESLint (TS)
+lint-prose-pt  → Vale com regras PT-BR + glossário Zylos
+spell-check    → Codespell com dicionário técnico PT-BR
+link-check     → lychee ou htmltest com filtro de falso-positivos
+mdx-validate   → Verificar componentes/sintaxe inválida
+sample-test    → Executar code samples com assertions
+```
+
+#### 4. Estrutura Multi-Sistema com Tabs de Linguagem
+```
+src/
+  system-alpha/
+    python/
+    typescript/
+  system-beta/
+    python/
+    typescript/
+  shared/
+    snippets/
+    code-samples/
+  docs.json
+```
+Cada sistema core com namespace próprio; shared para conteúdo cross-system.
+
+#### 5. llms.txt desde o Dia Zero
+- Gerar `llms.txt` automaticamente no build
+- Expor endpoint público para consumo por agentes
+- Incluir no menu contextual de cada página
+- Facilita integração futura com assistentes IA do Zylos
+
+#### 6. Evitar docs.json Monolítico
+Diferente do LangChain (180KB single file):
+- Dividir navegação por sistema: `nav/system-alpha.json`, `nav/system-beta.json`
+- Merge automático no build
+- Reduzir conflitos de merge e facilitar review
+
+#### 7. Separar Referência de API de Docs Narrativos
+- API reference gerada automaticamente (Sphinx/TypeDoc/OpenAPI)
+- Docs narrativos em repo/formato separado
+- Vincular via metadados, não via build acoplado
+
+#### 8. Escolher Gerador Open-Source para Evitar Lock-in
+Considerar alternativas ao Mintlify:
+- **Astro Starlight** — Open-source, MDX-native, multi-language tabs
+- **VitePress** — Vue-based, rápido, bom para docs técnicas
+- **Nextra** — Next.js-based, MDX, usado por Vercel/SWC
+- Abstrair camada de build para permitir troca futura
+
+#### 9. Sandbox de Código para Exemplos Interativos
+Inspirado no `@langchain/docs-sandbox` + Daytona:
+- Playground embedded para cada sistema core
+- Execução server-side segura (sandbox/container)
+- Share links para exemplos reproduzíveis
+
+#### 10. Documentar Troubleshooting Proativamente
+Manter seção viva de problemas conhecidos:
+- Conflitos de ambiente (venv, node versions, OS-specific)
+- Workarounds para ferramentas de terceiros
+- Atualizar conforme issues são resolvidas
+- Reduzir atrito para novos contribuidores internos
+
+---
+
+## Apêndice A: Targets Make Completos
+
+| Target | Função |
+|--------|--------|
+| `make dev` | Dev server com watch + mint dev (porta 3000) |
+| `make build` | Build estático para `./build` |
+| `make install` | uv sync + npm install + mint CLI + skills linking |
+| `make test` | pytest com socket blocking |
+| `make test-code-samples` | Executar code samples (FILES=, CODE_SAMPLE_JOBS=) |
+| `make update-code-sample-traces` | Trace samples → LangSmith → regenerar MDX |
+| `make code-snippets` | Extrair snippets Bluehawk → gerar MDX |
+| `make lint` | ruff format + check + ty + codespell |
+| `make format` | ruff format + fix |
+| `make format-check` | Verificação sem modificação (CI) |
+| `make lint_md` | markdownlint em src/ |
+| `make lint_md_fix` | markdownlint --fix |
+| `make lint_prose` | Vale prose linting |
+| `make check-mdx` | Validar componentes/sintaxe MDX |
+| `make check-openapi` | Validar specs OpenAPI |
+| `make check-cross-refs` | Validar @[ref] cross-references |
+| `make broken-links` | Link check (sem âncoras) |
+| `make broken-links-with-anchors` | Link check completo + redirects |
+| `make check-legacy-links` | Verificar links legados |
+| `make export` | mint export (Enterprise only) |
+| `make htmltest` | Validar HTML exportado (external URLs) |
+| `make export-htmltest` | export + htmltest sequencial |
+| `make clean` | Remover build/ + __pycache__ |
+| `make skills` | Symlink .agents/skills → .claude/skills |
+| `make help` | Listar todos os targets |
+
+## Apêndice B: Dependências Python do Pipeline
+
+| Pacote | Versão | Função no Pipeline |
+|--------|--------|-------------------|
+| langchain[mcp] | >=1.4.6 | Core + MCP support |
+| langgraph | >=1.2.5 | Orquestração de agentes |
+| langsmith | >=0.14.12 | Tracing/observabilidade |
+| deepagents[quickjs] | >=0.7.22 | Agentes autônomos |
+| managed-deepagents | >=0.9.5 | Managed agents platform |
+| fastmcp | >=4.0.0 | MCP server framework |
+| langchain-anthropic | >=1.0.0 | Anthropic provider |
+| langchain-openai | >=1.3.5 | OpenAI provider |
+| langchain-google-genai | >=2.0.0 | Google GenAI provider |
+| langchain-text-splitters | >=0.3.0 | Text splitting |
+| langchain-daytona | >=0.0.5 | Daytona sandbox integration |
+| langchain-quickjs | >=0.3.2 | QuickJS runtime |
+| daytona | >=0.100.0 | Remote sandboxes |
+| tavily-python | >=0.5.0 | Search API |
+| openevals | >=0.2.2 | Evaluation framework |
+| deepagents-acp | >=0.0.9 | ACP protocol |
+| slack-sdk | >=3.43.0 | Slack integration |
+| cryptography | >=46.0.0 | Crypto operations |
+| nbconvert | >=7.17.1 | Notebook → markdown |
+| nbformat | >=5.0.0 | Notebook parsing |
+| ipython | >=8.0.0 | IPython kernel |
+| beautifulsoup4 | >=4.12.0 | HTML parsing |
+| markdownify | >=0.13.0 | HTML → markdown |
+| requests | >=2.31.0 | HTTP client |
+| httpx | >=0.27.0 | Async HTTP |
+| pyyaml | >=6.0.2 | YAML parsing |
+| watchdog | >=3.0.0 | File watching (dev mode) |
+| tqdm | >=4.66.0 | Progress bars |
+| numpy | >=1.26.0 | Numérico (samples) |
+| psycopg[binary,pool] | >=3.2.0 | PostgreSQL driver |
+| langgraph-checkpoint-postgres | - | LangGraph PG checkpoints |
+| langgraph-checkpoint-sqlite | >=3.1.1 | LangGraph SQLite checkpoints |
+
+---
+
+*Relatório gerado a partir de engenharia reversa de arquivos públicos (README.md, package.json, pyproject.toml, Makefile, src/docs.json). Código-fonte do pipeline Python (`pipeline/`) e scripts (`scripts/`) não foram inspecionados diretamente; análise baseada em entry points, dependências e targets Make.*

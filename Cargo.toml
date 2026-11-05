@@ -1,0 +1,115 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/zylos-adapters",
+    "crates/zylos-memory-sync",
+    "crates/zylos-agent-shield",
+    "crates/zylos-personalities",
+    "crates/zylos-swarm-orchestrator",
+    "crates/zylos-core",
+    "crates/zylos-bot-system",
+    "crates/zylos-memory-system",
+    "crates/zylos-live-comm",
+    "crates/zylos-verification",
+    "crates/zylos-sandbox",
+    "crates/zylos-skills",
+    "crates/zylos-mobile",
+    "apps/zylos-gateway",
+    "apps/zylos-cli",
+    "apps/zylos-daemon", "crates/zylos-docker", "crates/zylos-browser", "crates/zylos-search-mcp",
+    "crates/zylos-vlm-ocr",
+    "crates/zylos-soar",
+    "apps/zylos-cockpit", "crates/zylos-proof", "crates/zylos-resolver", "crates/zylos-panel", "crates/zylos-router", "crates/zylos-cerebelo", "crates/zylos-learn",
+    "crates/zylos-hitl", "crates/zylos-task-durability", "crates/zylos-triage", "crates/zylos-sentinel",
+    "crates/zylos-hermes-adapter",
+    "crates/zylos-integrations",
+    "crates/zylos-browser-persistent",
+    "crates/zylos-ag-ui",
+    "crates/zylos-desktop",
+    "crates/zylos-goals",
+    "crates/zylos-browser-takeover",
+    "tests/zylos-e2e",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/vmcosta/zylos-next"
+
+[workspace.dependencies]
+zylos-adapters = { path = "crates/zylos-adapters" }
+zylos-memory-sync = { path = "crates/zylos-memory-sync" }
+zylos-agent-shield = { path = "crates/zylos-agent-shield" }
+zylos-personalities = { path = "crates/zylos-personalities" }
+zylos-swarm-orchestrator = { path = "crates/zylos-swarm-orchestrator" }
+# Async runtime
+tokio = { version = "1.40", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+thiserror = "2.0"
+anyhow = "1.0"
+
+# Logging / Tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Web framework (para apps)
+axum = { version = "0.7", features = ["ws", "json"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+
+# Database
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# Graph
+petgraph = "0.6"
+
+# Schema validation
+jsonschema = "0.18"
+
+# Utilities
+uuid = { version = "1.10", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+sha2 = "0.10"
+hex = "0.4"
+strsim = "0.10"
+futures = "0.3"
+rand = "0.8"
+
+# Testing
+criterion = { version = "0.5", features = ["html_reports"] }
+proptest = "1.5"
+tempfile = "3.12"
+
+# Internal crates
+zylos-core = { path = "crates/zylos-core" }
+zylos-bot-system = { path = "crates/zylos-bot-system" }
+zylos-memory-system = { path = "crates/zylos-memory-system" }
+zylos-live-comm = { path = "crates/zylos-live-comm" }
+zylos-verification = { path = "crates/zylos-verification" }
+zylos-sandbox = { path = "crates/zylos-sandbox" }
+zylos-skills = { path = "crates/zylos-skills" }
+zylos-mobile = { path = "crates/zylos-mobile" }
+zylos-vlm-ocr = { path = "crates/zylos-vlm-ocr" }
+zylos-soar = { path = "crates/zylos-soar" }
+zylos-task-durability = { path = "crates/zylos-task-durability" }
+zylos-integrations = { path = "crates/zylos-integrations" }
+zylos-browser-persistent = { path = "crates/zylos-browser-persistent" }
+zylos-ag-ui = { path = "crates/zylos-ag-ui" }
+zylos-desktop = { path = "crates/zylos-desktop" }
+zylos-goals = { path = "crates/zylos-goals" }
+zylos-browser-takeover = { path = "crates/zylos-browser-takeover" }
+async-stream = "0.3"
+serde_urlencoded = "0.7"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

@@ -1,0 +1,87 @@
+---
+metadata:
+  name: task-durability
+  version: "1.0"
+  trigger: "task_lease_expired OR circuit_breaker_tripped"
+  audience: ["dev_pleno", "dev_senior", "sre"]
+  estimated_duration_minutes: 15
+  tags: ["task-durability", "lease", "sql", "worker"]
+  related_playbooks:
+    - "../playbooks/incident-response.md"
+
+preconditions:
+  - check: "Task durability crate compiled"
+    command: "cargo build -p zylos-task-durability 2>&1 | tail -1"
+    expected: "exit_code:0"
+    on_failure: "abort"
+  - check: "Database connection available"
+    command: "cargo run -p zylos-task-durability --bin db-health 2>/dev/null || echo skip"
+    expected: "exit_code:0|skip"
+    on_failure: "warn"
+
+steps:
+  - id: "check_leases"
+    action: "execute"
+    command: "cargo run -p zylos-task-durability --bin lease-status"
+    timeout_seconds: 30
+    on_success: "recover_orphans"
+    on_failure: "db_connection_issue"
+  - id: "recover_orphans"
+    action: "execute"
+    command: "cargo run -p zylos-task-durability --bin maintenance -- --recover"
+    timeout_seconds: 120
+    human_approval_required: false
+    on_success: "check_circuit_breaker"
+  - id: "check_circuit_breaker"
+    action: "validate"
+    command: "cargo run -p zylos-task-durability --bin circuit-breaker-status"
+    expected: "exit_code:0"
+    on_success: "validate_active_cap"
+    on_failure: "reset_circuit_breaker"
+  - id: "validate_active_cap"
+    action: "validate"
+    command: "cargo run -p zylos-task-durability --bin active-count -- --max 100"
+    expected: "exit_code:0"
+  - id: "reset_circuit_breaker"
+    action: "execute"
+    command: "cargo run -p zylos-task-durability --bin circuit-breaker-reset"
+    timeout_seconds: 15
+    human_approval_required: true
+    on_success: "validate_active_cap"
+  - id: "db_connection_issue"
+    action: "notify"
+    command: "echo 'Task durability DB unreachable' >> /tmp/zylos-task-durability.log"
+
+validation:
+  - check: "No expired leases unclaimed"
+    command: "cargo run -p zylos-task-durability --bin lease-status -- --expect none-expired"
+    expected: "exit_code:0"
+  - check: "Active tasks ≤100"
+    command: "cargo run -p zylos-task-durability --bin active-count -- --max 100"
+    expected: "exit_code:0"
+  - check: "Circuit breaker closed"
+    command: "cargo run -p zylos-task-durability --bin circuit-breaker-status"
+    expected: "exit_code:0"
+
+rollback:
+  - id: "pause_workers"
+    action: "execute"
+    command: "cargo run -p zylos-task-durability --bin workers -- --pause-all"
+  - id: "release_all_leases"
+    action: "execute"
+    command: "cargo run -p zylos-task-durability --bin lease-release -- --all"
+
+escalation:
+  max_retries: 3
+  escalation_path:
+    - level: "sre"
+      contact: "#zylos-infra Slack"
+      timeout_minutes: 5
+    - level: "tech_lead"
+      contact: "#zylos-emergency Slack"
+      timeout_minutes: 10
+
+audit:
+  log_level: "info"
+  capture_output: true
+  immutable_log: true

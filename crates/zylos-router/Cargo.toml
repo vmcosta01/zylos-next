@@ -1,0 +1,30 @@
+[package]
+name = "zylos-router"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+description = "Roteamento aterrado com coleira, alvos sagrados e proposta de mudança para Zylos-Next"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+sha2 = "0.10"
+sha1 = "0.10"
+chrono = { version = "0.4", features = ["serde"] }
+tokio = { workspace = true, features = ["sync"] }
+zylos-proof = { path = "../zylos-proof" }
+async-trait = "0.1"
+bytes = "1"
+reqwest = { version = "0.12", features = ["json"] }
+hmac = "0.12"
+aes = "0.8"
+cbc = "0.1"
+base64 = "0.22"
+hex = "0.4"
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]

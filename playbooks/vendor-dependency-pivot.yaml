@@ -1,0 +1,88 @@
+# Vendor Dependency Pivot Playbook
+# Supply chain vulnerability response
+# Matches Playbook struct in crates/zylos-soar/src/playbook.rs
+
+name: vendor-dependency-pivot
+version: "1.0"
+
+triggers:
+  - expression: 'event.category == "Vulnerability" && event.severity == "Medium"'
+  - expression: 'event.category == "Vulnerability" && event.severity == "High"'
+
+roles:
+  incident_commander: "platform-engineering-lead"
+  executor: "zylos-agent-soar"
+  approver: "security-manager"
+
+states:
+  - name: assess_vulnerability
+    auto: true
+    runbook: "scan-vendor-dependencies"
+    timeout_minutes: 15
+    escalation: "platform-engineering-lead"
+    next:
+      - condition: "assessment.cve_severity == \"critical\""
+        to: emergency_patch
+      - condition: "assessment.patch_available == true"
+        to: scheduled_patch
+      - condition: "assessment.patch_available == false"
+        to: mitigation
+
+  - name: emergency_patch
+    auto: false
+    approval_required: true
+    runbook: "apply-emergency-patch"
+    timeout_minutes: 30
+    escalation: "incident-commander"
+    next:
+      - to: validate
+
+  - name: scheduled_patch
+    auto: false
+    approval_required: true
+    runbook: "schedule-maintenance-window"
+    timeout_minutes: 1440
+    escalation: "platform-engineering-lead"
+    next:
+      - to: apply_patch
+
+  - name: apply_patch
+    auto: false
+    approval_required: true
+    runbook: "apply-vendor-patch"
+    timeout_minutes: 60
+    escalation: "platform-engineering-lead"
+    next:
+      - to: validate
+
+  - name: mitigation
+    auto: true
+    runbook: "apply-compensating-controls"
+    timeout_minutes: 30
+    escalation: "platform-engineering-lead"
+    next:
+      - to: monitor
+
+  - name: validate
+    auto: true
+    runbook: "validate-patch-integrity"
+    timeout_minutes: 20
+    escalation: "platform-engineering-lead"
+    next:
+      - to: notify
+
+  - name: monitor
+    auto: true
+    runbook: "enable-enhanced-monitoring"
+    timeout_minutes: 10
+    escalation: "platform-engineering-lead"
+    next:
+      - to: notify
+
+  - name: notify
+    auto: true
+    actions:
+      - notify_affected_teams
+      - update_dependency_registry
+      - create_compliance_record
+    terminal: true

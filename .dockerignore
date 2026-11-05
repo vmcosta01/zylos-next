@@ -1,0 +1,26 @@
+# Build artifacts
+target/
+**/target/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Docs (not needed in runtime image)
+docs/
+evals/
+scratch/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Hermes local state
+*.db
+*.sqlite

@@ -1,0 +1,42 @@
+[package]
+name = "zylos-live-comm"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+zylos-core = { workspace = true }
+zylos-skills = { path = "../zylos-skills" }
+tokio = { workspace = true }
+tokio-stream = { version = "0.1", features = ["sync"] }
+axum = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+futures = { workspace = true }
+schemars = { version = "0.8", features = ["chrono"] }
+jsonwebtoken = "9"
+tower_governor = "0.4"
+governor = "0.7"
+axum-tungstenite = "0.2"
+utoipa = { version = "5", features = ["axum_extras", "yaml", "chrono"] }
+utoipa-axum = "0.1"
+sha2 = "0.10"
+blake3 = "1"
+hex = "0.4"
+rusqlite = { version = "0.32", features = ["bundled"] }
+tokio-util = "0.7"
+
+[dev-dependencies]
+criterion = { workspace = true }
+tokio-test = "0.4"
+
+[[bench]]
+name = "event_bus"
+harness = false

@@ -1,0 +1,83 @@
+---
+metadata:
+  name: hitl-approval
+  version: "1.0"
+  trigger: "approval_request_pending OR approval_ttl_expiring"
+  audience: ["dev_pleno", "dev_senior", "sre"]
+  estimated_duration_minutes: 10
+  tags: ["hitl", "approval", "ag-ui", "human-in-the-loop"]
+  related_playbooks:
+    - "../playbooks/incident-response.md"
+
+preconditions:
+  - check: "HITL crate compiled"
+    command: "cargo build -p zylos-hitl 2>&1 | tail -1"
+    expected: "exit_code:0"
+    on_failure: "abort"
+  - check: "Approval storage accessible"
+    command: "sqlite3 ~/.local/share/zylos/approvals.db 'SELECT count(*) FROM approval_cards;' 2>/dev/null || echo skip"
+    expected: "exit_code:0|skip"
+    on_failure: "warn"
+
+steps:
+  - id: "list_pending"
+    action: "execute"
+    command: "cargo run -p zylos-hitl --bin approval-list -- --status pending"
+    timeout_seconds: 30
+    on_success: "check_ttl"
+  - id: "check_ttl"
+    action: "validate"
+    command: "cargo run -p zylos-hitl --bin approval-ttl-check -- --warn-within 300"
+    expected: "exit_code:0"
+    timeout_seconds: 15
+    on_success: "process_decisions"
+    on_failure: "expire_stale"
+  - id: "process_decisions"
+    action: "execute"
+    command: "cargo run -p zylos-hitl --bin process-approvals -- --batch"
+    timeout_seconds: 60
+    human_approval_required: false
+    on_success: "validate_outcomes"
+  - id: "expire_stale"
+    action: "execute"
+    command: "cargo run -p zylos-hitl --bin expire-approvals -- --older-than 3600"
+    timeout_seconds: 30
+    on_success: "notify_expired"
+  - id: "notify_expired"
+    action: "notify"
+    command: "echo 'Stale approvals expired and notified' >> /tmp/zylos-hitl.log"
+  - id: "validate_outcomes"
+    action: "validate"
+    command: "cargo run -p zylos-hitl --bin outcome-audit -- --last-hour"
+    expected: "exit_code:0"
+
+validation:
+  - check: "No approvals past TTL"
+    command: "cargo run -p zylos-hitl --bin approval-ttl-check -- --strict"
+    expected: "exit_code:0"
+  - check: "Outcome uncertainty logged"
+    command: "cargo run -p zylos-hitl --bin outcome-stats"
+    expected: "exit_code:0"
+
+rollback:
+  - id: "requeue_expired"
+    action: "execute"
+    command: "cargo run -p zylos-hitl --bin requeue-expired -- --dry-run"
+  - id: "clear_double_claims"
+    action: "execute"
+    command: "cargo run -p zylos-hitl --bin dedup-claims"
+
+escalation:
+  max_retries: 2
+  escalation_path:
+    - level: "dev_senior"
+      contact: "#zylos-hitl Slack"
+      timeout_minutes: 5
+    - level: "tech_lead"
+      contact: "#zylos-emergency Slack"
+      timeout_minutes: 15
+
+audit:
+  log_level: "info"
+  capture_output: true
+  immutable_log: true

@@ -1,0 +1,75 @@
+---
+metadata:
+  name: live-comm-gateway
+  version: "1.0"
+  trigger: "gateway_health_fail OR websocket_disconnect"
+  audience: ["dev_pleno", "dev_senior", "sre"]
+  estimated_duration_minutes: 10
+  tags: ["live-comm", "gateway", "websocket", "ag-ui"]
+  related_playbooks:
+    - "../playbooks/incident-response.md"
+
+preconditions:
+  - check: "Live-comm crate compiled"
+    command: "cargo build -p zylos-live-comm 2>&1 | tail -1"
+    expected: "exit_code:0"
+    on_failure: "abort"
+  - check: "Gateway port available"
+    command: "! ss -tlnp | grep -q ':8765' && echo free || echo busy"
+    expected: "free|busy"
+    on_failure: "warn"
+
+steps:
+  - id: "check_gateway_health"
+    action: "execute"
+    command: "curl -sf http://localhost:8765/health 2>/dev/null || echo unhealthy"
+    timeout_seconds: 10
+    on_success: "validate_connections"
+    on_failure: "restart_gateway"
+  - id: "validate_connections"
+    action: "validate"
+    command: "cargo run -p zylos-live-comm --bin gateway-status -- --check-ws"
+    expected: "exit_code:0"
+    timeout_seconds: 30
+  - id: "restart_gateway"
+    action: "execute"
+    command: "cargo run -p zylos-live-comm --bin gateway -- --restart"
+    timeout_seconds: 30
+    human_approval_required: true
+    on_success: "validate_connections"
+    on_failure: "escalate"
+  - id: "drain_connections"
+    action: "execute"
+    command: "cargo run -p zylos-live-comm --bin gateway -- --drain --timeout 30"
+    timeout_seconds: 60
+
+validation:
+  - check: "Health endpoint returns 200"
+    command: "curl -sf http://localhost:8765/health"
+    expected: "exit_code:0"
+  - check: "Active WS connections stable"
+    command: "cargo run -p zylos-live-comm --bin gateway-status -- --count"
+    expected: "exit_code:0"
+
+rollback:
+  - id: "stop_gateway"
+    action: "execute"
+    command: "pkill -f zylos-live-comm.*gateway || true"
+  - id: "clear_state"
+    action: "execute"
+    command: "rm -f ~/.local/share/zylos/gateway/state.json"
+
+escalation:
+  max_retries: 3
+  escalation_path:
+    - level: "sre"
+      contact: "#zylos-infra Slack"
+      timeout_minutes: 5
+    - level: "tech_lead"
+      contact: "#zylos-emergency Slack"
+      timeout_minutes: 10
+
+audit:
+  log_level: "info"
+  capture_output: true
+  immutable_log: true

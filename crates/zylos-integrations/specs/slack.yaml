@@ -1,0 +1,46 @@
+slug: slack
+display_name: Slack
+auth_url: https://slack.com/oauth/v2/authorize
+token_url: https://slack.com/api/oauth.v2.access
+client_id: "${SLACK_CLIENT_ID}"
+client_secret: "${SLACK_CLIENT_SECRET}"
+redirect_uri: http://localhost:9090/callback/slack
+scopes:
+  - chat:write
+  - channels:read
+  - users:read
+  - files:write
+requires_approval: true
+rate_limit_rpm: 60
+actions:
+  - id: send_message
+    description: Send a message to a channel or user
+    method: POST
+    url_template: https://slack.com/api/chat.postMessage
+    requires_approval: true
+    body_schema:
+      type: object
+      required: [channel, text]
+      properties:
+        channel: { type: string }
+        text: { type: string }
+        blocks: { type: array }
+        thread_ts: { type: string }
+
+  - id: list_channels
+    description: List all channels in the workspace
+    method: GET
+    url_template: https://slack.com/api/conversations.list?types={types}&limit={limit}
+    requires_approval: false
+
+  - id: upload_file
+    description: Upload a file to a channel
+    method: POST
+    url_template: https://slack.com/api/files.uploadV2
+    requires_approval: true
+
+  - id: search_messages
+    description: Search for messages across channels
+    method: GET
+    url_template: https://slack.com/api/search.messages?query={query}&count={count}
+    requires_approval: false

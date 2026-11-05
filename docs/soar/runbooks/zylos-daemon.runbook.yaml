@@ -1,0 +1,124 @@
+metadata:
+  name: "zylos-daemon"
+  version: "1.0"
+  trigger: "daemon_health_check_fails OR daemon_process_missing OR daemon_panic_detected"
+  audience: ["dev_pleno", "dev_senior", "sre"]
+  estimated_duration_minutes: 15
+  tags: ["recovery", "daemon", "critical", "soar-executable"]
+  related_playbooks:
+    - "../playbooks/security-incident-response.md"
+    - "../playbooks/disaster-recovery.md"
+    - "../playbooks/capacity-planning.md"
+
+preconditions:
+  - check: "Daemon binary exists in PATH"
+    command: "which zylos || where zylos"
+    expected: "exit_code:0"
+    on_failure: "abort"
+  - check: "Config file is valid"
+    command: "zylos config validate"
+    expected: "exit_code:0"
+    on_failure: "warn"
+  - check: "Log directory is writable"
+    command: "test -w ~/.local/share/zylos/logs/ || echo 'writable'"
+    expected: "writable|exit_code:0"
+    on_failure: "abort"
+
+steps:
+  - id: "check_process"
+    action: "execute"
+    command: "pgrep -f zylos-daemon"
+    timeout_seconds: 10
+    on_success: "health_check"
+    on_failure: "start_daemon"
+
+  - id: "health_check"
+    action: "execute"
+    command: "curl -sf --max-time 5 --unix-socket ~/.local/share/zylos/daemon.sock http://localhost/health"
+    timeout_seconds: 10
+    on_success: "validate_final"
+    on_failure: "restart_daemon"
+
+  - id: "start_daemon"
+    action: "execute"
+    command: "zylos daemon start"
+    timeout_seconds: 30
+    retry:
+      max_attempts: 2
+      delay_seconds: 5
+    on_success: "validate_final"
+    on_failure: "escalate"
+
+  - id: "restart_daemon"
+    action: "execute"
+    command: "zylos daemon restart"
+    timeout_seconds: 30
+    human_approval_required: false
+    retry:
+      max_attempts: 2
+      delay_seconds: 10
+    on_success: "validate_final"
+    on_failure: "collect_diagnostics"
+
+  - id: "collect_diagnostics"
+    action: "execute"
+    command: "tail -200 ~/.local/share/zylos/logs/daemon.log | grep -iE 'error|panic|fatal|oom' > /tmp/zylos-daemon-diag.txt && ps aux | grep zylos-daemon >> /tmp/zylos-daemon-diag.txt"
+    timeout_seconds: 15
+    on_success: "escalate"
+
+  - id: "escalate"
+    action: "notify"
+    command: "echo 'SOAR ESCALATION: zylos-daemon recovery failed after 2 attempts. Diagnostics at /tmp/zylos-daemon-diag.txt'"
+    timeout_seconds: 5
+
+  - id: "validate_final"
+    action: "validate"
+    command: "zylos daemon status"
+    expected: "running"
+    timeout_seconds: 10
+
+validation:
+  - check: "Process is alive"
+    command: "pgrep -f zylos-daemon"
+    expected: "exit_code:0"
+  - check: "Health endpoint responds OK"
+    command: "curl -sf --max-time 5 --unix-socket ~/.local/share/zylos/daemon.sock http://localhost/health"
+    expected: '{"status":"ok"}'
+  - check: "CLI can list agents"
+    command: "zylos agent list --timeout 5"
+    expected: "exit_code:0"
+  - check: "No new panics in last 60 seconds"
+    command: "tail -50 ~/.local/share/zylos/logs/daemon.log | grep -c panic"
+    expected: "0"
+
+rollback:
+  - id: "force_kill"
+    action: "execute"
+    command: "pkill -9 -f zylos-daemon"
+    timeout_seconds: 10
+  - id: "restore_binary_backup"
+    action: "execute"
+    command: "test -f ~/.local/bin/zylos.bak && cp ~/.local/bin/zylos.bak ~/.local/bin/zylos"
+    timeout_seconds: 10
+  - id: "clean_socket"
+    action: "execute"
+    command: "rm -f ~/.local/share/zylos/daemon.sock"
+    timeout_seconds: 5
+
+escalation:
+  max_retries: 2
+  escalation_path:
+    - level: "dev_senior"
+      contact: "#zylos-devs Slack"
+      timeout_minutes: 5
+    - level: "tech_lead"
+      contact: "#zylos-emergency Slack"
+      timeout_minutes: 10
+    - level: "sre_on_call"
+      contact: "PagerDuty on-call"
+      timeout_minutes: 15
+
+audit:
+  log_level: "info"
+  capture_output: true
+  immutable_log: true

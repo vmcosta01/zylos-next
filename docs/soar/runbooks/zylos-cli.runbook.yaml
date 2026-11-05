@@ -1,0 +1,124 @@
+metadata:
+  name: "zylos-cli"
+  version: "1.0"
+  trigger: "cli_hang OR cli_connection_refused OR cli_config_invalid OR cli_output_malformed"
+  audience: ["dev_junior", "dev_pleno", "dev_senior"]
+  estimated_duration_minutes: 10
+  tags: ["cli", "recovery", "user-facing", "soar-executable"]
+  related_playbooks:
+    - "../playbooks/stakeholder-communication.md"
+    - "../playbooks/disaster-recovery.md"
+
+preconditions:
+  - check: "CLI binary exists in PATH"
+    command: "which zylos || where zylos"
+    expected: "exit_code:0"
+    on_failure: "abort"
+  - check: "Config file exists"
+    command: "test -f ~/.config/zylos/config.toml || test -f $APPDATA/zylos/config.toml"
+    expected: "exit_code:0"
+    on_failure: "warn"
+
+steps:
+  - id: "check_daemon_connection"
+    action: "execute"
+    command: "zylos daemon health --timeout 5"
+    timeout_seconds: 10
+    on_success: "validate_config"
+    on_failure: "restart_daemon"
+
+  - id: "restart_daemon"
+    action: "execute"
+    command: "zylos daemon restart"
+    timeout_seconds: 30
+    retry:
+      max_attempts: 2
+      delay_seconds: 5
+    on_success: "validate_config"
+    on_failure: "fallback_cockpit"
+
+  - id: "validate_config"
+    action: "validate"
+    command: "zylos config validate"
+    expected: "exit_code:0"
+    timeout_seconds: 10
+    on_success: "test_agent_list"
+    on_failure: "reset_config"
+
+  - id: "reset_config"
+    action: "execute"
+    command: "zylos config reset && echo 'Config reset to defaults'"
+    timeout_seconds: 10
+    human_approval_required: true
+    on_success: "validate_config"
+    on_failure: "escalate"
+
+  - id: "test_agent_list"
+    action: "validate"
+    command: "zylos agent list --timeout 5"
+    expected: "exit_code:0"
+    timeout_seconds: 10
+    on_success: "validate_final"
+    on_failure: "collect_cli_diagnostics"
+
+  - id: "fallback_cockpit"
+    action: "notify"
+    command: "echo 'SOAR INFO: CLI unavailable. Use cockpit web at http://localhost:8080'"
+    timeout_seconds: 5
+    on_success: "escalate"
+
+  - id: "collect_cli_diagnostics"
+    action: "execute"
+    command: "ZYLOS_LOG_LEVEL=debug zylos status --timeout 5 > /tmp/zylos-cli-diag.txt 2>&1"
+    timeout_seconds: 15
+    on_success: "escalate"
+
+  - id: "escalate"
+    action: "notify"
+    command: "echo 'SOAR ESCALATION: CLI recovery failed. Diagnostics at /tmp/zylos-cli-diag.txt'"
+    timeout_seconds: 5
+
+  - id: "validate_final"
+    action: "validate"
+    command: "zylos status --timeout 5"
+    expected: "exit_code:0"
+    timeout_seconds: 10
+
+validation:
+  - check: "CLI responds to status"
+    command: "zylos status --timeout 5"
+    expected: "exit_code:0"
+  - check: "Config is valid"
+    command: "zylos config validate"
+    expected: "exit_code:0"
+  - check: "Agent list works"
+    command: "zylos agent list --timeout 5"
+    expected: "exit_code:0"
+  - check: "Daemon connected"
+    command: "zylos daemon health --timeout 5"
+    expected: "exit_code:0"
+
+rollback:
+  - id: "restore_config_backup"
+    action: "execute"
+    command: "test -f ~/.config/zylos/config.toml.bak && cp ~/.config/zylos/config.toml.bak ~/.config/zylos/config.toml"
+    timeout_seconds: 5
+  - id: "kill_stale_cli_processes"
+    action: "execute"
+    command: "pkill -f 'zylos ' || taskkill /F /IM zylos.exe 2>/dev/null"
+    timeout_seconds: 10
+
+escalation:
+  max_retries: 2
+  escalation_path:
+    - level: "dev_senior"
+      contact: "#zylos-devs Slack"
+      timeout_minutes: 5
+    - level: "tech_lead"
+      contact: "#zylos-emergency Slack"
+      timeout_minutes: 15
+
+audit:
+  log_level: "info"
+  capture_output: true
+  immutable_log: true

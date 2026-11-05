@@ -1,0 +1,268 @@
+---
+# SOAR Runbook Schema v1.0
+# Formato executável para orquestração automática pelo SOAR Zylos
+# Referência: docs/soar/SOAR_ARCHITECTURE.md §2.3 (Playbook Orchestrator)
+
+$schema: "https://json-schema.org/draft/2020-12/schema"
+type: object
+required:
+  - metadata
+  - preconditions
+  - steps
+  - validation
+  - rollback
+
+properties:
+  metadata:
+    type: object
+    required:
+      - name
+      - version
+      - trigger
+      - audience
+      - estimated_duration_minutes
+    properties:
+      name:
+        type: string
+        description: "Nome do runbook (deve corresponder ao arquivo .md sem extensão)"
+      version:
+        type: string
+        pattern: "^[0-9]+\\.[0-9]+$"
+      trigger:
+        type: string
+        description: "Condição que ativa este runbook (ex: 'daemon_health_check_fails')"
+      audience:
+        type: array
+        items:
+          type: string
+          enum: ["dev_junior", "dev_pleno", "dev_senior", "sre", "tech_lead"]
+      estimated_duration_minutes:
+        type: integer
+        minimum: 1
+      tags:
+        type: array
+        items:
+          type: string
+      related_playbooks:
+        type: array
+        items:
+          type: string
+          description: "Caminho relativo para playbooks relacionados"
+
+  preconditions:
+    type: array
+    description: "Verificações que devem passar antes da execução"
+    items:
+      type: object
+      required:
+        - check
+        - command
+        - expected
+      properties:
+        check:
+          type: string
+          description: "Descrição legível da pré-condição"
+        command:
+          type: string
+          description: "Comando shell para validar"
+        expected:
+          type: string
+          description: "Output ou exit code esperado"
+        on_failure:
+          type: string
+          enum: ["abort", "warn", "retry"]
+          default: "abort"
+
+  steps:
+    type: array
+    minItems: 1
+    items:
+      type: object
+      required:
+        - id
+        - action
+        - command
+      properties:
+        id:
+          type: string
+          description: "Identificador único do passo (ex: 'step_1', 'restart_daemon')"
+        action:
+          type: string
+          enum: ["execute", "validate", "notify", "pause_for_approval"]
+        command:
+          type: string
+          description: "Comando shell ou referência a script"
+        timeout_seconds:
+          type: integer
+          default: 300
+        retry:
+          type: object
+          properties:
+            max_attempts:
+              type: integer
+              default: 1
+            delay_seconds:
+              type: integer
+              default: 10
+        on_success:
+          type: string
+          description: "Próximo step ID se sucesso (default: próximo sequencial)"
+        on_failure:
+          type: string
+          description: "Próximo step ID se falha (default: abort)"
+        human_approval_required:
+          type: boolean
+          default: false
+          description: "Se true, pausa e aguarda aprovação humana antes de executar"
+
+  validation:
+    type: array
+    description: "Checklist final para confirmar sucesso do runbook"
+    items:
+      type: object
+      required:
+        - check
+        - command
+        - expected
+      properties:
+        check:
+          type: string
+        command:
+          type: string
+        expected:
+          type: string
+
+  rollback:
+    type: array
+    description: "Passos para reverter se algo der errado durante execução"
+    items:
+      type: object
+      required:
+        - id
+        - action
+        - command
+      properties:
+        id:
+          type: string
+        action:
+          type: string
+          enum: ["execute", "validate"]
+        command:
+          type: string
+        timeout_seconds:
+          type: integer
+          default: 300
+
+  escalation:
+    type: object
+    properties:
+      max_retries:
+        type: integer
+        default: 2
+      escalation_path:
+        type: array
+        items:
+          type: object
+          required:
+            - level
+            - contact
+            - timeout_minutes
+          properties:
+            level:
+              type: string
+              enum: ["dev_senior", "tech_lead", "sre_on_call", "executive"]
+            contact:
+              type: string
+              description: "Canal de comunicação (Slack, email, phone)"
+            timeout_minutes:
+              type: integer
+
+  audit:
+    type: object
+    properties:
+      log_level:
+        type: string
+        enum: ["info", "debug", "trace"]
+        default: "info"
+      capture_output:
+        type: boolean
+        default: true
+      immutable_log:
+        type: boolean
+        default: true
+        description: "Se true, cada ação gera evento HMAC assinado no audit trail"
+
+examples:
+  - metadata:
+      name: "zylos-daemon"
+      version: "1.0"
+      trigger: "daemon_health_check_fails"
+      audience: ["dev_pleno", "dev_senior", "sre"]
+      estimated_duration_minutes: 15
+      tags: ["recovery", "daemon", "critical"]
+      related_playbooks:
+        - "../playbooks/security-incident-response.md"
+        - "../playbooks/disaster-recovery.md"
+    preconditions:
+      - check: "Daemon binary exists"
+        command: "which zylos-daemon"
+        expected: "exit_code:0"
+        on_failure: "abort"
+      - check: "Config file valid"
+        command: "zylos config validate"
+        expected: "exit_code:0"
+        on_failure: "warn"
+    steps:
+      - id: "check_process"
+        action: "execute"
+        command: "pgrep -f zylos-daemon"
+        on_success: "health_check"
+        on_failure: "start_daemon"
+      - id: "health_check"
+        action: "execute"
+        command: "curl -s --unix-socket ~/.local/share/zylos/daemon.sock http://localhost/health"
+        expected: '{"status":"ok"}'
+        on_success: "validate"
+        on_failure: "restart_daemon"
+      - id: "start_daemon"
+        action: "execute"
+        command: "zylos daemon start"
+        timeout_seconds: 30
+        on_success: "validate"
+      - id: "restart_daemon"
+        action: "execute"
+        command: "zylos daemon restart"
+        timeout_seconds: 30
+        human_approval_required: true
+        on_success: "validate"
+      - id: "validate"
+        action: "validate"
+        command: "zylos daemon status"
+        expected: "running"
+    validation:
+      - check: "Process alive"
+        command: "pgrep -f zylos-daemon"
+        expected: "exit_code:0"
+      - check: "Health OK"
+        command: "curl -s --unix-socket ~/.local/share/zylos/daemon.sock http://localhost/health"
+        expected: '{"status":"ok"}'
+    rollback:
+      - id: "force_kill"
+        action: "execute"
+        command: "pkill -9 -f zylos-daemon"
+      - id: "restore_backup"
+        action: "execute"
+        command: "cp ~/.local/bin/zylos.bak ~/.local/bin/zylos"
+    escalation:
+      max_retries: 2
+      escalation_path:
+        - level: "dev_senior"
+          contact: "#zylos-devs Slack"
+          timeout_minutes: 5
+        - level: "tech_lead"
+          contact: "#zylos-emergency Slack"
+          timeout_minutes: 10
+    audit:
+      log_level: "info"
+      capture_output: true
+      immutable_log: true

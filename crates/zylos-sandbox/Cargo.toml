@@ -1,0 +1,34 @@
+[package]
+name = "zylos-sandbox"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "SANDBOX_ISOLATION: WASM snapshot/resume, Docker per-agent, browser anti-detect, OCR sidecar"
+
+[dependencies]
+zylos-core = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+wasmtime = "25.0"
+wasmtime-wasi = "25.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+tempfile = "3.10"
+sha2 = "0.10"
+hex = "0.4"
+bollard = "0.17"
+tokio-util = "0.7"
+futures-util = "0.3"
+
+[dev-dependencies]
+criterion = { workspace = true }
+proptest = { workspace = true }
+tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
+
+[[bench]]
+name = "sandbox"
+harness = false

@@ -1,0 +1,36 @@
+services:
+  zylos-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: zylos-gateway
+    restart: unless-stopped
+    ports:
+      - "9090:3000"
+    volumes:
+      - zylos-data:/var/lib/zylos/data
+      - zylos-logs:/var/lib/zylos/logs
+      - ./config:/etc/zylos:ro
+    environment:
+      - ZYLOS_LOG_LEVEL=info
+      - ZYLOS_DB_PATH=/var/lib/zylos/data/zylos.db
+      - ZYLOS_HOST=0.0.0.0
+      - ZYLOS_PORT=8080
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - zylos-net
+
+volumes:
+  zylos-data:
+    driver: local
+  zylos-logs:
+    driver: local
+
+networks:
+  zylos-net:
+    driver: bridge

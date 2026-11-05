@@ -1,0 +1,8 @@
+bash: -c: line 1: syntax error near unexpected token `newline'
+bash: -c: line 1: `<comando shell que prova o resultado>'
+
+--- Metadata ---
+Spec: specs/GOAL-CONTRACT.md
+Timestamp: 2026-10-29T21:19:47-03:00
+Expected exit: 0
+Actual exit: 2

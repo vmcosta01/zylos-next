@@ -1,0 +1,128 @@
+metadata:
+  name: "monitoring-observability"
+  version: "1.0"
+  trigger: "alert_fired OR dashboard_empty OR log_query_returns_errors OR metrics_inconsistency_detected"
+  audience: ["dev_pleno", "dev_senior", "sre"]
+  estimated_duration_minutes: 20
+  tags: ["monitoring", "observability", "diagnostics", "soar-executable"]
+  related_playbooks:
+    - "../playbooks/capacity-planning.md"
+    - "../playbooks/security-incident-response.md"
+    - "../playbooks/disaster-recovery.md"
+
+preconditions:
+  - check: "Prometheus endpoint reachable"
+    command: "curl -sf --max-time 5 http://prometheus:9090/-/healthy"
+    expected: "exit_code:0"
+    on_failure: "warn"
+  - check: "Grafana accessible"
+    command: "curl -sf --max-time 5 http://grafana:3000/api/health"
+    expected: "exit_code:0"
+    on_failure: "warn"
+  - check: "zylos CLI available"
+    command: "which zylos"
+    expected: "exit_code:0"
+    on_failure: "abort"
+
+steps:
+  - id: "check_daemon_metrics"
+    action: "execute"
+    command: "curl -sf --max-time 10 http://zylos-daemon:9847/metrics | head -50"
+    timeout_seconds: 15
+    on_success: "check_error_rate"
+    on_failure: "fallback_local_metrics"
+
+  - id: "fallback_local_metrics"
+    action: "execute"
+    command: "zylos metrics --format json"
+    timeout_seconds: 10
+    on_success: "check_error_rate"
+    on_failure: "escalate"
+
+  - id: "check_error_rate"
+    action: "validate"
+    command: "curl -sf 'http://prometheus:9090/api/v1/query?query=rate(zylos_daemon_errors_total[5m])' | jq -r '.data.result[0].value[1]'"
+    expected: "<0.1"
+    timeout_seconds: 10
+    on_success: "check_memory"
+    on_failure: "investigate_errors"
+
+  - id: "check_memory"
+    action: "validate"
+    command: "curl -sf 'http://prometheus:9090/api/v1/query?query=process_resident_memory_bytes{job=\"zylos-daemon\"}' | jq -r '.data.result[0].value[1]'"
+    expected: "<2147483648"
+    timeout_seconds: 10
+    on_success: "check_logs"
+    on_failure: "investigate_memory"
+
+  - id: "check_logs"
+    action: "execute"
+    command: "tail -100 ~/.local/share/zylos/logs/daemon.log | grep -ciE 'error|panic|fatal'"
+    timeout_seconds: 10
+    on_success: "validate_final"
+    on_failure: "investigate_logs"
+
+  - id: "investigate_errors"
+    action: "execute"
+    command: "curl -sf 'http://prometheus:9090/api/v1/query?query=zylos_daemon_errors_total' | jq '.' > /tmp/zylos-error-investigation.json"
+    timeout_seconds: 10
+    on_success: "escalate"
+
+  - id: "investigate_memory"
+    action: "execute"
+    command: "ps aux | grep zylos-daemon | awk '{print $6}' > /tmp/zylos-memory-investigation.txt"
+    timeout_seconds: 10
+    on_success: "escalate"
+
+  - id: "investigate_logs"
+    action: "execute"
+    command: "tail -200 ~/.local/share/zylos/logs/daemon.log | grep -iE 'error|panic|fatal' > /tmp/zylos-log-investigation.txt"
+    timeout_seconds: 10
+    on_success: "escalate"
+
+  - id: "escalate"
+    action: "notify"
+    command: "echo 'SOAR ESCALATION: Monitoring anomaly detected. Investigation files in /tmp/zylos-*-investigation.*'"
+    timeout_seconds: 5
+
+  - id: "validate_final"
+    action: "validate"
+    command: "echo 'All monitoring checks passed'"
+    expected: "All monitoring checks passed"
+    timeout_seconds: 5
+
+validation:
+  - check: "Daemon metrics endpoint responds"
+    command: "curl -sf --max-time 5 http://zylos-daemon:9847/metrics | head -1"
+    expected: "# HELP"
+  - check: "Error rate below threshold"
+    command: "curl -sf 'http://prometheus:9090/api/v1/query?query=rate(zylos_daemon_errors_total[5m])' | jq -r '.data.result[0].value[1]'"
+    expected: "<0.1"
+  - check: "No panics in recent logs"
+    command: "tail -50 ~/.local/share/zylos/logs/daemon.log | grep -c panic"
+    expected: "0"
+
+rollback:
+  - id: "restart_daemon_if_degraded"
+    action: "execute"
+    command: "zylos daemon restart"
+    timeout_seconds: 30
+  - id: "clear_stale_metrics"
+    action: "execute"
+    command: "curl -sf -X POST http://prometheus:9090/api/v1/admin/tsdb/clean_tombstones"
+    timeout_seconds: 10
+
+escalation:
+  max_retries: 2
+  escalation_path:
+    - level: "dev_senior"
+      contact: "#zylos-devs Slack"
+      timeout_minutes: 5
+    - level: "sre_on_call"
+      contact: "PagerDuty on-call"
+      timeout_minutes: 15
+
+audit:
+  log_level: "info"
+  capture_output: true
+  immutable_log: true

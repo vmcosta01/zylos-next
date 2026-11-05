@@ -1,0 +1,21 @@
+[package]
+name = "zylos-swarm-orchestrator"
+version = "0.1.0"
+edition = "2021"
+description = "Multi-agent swarm orchestration with task decomposition, dependency DAGs, and execution scheduling for zylos-gateway"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "chrono", "uuid"] }
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+thiserror = "2"
+tracing = "0.1"
+sha2 = "0.10"
+hex = "0.4"
+petgraph = "0.6"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["test-util", "macros", "rt-multi-thread"] }

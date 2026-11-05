@@ -1,0 +1,46 @@
+slug: linear
+display_name: Linear
+auth_url: https://linear.app/oauth/authorize
+token_url: https://api.linear.app/oauth/token
+client_id: "${LINEAR_CLIENT_ID}"
+client_secret: "${LINEAR_CLIENT_SECRET}"
+redirect_uri: http://localhost:9090/callback/linear
+scopes:
+  - read
+  - write
+requires_approval: false
+rate_limit_rpm: 120
+actions:
+  - id: create_issue
+    description: Create a new issue in Linear
+    method: POST
+    url_template: https://api.linear.app/graphql
+    requires_approval: false
+    body_schema:
+      type: object
+      required: [team_id, title]
+      properties:
+        team_id: { type: string }
+        title: { type: string }
+        description: { type: string }
+        priority: { type: integer, minimum: 0, maximum: 4 }
+        assignee_id: { type: string }
+        label_ids: { type: array, items: { type: string } }
+
+  - id: list_issues
+    description: Search and list issues
+    method: POST
+    url_template: https://api.linear.app/graphql
+    requires_approval: false
+
+  - id: update_issue
+    description: Update an existing issue
+    method: POST
+    url_template: https://api.linear.app/graphql
+    requires_approval: false
+
+  - id: list_teams
+    description: List all teams in the workspace
+    method: POST
+    url_template: https://api.linear.app/graphql
+    requires_approval: false

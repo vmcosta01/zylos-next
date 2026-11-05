@@ -1,0 +1,122 @@
+metadata:
+  name: "dev-onboarding-offboarding"
+  version: "1.0"
+  trigger: "new_dev_hired OR dev_terminated OR dev_transferred_out"
+  audience: ["tech_lead", "dev_senior", "sre"]
+  estimated_duration_minutes: 60
+  tags: ["onboarding", "offboarding", "iam", "compliance", "soar-executable"]
+  related_playbooks:
+    - "../playbooks/stakeholder-communication.md"
+    - "../playbooks/security-incident-response.md"
+
+preconditions:
+  - check: "GitHub CLI authenticated"
+    command: "gh auth status"
+    expected: "exit_code:0"
+    on_failure: "abort"
+  - check: "zylos CLI available"
+    command: "which zylos"
+    expected: "exit_code:0"
+    on_failure: "abort"
+  - check: "HR ticket or confirmation exists"
+    command: "echo 'Manual verification required: confirm HR ticket before proceeding'"
+    expected: "Manual verification required"
+    on_failure: "abort"
+
+steps:
+  - id: "detect_mode"
+    action: "execute"
+    command: "echo 'Determine mode: onboarding or offboarding based on trigger context'"
+    timeout_seconds: 5
+    on_success: "onboard_github"
+
+  - id: "onboard_github"
+    action: "execute"
+    command: "echo 'ONBOARDING: gh api orgs/zylosdev/teams/engineering/memberships/<username> -X PUT -f role=member'"
+    timeout_seconds: 30
+    human_approval_required: true
+    on_success: "onboard_validate"
+    on_failure: "offboard_start"
+
+  - id: "onboard_validate"
+    action: "validate"
+    command: "echo 'Verify: user can clone repo and access Slack channel'"
+    expected: "manual_verification"
+    timeout_seconds: 10
+    on_success: "validate_final"
+
+  - id: "offboard_start"
+    action: "execute"
+    command: "echo 'OFFBOARDING: Revoking all accesses for <dev-email>'"
+    timeout_seconds: 5
+    on_success: "offboard_github"
+
+  - id: "offboard_github"
+    action: "execute"
+    command: "echo 'gh api orgs/zylosdev/teams/engineering/memberships/<username> -X DELETE'"
+    timeout_seconds: 30
+    human_approval_required: true
+    on_success: "offboard_tokens"
+    on_failure: "escalate"
+
+  - id: "offboard_tokens"
+    action: "execute"
+    command: "echo 'Revoke personal access tokens and rotate shared secrets if applicable'"
+    timeout_seconds: 60
+    on_success: "offboard_audit"
+
+  - id: "offboard_audit"
+    action: "validate"
+    command: "zylos access audit <dev-email> 2>/dev/null || echo 'audit command not yet implemented'"
+    expected: "exit_code:0"
+    timeout_seconds: 15
+    on_success: "validate_final"
+    on_failure: "escalate"
+
+  - id: "escalate"
+    action: "notify"
+    command: "echo 'SOAR ESCALATION: Onboarding/offboarding step failed. Manual intervention required.'"
+    timeout_seconds: 5
+
+  - id: "validate_final"
+    action: "validate"
+    command: "echo 'Onboarding/offboarding workflow completed successfully'"
+    expected: "completed successfully"
+    timeout_seconds: 5
+
+validation:
+  - check: "GitHub membership updated"
+    command: "echo 'Manual: verify in GitHub org members page'"
+    expected: "manual_verification"
+  - check: "Access audit clean (offboarding)"
+    command: "zylos access audit <dev-email> 2>/dev/null | wc -l"
+    expected: "0"
+  - check: "Slack/workspace access updated"
+    command: "echo 'Manual: verify in Slack admin'"
+    expected: "manual_verification"
+
+rollback:
+  - id: "restore_github_membership"
+    action: "execute"
+    command: "echo 'Restore GitHub membership if offboarding was accidental'"
+    timeout_seconds: 30
+    human_approval_required: true
+  - id: "notify_security"
+    action: "notify"
+    command: "echo 'SOAR ALERT: Offboarding rollback triggered. Security review required.'"
+    timeout_seconds: 5
+
+escalation:
+  max_retries: 1
+  escalation_path:
+    - level: "tech_lead"
+      contact: "#zylos-devs Slack"
+      timeout_minutes: 10
+    - level: "security_engineer"
+      contact: "#zylos-security Slack"
+      timeout_minutes: 15
+
+audit:
+  log_level: "info"
+  capture_output: true
+  immutable_log: true

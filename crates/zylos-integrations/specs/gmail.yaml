@@ -1,0 +1,47 @@
+slug: gmail
+display_name: Gmail (Google Workspace)
+auth_url: https://accounts.google.com/o/oauth2/v2/auth
+token_url: https://oauth2.googleapis.com/token
+client_id: "${GMAIL_CLIENT_ID}"
+client_secret: "${GMAIL_CLIENT_SECRET}"
+redirect_uri: http://localhost:9090/callback/gmail
+scopes:
+  - https://www.googleapis.com/auth/gmail.send
+  - https://www.googleapis.com/auth/gmail.readonly
+  - https://www.googleapis.com/auth/calendar.readonly
+requires_approval: true
+rate_limit_rpm: 60
+actions:
+  - id: send_email
+    description: Send an email message via Gmail API
+    method: POST
+    url_template: https://gmail.googleapis.com/gmail/v1/users/me/messages/send
+    requires_approval: true
+    body_schema:
+      type: object
+      required: [to, subject, body]
+      properties:
+        to: { type: string, format: email }
+        subject: { type: string }
+        body: { type: string }
+        cc: { type: string }
+        bcc: { type: string }
+        html: { type: boolean, default: false }
+
+  - id: list_messages
+    description: List messages in the user's mailbox
+    method: GET
+    url_template: https://gmail.googleapis.com/gmail/v1/users/me/messages?q={query}&maxResults={max}
+    requires_approval: false
+
+  - id: read_message
+    description: Read a specific message by ID
+    method: GET
+    url_template: https://gmail.googleapis.com/gmail/v1/users/me/messages/{message_id}?format=full
+    requires_approval: false
+
+  - id: list_calendar_events
+    description: List upcoming calendar events
+    method: GET
+    url_template: https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin={time_min}&maxResults={max}&singleEvents=true&orderBy=startTime
+    requires_approval: false

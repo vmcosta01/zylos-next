@@ -1,0 +1,123 @@
+metadata:
+  name: "zylos-cockpit"
+  version: "1.0"
+  trigger: "cockpit_unreachable OR cockpit_wasm_panic OR cockpit_sse_disconnect OR cockpit_theme_broken"
+  audience: ["dev_pleno", "dev_senior", "sre"]
+  estimated_duration_minutes: 15
+  tags: ["cockpit", "frontend", "wasm", "soar-executable"]
+  related_playbooks:
+    - "../playbooks/stakeholder-communication.md"
+    - "../playbooks/disaster-recovery.md"
+
+preconditions:
+  - check: "Cockpit dist directory exists"
+    command: "test -d apps/zylos-cockpit/dist || test -d /usr/share/zylos/cockpit"
+    expected: "exit_code:0"
+    on_failure: "abort"
+  - check: "Daemon is running (cockpit depends on it)"
+    command: "pgrep -f zylos-daemon"
+    expected: "exit_code:0"
+    on_failure: "warn"
+
+steps:
+  - id: "check_http_server"
+    action: "execute"
+    command: "curl -sf --max-time 5 http://localhost:8080/ || curl -sf --max-time 5 http://localhost:3000/"
+    timeout_seconds: 10
+    on_success: "check_wasm_load"
+    on_failure: "start_static_server"
+
+  - id: "start_static_server"
+    action: "execute"
+    command: "cd apps/zylos-cockpit/dist && python3 -m http.server 8080 &>/dev/null &"
+    timeout_seconds: 10
+    human_approval_required: false
+    on_success: "check_wasm_load"
+    on_failure: "escalate"
+
+  - id: "check_wasm_load"
+    action: "validate"
+    command: "curl -sf --max-time 10 http://localhost:8080/ | grep -c 'zylos_cockpit'"
+    expected: ">0"
+    timeout_seconds: 15
+    on_success: "check_sse_connection"
+    on_failure: "rebuild_wasm"
+
+  - id: "rebuild_wasm"
+    action: "execute"
+    command: "cd apps/zylos-cockpit && trunk build --release"
+    timeout_seconds: 600
+    human_approval_required: true
+    on_success: "check_wasm_load"
+    on_failure: "escalate"
+
+  - id: "check_sse_connection"
+    action: "validate"
+    command: "curl -sf --max-time 5 http://localhost:9847/api/v1/stream/events | head -1"
+    expected: "event:"
+    timeout_seconds: 10
+    on_success: "validate_final"
+    on_failure: "check_daemon_for_sse"
+
+  - id: "check_daemon_for_sse"
+    action: "execute"
+    command: "zylos daemon health --timeout 5"
+    timeout_seconds: 10
+    on_success: "escalate_sse"
+    on_failure: "escalate"
+
+  - id: "escalate_sse"
+    action: "notify"
+    command: "echo 'SOAR INFO: Cockpit OK but SSE stream unavailable. Check daemon live-comm module.'"
+    timeout_seconds: 5
+    on_success: "validate_final"
+
+  - id: "escalate"
+    action: "notify"
+    command: "echo 'SOAR ESCALATION: Cockpit recovery failed. Manual intervention required.'"
+    timeout_seconds: 5
+
+  - id: "validate_final"
+    action: "validate"
+    command: "curl -sf --max-time 5 http://localhost:8080/ | grep -c 'zylos_cockpit'"
+    expected: ">0"
+    timeout_seconds: 10
+
+validation:
+  - check: "HTTP server responds with cockpit HTML"
+    command: "curl -sf --max-time 5 http://localhost:8080/ | grep -c 'zylos_cockpit'"
+    expected: ">0"
+  - check: "WASM binary loads without panic"
+    command: "curl -sf --max-time 5 http://localhost:8080/zylos_cockpit_bg.wasm | wc -c"
+    expected: ">100000"
+  - check: "SSE endpoint streams events"
+    command: "curl -sf --max-time 5 http://localhost:9847/api/v1/stream/events | head -1"
+    expected: "event:"
+  - check: "Theme toggle endpoint accessible"
+    command: "curl -sf --max-time 5 http://localhost:8080/theme.css | head -1"
+    expected: "exit_code:0"
+
+rollback:
+  - id: "kill_static_server"
+    action: "execute"
+    command: "pkill -f 'python3 -m http.server 8080'"
+    timeout_seconds: 5
+  - id: "restore_previous_dist"
+    action: "execute"
+    command: "test -d apps/zylos-cockpit/dist.bak && rm -rf apps/zylos-cockpit/dist && mv apps/zylos-cockpit/dist.bak apps/zylos-cockpit/dist"
+    timeout_seconds: 10
+
+escalation:
+  max_retries: 2
+  escalation_path:
+    - level: "dev_senior"
+      contact: "#zylos-devs Slack"
+      timeout_minutes: 5
+    - level: "tech_lead"
+      contact: "#zylos-emergency Slack"
+      timeout_minutes: 15
+
+audit:
+  log_level: "info"
+  capture_output: true
+  immutable_log: true

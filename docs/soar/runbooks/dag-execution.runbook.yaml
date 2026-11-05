@@ -1,0 +1,85 @@
+---
+metadata:
+  name: dag-execution
+  version: "1.0"
+  trigger: "bot_task_queued OR dag_checkpoint_stale"
+  audience: ["dev_pleno", "dev_senior", "sre"]
+  estimated_duration_minutes: 30
+  tags: ["dag", "orchestration", "bot-system"]
+  related_playbooks:
+    - "../playbooks/incident-response.md"
+
+preconditions:
+  - check: "Bot system binary exists"
+    command: "which zylos-bot || cargo build -p zylos-bot-system 2>&1 | tail -1"
+    expected: "exit_code:0"
+    on_failure: "abort"
+  - check: "Resolver checkpoint dir writable"
+    command: "test -w ~/.local/share/zylos/checkpoints && echo ok"
+    expected: "ok"
+    on_failure: "warn"
+
+steps:
+  - id: "load_dag"
+    action: "execute"
+    command: "cargo run -p zylos-bot-system --bin dag-runner -- --load-pending"
+    timeout_seconds: 60
+    on_success: "validate_frontier"
+    on_failure: "create_fresh_dag"
+  - id: "validate_frontier"
+    action: "validate"
+    command: "cargo run -p zylos-resolver --bin validate-checkpoint"
+    expected: "exit_code:0"
+    timeout_seconds: 30
+    on_success: "execute_dag"
+    on_failure: "reset_frontier"
+  - id: "execute_dag"
+    action: "execute"
+    command: "cargo run -p zylos-bot-system --bin dag-runner -- --execute --max-parallel 4"
+    timeout_seconds: 600
+    human_approval_required: false
+    on_success: "verify_completion"
+    on_failure: "checkpoint_and_pause"
+  - id: "verify_completion"
+    action: "validate"
+    command: "cargo run -p zylos-resolver --bin verify-glue"
+    expected: "exit_code:0"
+  - id: "reset_frontier"
+    action: "execute"
+    command: "rm -f ~/.local/share/zylos/checkpoints/dag-*.json && echo reset"
+    on_success: "execute_dag"
+  - id: "checkpoint_and_pause"
+    action: "execute"
+    command: "cargo run -p zylos-resolver --bin checkpoint-save"
+    timeout_seconds: 30
+
+validation:
+  - check: "All DAG nodes completed or skipped"
+    command: "cargo run -p zylos-resolver --bin status -- --expect terminal"
+    expected: "exit_code:0"
+  - check: "Glue proofs valid"
+    command: "cargo run -p zylos-resolver --bin verify-glue"
+    expected: "exit_code:0"
+
+rollback:
+  - id: "pause_execution"
+    action: "execute"
+    command: "cargo run -p zylos-bot-system --bin dag-runner -- --pause"
+  - id: "save_checkpoint"
+    action: "execute"
+    command: "cargo run -p zylos-resolver --bin checkpoint-save -- --force"
+
+escalation:
+  max_retries: 3
+  escalation_path:
+    - level: "dev_senior"
+      contact: "#zylos-devs Slack"
+      timeout_minutes: 15
+    - level: "tech_lead"
+      contact: "#zylos-emergency Slack"
+      timeout_minutes: 30
+
+audit:
+  log_level: "info"
+  capture_output: true
+  immutable_log: true

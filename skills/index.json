@@ -1,0 +1,2633 @@
+{
+  "version": "1.0.0",
+  "generated_at": "2026-11-01T15:42:36Z",
+  "total_skills": 173,
+  "skills": [
+    {
+      "name": "a2a-agent-discovery",
+      "description": "Find ITINAI agents, post service agents, and make reviewed A2A service requests.",
+      "version": "1.0.4",
+      "path": "skills/a2a-agent-discovery/SKILL.md",
+      "category": "a2a-agent-discovery",
+      "tags": [],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "adversarial-panel",
+      "description": "Painel de juízes adversariais para validar outputs críticos.",
+      "version": "1.0.0",
+      "path": "software-development/adversarial-panel/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "verification",
+        "adversarial",
+        "quality",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "agent-building",
+      "description": "Build a reusable specialist Hermes agent when the user asks for an assistant focused on a recurring job. Creates an editable draft in Hermes Agent Builder.",
+      "version": "1.0.0",
+      "path": "skills/agent-building/SKILL.md",
+      "category": "agent-building",
+      "tags": [],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "agent-config",
+      "description": "Intelligently modify agent core context files (AGENTS.md, SOUL.md, IDENTITY.md, USER.md, TOOLS.md, MEMORY.md, HEARTBEAT.md). Use when conversation involves changing agent behavior, updating rules, ...",
+      "version": "1.0.0",
+      "path": "skills/agent-config/SKILL.md",
+      "category": "agent-config",
+      "tags": [],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "agent-coordinator",
+      "description": "Coordenação de múltiplos agentes com claim atômico.",
+      "version": "1.0.0",
+      "path": "software-development/agent-coordinator/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "coordination",
+        "concurrency",
+        "safety",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "agent-factory",
+      "description": "Fábrica de agentes com lifecycle gated e roster.",
+      "version": "1.0.0",
+      "path": "software-development/agent-factory/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "agent-factory",
+        "lifecycle",
+        "roster",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "agent-localizer",
+      "description": "Traduz SOUL.md e docs de agentes para múltiplos idiomas.",
+      "version": "1.0.0",
+      "path": "software-development/agent-localizer/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "i18n",
+        "localization",
+        "translation",
+        "multi-language"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "agent-security-hardening",
+      "description": "Define trust boundaries e regras de segurança de agentes.",
+      "version": "1.0.0",
+      "path": "software-development/agent-security-hardening/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "security",
+        "hardening",
+        "trust-boundaries"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "agent-track",
+      "description": "Mede desfecho de agentes e seleciona por taxa real.",
+      "version": "1.0.0",
+      "path": "software-development/agent-track/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "agent-tracking",
+        "measurement",
+        "selection",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "agentchat",
+      "description": "How to operate on AgentChat — peer-to-peer messaging for agents. Read before sending, replying, or deciding to stay silent. Covers reply/silence judgment, cold-DM rules, inbox triage, proactive out...",
+      "version": "1.0.0",
+      "path": "agentchatme_hermes/skills/SKILL.md",
+      "category": "general",
+      "tags": [],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "agentmemory-adapter",
+      "description": "Set to 1 to refuse sending bearer tokens over non-loopback HTTP.",
+      "version": "1.0.0",
+      "path": "skills/agentmemory-adapter/SKILL.md",
+      "category": "agentmemory-adapter",
+      "tags": [],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "agora-awareness",
+      "description": "Understand the Agora multi-agent collaboration framework — how teams, projects, kanban, discussions, and heartbeat work together. Every worker should know this. If you want to SET UP an Agora team,...",
+      "version": "1.0.0",
+      "path": "skills/agora-awareness/SKILL.md",
+      "category": "agora-awareness",
+      "tags": [],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "agora-deliberation",
+      "description": "Multi-role deliberation methodology — when to raise motions, how to participate in discussions, and how to act on discussion outcomes.",
+      "version": "0.1.0",
+      "path": "skills/agora-deliberation/SKILL.md",
+      "category": "agora-deliberation",
+      "tags": [
+        "agora",
+        "deliberation",
+        "discussion",
+        "consensus"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "agora-setup",
+      "description": "Set up an Agora multi-agent team from scratch — create workers, form teams, start projects. Read this when the user wants to use Agora for collaborative development.",
+      "version": "1.0.0",
+      "path": "skills/agora-setup/SKILL.md",
+      "category": "agora-setup",
+      "tags": [],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "aiops-sentinel",
+      "description": "AIOps loop OODA com vigília automática e remediação gated.",
+      "version": "1.0.0",
+      "path": "devops/aiops-sentinel/SKILL.md",
+      "category": "devops",
+      "tags": [
+        "aiops",
+        "sentinel",
+        "ooda-loop",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "airtable",
+      "description": "Airtable REST API via curl. Records CRUD, filters, upserts.",
+      "version": "1.1.0",
+      "path": "productivity/airtable/SKILL.md",
+      "category": "productivity",
+      "tags": [
+        "Airtable",
+        "Productivity",
+        "Database",
+        "API"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "apple-design",
+      "description": "苹果设计原则与流体交互动效知识库，源自 WWDC 设计演讲，为 Web 平台翻译的 17 条交互设计原则",
+      "version": "1.0.1",
+      "path": "skills/apple-design/SKILL.md",
+      "category": "apple-design",
+      "tags": [],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "apple-notes",
+      "description": "Manage Apple Notes via memo CLI: create, search, edit.",
+      "version": "1.0.1",
+      "path": "apple/apple-notes/SKILL.md",
+      "category": "apple",
+      "tags": [
+        "Notes",
+        "Apple",
+        "macOS",
+        "note-taking"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "apple-reminders",
+      "description": "Apple Reminders via remindctl: add, list, complete.",
+      "version": "1.0.0",
+      "path": "apple/apple-reminders/SKILL.md",
+      "category": "apple",
+      "tags": [
+        "Reminders",
+        "tasks",
+        "todo",
+        "macOS",
+        "Apple"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "architecture-diagram",
+      "description": "Dark-themed SVG architecture/cloud/infra diagrams as HTML.",
+      "version": "1.0.0",
+      "path": "creative/architecture-diagram/SKILL.md",
+      "category": "creative",
+      "tags": [
+        "architecture",
+        "diagrams",
+        "SVG",
+        "HTML",
+        "visualization",
+        "infrastructure",
+        "cloud"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "arxiv",
+      "description": "Search arXiv papers by keyword, author, category, or ID.",
+      "version": "1.0.0",
+      "path": "research/arxiv/SKILL.md",
+      "category": "research",
+      "tags": [
+        "Research",
+        "Arxiv",
+        "Papers",
+        "Academic",
+        "Science",
+        "API"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "ascii-video",
+      "description": "ASCII video: convert video/audio to colored ASCII MP4/GIF.",
+      "version": "1.0.0",
+      "path": "creative/ascii-video/SKILL.md",
+      "category": "creative",
+      "tags": [
+        "ASCII",
+        "Video",
+        "FFmpeg",
+        "Terminal-Art"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "ato-judicial",
+      "description": "Portão judicial com cobertura de teses medida.",
+      "version": "1.0.0",
+      "path": "software-development/ato-judicial/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "judicial",
+        "gate",
+        "thesis-coverage",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "audit-consolidator",
+      "description": "Consolida relatórios de auditoria em documento único.",
+      "version": "1.0.0",
+      "path": "software-development/audit-consolidator/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "audit",
+        "consolidation",
+        "report",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "auto-review-pipeline",
+      "description": "Pipeline CEO+Design+DX+Eng com auto-decisions e ledger.",
+      "version": "1.0.0",
+      "path": "software-development/auto-review-pipeline/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "auto-review",
+        "pipeline",
+        "adversarial",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "autonomous-agenda",
+      "description": "Agenda autônoma noturna que prepara trabalho proativo.",
+      "version": "1.0.0",
+      "path": "software-development/autonomous-agenda/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "autonomy",
+        "nightly",
+        "proactive",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "awesome-agent-index",
+      "description": "Catálogo curado de 340+ agentes/ferramentas/frameworks.",
+      "version": "1.0.0",
+      "path": "research/awesome-agent-index/SKILL.md",
+      "category": "research",
+      "tags": [
+        "catalog",
+        "discovery",
+        "agents",
+        "frameworks",
+        "curated"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "axiom-building-dashboards",
+      "description": "Designs and builds Axiom dashboards via API. Covers chart types, APL and metrics/MPL query patterns, SmartFilters, layout, and configuration options. Use when creating dashboards, migrating from Sp...",
+      "version": "1.0.0",
+      "path": "skills/axiom-building-dashboards/SKILL.md",
+      "category": "axiom-building-dashboards",
+      "tags": [],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "baoyu-infographic",
+      "description": "Infographics: 21 layouts x 21 styles (信息图, 可视化).",
+      "version": "1.56.1",
+      "path": "creative/baoyu-infographic/SKILL.md",
+      "category": "creative",
+      "tags": [
+        "infographic",
+        "visual-summary",
+        "creative",
+        "image-generation"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "blocked-page-recovery",
+      "description": "Use when a fetch fails: 403/429, paywall, WAF, bot wall.",
+      "version": "1.0.0",
+      "path": "web/blocked-page-recovery/SKILL.md",
+      "category": "web",
+      "tags": [
+        "Research",
+        "Archives",
+        "Wayback",
+        "Paywall",
+        "WAF",
+        "Fallback"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "board-graph",
+      "description": "Use when asked to show, draw or navigate the kanban dependency graph: lineage, what is running or blocked across boards.",
+      "version": "0.2.1",
+      "path": "skills/board-graph/SKILL.md",
+      "category": "board-graph",
+      "tags": [
+        "kanban",
+        "visualization",
+        "graph",
+        "deep-link"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "boardstate-report-problem",
+      "description": "Boardstate: report a bug or problem",
+      "version": "1.0.0",
+      "path": "skills/boardstate-report-problem/SKILL.md",
+      "category": "boardstate-report-problem",
+      "tags": [],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "bot-forge",
+      "description": "Design a new Hermes Bot from one sentence and spawn it with the create_agent tool. Role defaults, SOUL.md template, zero questions.",
+      "version": "0.15.3",
+      "path": "skills/bot-forge/SKILL.md",
+      "category": "bot-forge",
+      "tags": [
+        "bots",
+        "bot-mode",
+        "profiles",
+        "spawn",
+        "create-agent"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "bot-home",
+      "description": "Publish and maintain your own dashboard (your \"Home\") in Bot HQ. Use when asked to build, show, update, or fix your dashboard, interface, or fleet page, and at the end of a routine whose findings b...",
+      "version": "1.0.0",
+      "path": "skills/bot-home/SKILL.md",
+      "category": "bot-home",
+      "tags": [],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "box",
+      "description": "Box manages cloud files, sharing, search, and metadata.",
+      "version": "1.0.0",
+      "path": "productivity/box/SKILL.md",
+      "category": "productivity",
+      "tags": [
+        "Box",
+        "Productivity",
+        "Cloud Storage",
+        "Collaboration",
+        "Metadata",
+        "Content Extraction",
+        "CLI",
+        "SDK"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "caso-tracker",
+      "description": "Grafo epistêmico de contradições (quem-sabia-o-quê).",
+      "version": "1.0.0",
+      "path": "research/caso-tracker/SKILL.md",
+      "category": "research",
+      "tags": [
+        "epistemic-graph",
+        "contradiction",
+        "case-tracking",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "cerebelo-executor",
+      "description": "Executor de DAGs longos com recovery estruturado automático.",
+      "version": "1.0.0",
+      "path": "software-development/cerebelo-executor/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "orchestration",
+        "dag",
+        "recovery",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "chroma",
+      "description": "Embedding database for RAG and semantic search.",
+      "version": "1.0.0",
+      "path": "mlops/chroma/SKILL.md",
+      "category": "mlops",
+      "tags": [
+        "RAG",
+        "Chroma",
+        "Vector Database",
+        "Embeddings",
+        "Semantic Search",
+        "Open Source",
+        "Self-Hosted",
+        "Document Retrieval",
+        "Metadata Filtering"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "claude-code",
+      "description": "Delegate coding to Claude Code CLI (features, PRs).",
+      "version": "2.2.1",
+      "path": "autonomous-ai-agents/claude-code/SKILL.md",
+      "category": "autonomous-ai-agents",
+      "tags": [
+        "Coding-Agent",
+        "Claude",
+        "Anthropic",
+        "Code-Review",
+        "Refactoring",
+        "PTY",
+        "Automation"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "claude-design",
+      "description": "Design one-off HTML artifacts (landing, deck, prototype).",
+      "version": "1.1.0",
+      "path": "creative/claude-design/SKILL.md",
+      "category": "creative",
+      "tags": [
+        "design",
+        "html",
+        "prototype",
+        "ux",
+        "ui",
+        "creative",
+        "artifact",
+        "deck",
+        "motion",
+        "design-system"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "codebase-inspection",
+      "description": "Inspect codebases w/ pygount: LOC, languages, ratios.",
+      "version": "1.0.0",
+      "path": "software-development/codebase-inspection/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "LOC",
+        "Code Analysis",
+        "pygount",
+        "Codebase",
+        "Metrics",
+        "Repository"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "codex",
+      "description": "Delegate coding to OpenAI Codex CLI (features, PRs).",
+      "version": "1.0.1",
+      "path": "autonomous-ai-agents/codex/SKILL.md",
+      "category": "autonomous-ai-agents",
+      "tags": [
+        "Coding-Agent",
+        "Codex",
+        "OpenAI",
+        "Code-Review",
+        "Refactoring"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "competitor-news-monitor",
+      "description": "Watch named companies for material news; cited digests.",
+      "version": "0.1.0",
+      "path": "research/competitor-news-monitor/SKILL.md",
+      "category": "research",
+      "tags": [
+        "Competitors",
+        "News",
+        "Market-Research",
+        "Monitoring"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "computer-use",
+      "description": "Drive the desktop background-first; escalate on signal.",
+      "version": "2.1.0",
+      "path": "autonomous-ai-agents/computer-use/SKILL.md",
+      "category": "autonomous-ai-agents",
+      "tags": [
+        "computer-use",
+        "desktop",
+        "automation",
+        "gui",
+        "cross-platform"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "concept-injector",
+      "description": "Injeção seletiva dos 22 conceitos canônicos no prompt.",
+      "version": "1.0.0",
+      "path": "software-development/concept-injector/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "concepts",
+        "injection",
+        "prompt-engineering",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "consciousness-soul-identity",
+      "description": "Discover who you're becoming through your own experience. Automated soul synthesis that reads your memory, finds the patterns you keep returning to, and builds an identity document grounded in evid...",
+      "version": "0.4.5",
+      "path": "skills/consciousness-soul-identity/SKILL.md",
+      "category": "consciousness-soul-identity",
+      "tags": [
+        "consciousness",
+        "identity",
+        "introspection",
+        "self-awareness",
+        "self-learning",
+        "personality",
+        "ai-agent"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "cost-aware-pipeline",
+      "description": "Pipeline que otimiza custo por stage de processamento.",
+      "version": "1.0.0",
+      "path": "software-development/cost-aware-pipeline/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "cost",
+        "optimization",
+        "pipeline"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "council-decision",
+      "description": "Orquestra 4 subagentes para decisões técnicas ambíguas.",
+      "version": "1.0.0",
+      "path": "software-development/council-decision/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "orchestration",
+        "decision",
+        "multi-agent"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "crash-triage",
+      "description": "Find out why a native Linux program crashed, from its core dump and the binary, with REA, and turn that into a root cause and a bug report. Use when the user has a core file (./core, coredumpctl, a...",
+      "version": "2.0.0",
+      "path": "skills/crash-triage/SKILL.md",
+      "category": "crash-triage",
+      "tags": [],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "crew",
+      "description": "Crew intake: /crew <ask> - the coordinator checks the ask critically, asks what is missing, then opens one contract card and hands it over.",
+      "version": "0.8.1",
+      "path": "skills/crew/SKILL.md",
+      "category": "crew",
+      "tags": [],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "crew-diagnose",
+      "description": "Crew read-only pass: /crew-diagnose [state] - every card sitting in that state with its id and reason, then how each would resume. Plans only, it touches nothing.",
+      "version": "0.1.0",
+      "path": "skills/crew-diagnose/SKILL.md",
+      "category": "crew-diagnose",
+      "tags": [],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "crew-role-content",
+      "description": "Crew content pass: posts, reports, video, pages and social on a crew card; rendered artifact plus source.",
+      "version": "0.2.0",
+      "path": "skills/crew-role-content/SKILL.md",
+      "category": "crew-role-content",
+      "tags": [],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "crew-role-worker",
+      "description": "Crew worker pass: code, config, infra and web work on a crew card; one writer, proof on disk.",
+      "version": "0.2.0",
+      "path": "skills/crew-role-worker/SKILL.md",
+      "category": "crew-role-worker",
+      "tags": [],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "crew-verifier",
+      "description": "Verification pass for a crew card with `Verify: independent`. Runs the proof itself, never trusts the writer.",
+      "version": "0.2.0",
+      "path": "skills/crew-verifier/SKILL.md",
+      "category": "crew-verifier",
+      "tags": [],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "darwinian-evolve",
+      "description": "Torneio de variantes com fitness por prova-por-artefato.",
+      "version": "1.0.0",
+      "path": "software-development/darwinian-evolve/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "evolution",
+        "tournament",
+        "pareto",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "deep-research",
+      "description": "Pesquisa profunda multi-fonte com síntese citada.",
+      "version": "1.0.0",
+      "path": "research/deep-research/SKILL.md",
+      "category": "research",
+      "tags": [
+        "research",
+        "synthesis",
+        "multi-source"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "design-md",
+      "description": "Author/validate/export Google's DESIGN.md token spec files.",
+      "version": "1.1.0",
+      "path": "creative/design-md/SKILL.md",
+      "category": "creative",
+      "tags": [
+        "design",
+        "design-system",
+        "tokens",
+        "ui",
+        "accessibility",
+        "wcag",
+        "tailwind",
+        "dtcg",
+        "google"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "dev-team-session",
+      "description": "Sessão paralela PM+Arquiteto+Dev+QA para features.",
+      "version": "1.0.0",
+      "path": "software-development/dev-team-session/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "orchestration",
+        "development",
+        "pipeline"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "doc-translator",
+      "description": "Traduz documentação técnica mantendo formatação e links.",
+      "version": "1.0.0",
+      "path": "software-development/doc-translator/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "translation",
+        "docs",
+        "i18n",
+        "automation"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "document-to-action-items",
+      "description": "Extract cited obligations, deadlines, tasks from documents.",
+      "version": "0.1.0",
+      "path": "productivity/document-to-action-items/SKILL.md",
+      "category": "productivity",
+      "tags": [
+        "Documents",
+        "OCR",
+        "Action-Items",
+        "Deadlines",
+        "Extraction"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "docx",
+      "description": "Create, read, edit, template, and review Word .docx files.",
+      "version": "1.1.0",
+      "path": "productivity/docx/SKILL.md",
+      "category": "productivity",
+      "tags": [
+        "word",
+        "docx",
+        "documents",
+        "office",
+        "templates",
+        "revisions",
+        "comments"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "dogfood",
+      "description": "Exploratory QA of web apps: find bugs, evidence, reports.",
+      "version": "1.0.0",
+      "path": "software-development/dogfood/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "qa",
+        "testing",
+        "browser",
+        "web",
+        "dogfood"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "dor-gate",
+      "description": "Registro de falhas de recall com gate bloqueante.",
+      "version": "1.0.0",
+      "path": "software-development/dor-gate/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "memory",
+        "failure-tracking",
+        "gate",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "email-inbox-triage",
+      "description": "Triage an inbox: prioritize threads, draft replies safely.",
+      "version": "0.2.0",
+      "path": "email/email-inbox-triage/SKILL.md",
+      "category": "email",
+      "tags": [
+        "Email",
+        "Inbox",
+        "Triage",
+        "Replies",
+        "Productivity"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "estrutura-tracker",
+      "description": "Grafo documental de peças e referências cruzadas.",
+      "version": "1.0.0",
+      "path": "research/estrutura-tracker/SKILL.md",
+      "category": "research",
+      "tags": [
+        "document-graph",
+        "structure",
+        "cross-reference",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "ethos-explore",
+      "description": "Captures what an AI agent is supposed to do — its purpose, boundaries, and success criteria — as a durable snapshot for anyone building, evaluating, reviewing, or changing it. Explores the user's c...",
+      "version": "1.0.0",
+      "path": "skills/ethos-explore/SKILL.md",
+      "category": "ethos-explore",
+      "tags": [],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "ethos-orchestrate",
+      "description": ">-",
+      "version": "1.0.0",
+      "path": "skills/ethos-orchestrate/SKILL.md",
+      "category": "ethos-orchestrate",
+      "tags": [],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "ethos-write",
+      "description": "Writes an AI agent's ethos.md — a durable snapshot of its purpose, intended behavior, boundaries, and success criteria — from the answers gathered by ethos-explore. Renders the schema-v1 template, ...",
+      "version": "1.0.0",
+      "path": "skills/ethos-write/SKILL.md",
+      "category": "ethos-write",
+      "tags": [],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "evaluation-harness",
+      "description": "Benchmark de performance e safety para agentes IA.",
+      "version": "1.0.0",
+      "path": "software-development/evaluation-harness/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "evaluation",
+        "benchmark",
+        "safety",
+        "metrics"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "exner-producer",
+      "description": "Gera documentos certificados via grafo de significado.",
+      "version": "1.0.0",
+      "path": "software-development/exner-producer/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "document-generation",
+        "certificate",
+        "proof-graph",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "federation",
+      "description": "Sincronização multi-máquina com posse causal cifrada.",
+      "version": "1.0.0",
+      "path": "devops/federation/SKILL.md",
+      "category": "devops",
+      "tags": [
+        "federation",
+        "multi-machine",
+        "causal-possession",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "finding-validator",
+      "description": "Valida cada achado individual com juiz independente.",
+      "version": "1.0.0",
+      "path": "software-development/finding-validator/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "verification",
+        "finding-validator",
+        "judge-not-generator",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "findmy",
+      "description": "Track Apple devices/AirTags via FindMy.app on macOS.",
+      "version": "1.0.0",
+      "path": "apple/findmy/SKILL.md",
+      "category": "apple",
+      "tags": [
+        "FindMy",
+        "AirTag",
+        "location",
+        "tracking",
+        "macOS",
+        "Apple"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "framework-adapter",
+      "description": "Traduz agentes/workflows entre ADK, LangGraph, CrewAI, MCP.",
+      "version": "1.0.0",
+      "path": "software-development/framework-adapter/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "framework",
+        "adapter",
+        "portability",
+        "multi-framework"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "gif-search",
+      "description": "Search/download GIFs from Tenor via curl + jq.",
+      "version": "1.1.0",
+      "path": "media/gif-search/SKILL.md",
+      "category": "media",
+      "tags": [
+        "GIF",
+        "Media",
+        "Search",
+        "Tenor",
+        "API"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "github",
+      "description": "GitHub via gh CLI: PRs, issues, reviews, repos, auth.",
+      "version": "2.0.0",
+      "path": "software-development/github/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "github",
+        "gh",
+        "git",
+        "pull-requests",
+        "issues",
+        "code-review",
+        "repos",
+        "auth",
+        "ci"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "goals-dashboard",
+      "description": "Painel de metas em cascata com parados 14d.",
+      "version": "1.0.0",
+      "path": "productivity/goals-dashboard/SKILL.md",
+      "category": "productivity",
+      "tags": [
+        "goals",
+        "dashboard",
+        "cascade",
+        "stalled-detection",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "google-workspace",
+      "description": "Google OAuth2 client credentials (downloaded from Google Cloud Console)",
+      "version": "1.2.0",
+      "path": "productivity/google-workspace/SKILL.md",
+      "category": "productivity",
+      "tags": [
+        "Google",
+        "Gmail",
+        "Calendar",
+        "Drive",
+        "Sheets",
+        "Docs",
+        "Contacts",
+        "Email",
+        "OAuth"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "grounded-citations",
+      "description": "Ground answers and documents in cited, verifiable sources.",
+      "version": "1.2.0",
+      "path": "research/grounded-citations/SKILL.md",
+      "category": "research",
+      "tags": [
+        "Research",
+        "Citations",
+        "Grounding",
+        "Sources",
+        "Web",
+        "Reports"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "hardware-llm-optimizer",
+      "description": "Auto-detect PC hardware (CPU/GPU/RAM/VRAM) -> Determine max LLM parameters -> Recommend models (3B/7B/8B/13B/34B/70B) + quantization + deployment tools + bottleneck analysis. Chinese interface.",
+      "version": "1.1.0",
+      "path": "skills/hardware-llm-optimizer/SKILL.md",
+      "category": "hardware-llm-optimizer",
+      "tags": [],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "hermes-agent",
+      "description": "Use, configure, theme, extend, and orchestrate Hermes Agent.",
+      "version": "3.2.0",
+      "path": "autonomous-ai-agents/hermes-agent/SKILL.md",
+      "category": "autonomous-ai-agents",
+      "tags": [
+        "hermes",
+        "setup",
+        "configuration",
+        "multi-agent",
+        "spawning",
+        "cli",
+        "gateway",
+        "bots",
+        "bot-mode",
+        "features"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "hermes-agent-personality",
+      "description": "Enriches SOUL.md with Agency Agents personality.",
+      "version": "1.0.0",
+      "path": "software-development/hermes-agent-personality/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "agents",
+        "personality",
+        "soul",
+        "hermes",
+        "enrichment"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "hermes-agent-skill-authoring",
+      "description": "Author in-repo SKILL.md files: frontmatter and structure.",
+      "version": "2.0.0",
+      "path": "software-development/hermes-agent-skill-authoring/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "skills",
+        "authoring",
+        "hermes-agent",
+        "conventions",
+        "skill-md"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "hermes-context-engine",
+      "description": "Orquestra compressão de contexto via billion-context.",
+      "version": "1.0.0",
+      "path": "software-development/hermes-context-engine/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "context",
+        "compression",
+        "cost",
+        "infrastructure"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "hermes-software-factory",
+      "description": "Multi-agent dev pipelines via Hermes profiles.",
+      "version": "1.0.0",
+      "path": "software-development/hermes-software-factory/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "software-factory",
+        "multi-agent",
+        "pipeline",
+        "bot-mode",
+        "profiles",
+        "development",
+        "orchestration"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "himalaya",
+      "description": "Himalaya CLI: IMAP/SMTP email from terminal.",
+      "version": "1.1.0",
+      "path": "email/himalaya/SKILL.md",
+      "category": "email",
+      "tags": [
+        "Email",
+        "IMAP",
+        "SMTP",
+        "CLI",
+        "Communication"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "hook-post-tool-index",
+      "description": "Hook PostToolUse que indexa arquivos .md modificados.",
+      "version": "1.0.0",
+      "path": "devops/hook-post-tool-index/SKILL.md",
+      "category": "devops",
+      "tags": [
+        "hook",
+        "indexing",
+        "post-tool-use",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "humanizer",
+      "description": "Humanize text: strip AI-isms and add real voice.",
+      "version": "2.5.1",
+      "path": "creative/humanizer/SKILL.md",
+      "category": "creative",
+      "tags": [
+        "writing",
+        "editing",
+        "humanize",
+        "anti-ai-slop",
+        "voice",
+        "prose",
+        "text"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "ide-scaffolder",
+      "description": "Gera configs de IDE para 15+ editores automaticamente.",
+      "version": "1.0.0",
+      "path": "software-development/ide-scaffolder/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "ide",
+        "scaffolding",
+        "config",
+        "developer-experience"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "imessage",
+      "description": "Send and receive iMessages/SMS via the imsg CLI on macOS.",
+      "version": "1.0.0",
+      "path": "apple/imessage/SKILL.md",
+      "category": "apple",
+      "tags": [
+        "iMessage",
+        "SMS",
+        "messaging",
+        "macOS",
+        "Apple"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "inspecting-hermes-desktop-dom",
+      "description": "Read the live Hermes desktop DOM/CSS over CDP.",
+      "version": "1.0.0",
+      "path": "software-development/inspecting-hermes-desktop-dom/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "desktop",
+        "electron",
+        "cdp",
+        "dom",
+        "ui-verification",
+        "self-inspection"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "instinct-builder",
+      "description": "Gera comportamentos automáticos (instincts) para agentes.",
+      "version": "1.0.0",
+      "path": "software-development/instinct-builder/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "instincts",
+        "automation",
+        "triggers",
+        "behavior"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "llm-wiki",
+      "description": "Karpathy's LLM Wiki: build/query interlinked markdown KB.",
+      "version": "2.1.0",
+      "path": "research/llm-wiki/SKILL.md",
+      "category": "research",
+      "tags": [
+        "wiki",
+        "knowledge-base",
+        "research",
+        "notes",
+        "markdown",
+        "rag-alternative"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "manim-video",
+      "description": "Manim CE animations: 3Blue1Brown math/algo videos.",
+      "version": "1.0.0",
+      "path": "creative/manim-video/SKILL.md",
+      "category": "creative",
+      "tags": [
+        "Manim",
+        "Animation",
+        "Math",
+        "Video"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "maos-automation",
+      "description": "Automação web/desktop com site-memory e demo-to-skill.",
+      "version": "1.0.0",
+      "path": "software-development/maos-automation/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "automation",
+        "browser",
+        "desktop",
+        "site-memory",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "maps",
+      "description": "Geocode, POIs, routes, timezones via OpenStreetMap/OSRM.",
+      "version": "1.2.0",
+      "path": "productivity/maps/SKILL.md",
+      "category": "productivity",
+      "tags": [
+        "maps",
+        "geocoding",
+        "places",
+        "routing",
+        "distance",
+        "directions",
+        "nearby",
+        "location",
+        "openstreetmap",
+        "nominatim"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "max-gateway",
+      "description": "Install and configure Hermes Agent access through Max messenger (voice transcription by the Hermes core, Hermes Desktop sidebar integration).",
+      "version": "2.11.0",
+      "path": "skills/max-gateway/SKILL.md",
+      "category": "max-gateway",
+      "tags": [
+        "hermes",
+        "gateway",
+        "messaging",
+        "max",
+        "chatbot",
+        "voice"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "mcp-catalog",
+      "description": "Lista, busca e instala MCP servers do ecossistema.",
+      "version": "1.0.0",
+      "path": "software-development/mcp-catalog/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "mcp",
+        "catalog",
+        "discovery",
+        "install"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "mcp-server-builder",
+      "description": "Gera configs e wrappers para MCP servers customizados.",
+      "version": "1.0.0",
+      "path": "software-development/mcp-server-builder/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "mcp",
+        "integration",
+        "tooling",
+        "builder"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "meeting-action-items",
+      "description": "Turn meeting notes into cited decisions, owners, tickets.",
+      "version": "0.1.0",
+      "path": "productivity/meeting-action-items/SKILL.md",
+      "category": "productivity",
+      "tags": [
+        "Meetings",
+        "Action-Items",
+        "Follow-Up",
+        "Productivity"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "memory-consolidation",
+      "description": "Consolidação noturna de memória com dedup semântico via LLM.",
+      "version": "1.0.0",
+      "path": "software-development/memory-consolidation/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "memory",
+        "consolidation",
+        "nightly",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "memory-never-forget",
+      "description": "Memory system v4.13: Dual-layer structure (todos for execution + knowledge for strategy) with Dream/Refinement memory mechanisms.",
+      "version": "1.0.0",
+      "path": "skills/memory-never-forget/SKILL.md",
+      "category": "memory-never-forget",
+      "tags": [],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "neural-patterns",
+      "description": "Analisa logs de sessões para auto-aprendizado entre runs.",
+      "version": "1.0.0",
+      "path": "software-development/neural-patterns/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "learning",
+        "analytics",
+        "logs",
+        "optimization"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "nightly-bug-hunter",
+      "description": "Caçador de bugs noturno que refuta achados proativamente.",
+      "version": "1.0.0",
+      "path": "software-development/nightly-bug-hunter/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "audit",
+        "nightly",
+        "verification",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "node-inspect-debugger",
+      "description": "Debug Node.js via --inspect + Chrome DevTools Protocol CLI.",
+      "version": "1.0.0",
+      "path": "software-development/node-inspect-debugger/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "debugging",
+        "nodejs",
+        "node-inspect",
+        "cdp",
+        "breakpoints",
+        "ui-tui"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "notification-router",
+      "description": "Roteia notificações com anti-spam e sigilo-routing.",
+      "version": "1.0.0",
+      "path": "devops/notification-router/SKILL.md",
+      "category": "devops",
+      "tags": [
+        "notification",
+        "anti-spam",
+        "sigilo",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "notion",
+      "description": "Notion API + ntn CLI: pages, databases, markdown, Workers.",
+      "version": "2.0.0",
+      "path": "productivity/notion/SKILL.md",
+      "category": "productivity",
+      "tags": [
+        "Notion",
+        "Productivity",
+        "Notes",
+        "Database",
+        "API",
+        "CLI",
+        "Workers"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "obsidian",
+      "description": "Read, search, create, and edit notes in the Obsidian vault.",
+      "version": "1.0.0",
+      "path": "note-taking/obsidian/SKILL.md",
+      "category": "note-taking",
+      "tags": [
+        "Obsidian",
+        "Notes",
+        "Markdown",
+        "Vault"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "openclaw-migration",
+      "description": "Import an OpenClaw setup (memories, skills) into Hermes.",
+      "version": "1.0.0",
+      "path": "skills/openclaw-migration/SKILL.md",
+      "category": "openclaw-migration",
+      "tags": [
+        "Migration",
+        "OpenClaw",
+        "Hermes",
+        "Memory",
+        "Persona",
+        "Import"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "opencode",
+      "description": "Delegate coding to OpenCode CLI (features, PR review).",
+      "version": "1.2.0",
+      "path": "autonomous-ai-agents/opencode/SKILL.md",
+      "category": "autonomous-ai-agents",
+      "tags": [
+        "Coding-Agent",
+        "OpenCode",
+        "Autonomous",
+        "Refactoring",
+        "Code-Review"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "oss-agent-template",
+      "description": "Template padronizado para novos agentes open-source.",
+      "version": "1.0.0",
+      "path": "software-development/oss-agent-template/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "template",
+        "agent",
+        "oss",
+        "scaffolding"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "p5js",
+      "description": "p5.js sketches: gen art, shaders, interactive, 3D.",
+      "version": "1.0.0",
+      "path": "creative/p5js/SKILL.md",
+      "category": "creative",
+      "tags": [
+        "creative-coding",
+        "generative-art",
+        "p5js",
+        "canvas",
+        "interactive",
+        "visualization",
+        "webgl",
+        "shaders",
+        "animation"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "pdf",
+      "description": "PDF files: create, read, merge, fill, OCR, edit text.",
+      "version": "1.1.0",
+      "path": "productivity/pdf/SKILL.md",
+      "category": "productivity",
+      "tags": [
+        "pdf",
+        "documents",
+        "forms",
+        "ocr",
+        "text-extraction",
+        "reportlab",
+        "pypdf",
+        "pdfplumber",
+        "pymupdf",
+        "marker"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "pipeline-studio",
+      "description": "Builder visual de pipelines de dados com lineage.",
+      "version": "1.0.0",
+      "path": "software-development/pipeline-studio/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "data",
+        "pipeline",
+        "visual",
+        "etl",
+        "lineage"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "plan-mode-report-problem",
+      "description": "Plan Mode: report a bug or problem",
+      "version": "1.0.0",
+      "path": "skills/plan-mode-report-problem/SKILL.md",
+      "category": "plan-mode-report-problem",
+      "tags": [],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "plugin-marketplace",
+      "description": "Console visual e CLI para gerenciar plugins Hermes.",
+      "version": "1.0.0",
+      "path": "software-development/plugin-marketplace/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "plugins",
+        "marketplace",
+        "ui",
+        "management"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "popular-web-designs",
+      "description": "54 real design systems (Stripe, Linear, Vercel) as HTML/CSS.",
+      "version": "1.0.0",
+      "path": "creative/popular-web-designs/SKILL.md",
+      "category": "creative",
+      "tags": [
+        "design",
+        "css",
+        "html",
+        "ui",
+        "web-development",
+        "design-systems",
+        "templates"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "powerpoint",
+      "description": "Create, read, edit .pptx decks with python-pptx.",
+      "version": "1.1.0",
+      "path": "productivity/powerpoint/SKILL.md",
+      "category": "productivity",
+      "tags": [
+        "pptx",
+        "powerpoint",
+        "presentations",
+        "slides",
+        "office",
+        "python-pptx"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "product-price-monitor",
+      "description": "Watch product, flight, or listing prices; alert on target.",
+      "version": "0.1.0",
+      "path": "productivity/product-price-monitor/SKILL.md",
+      "category": "productivity",
+      "tags": [
+        "Prices",
+        "Availability",
+        "Shopping",
+        "Travel",
+        "Alerts"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "project-template",
+      "description": "Scaffold completo com CONTRIBUTING, README e .env.example.",
+      "version": "1.0.0",
+      "path": "software-development/project-template/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "template",
+        "project",
+        "scaffold",
+        "onboarding"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "proof-level-classifier",
+      "description": "Classifica nível de prova de claims de agentes.",
+      "version": "1.0.0",
+      "path": "software-development/proof-level-classifier/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "verification",
+        "quality",
+        "proof-level",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "prosa-linter",
+      "description": "Detector de slop/filler/hedge e grounding em prosa.",
+      "version": "1.0.0",
+      "path": "software-development/prosa-linter/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "writing",
+        "slop-lint",
+        "grounding",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "python-debugpy",
+      "description": "Debug Python: pdb REPL + debugpy remote (DAP).",
+      "version": "1.0.0",
+      "path": "software-development/python-debugpy/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "debugging",
+        "python",
+        "pdb",
+        "debugpy",
+        "breakpoints",
+        "dap",
+        "post-mortem"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "red-team-iscas",
+      "description": "Conjunto versionado de iscas para testar gates.",
+      "version": "1.0.0",
+      "path": "software-development/red-team-iscas/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "red-team",
+        "iscas",
+        "verification",
+        "testing",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "replay-recording",
+      "description": "Turn a hermes record browser recording into a skill.",
+      "version": "0.1.0",
+      "path": "skills/replay-recording/SKILL.md",
+      "category": "replay-recording",
+      "tags": [
+        "browser",
+        "recording",
+        "learn",
+        "automation",
+        "workflow-record"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "requesting-code-review",
+      "description": "Pre-commit review: security scan, quality gates, auto-fix.",
+      "version": "2.1.0",
+      "path": "software-development/requesting-code-review/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "code-review",
+        "security",
+        "verification",
+        "quality",
+        "pre-commit",
+        "auto-fix"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "reverse-engineer-anything",
+      "description": "Reverse engineer native, managed, Electron/JavaScript, packaged, firmware, and browser targets with REA. Use shipped-artifact or requested runtime evidence to explain features, compare versions, de...",
+      "version": "42.0.0",
+      "path": "skills/reverse-engineer-anything/SKILL.md",
+      "category": "reverse-engineer-anything",
+      "tags": [],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "runbook-builder",
+      "description": "Gera workflows multi-agente reutilizáveis como runbooks.",
+      "version": "1.0.0",
+      "path": "software-development/runbook-builder/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "orchestration",
+        "workflow",
+        "automation"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "runbook-executor",
+      "description": "Carrega e executa runbooks YAML multi-agente em cascata.",
+      "version": "1.0.0",
+      "path": "software-development/runbook-executor/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "orchestration",
+        "runbook",
+        "executor",
+        "cascade"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "rust-async-patterns",
+      "description": "Async Rust: tokio, select!, streams e cancellation safety.",
+      "version": "1.0.0",
+      "path": "skills/rust-async-patterns/SKILL.md",
+      "category": "rust-async-patterns",
+      "tags": [
+        "rust",
+        "async",
+        "tokio",
+        "concurrency",
+        "streams"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "rust-cli-patterns",
+      "description": "Padrões de CLI Rust com clap v4 e ratatui.",
+      "version": "1.0.0",
+      "path": "skills/rust-cli-patterns/SKILL.md",
+      "category": "rust-cli-patterns",
+      "tags": [
+        "rust",
+        "cli",
+        "clap",
+        "ratatui",
+        "terminal",
+        "tui"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "rust-cross-compilation",
+      "description": "Cross-compilation Rust com cross e MUSL.",
+      "version": "1.0.0",
+      "path": "skills/rust-cross-compilation/SKILL.md",
+      "category": "rust-cross-compilation",
+      "tags": [
+        "rust",
+        "cross-compilation",
+        "musl",
+        "targets",
+        "docker"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "rust-database-patterns",
+      "description": "Padrões de banco de dados Rust com SQLx e Diesel.",
+      "version": "1.0.0",
+      "path": "skills/rust-database-patterns/SKILL.md",
+      "category": "rust-database-patterns",
+      "tags": [
+        "rust",
+        "database",
+        "sqlx",
+        "diesel",
+        "postgres",
+        "migrations"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "rust-error-handling",
+      "description": "Error handling Rust: thiserror vs anyhow e propagation.",
+      "version": "1.0.0",
+      "path": "skills/rust-error-handling/SKILL.md",
+      "category": "rust-error-handling",
+      "tags": [
+        "rust",
+        "error-handling",
+        "thiserror",
+        "anyhow",
+        "result"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "rust-ffi-patterns",
+      "description": "Padrões FFI seguros entre Rust e C/Python/Node/Go.",
+      "version": "1.0.0",
+      "path": "skills/rust-ffi-patterns/SKILL.md",
+      "category": "rust-ffi-patterns",
+      "tags": [
+        "rust",
+        "ffi",
+        "bindgen",
+        "cxx",
+        "pyo3",
+        "neon",
+        "uniffi"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "rust-migration-guide",
+      "description": "Guia de migração de C/C++/Go/Python para Rust.",
+      "version": "1.0.0",
+      "path": "skills/rust-migration-guide/SKILL.md",
+      "category": "rust-migration-guide",
+      "tags": [
+        "rust",
+        "migration",
+        "ffi",
+        "interop",
+        "refactoring"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "rust-performance-tuning",
+      "description": "Otimização de performance Rust com profiling.",
+      "version": "1.0.0",
+      "path": "skills/rust-performance-tuning/SKILL.md",
+      "category": "rust-performance-tuning",
+      "tags": [
+        "rust",
+        "performance",
+        "criterion",
+        "flamegraph",
+        "profiling"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "rust-project-setup",
+      "description": "Scaffolding de projetos Rust com cargo e workspaces.",
+      "version": "1.0.0",
+      "path": "skills/rust-project-setup/SKILL.md",
+      "category": "rust-project-setup",
+      "tags": [
+        "rust",
+        "cargo",
+        "scaffolding",
+        "workspace",
+        "ci"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "rust-supply-chain-security",
+      "description": "Segurança de supply chain Rust com audit/deny.",
+      "version": "1.0.0",
+      "path": "skills/rust-supply-chain-security/SKILL.md",
+      "category": "rust-supply-chain-security",
+      "tags": [
+        "rust",
+        "security",
+        "supply-chain",
+        "cargo-audit",
+        "cargo-deny",
+        "crev"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "rust-testing-patterns",
+      "description": "Padrões de teste Rust: unit, integration e proptest.",
+      "version": "1.0.0",
+      "path": "skills/rust-testing-patterns/SKILL.md",
+      "category": "rust-testing-patterns",
+      "tags": [
+        "rust",
+        "testing",
+        "proptest",
+        "unit-test",
+        "integration-test"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "rust-traits-design",
+      "description": "Design de traits Rust: generics vs dyn e object safety.",
+      "version": "1.0.0",
+      "path": "skills/rust-traits-design/SKILL.md",
+      "category": "rust-traits-design",
+      "tags": [
+        "rust",
+        "traits",
+        "generics",
+        "dyn",
+        "object-safety"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "rust-unsafe-guide",
+      "description": "Guia seguro de uso de unsafe em Rust.",
+      "version": "1.0.0",
+      "path": "skills/rust-unsafe-guide/SKILL.md",
+      "category": "rust-unsafe-guide",
+      "tags": [
+        "rust",
+        "unsafe",
+        "soundness",
+        "mirai",
+        "ffi"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "rust-wasm-patterns",
+      "description": "Padrões WebAssembly Rust com wasm-bindgen e frameworks.",
+      "version": "1.0.0",
+      "path": "skills/rust-wasm-patterns/SKILL.md",
+      "category": "rust-wasm-patterns",
+      "tags": [
+        "rust",
+        "wasm",
+        "wasm-bindgen",
+        "yew",
+        "leptos",
+        "dioxus"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "rust-web-apis",
+      "description": "Padrões de APIs web em Rust com Axum e Actix.",
+      "version": "1.0.0",
+      "path": "skills/rust-web-apis/SKILL.md",
+      "category": "rust-web-apis",
+      "tags": [
+        "rust",
+        "web",
+        "axum",
+        "actix",
+        "api",
+        "http"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "santa-verification",
+      "description": "Verificação adversarial (SANTA) de output de agentes.",
+      "version": "1.0.0",
+      "path": "software-development/santa-verification/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "verification",
+        "quality",
+        "adversarial"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "scrapling",
+      "description": "Scrape sites with stealth browsing and Cloudflare bypass.",
+      "version": "1.0.0",
+      "path": "research/scrapling/SKILL.md",
+      "category": "research",
+      "tags": [
+        "Web Scraping",
+        "Browser",
+        "Cloudflare",
+        "Stealth",
+        "Crawling",
+        "Spider"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "screenshot-verifier",
+      "description": "Prova visual verificável com magic bytes e completude.",
+      "version": "1.0.0",
+      "path": "software-development/screenshot-verifier/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "verification",
+        "screenshot",
+        "proof",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "sdlc-review",
+      "description": "Review Kanban handoffs and route verified outcomes.",
+      "version": "1.1.0",
+      "path": "devops/sdlc-review/SKILL.md",
+      "category": "devops",
+      "tags": [
+        "kanban",
+        "review",
+        "quality",
+        "verification"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "security-pr-audit",
+      "description": "Auditoria de segurança automatizada em pull requests.",
+      "version": "1.0.0",
+      "path": "software-development/security-pr-audit/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "security",
+        "audit",
+        "pr",
+        "automation"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "shadow-state-manager",
+      "description": "Checkpoint e rollback de estado em repo-sombra isolado.",
+      "version": "1.0.0",
+      "path": "software-development/shadow-state-manager/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "rollback",
+        "safety",
+        "checkpoint",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "simplify-code",
+      "description": "Parallel 4-agent cleanup of recent code changes.",
+      "version": "1.1.0",
+      "path": "software-development/simplify-code/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "code-review",
+        "cleanup",
+        "refactor",
+        "delegation",
+        "subagent",
+        "parallel",
+        "simplify"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "skill-authoring-guide",
+      "description": "Guia completo para criação de skills Hermes.",
+      "version": "1.0.0",
+      "path": "software-development/skill-authoring-guide/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "skills",
+        "authoring",
+        "guide",
+        "documentation"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "skill-curator",
+      "description": "Curadoria contínua que remove skills e MCPs de ruído.",
+      "version": "1.0.0",
+      "path": "software-development/skill-curator/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "curation",
+        "noise-reduction",
+        "active-set",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "software-factory",
+      "description": "Instala e gerencia agentes especializados com pipelines e Rust Stack.",
+      "version": "1.0.0",
+      "path": "skills/software-factory/SKILL.md",
+      "category": "software-factory",
+      "tags": [
+        "software-factory",
+        "agents",
+        "pipeline",
+        "dev-team",
+        "ghostcli"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "songsee",
+      "description": "Audio spectrograms/features (mel, chroma, MFCC) via CLI.",
+      "version": "1.0.0",
+      "path": "media/songsee/SKILL.md",
+      "category": "media",
+      "tags": [
+        "Audio",
+        "Visualization",
+        "Spectrogram",
+        "Music",
+        "Analysis"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "songwriting-and-ai-music",
+      "description": "Songwriting craft and Suno AI music prompts.",
+      "version": "1.0.0",
+      "path": "creative/songwriting-and-ai-music/SKILL.md",
+      "category": "creative",
+      "tags": [
+        "songwriting",
+        "music",
+        "suno",
+        "parody",
+        "lyrics",
+        "creative"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "spike",
+      "description": "Throwaway experiments to validate an idea before build.",
+      "version": "1.0.0",
+      "path": "software-development/spike/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "spike",
+        "prototype",
+        "experiment",
+        "feasibility",
+        "throwaway",
+        "exploration",
+        "research",
+        "planning",
+        "mvp",
+        "proof-of-concept"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "stock-research",
+      "description": "Análise de ações via SEC EDGAR e dados de mercado.",
+      "version": "1.0.0",
+      "path": "research/stock-research/SKILL.md",
+      "category": "research",
+      "tags": [
+        "finance",
+        "stocks",
+        "sec",
+        "edgar",
+        "research"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "supervisor-patterns",
+      "description": "Padrões de orquestração multi-agente (seq/parallel/cond).",
+      "version": "1.0.0",
+      "path": "software-development/supervisor-patterns/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "orchestration",
+        "patterns",
+        "multi-agent"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "systematic-debugging",
+      "description": "4-phase root cause debugging: understand bugs before fixing.",
+      "version": "1.1.0",
+      "path": "software-development/systematic-debugging/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "debugging",
+        "troubleshooting",
+        "problem-solving",
+        "root-cause",
+        "investigation"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "task-tracker",
+      "description": "Rastreador de tarefas com verificação obrigatória.",
+      "version": "1.0.0",
+      "path": "productivity/task-tracker/SKILL.md",
+      "category": "productivity",
+      "tags": [
+        "tasks",
+        "tracker",
+        "verification",
+        "proof",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "teammates-report-problem",
+      "description": "Hermes Teammates: report a bug or problem",
+      "version": "1.0.0",
+      "path": "skills/teammates-report-problem/SKILL.md",
+      "category": "teammates-report-problem",
+      "tags": [],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "teams-meeting-pipeline",
+      "description": "Teams meeting summaries, job replay, Graph subscriptions.",
+      "version": "1.1.0",
+      "path": "productivity/teams-meeting-pipeline/SKILL.md",
+      "category": "productivity",
+      "tags": [
+        "Teams",
+        "Microsoft Graph",
+        "Meetings",
+        "Productivity",
+        "Operations"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "test-driven-development",
+      "description": "TDD: enforce RED-GREEN-REFACTOR, tests before code.",
+      "version": "1.1.0",
+      "path": "software-development/test-driven-development/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "testing",
+        "tdd",
+        "development",
+        "quality",
+        "red-green-refactor"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "teto-f-guard",
+      "description": "Fail-safe que previne execução além do teto.",
+      "version": "1.0.0",
+      "path": "software-development/teto-f-guard/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "safety",
+        "fail-safe",
+        "orchestration",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "text-to-image-free",
+      "description": ">",
+      "version": "1.3.0",
+      "path": "skills/text-to-image-free/SKILL.md",
+      "category": "text-to-image-free",
+      "tags": [],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "tool-catalog",
+      "description": "Indexa ferramentas de IA por categoria e uso.",
+      "version": "1.0.0",
+      "path": "research/tool-catalog/SKILL.md",
+      "category": "research",
+      "tags": [
+        "tools",
+        "catalog",
+        "index",
+        "discovery"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "verification-loop",
+      "description": "Loop de verificação contínua até critérios satisfeitos.",
+      "version": "1.0.0",
+      "path": "software-development/verification-loop/SKILL.md",
+      "category": "software-development",
+      "tags": [
+        "verification",
+        "quality",
+        "loop"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "video-perception",
+      "description": "Percepção de vídeo com cenas e cobertura honesta.",
+      "version": "1.0.0",
+      "path": "media/video-perception/SKILL.md",
+      "category": "media",
+      "tags": [
+        "video",
+        "perception",
+        "frame-select",
+        "cortex-adapted"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "weekly-review-planning",
+      "description": "Weekly reset: commitments, stalled work, next-week plan.",
+      "version": "0.1.0",
+      "path": "productivity/weekly-review-planning/SKILL.md",
+      "category": "productivity",
+      "tags": [
+        "Weekly-Review",
+        "Planning",
+        "Tasks",
+        "Calendar",
+        "Productivity"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "xlsx",
+      "description": "Create, read, edit Excel .xlsx workbooks and CSVs.",
+      "version": "1.1.0",
+      "path": "productivity/xlsx/SKILL.md",
+      "category": "productivity",
+      "tags": [
+        "excel",
+        "spreadsheet",
+        "xlsx",
+        "csv",
+        "openpyxl",
+        "productivity"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "xurl",
+      "description": "X/Twitter via xurl CLI: raw post search, posting, DM, media.",
+      "version": "1.1.3",
+      "path": "social-media/xurl/SKILL.md",
+      "category": "social-media",
+      "tags": [
+        "twitter",
+        "x",
+        "social-media",
+        "xurl",
+        "official-api"
+      ],
+      "depends_on": [],
+      "active": true
+    },
+    {
+      "name": "youtube-content",
+      "description": "YouTube transcripts to summaries, threads, blogs.",
+      "version": "1.0.0",
+      "path": "media/youtube-content/SKILL.md",
+      "category": "media",
+      "tags": [
+        "YouTube",
+        "Video",
+        "Transcripts",
+        "Media"
+      ],
+      "depends_on": [],
+      "active": true
+    }
+  ]
+}

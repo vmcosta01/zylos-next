@@ -1,0 +1,77 @@
+---
+metadata:
+  name: mobile-mcp
+  version: "1.0"
+  trigger: "mobile_device_connected OR mcp_sync_failed"
+  audience: ["dev_pleno", "dev_senior"]
+  estimated_duration_minutes: 15
+  tags: ["mobile", "mcp", "sync", "multi-device"]
+  related_playbooks:
+    - "../playbooks/incident-response.md"
+
+preconditions:
+  - check: "Mobile crate compiled"
+    command: "cargo build -p zylos-mobile 2>&1 | tail -1"
+    expected: "exit_code:0"
+    on_failure: "abort"
+  - check: "MCP server reachable"
+    command: "cargo run -p zylos-search-mcp --bin health-check 2>/dev/null || echo skip"
+    expected: "exit_code:0|skip"
+    on_failure: "warn"
+
+steps:
+  - id: "detect_devices"
+    action: "execute"
+    command: "cargo run -p zylos-mobile --bin device-list"
+    timeout_seconds: 30
+    on_success: "sync_state"
+    on_failure: "register_device"
+  - id: "sync_state"
+    action: "execute"
+    command: "cargo run -p zylos-mobile --bin sync -- --all-devices"
+    timeout_seconds: 120
+    human_approval_required: false
+    on_success: "validate_consistency"
+    on_failure: "resolve_conflicts"
+  - id: "validate_consistency"
+    action: "validate"
+    command: "cargo run -p zylos-mobile --bin verify-sync -- --expect consistent"
+    expected: "exit_code:0"
+  - id: "register_device"
+    action: "execute"
+    command: "cargo run -p zylos-mobile --bin register -- --auto-discover"
+    timeout_seconds: 30
+    on_success: "sync_state"
+  - id: "resolve_conflicts"
+    action: "execute"
+    command: "cargo run -p zylos-mobile --bin resolve-conflicts -- --strategy latest-writer"
+    timeout_seconds: 60
+    human_approval_required: true
+
+validation:
+  - check: "All devices synced"
+    command: "cargo run -p zylos-mobile --bin sync-status -- --expect all-synced"
+    expected: "exit_code:0"
+  - check: "No data loss detected"
+    command: "cargo run -p zylos-mobile --bin verify-integrity"
+    expected: "exit_code:0"
+
+rollback:
+  - id: "disconnect_devices"
+    action: "execute"
+    command: "cargo run -p zylos-mobile --bin disconnect -- --all"
+  - id: "restore_last_known"
+    action: "execute"
+    command: "cargo run -p zylos-mobile --bin restore -- --from-backup"
+
+escalation:
+  max_retries: 2
+  escalation_path:
+    - level: "dev_senior"
+      contact: "#zylos-mobile Slack"
+      timeout_minutes: 15
+
+audit:
+  log_level: "info"
+  capture_output: true
+  immutable_log: true

@@ -1,0 +1,21 @@
+[package]
+name = "zylos-goals"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Goal tracking with milestones, OKRs, and cron-based progress watchers for zylos-gateway"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+rusqlite = { workspace = true }
+cron = "0.13"
+
+[dev-dependencies]
+tempfile = { workspace = true }

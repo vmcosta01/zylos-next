@@ -1,0 +1,56 @@
+# Hermes Adapter Configuration
+# Maps 65 Hermes profiles to zylos-next agents
+
+[adapter]
+mcp_endpoint = "http://localhost:8080/mcp/v1"
+auth_token_env = "ZYLOS_HERMES_TOKEN"
+max_concurrent_profiles = 65
+health_check_interval_seconds = 30
+
+[defaults]
+model_provider = "anthropic"
+model_name = "claude-sonnet-4-20250514"
+max_concurrent_tasks = 5
+equivalence_hash_enabled = true
+approval_required = false
+
+[profiles.default]
+zylos_agent_id = "agent-default"
+tenant = "system"
+capabilities = ["mcp", "skills", "memory"]
+
+[profiles.researcher-a]
+zylos_agent_id = "agent-researcher-a"
+tenant = "research"
+capabilities = ["mcp", "skills", "memory", "web-search"]
+
+[profiles.coder-alpha]
+zylos_agent_id = "agent-coder-alpha"
+tenant = "development"
+capabilities = ["mcp", "skills", "memory", "sandbox"]
+approval_required = true
+
+[profiles.hitl-approver]
+zylos_agent_id = "agent-hitl-approver"
+tenant = "approval"
+capabilities = ["mcp", "hitl"]
+approval_required = true
+
+[profiles.deploy-canary]
+zylos_agent_id = "agent-deploy-canary"
+tenant = "deployment"
+capabilities = ["mcp", "orchestration"]
+approval_required = true
+
+[profiles.sentinel-scanner]
+zylos_agent_id = "agent-sentinel-scanner"
+tenant = "monitoring"
+capabilities = ["mcp", "sentinel"]
+
+[profiles.memory-consolidator]
+zylos_agent_id = "agent-memory-consolidator"
+tenant = "memory"
+capabilities = ["mcp", "memory"]
+
+# Remaining 58 profiles follow the same pattern
+# Full roster loaded via load_default_profiles() in code

@@ -1,0 +1,96 @@
+# False Positive Suppression Playbook
+# FP detection and rule tuning workflow
+# Matches Playbook struct in crates/zylos-soar/src/playbook.rs
+
+name: false-positive-suppression
+version: "1.0"
+
+triggers:
+  - expression: 'event.category == "FalsePositive"'
+
+roles:
+  incident_commander: "detection-engineering-lead"
+  executor: "zylos-agent-soar"
+  approver: "soc-manager"
+
+states:
+  - name: analyze_fp
+    auto: true
+    runbook: "analyze-false-positive-pattern"
+    timeout_minutes: 15
+    escalation: "detection-engineering-lead"
+    next:
+      - condition: "analysis.rule_id != null"
+        to: propose_tuning
+      - condition: "analysis.rule_id == null"
+        to: manual_review
+
+  - name: propose_tuning
+    auto: true
+    runbook: "generate-rule-tuning-proposal"
+    timeout_minutes: 10
+    escalation: "detection-engineering-lead"
+    next:
+      - to: review_tuning
+
+  - name: review_tuning
+    auto: false
+    approval_required: true
+    runbook: "validate-tuning-impact"
+    timeout_minutes: 30
+    escalation: "soc-manager"
+    next:
+      - condition: "review.approved == true"
+        to: apply_tuning
+      - condition: "review.approved == false"
+        to: reject
+
+  - name: apply_tuning
+    auto: true
+    runbook: "apply-rule-modification"
+    timeout_minutes: 10
+    escalation: "detection-engineering-lead"
+    next:
+      - to: verify
+
+  - name: verify
+    auto: true
+    runbook: "verify-tuning-effectiveness"
+    timeout_minutes: 20
+    escalation: "detection-engineering-lead"
+    next:
+      - to: close_resolved
+
+  - name: manual_review
+    auto: false
+    approval_required: true
+    runbook: "manual-fp-investigation"
+    timeout_minutes: 60
+    escalation: "soc-manager"
+    next:
+      - condition: "review.needs_rule_change == true"
+        to: propose_tuning
+      - condition: "review.needs_rule_change == false"
+        to: close_no_action
+
+  - name: reject
+    auto: true
+    actions:
+      - log_rejected_tuning
+      - notify_proposer
+    terminal: true
+
+  - name: close_resolved
+    auto: true
+    actions:
+      - update_detection_rules
+      - log_fp_resolution
+      - update_training_dataset
+    terminal: true
+
+  - name: close_no_action
+    auto: true
+    actions:
+      - log_fp_analysis
+      - suppress_event
+    terminal: true

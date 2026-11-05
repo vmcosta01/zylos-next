@@ -1,0 +1,12 @@
+apiVersion: v2
+name: zylos-gateway
+description: A Helm chart for deploying Zylos Gateway on Kubernetes
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - zylos
+  - gateway
+  - ai-agent
+maintainers:
+  - name: vmcosta

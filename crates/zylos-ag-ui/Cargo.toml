@@ -1,0 +1,22 @@
+[package]
+name = "zylos-ag-ui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "AG-UI protocol adapter for zylos-gateway — bridges agent events to AG-UI streaming format"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+axum = { workspace = true }
+futures = { workspace = true }
+async-stream = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

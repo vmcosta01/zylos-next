@@ -1,0 +1,18 @@
+[build]
+target = "index.html"
+dist = "dist"
+
+[[copy]]
+from = "sw.js"
+to = "sw.js"
+
+[[copy]]
+from = "manifest.json"
+to = "manifest.json"
+
+[serve]
+port = 3000
+open = false
+
+[watch]
+ignore = ["dist"]

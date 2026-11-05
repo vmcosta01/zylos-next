@@ -1,0 +1,38 @@
+[package]
+name = "zylos-bot-system"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+zylos-core = { workspace = true }
+tokio = { workspace = true, features = ["full", "sync", "rt-multi-thread", "macros", "time"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+uuid = { version = "1.29", features = ["v4", "serde"] }
+dashmap = "6.1"
+petgraph = { workspace = true }
+regex = "1"
+zylos-memory-system = { path = "../zylos-memory-system" }
+rand = "0.8"
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde_yaml = "0.9"
+toml = { version = "0.8", optional = true }
+async-trait = "0.1"
+quinn = { version = "0.11", optional = true }
+rustls = { version = "0.23", optional = true, default-features = false, features = ["ring"] }
+rcgen = { version = "0.13", optional = true }
+blake3 = { version = "1.5", optional = true }
+
+[features]
+default = []
+toml-format = ["dep:toml"]
+p2p-network = ["dep:quinn", "dep:rustls", "dep:rcgen", "dep:blake3"]
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3"

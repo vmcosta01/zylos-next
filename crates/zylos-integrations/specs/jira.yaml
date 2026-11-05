@@ -1,0 +1,58 @@
+slug: jira
+display_name: Jira Cloud
+auth_url: https://auth.atlassian.com/authorize
+token_url: https://auth.atlassian.com/oauth/token
+client_id: "${JIRA_CLIENT_ID}"
+client_secret: "${JIRA_CLIENT_SECRET}"
+redirect_uri: http://localhost:9090/callback/jira
+scopes:
+  - read:jira-work
+  - write:jira-work
+  - read:jira-user
+requires_approval: false
+rate_limit_rpm: 100
+actions:
+  - id: create_issue
+    description: Create a new Jira issue
+    method: POST
+    url_template: https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/issue
+    requires_approval: false
+    body_schema:
+      type: object
+      required: [fields]
+      properties:
+        fields:
+          type: object
+          required: [project, summary, issuetype]
+          properties:
+            project: { type: object }
+            summary: { type: string }
+            description: { type: object }
+            issuetype: { type: object }
+            priority: { type: object }
+            assignee: { type: object }
+
+  - id: search_issues
+    description: Search issues using JQL
+    method: POST
+    url_template: https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/search
+    requires_approval: false
+    body_schema:
+      type: object
+      required: [jql]
+      properties:
+        jql: { type: string }
+        maxResults: { type: integer, default: 50 }
+        fields: { type: array, items: { type: string } }
+
+  - id: transition_issue
+    description: Transition an issue to a new status
+    method: POST
+    url_template: https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/issue/{issue_id}/transitions
+    requires_approval: true
+
+  - id: list_projects
+    description: List all accessible projects
+    method: GET
+    url_template: https://api.atlassian.com/ex/jira/{cloud_id}/rest/api/3/project/search
+    requires_approval: false

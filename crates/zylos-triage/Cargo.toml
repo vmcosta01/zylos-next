@@ -1,0 +1,22 @@
+[package]
+name = "zylos-triage"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+description = "Two-stage triage engine with rules-only fast path, model fallback, and equivalence-based approval hashing for Zylos-Next"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+sha2 = "0.10"
+chrono = { version = "0.4", features = ["serde"] }
+tokio = { workspace = true, features = ["sync"] }
+tracing = { workspace = true }
+zylos-proof = { path = "../zylos-proof" }
+
+[dev-dependencies]
+tempfile = "3"

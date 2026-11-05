@@ -1,0 +1,1060 @@
+openapi: 3.0.3
+info:
+  title: Zylos-Next Gateway API
+  description: |
+    API do gateway Zylos-Next (Axum HTTP/SSE).
+    Autenticação via Bearer JWT. Todos os endpoints são versionados via prefixo /api/v1/.
+    Rate limiting aplicado globalmente: 100 req/min por token, 1000 req/min por organização.
+  version: 1.0.0
+  contact:
+    name: Zylos Platform Team
+    email: platform@zylos.dev
+  license:
+    name: Proprietary
+    url: https://zylos.dev/license
+
+servers:
+  - url: https://gateway.zylos.dev/api/v1
+    description: Produção
+  - url: https://staging-gateway.zylos.dev/api/v1
+    description: Staging
+  - url: http://localhost:3000/api/v1
+    description: Desenvolvimento local
+
+security:
+  - BearerJWT: []
+
+tags:
+  - name: Health
+    description: Endpoints de health check e readiness
+  - name: Events
+    description: Server-Sent Events (SSE) para streaming de eventos
+  - name: Skills
+    description: Gerenciamento de skills de agentes
+  - name: Evaluation
+    description: Execução de avaliações de agentes
+  - name: Approvals
+    description: Fluxo de aprovação humana (human-in-the-loop)
+  - name: Tasks
+    description: Gerenciamento de tarefas duráveis
+  - name: Triage
+    description: Classificação de mensagens em dois estágios
+  - name: Sentinel
+    description: Scanner de saúde e issues de agentes
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Liveness probe
+      description: |
+        Retorna o status de vida do gateway.
+        Use para health checks de load balancers e Kubernetes.
+      operationId: getHealth
+      security: []
+      responses:
+        '200':
+          description: Gateway está vivo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: ok
+                version: 1.0.0
+                uptime_seconds: 84291
+                checks:
+                  database: ok
+                  cache: ok
+                  sandbox_pool: ok
+      x-codeSamples:
+        - lang: curl
+          label: curl
+          source: |
+            curl -s https://gateway.zylos.dev/api/v1/health | jq
+
+  /ready:
+    get:
+      tags: [Health]
+      summary: Readiness probe
+      description: |
+        Indica se o gateway está pronto para aceitar tráfego.
+        Retorna 503 se dependências críticas estiverem indisponíveis.
+      operationId: getReady
+      security: []
+      responses:
+        '200':
+          description: Pronto para tráfego
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadyResponse'
+              example:
+                status: ready
+                dependencies:
+                  - name: sqlite
+                    status: ok
+                    latency_ms: 2
+                  - name: docker
+                    status: ok
+                    latency_ms: 15
+        '503':
+          description: Não pronto — dependência indisponível
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-codeSamples:
+        - lang: curl
+          label: curl
+          source: |
+            curl -sf https://gateway.zylos.dev/api/v1/ready || echo "NOT READY"
+
+  /events:
+    get:
+      tags: [Events]
+      summary: Stream de eventos (SSE)
+      description: |
+        Endpoint Server-Sent Events para streaming em tempo real.
+        Eventos: `agent.started`, `agent.completed`, `task.created`,
+        `approval.requested`, `skill.installed`, `triage.classified`.
+        Reconexão automática via header `Last-Event-ID`.
+      operationId: streamEvents
+      parameters:
+        - name: Last-Event-ID
+          in: header
+          description: ID do último evento recebido (para reconexão)
+          schema:
+            type: string
+        - name: filter
+          in: query
+          description: |
+            Filtro por tipo de evento. Múltiplos valores separados por vírgula.
+            Ex: `agent.started,task.created`
+          schema:
+            type: string
+        - name: agent_id
+          in: query
+          description: Filtrar eventos de um agente específico
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Stream SSE aberto
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              example: |
+                event: agent.started
+                id: evt_01H8X3K2M9
+                data: {"agent_id":"agent-0042","task_id":"task-1001","timestamp":"2026-11-04T10:30:00Z"}
+
+                event: task.completed
+                id: evt_01H8X3L4P1
+                data: {"task_id":"task-1001","status":"success","duration_ms":4521}
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              example: no-cache
+            Connection:
+              schema:
+                type: string
+              example: keep-alive
+            X-Accel-Buffering:
+              schema:
+                type: string
+              example: 'no'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      x-codeSamples:
+        - lang: curl
+          label: curl
+          source: |
+            curl -N -H "Authorization: Bearer $JWT" \
+              "https://gateway.zylos.dev/api/v1/events?filter=agent.started,task.completed"
+
+  /skills:
+    get:
+      tags: [Skills]
+      summary: Listar skills
+      description: Lista todas as skills disponíveis com paginação.
+      operationId: listSkills
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: Filtrar por categoria (devops, research, productivity)
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Busca textual no nome e descrição da skill
+      responses:
+        '200':
+          description: Lista de skills
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+      x-codeSamples:
+        - lang: curl
+          label: curl
+          source: |
+            curl -s -H "Authorization: Bearer $JWT" \
+              "https://gateway.zylos.dev/api/v1/skills?category=devops&limit=20" | jq
+
+    post:
+      tags: [Skills]
+      summary: Instalar skill
+      description: |
+        Instala uma nova skill no workspace do agente.
+        Requer permissão `skills:write`.
+      operationId: installSkill
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstallSkillRequest'
+            example:
+              name: rust-async-patterns
+              version: 1.2.0
+              source: registry
+              agent_id: agent-0042
+      responses:
+        '201':
+          description: Skill instalada com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Skill já instalada nesta versão
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-codeSamples:
+        - lang: curl
+          label: curl
+          source: |
+            curl -X POST -H "Authorization: Bearer $JWT" \
+              -H "Content-Type: application/json" \
+              -d '{"name":"rust-async-patterns","version":"1.2.0","source":"registry","agent_id":"agent-0042"}' \
+              https://gateway.zylos.dev/api/v1/skills
+
+  /skills/{skill_id}:
+    get:
+      tags: [Skills]
+      summary: Obter skill por ID
+      description: Retorna detalhes completos de uma skill específica.
+      operationId: getSkill
+      parameters:
+        - name: skill_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID ou nome da skill
+          example: rust-async-patterns
+      responses:
+        '200':
+          description: Detalhes da skill
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-codeSamples:
+        - lang: curl
+          label: curl
+          source: |
+            curl -s -H "Authorization: Bearer $JWT" \
+              https://gateway.zylos.dev/api/v1/skills/rust-async-patterns | jq
+
+    delete:
+      tags: [Skills]
+      summary: Desinstalar skill
+      operationId: uninstallSkill
+      parameters:
+        - name: skill_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Skill desinstalada
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-codeSamples:
+        - lang: curl
+          label: curl
+          source: |
+            curl -X DELETE -H "Authorization: Bearer $JWT" \
+              https://gateway.zylos.dev/api/v1/skills/rust-async-patterns
+
+  /eval/run:
+    post:
+      tags: [Evaluation]
+      summary: Executar avaliação de agente
+      description: |
+        Executa um benchmark de avaliação contra um agente.
+        Retorna um `eval_run_id` para acompanhamento via SSE.
+      operationId: runEvaluation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvalRunRequest'
+            example:
+              agent_id: agent-0042
+              suite: coding-bench-v3
+              max_concurrency: 4
+              timeout_seconds: 600
+      responses:
+        '202':
+          description: Avaliação aceita e enfileirada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  eval_run_id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    enum: [queued]
+                  stream_url:
+                    type: string
+                    format: uri
+              example:
+                eval_run_id: eval-01H8X4A2B3
+                status: queued
+                stream_url: /api/v1/events?filter=eval.progress&eval_run_id=eval-01H8X4A2B3
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      x-codeSamples:
+        - lang: curl
+          label: curl
+          source: |
+            curl -X POST -H "Authorization: Bearer $JWT" \
+              -H "Content-Type: application/json" \
+              -d '{"agent_id":"agent-0042","suite":"coding-bench-v3","max_concurrency":4}' \
+              https://gateway.zylos.dev/api/v1/eval/run
+
+  /approvals:
+    get:
+      tags: [Approvals]
+      summary: Listar aprovações pendentes
+      description: |
+        Retorna aprovações human-in-the-loop pendentes para o agente ou usuário.
+      operationId: listApprovals
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, approved, rejected, expired]
+            default: pending
+        - name: agent_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Lista de aprovações
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Approval'
+      x-codeSamples:
+        - lang: curl
+          label: curl
+          source: |
+            curl -s -H "Authorization: Bearer $JWT" \
+              "https://gateway.zylos.dev/api/v1/approvals?status=pending" | jq
+
+    post:
+      tags: [Approvals]
+      summary: Responder a uma aprovação
+      description: Aprova ou rejeita uma solicitação pendente.
+      operationId: respondApproval
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [approval_id, decision]
+              properties:
+                approval_id:
+                  type: string
+                  format: uuid
+                decision:
+                  type: string
+                  enum: [approved, rejected]
+                comment:
+                  type: string
+                  maxLength: 500
+            example:
+              approval_id: appr-01H8X5C4D5
+              decision: approved
+              comment: "Aprovado para deploy em staging"
+      responses:
+        '200':
+          description: Aprovação processada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Approval'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      x-codeSamples:
+        - lang: curl
+          label: curl
+          source: |
+            curl -X POST -H "Authorization: Bearer $JWT" \
+              -H "Content-Type: application/json" \
+              -d '{"approval_id":"appr-01H8X5C4D5","decision":"approved"}' \
+              https://gateway.zylos.dev/api/v1/approvals
+
+  /tasks:
+    get:
+      tags: [Tasks]
+      summary: Listar tarefas
+      description: Lista tarefas duráveis com filtros e paginação.
+      operationId: listTasks
+      parameters:
+        - name: agent_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, running, completed, failed, cancelled]
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/LimitParam'
+      responses:
+        '200':
+          description: Lista de tarefas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Task'
+      x-codeSamples:
+        - lang: curl
+          label: curl
+          source: |
+            curl -s -H "Authorization: Bearer $JWT" \
+              "https://gateway.zylos.dev/api/v1/tasks?status=running&limit=50" | jq
+
+    post:
+      tags: [Tasks]
+      summary: Criar tarefa
+      description: Cria uma nova tarefa durável para execução assíncrona.
+      operationId: createTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+      responses:
+        '201':
+          description: Tarefa criada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+      x-codeSamples:
+        - lang: curl
+          label: curl
+          source: |
+            curl -X POST -H "Authorization: Bearer $JWT" \
+              -H "Content-Type: application/json" \
+              -d '{"agent_id":"agent-0042","type":"code_review","payload":{"pr_url":"https://github.com/org/repo/pull/42"}}' \
+              https://gateway.zylos.dev/api/v1/tasks
+
+  /triage:
+    post:
+      tags: [Triage]
+      summary: Classificar mensagem
+      description: |
+        Classificação em dois estágios (zylos-triage):
+        1. Classificação rápida de intenção (heurística + ML leve)
+        2. Classificação profunda de prioridade e roteamento (LLM)
+      operationId: triageMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TriageRequest'
+            example:
+              message: "Preciso que você revise o PR #42 e verifique se há vazamento de memória"
+              context:
+                channel: slack
+                sender: user-paulo
+                thread_id: thread-abc123
+      responses:
+        '200':
+          description: Classificação completa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TriageResponse'
+              example:
+                stage1:
+                  intent: code_review
+                  confidence: 0.94
+                stage2:
+                  priority: high
+                  route_to: agent-0042
+                  estimated_complexity: medium
+                  sla_minutes: 30
+      x-codeSamples:
+        - lang: curl
+          label: curl
+          source: |
+            curl -X POST -H "Authorization: Bearer $JWT" \
+              -H "Content-Type: application/json" \
+              -d '{"message":"Revise o PR #42 para memory leaks","context":{"channel":"slack"}}' \
+              https://gateway.zylos.dev/api/v1/triage
+
+  /sentinel/issues:
+    get:
+      tags: [Sentinel]
+      summary: Listar issues de saúde
+      description: |
+        Retorna issues detectadas pelo scanner de saúde (zylos-sentinel).
+        Inclui agentes degradados, sandboxes com leak de memória, e falhas de conexão.
+      operationId: listSentinelIssues
+      parameters:
+        - name: severity
+          in: query
+          schema:
+            type: string
+            enum: [critical, warning, info]
+        - name: since
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Issues detectadas após este timestamp (ISO 8601)
+        - name: agent_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Lista de issues
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SentinelIssue'
+              example:
+                - id: issue-01H8X6E7F8
+                  severity: critical
+                  agent_id: agent-0042
+                  type: memory_leak
+                  message: "Agente consumindo 2.3GB, limite é 1GB"
+                  detected_at: "2026-11-04T08:15:00Z"
+                  recommendation: "Reiniciar sandbox e investigar skill 'data-processor'"
+      x-codeSamples:
+        - lang: curl
+          label: curl
+          source: |
+            curl -s -H "Authorization: Bearer $JWT" \
+              "https://gateway.zylos.dev/api/v1/sentinel/issues?severity=critical" | jq
+
+components:
+  securitySchemes:
+    BearerJWT:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT assinado com RS256. Inclui claims: `sub` (user/org ID),
+        `agent_id` (opcional), `permissions` (array), `exp`, `iat`.
+        Obtenha um token via POST /auth/token (endpoint não versionado).
+
+  headers:
+    X-RateLimit-Limit:
+      description: Limite de requisições por janela
+      schema:
+        type: integer
+        example: 100
+    X-RateLimit-Remaining:
+      description: Requisições restantes na janela atual
+      schema:
+        type: integer
+        example: 87
+    X-RateLimit-Reset:
+      description: Timestamp Unix quando a janela é resetada
+      schema:
+        type: integer
+        example: 1699110000
+    X-Request-ID:
+      description: ID único da requisição para tracing distribuído
+      schema:
+        type: string
+        format: uuid
+        example: req-01H8X7G9H0
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      description: Número da página (1-indexed)
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    LimitParam:
+      name: limit
+      in: query
+      description: Itens por página (max 100)
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  responses:
+    BadRequest:
+      description: Requisição malformada
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: VALIDATION_ERROR
+              message: "Campo 'agent_id' é obrigatório"
+              details:
+                - field: agent_id
+                  issue: required
+    Unauthorized:
+      description: Token JWT ausente, expirado ou inválido
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: UNAUTHORIZED
+              message: "Token expirado ou inválido"
+    NotFound:
+      description: Recurso não encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: NOT_FOUND
+              message: "Skill 'rust-async-patterns' não encontrada"
+    RateLimited:
+      description: Limite de requisições excedido
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/X-RateLimit-Limit'
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+            example: 0
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/X-RateLimit-Reset'
+        Retry-After:
+          description: Segundos até poder tentar novamente
+          schema:
+            type: integer
+            example: 45
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: RATE_LIMITED
+              message: "Limite de 100 req/min excedido. Tente novamente em 45s."
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded, down]
+        version:
+          type: string
+        uptime_seconds:
+          type: integer
+          format: int64
+        checks:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [ok, degraded, down]
+      required: [status, version]
+
+    ReadyResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ready, not_ready]
+        dependencies:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              status:
+                type: string
+                enum: [ok, degraded, down]
+              latency_ms:
+                type: integer
+            required: [name, status]
+      required: [status, dependencies]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - VALIDATION_ERROR
+                - UNAUTHORIZED
+                - FORBIDDEN
+                - NOT_FOUND
+                - CONFLICT
+                - RATE_LIMITED
+                - INTERNAL_ERROR
+                - SERVICE_UNAVAILABLE
+            message:
+              type: string
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                  issue:
+                    type: string
+            request_id:
+              type: string
+              format: uuid
+          required: [code, message]
+      required: [error]
+
+    SkillListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkillDetail'
+        pagination:
+          type: object
+          properties:
+            page:
+              type: integer
+            limit:
+              type: integer
+            total:
+              type: integer
+            total_pages:
+              type: integer
+          required: [page, limit, total, total_pages]
+      required: [data, pagination]
+
+    SkillDetail:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        version:
+          type: string
+        category:
+          type: string
+        description:
+          type: string
+        installed_at:
+          type: string
+          format: date-time
+        agent_id:
+          type: string
+          format: uuid
+        files:
+          type: array
+          items:
+            type: string
+      required: [id, name, version, category]
+
+    InstallSkillRequest:
+      type: object
+      required: [name, version, source, agent_id]
+      properties:
+        name:
+          type: string
+          pattern: '^[a-z0-9][a-z0-9\-]{1,62}[a-z0-9]$'
+        version:
+          type: string
+          pattern: '^\d+\.\d+\.\d+(-[a-z0-9.]+)?$'
+        source:
+          type: string
+          enum: [registry, git, local]
+        agent_id:
+          type: string
+          format: uuid
+        config:
+          type: object
+          additionalProperties: true
+
+    EvalRunRequest:
+      type: object
+      required: [agent_id, suite]
+      properties:
+        agent_id:
+          type: string
+          format: uuid
+        suite:
+          type: string
+        max_concurrency:
+          type: integer
+          minimum: 1
+          maximum: 16
+          default: 4
+        timeout_seconds:
+          type: integer
+          minimum: 60
+          maximum: 3600
+          default: 600
+        parameters:
+          type: object
+          additionalProperties: true
+
+    Approval:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        agent_id:
+          type: string
+          format: uuid
+        action:
+          type: string
+          description: "Ação que requer aprovação (ex: 'deploy', 'file_write', 'api_call')"
+        details:
+          type: object
+          additionalProperties: true
+        status:
+          type: string
+          enum: [pending, approved, rejected, expired]
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        decided_by:
+          type: string
+          nullable: true
+        decided_at:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, agent_id, action, status, created_at]
+
+    Task:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        agent_id:
+          type: string
+          format: uuid
+        type:
+          type: string
+        status:
+          type: string
+          enum: [pending, running, completed, failed, cancelled]
+        payload:
+          type: object
+          additionalProperties: true
+        result:
+          type: object
+          additionalProperties: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        retry_count:
+          type: integer
+          default: 0
+      required: [id, agent_id, type, status, created_at]
+
+    CreateTaskRequest:
+      type: object
+      required: [agent_id, type, payload]
+      properties:
+        agent_id:
+          type: string
+          format: uuid
+        type:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+        priority:
+          type: string
+          enum: [low, normal, high, critical]
+          default: normal
+        timeout_seconds:
+          type: integer
+          minimum: 30
+          maximum: 7200
+          default: 600
+
+    TriageRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          maxLength: 10000
+        context:
+          type: object
+          properties:
+            channel:
+              type: string
+              enum: [slack, discord, email, web, api]
+            sender:
+              type: string
+            thread_id:
+              type: string
+            metadata:
+              type: object
+              additionalProperties: true
+
+    TriageResponse:
+      type: object
+      properties:
+        stage1:
+          type: object
+          properties:
+            intent:
+              type: string
+            confidence:
+              type: number
+              format: float
+              minimum: 0
+              maximum: 1
+            latency_ms:
+              type: integer
+          required: [intent, confidence]
+        stage2:
+          type: object
+          properties:
+            priority:
+              type: string
+              enum: [low, medium, high, critical]
+            route_to:
+              type: string
+              format: uuid
+            estimated_complexity:
+              type: string
+              enum: [low, medium, high]
+            sla_minutes:
+              type: integer
+            reasoning:
+              type: string
+          required: [priority, route_to]
+      required: [stage1, stage2]
+
+    SentinelIssue:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        severity:
+          type: string
+          enum: [critical, warning, info]
+        agent_id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [memory_leak, high_latency, sandbox_crash, connection_failure, disk_full, cpu_spike]
+        message:
+          type: string
+        detected_at:
+          type: string
+          format: date-time
+        metrics:
+          type: object
+          additionalProperties:
+            type: number
+        recommendation:
+          type: string
+        auto_resolved:
+          type: boolean
+          default: false
+      required: [id, severity, agent_id, type, message, detected_at]

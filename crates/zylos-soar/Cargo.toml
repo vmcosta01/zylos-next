@@ -1,0 +1,50 @@
+[package]
+name = "zylos-soar"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "SOAR engine for Zylos: event intake, auto-triage, playbook orchestration, runbook execution, and audit trail."
+
+[dependencies]
+# Async runtime
+tokio = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = "0.9"
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Logging / Tracing
+tracing = { workspace = true }
+
+# Utilities
+uuid = { workspace = true }
+chrono = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+hmac = "0.12"
+async-trait = "0.1"
+
+# Schema validation
+jsonschema = { workspace = true }
+
+# HTTP / Webhook ingest
+axum = { version = "0.7", features = ["json"] }
+tower-http = { version = "0.5", features = ["trace", "cors"] }
+
+# Internal crates
+zylos-core = { workspace = true }
+zylos-live-comm = { path = "../zylos-live-comm" }
+
+[dev-dependencies]
+proptest = { workspace = true }
+tempfile = { workspace = true }
+criterion = { workspace = true }
+tower = { version = "0.5", features = ["util"] }
+
