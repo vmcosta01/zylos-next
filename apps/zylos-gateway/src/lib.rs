@@ -2,6 +2,7 @@
 
 pub mod config;
 pub mod orchestrate_api;
+pub mod phase2_integration;
 pub mod soar_api;
 
 use std::sync::Arc;

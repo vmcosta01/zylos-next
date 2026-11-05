@@ -22,6 +22,13 @@ zylos-verification = { workspace = true }
 zylos-sandbox = { workspace = true }
 zylos-skills = { workspace = true }
 zylos-soar = { path = "../../crates/zylos-soar" }
+zylos-adapters = { workspace = true }
+zylos-memory-sync = { workspace = true }
+zylos-agent-shield = { workspace = true }
+zylos-personalities = { workspace = true }
+zylos-swarm-orchestrator = { workspace = true }
+zylos-evidence-ledger = { workspace = true }
+zylos-browser-takeover = { workspace = true }
 tokio = { workspace = true }
 axum = { workspace = true }
 tower = { workspace = true }
