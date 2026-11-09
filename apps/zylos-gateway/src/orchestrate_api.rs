@@ -245,6 +245,44 @@ async fn dispatch_live_comm(action: &str, state: &AppState) -> Result<serde_json
 // DAG executor
 // ---------------------------------------------------------------------------
 
+/// Ordem de execução que respeita `depends_on` (Kahn estável: entre os nós
+/// prontos vai primeiro o que veio antes no pedido, então um pedido já em ordem
+/// não muda de ordem). Devolve índices de `nodes`, ou `None` quando o DAG não
+/// dá para ordenar: id repetido, dependência inexistente ou ciclo.
+pub fn ordem_de_execucao(nodes: &[DagNode]) -> Option<Vec<usize>> {
+    let mut indice: std::collections::HashMap<&str, usize> =
+        std::collections::HashMap::with_capacity(nodes.len());
+    for (i, n) in nodes.iter().enumerate() {
+        if indice.insert(n.id.as_str(), i).is_some() {
+            return None; // id repetido
+        }
+    }
+    let mut dependentes: Vec<Vec<usize>> = vec![Vec::new(); nodes.len()];
+    let mut faltam: Vec<usize> = vec![0; nodes.len()];
+    for (i, n) in nodes.iter().enumerate() {
+        for dep in &n.depends_on {
+            let &d = indice.get(dep.as_str())?; // dependência inexistente
+            dependentes[d].push(i);
+            faltam[i] += 1;
+        }
+    }
+    let mut prontos: std::collections::BinaryHeap<std::cmp::Reverse<usize>> = (0..nodes.len())
+        .filter(|&i| faltam[i] == 0)
+        .map(std::cmp::Reverse)
+        .collect();
+    let mut ordem: Vec<usize> = Vec::with_capacity(nodes.len());
+    while let Some(std::cmp::Reverse(cur)) = prontos.pop() {
+        ordem.push(cur);
+        for &next in &dependentes[cur] {
+            faltam[next] -= 1;
+            if faltam[next] == 0 {
+                prontos.push(std::cmp::Reverse(next));
+            }
+        }
+    }
+    (ordem.len() == nodes.len()).then_some(ordem) // senão há ciclo
+}
+
 pub async fn execute_dag(
     state: &AppState,
     nodes: &[DagNode],
@@ -254,8 +292,12 @@ pub async fn execute_dag(
     let mut completed_ids: Vec<String> = Vec::new();
     let mut any_failed = false;
 
-    // Build adjacency check: simple topological order assumed from input ordering
-    for node in nodes {
+    // O pedido pode listar os nós fora de ordem: executa na ordem das dependências.
+    // DAG que não dá para ordenar (id repetido, dependência inexistente, ciclo)
+    // segue na ordem recebida, e o nó sem dependência cumprida falha como antes.
+    let ordem: Vec<usize> =
+        ordem_de_execucao(nodes).unwrap_or_else(|| (0..nodes.len()).collect());
+    for node in ordem.iter().map(|&i| &nodes[i]) {
         // Check dependencies satisfied
         let deps_met = node.depends_on.iter().all(|dep| completed_ids.contains(dep));
         if !deps_met {
@@ -355,4 +397,39 @@ async fn post_orchestrate(
 pub fn create_orchestrate_router() -> Router<AppState> {
     Router::new()
         .route("/orchestrate", post(post_orchestrate))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn no(id: &str, deps: &[&str]) -> DagNode {
+        DagNode {
+            id: id.into(),
+            subsystem: "live-comm".into(),
+            action: "cockpit_status".into(),
+            payload: serde_json::Value::Null,
+            depends_on: deps.iter().map(|d| d.to_string()).collect(),
+        }
+    }
+
+    #[test]
+    fn ordena_pedido_fora_de_ordem() {
+        let nodes = [no("b", &["a"]), no("c", &["b"]), no("a", &[])];
+        assert_eq!(ordem_de_execucao(&nodes), Some(vec![2, 0, 1]));
+    }
+
+    #[test]
+    fn pedido_em_ordem_fica_igual() {
+        let nodes = [no("a", &[]), no("b", &["a"]), no("c", &[])];
+        assert_eq!(ordem_de_execucao(&nodes), Some(vec![0, 1, 2]));
+    }
+
+    #[test]
+    fn dag_que_nao_da_para_ordenar_devolve_none() {
+        assert_eq!(ordem_de_execucao(&[no("a", &["a"])]), None, "auto-ciclo");
+        assert_eq!(ordem_de_execucao(&[no("a", &["b"]), no("b", &["a"])]), None, "ciclo");
+        assert_eq!(ordem_de_execucao(&[no("a", &["x"])]), None, "inexistente");
+        assert_eq!(ordem_de_execucao(&[no("a", &[]), no("a", &[])]), None, "id repetido");
+    }
 }
