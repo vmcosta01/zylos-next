@@ -2,6 +2,7 @@
 
 pub mod config;
 pub mod hermes_api;
+pub mod local_guard;
 pub mod orchestrate_api;
 pub mod phase2_integration;
 pub mod soar_api;
@@ -81,8 +82,10 @@ pub fn build_router(state: AppState) -> Router {
         .layer(tower_http::trace::TraceLayer::new_for_http())
         .layer(
             tower_http::cors::CorsLayer::new()
-                .allow_origin(tower_http::cors::Any)
+                .allow_origin(tower_http::cors::AllowOrigin::predicate(local_guard::cors_origem_local))
                 .allow_methods(tower_http::cors::Any)
                 .allow_headers(tower_http::cors::Any),
         )
+        // Camada mais externa: roda antes de tudo, inclusive da resposta de CORS ao preflight.
+        .layer(axum::middleware::from_fn(local_guard::so_desta_maquina))
 }
