@@ -763,3 +763,57 @@ async fn spawn_crew_tarefa_que_sobrou_nao_vai_para_outra_equipe() {
         );
     }
 }
+
+fn ordem_dos_resultados(v: &serde_json::Value) -> Vec<String> {
+    v["results"]
+        .as_array()
+        .expect("resposta sem results")
+        .iter()
+        .map(|r| r["node_id"].as_str().unwrap().to_string())
+        .collect()
+}
+
+#[tokio::test]
+async fn dispatch_task_nos_fora_de_ordem_executam_na_ordem_das_dependencias() {
+    // DAG valido (a -> b -> c), mas enviado fora de ordem: b e c antes de a.
+    let body = r#"{
+        "task_id":"fora-de-ordem",
+        "nodes":[
+            {"id":"b","subsystem":"live-comm","action":"cockpit_status","payload":{},"depends_on":["a"]},
+            {"id":"c","subsystem":"live-comm","action":"cockpit_status","payload":{},"depends_on":["b"]},
+            {"id":"a","subsystem":"sandbox","action":"wasm_check","payload":{},"depends_on":[]}
+        ]
+    }"#;
+    let (app, _) = app(Some(TOKEN)).await;
+    let r = app
+        .oneshot(post("/api/v1/hermes/bot/dispatch-task", Some(&bearer()), body))
+        .await
+        .unwrap();
+    assert_eq!(r.status(), StatusCode::OK);
+    let v = json_of(r).await;
+    assert_eq!(v["failed"], 0, "nenhum no pode falhar por dependencia: {v}");
+    assert_eq!(v["succeeded"], 3);
+    assert_eq!(ordem_dos_resultados(&v), ["a", "b", "c"]);
+}
+
+#[tokio::test]
+async fn dispatch_task_pedido_ja_em_ordem_nao_muda_de_ordem() {
+    // c nao depende de ninguem, mas veio depois de b: a ordem do pedido e preservada.
+    let body = r#"{
+        "task_id":"em-ordem",
+        "nodes":[
+            {"id":"a","subsystem":"sandbox","action":"wasm_check","payload":{},"depends_on":[]},
+            {"id":"b","subsystem":"live-comm","action":"cockpit_status","payload":{},"depends_on":["a"]},
+            {"id":"c","subsystem":"live-comm","action":"cockpit_status","payload":{},"depends_on":[]}
+        ]
+    }"#;
+    let (app, _) = app(Some(TOKEN)).await;
+    let v = json_of(
+        app.oneshot(post("/api/v1/hermes/bot/dispatch-task", Some(&bearer()), body))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(v["succeeded"], 3);
+    assert_eq!(ordem_dos_resultados(&v), ["a", "b", "c"]);
+}
