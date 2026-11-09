@@ -299,8 +299,8 @@ pub fn diagnosticar(nodes: &[DagNode]) -> Diagnostico {
                     faltam[i] += 1;
                 }
                 None if contagem.contains_key(dep.as_str()) => {
-                    // depende de um id repetido: nunca fica pronta
-                    faltam[i] += 1;
+                    motivo[i] = Some(format!("depende de id repetido: {dep}"));
+                    break;
                 }
                 None => {
                     motivo[i] = Some(format!("depende de etapa inexistente: {dep}"));
@@ -441,8 +441,9 @@ async fn executar(
         }
     }
 
+    // Etapas de fora entram como falha, mas não contam para `rolled_back`: elas
+    // não rodaram, e a parte válida já executada não foi desfeita.
     for (i, motivo) in fora {
-        any_failed = true;
         results.push(NodeResult {
             node_id: nodes[*i].id.clone(),
             subsystem: nodes[*i].subsystem.clone(),
@@ -561,6 +562,7 @@ mod tests {
         assert_eq!(d.ordem, vec![3]);
         assert_eq!(fora_ids(&nodes), ["d", "d", "e"]);
         assert!(d.fora[0].1.contains("id repetido"));
+        assert!(d.fora[2].1.contains("depende de id repetido: d"), "{}", d.fora[2].1);
     }
 
     #[test]

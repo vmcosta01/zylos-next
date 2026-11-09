@@ -236,13 +236,17 @@ async fn cmd_task_submit(client: &reqwest::Client, base: &str, spec_path: &str) 
         .or_else(|_| serde_yaml::from_str(&content))
         .context("Spec must be valid JSON or YAML")?;
 
+    // A pergunta acontece sempre: mesmo que a spec já traga allow_partial, o
+    // primeiro envio vai sem ele.
+    let payload = sem_parte_valida(&payload);
     let resp = enviar_dag(client, base, &payload).await?;
 
     // O gateway recusa (422) um DAG com etapas que não podem rodar, sem executar
     // nada, e diz o que poderia rodar. Aqui a pessoa decide: só com "s" a parte
     // válida é reenviada; qualquer outra resposta (ou nenhuma) não executa nada.
     if resp.status() == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
-        let corpo: Value = resp.json().await.unwrap_or(Value::Null);
+        let texto = resp.text().await.unwrap_or_default();
+        let corpo: Value = serde_json::from_str(&texto).unwrap_or(Value::Null);
         if let Some((resumo, ha_parte_valida)) = resumo_dag_invalido(&corpo) {
             println!("{resumo}");
             if ha_parte_valida {
@@ -257,7 +261,8 @@ async fn cmd_task_submit(client: &reqwest::Client, base: &str, spec_path: &str) 
             }
             println!("Nada foi executado.");
         } else {
-            eprintln!("Error (422 Unprocessable Entity): {corpo}");
+            // outro 422 (ex.: spec com campo faltando): mostra o texto do gateway
+            eprintln!("Error (422 Unprocessable Entity): {texto}");
         }
         std::process::exit(1);
     }
@@ -297,6 +302,15 @@ fn resumo_dag_invalido(corpo: &Value) -> Option<(String, bool)> {
 /// Só "s"/"sim" (ou "y"/"yes") confirmam; o padrão é não.
 fn resposta_e_sim(linha: &str) -> bool {
     matches!(linha.trim().to_lowercase().as_str(), "s" | "sim" | "y" | "yes")
+}
+
+/// O mesmo pedido sem a marcação de parte válida.
+fn sem_parte_valida(payload: &Value) -> Value {
+    let mut p = payload.clone();
+    if let Some(obj) = p.as_object_mut() {
+        obj.remove("allow_partial");
+    }
+    p
 }
 
 /// O mesmo pedido, marcado para executar só a parte válida.
@@ -492,6 +506,23 @@ mod tests {
         for n in ["", "\n", "n", "nao", "não", "talvez", "ss"] {
             assert!(!resposta_e_sim(n), "nao devia confirmar: {n:?}");
         }
+    }
+
+    #[test]
+    fn primeiro_envio_nunca_leva_a_marcacao_da_spec() {
+        let spec = serde_json::json!({"label": "x", "nodes": [1], "allow_partial": true});
+        let p = sem_parte_valida(&spec);
+        assert!(p.get("allow_partial").is_none());
+        assert_eq!(p["label"], "x");
+        assert_eq!(p["nodes"], spec["nodes"]);
+    }
+
+    #[test]
+    fn erro_422_em_texto_puro_nao_vira_diagnostico() {
+        // o axum responde texto puro para JSON malformado; não pode virar "null"
+        let texto = "Failed to deserialize the JSON body: missing field `action`";
+        let corpo: Value = serde_json::from_str(texto).unwrap_or(Value::Null);
+        assert!(resumo_dag_invalido(&corpo).is_none());
     }
 
     #[test]

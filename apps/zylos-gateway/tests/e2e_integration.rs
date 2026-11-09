@@ -1085,6 +1085,22 @@ async fn e2e_37_orchestrate_parte_valida_quando_pedida() {
 }
 
 #[tokio::test]
+async fn e2e_40_orchestrate_parte_valida_com_rollback_nao_diz_que_reverteu() {
+    // a parte valida roda sem falha; as etapas de fora nao rodaram e nada foi
+    // desfeito, entao rolled_back tem de ser false
+    let (status, json) = orchestrate_bruto(serde_json::json!({
+        "nodes": dag_com_etapa_invalida(),
+        "allow_partial": true,
+        "rollback_on_failure": true
+    }))
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["succeeded"], 2);
+    assert_eq!(json["failed"], 1);
+    assert_eq!(json["rolled_back"], false, "{json}");
+}
+
+#[tokio::test]
 async fn e2e_38_orchestrate_id_repetido_e_ciclo_ficam_fora_com_o_que_depende_deles() {
     let (status, json) = orchestrate_bruto(serde_json::json!({"nodes": [
         {"id": "d", "subsystem": "live-comm", "action": "cockpit_status"},
