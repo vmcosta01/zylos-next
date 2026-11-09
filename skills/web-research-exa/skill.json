@@ -1,0 +1,10 @@
+{
+  "name": "web-research-exa",
+  "version": "1.0.0",
+  "description": "Exa semantic search adapter with zylos-proof grounding pipeline",
+  "provider": "exa",
+  "api_base": "https://api.exa.ai/v1",
+  "auth": "bearer_token",
+  "rate_limit": {"requests_per_minute": 20, "daily_quota": 500},
+  "proof_levels": {"search_results": "observed", "extracted_content": "confirmed", "synthesized": "verified"}
+}

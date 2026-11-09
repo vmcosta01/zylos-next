@@ -6,30 +6,39 @@ use std::collections::HashMap;
 
 /// A single state in a playbook state machine.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura PlaybookState.
 pub struct PlaybookState {
+    /// Campo name.
     pub name: String,
     #[serde(default)]
+    /// Campo auto.
     pub auto: bool,
     #[serde(default)]
+    /// Campo approval required.
     pub approval_required: bool,
     /// Runbook to execute in this state (None = use engine logic like auto-triage).
     pub runbook: Option<String>,
     #[serde(default)]
+    /// Campo timeout minutes.
     pub timeout_minutes: Option<u32>,
     /// Escalation target if timeout or failure occurs.
     pub escalation: Option<String>,
     /// Transition rules to next states.
     #[serde(default)]
+    /// Campo next.
     pub next: Vec<Transition>,
     /// Terminal actions (post-incident, notifications, etc.).
     #[serde(default)]
+    /// Campo actions.
     pub actions: Vec<String>,
     #[serde(default)]
+    /// Campo terminal.
     pub terminal: bool,
 }
 
 /// Conditional transition between playbook states.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura Transition.
 pub struct Transition {
     /// Optional condition expression (evaluated against incident context).
     pub condition: Option<String>,
@@ -39,17 +48,22 @@ pub struct Transition {
 
 /// Role assignments for a playbook execution.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+/// Estrutura PlaybookRoles.
 pub struct PlaybookRoles {
     #[serde(default)]
+    /// Campo incident commander.
     pub incident_commander: Option<String>,
     #[serde(default)]
+    /// Campo executor.
     pub executor: Option<String>,
     #[serde(default)]
+    /// Campo approver.
     pub approver: Option<String>,
 }
 
 /// Trigger condition that activates this playbook.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura PlaybookTrigger.
 pub struct PlaybookTrigger {
     /// Expression evaluated against incoming events.
     pub expression: String,
@@ -57,13 +71,19 @@ pub struct PlaybookTrigger {
 
 /// Executable playbook parsed from YAML.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura Playbook.
 pub struct Playbook {
+    /// Campo name.
     pub name: String,
+    /// Campo version.
     pub version: String,
     #[serde(default)]
+    /// Campo triggers.
     pub triggers: Vec<PlaybookTrigger>,
     #[serde(default)]
+    /// Campo roles.
     pub roles: PlaybookRoles,
+    /// Campo states.
     pub states: Vec<PlaybookState>,
 }
 
@@ -72,6 +92,7 @@ impl Playbook {
     pub fn from_yaml(yaml: &str) -> Result<Self> {
         let playbook: Self = serde_yaml::from_str(yaml)?;
         playbook.validate()?;
+        // Variante Ok.
         Ok(playbook)
     }
 
@@ -119,6 +140,7 @@ impl Playbook {
             }
         }
 
+        // Variante Ok.
         Ok(())
     }
 
@@ -135,15 +157,22 @@ impl Playbook {
 
 /// Current execution position within a playbook.
 #[derive(Debug, Clone)]
+/// Estrutura PlaybookCursor.
 pub struct PlaybookCursor {
+    /// Campo playbook name.
     pub playbook_name: String,
+    /// Campo current state.
     pub current_state: String,
+    /// Campo awaiting approval.
     pub awaiting_approval: bool,
+    /// Campo completed states.
     pub completed_states: Vec<String>,
 }
 
 impl PlaybookCursor {
+    /// Função new.
     pub fn new(playbook: &Playbook) -> Self {
+        // Variante Self.
         Self {
             playbook_name: playbook.name.clone(),
             current_state: playbook.entry_state().name.clone(),
@@ -206,6 +235,7 @@ impl PlaybookCursor {
             return Ok(Some(self.current_state.clone()));
         }
 
+        // Variante Err.
         Err(SoarError::PlaybookParse(format!(
             "state '{}' has no transitions and is not terminal",
             state.name

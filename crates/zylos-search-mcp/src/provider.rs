@@ -53,6 +53,7 @@ pub struct MockProvider {
 }
 
 impl MockProvider {
+    /// Create a mock provider that returns the given results with an optional delay.
     pub fn new(name: impl Into<String>, results: Vec<SearchResult>, delay_ms: u64) -> Self {
         Self {
             name: name.into(),
@@ -82,6 +83,7 @@ pub struct FailingProvider {
 }
 
 impl FailingProvider {
+    /// Create a provider that always returns an error, useful for testing failure paths.
     pub fn new(name: impl Into<String>) -> Self {
         Self { name: name.into() }
     }

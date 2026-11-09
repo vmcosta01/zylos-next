@@ -24,3 +24,7 @@ Thumbs.db
 
 # WASM
 pkg/
+.zylos-hermes-token
+gateway.log
+trunk.log
+.gateway.pid

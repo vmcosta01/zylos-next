@@ -11,6 +11,7 @@ pub struct RunbookRegistry {
 impl RunbookRegistry {
     /// Create an empty registry.
     pub fn new() -> Self {
+        // Variante Self.
         Self {
             runbooks: HashMap::new(),
         }

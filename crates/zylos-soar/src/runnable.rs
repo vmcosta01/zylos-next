@@ -12,19 +12,28 @@ pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 /// Context passed to every runbook execution.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura IncidentContext.
 pub struct IncidentContext {
+    /// Campo incident id.
     pub incident_id: Uuid,
+    /// Campo event id.
     pub event_id: Uuid,
+    /// Campo severity.
     pub severity: String,
+    /// Campo category.
     pub category: String,
+    /// Campo affected assets.
     pub affected_assets: Vec<String>,
+    /// Campo actor.
     pub actor: String,
+    /// Campo started at.
     pub started_at: DateTime<Utc>,
     /// Arbitrary key-value data accumulated during playbook execution.
     pub metadata: serde_json::Value,
 }
 
 impl IncidentContext {
+    /// Função new.
     pub fn new(
         incident_id: Uuid,
         event_id: Uuid,
@@ -33,6 +42,7 @@ impl IncidentContext {
         affected_assets: Vec<String>,
         actor: impl Into<String>,
     ) -> Self {
+        // Variante Self.
         Self {
             incident_id,
             event_id,
@@ -48,16 +58,24 @@ impl IncidentContext {
 
 /// Outcome of a runbook execution.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura RunbookResult.
 pub struct RunbookResult {
+    /// Campo success.
     pub success: bool,
+    /// Campo message.
     pub message: String,
+    /// Campo artifacts.
     pub artifacts: Vec<String>,
+    /// Campo duration ms.
     pub duration_ms: u64,
+    /// Campo metadata.
     pub metadata: serde_json::Value,
 }
 
 impl RunbookResult {
+    /// Função ok.
     pub fn ok(message: impl Into<String>, duration_ms: u64) -> Self {
+        // Variante Self.
         Self {
             success: true,
             message: message.into(),
@@ -67,7 +85,9 @@ impl RunbookResult {
         }
     }
 
+    /// Função fail.
     pub fn fail(message: impl Into<String>, duration_ms: u64) -> Self {
+        // Variante Self.
         Self {
             success: false,
             message: message.into(),
@@ -97,6 +117,7 @@ pub trait SoarRunnable: Send + Sync {
 
     /// Optional rollback procedure if execution fails mid-way.
     fn rollback(&self) -> Option<Box<dyn SoarRunnable>> {
+        // Variante None.
         None
     }
 }

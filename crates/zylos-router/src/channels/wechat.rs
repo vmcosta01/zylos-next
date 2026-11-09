@@ -8,9 +8,7 @@ use super::{ChannelAdapter, ChannelError, InboundMessage, MessageContent, Outbou
 use async_trait::async_trait;
 use bytes::Bytes;
 use aes::cipher::{BlockDecryptMut, KeyIvInit};
-use hmac::{Hmac, Mac};
-use sha1::{Digest, Sha1};
-use serde::{Deserialize, Serialize};
+use sha1::Digest;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -146,7 +144,14 @@ impl WechatAdapter {
             let close = format!("</{}>", tag);
             let start = xml.find(&open)? + open.len();
             let end = xml[start..].find(&close)? + start;
-            Some(xml[start..end].to_string())
+            let raw = &xml[start..end];
+            // Strip CDATA wrapper if present
+            let value = if raw.starts_with("<![CDATA[") && raw.ends_with("]]>") {
+                &raw[9..raw.len()-3]
+            } else {
+                raw
+            };
+            Some(value.to_string())
         };
 
         let msg_type = extract("MsgType").unwrap_or_default();
@@ -255,7 +260,7 @@ impl ChannelAdapter for WechatAdapter {
             limiter.check()?;
         }
 
-        let (msg_type, body) = match &message.content {
+        let (_msg_type, body) = match &message.content {
             MessageContent::Text { body } => (
                 "text",
                 serde_json::json!({

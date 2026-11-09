@@ -278,6 +278,11 @@ impl TokenStore {
         Ok(())
     }
 
+    /// Expose the underlying pool for integration tests that need direct SQL access.
+    pub fn pool(&self) -> &SqlitePool {
+        &self.pool
+    }
+
     fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>> {
         let cipher = Aes256Gcm::new_from_slice(&*self.encryption_key)
             .map_err(|e| IntegrationError::Encryption(e.to_string()))?;

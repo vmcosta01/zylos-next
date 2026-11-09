@@ -11,7 +11,7 @@ Sistema de memória estruturada para agentes Zylos, inspirado no Memanto/LICOES.
 | 1.1.3 | 4-Scope Isolation (Global/Team/Agent/Task) | ✅ Implementado |
 | 1.2.1 | MemoryAgent (Memanto-inspired) | ✅ Implementado |
 | 1.2.2 | BriefAwareRerank (PaperRadar) | ✅ Implementado |
-| 1.2.3 | TypedSemanticMemory (OKF) | ⚠️ Parcial — MemoryKind enum existe mas TypedSemanticMemory wrapper ausente |
+| 1.2.3 | TypedSemanticMemory (OKF) | ✅ Implementado — wrapper typed com routing automático |
 | 1.3.1 | ContradictionDetection | ✅ Implementado |
 | 1.3.2 | LICOES ProceduralMemory (MemoryKind/ProvenanceTriple/CompressionPipeline/WriteGate/SessionGoals) | ✅ Implementado |
 | 1.3.3 | MigrationAdapter Hermes→Zylos | ✅ Implementado |
@@ -20,8 +20,11 @@ Sistema de memória estruturada para agentes Zylos, inspirado no Memanto/LICOES.
 ## Features Implementadas
 
 - **VectorStore**: trait async com insert/search/delete/count/get; InMemoryVectorStore brute-force cosine
+- **Qdrant Adapter**: feature-gated (`qdrant`), backend real usando qdrant-client
+- **LanceDB Adapter**: feature-gated (`lancedb`), backend real usando lancedb crate
 - **ContextGraph**: petgraph DiGraph + rusqlite WAL, A* shortest_path, checkpoint
 - **MemoryScope**: Global, Team, Agent, Task com isolamento por owner_id
+- **TypedSemanticMemory**: wrapper OKF-inspired com routing automático por tipo (Working/Episodic/Semantic/Procedural/Meta), provenance tracking, factory pattern
 - **MemoryAgent**: consolidation cycle, decay, conflict detection via CancellationToken
 - **BriefAwareReranker**: 4-component scoring (semantic/keyword/tag/recency), extract_key_concepts PT+EN
 - **ContradictionDetector**: direct/implicit/temporal detection, political_weight resolution
@@ -47,6 +50,21 @@ impl ContextGraph {
     pub fn add_node/add_edge/remove_node/get_node/query/get_neighbors/shortest_path/stats/checkpoint;
 }
 
+// Typed semantic memory (OKF-inspired)
+pub enum SemanticType { Working, Episodic, Semantic, Procedural, Meta }
+pub struct TypedSemanticMemory { ... }
+impl TypedSemanticMemory {
+    pub fn new(semantic_type: SemanticType) -> Self;
+    pub fn with_vector_store(self, store: Arc<dyn VectorStore>) -> Self;
+    pub fn with_context_graph(self, graph: Arc<ContextGraph>) -> Self;
+    pub async fn store(&self, content, scope, owner_id, tags) -> Result<ContextNode, TypedMemoryError>;
+    pub async fn query(&self, query, scope, limit) -> Result<Vec<ContextNode>, TypedMemoryError>;
+}
+pub struct TypedMemoryFactory { ... }
+impl TypedMemoryFactory {
+    pub fn working/episodic/semantic/procedural/meta(&self) -> TypedSemanticMemory;
+}
+
 // Memory agent
 pub struct MemoryAgent { ... }
 impl MemoryAgent {
@@ -69,10 +87,8 @@ pub struct ContextNode { id, content, scope, owner_id, content_hash, embedding, 
 
 ## Gaps Críticos
 
-1. **Qdrant/LanceDB adapters**: feature-gated mas não implementados — apenas InMemoryVectorStore disponível
-2. **TypedSemanticMemory (OKF)**: MemoryKind enum existe mas falta o wrapper typed que faz routing automático por tipo
-3. **Benchmarks (Task 1.4)**: nenhum benchmark de performance ou recall implementado
-4. **ReasoningBank**: mencionado no master plan como parte do LICOES mas não encontrado no código
+1. **Benchmarks (Task 1.4)**: nenhum benchmark de performance ou recall implementado
+2. **ReasoningBank**: mencionado no master plan como parte do LICOES mas não encontrado no código
 
 ## Exemplo de Uso
 

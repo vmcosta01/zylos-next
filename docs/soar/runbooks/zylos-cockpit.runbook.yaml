@@ -8,6 +8,9 @@ metadata:
   related_playbooks:
     - "../playbooks/stakeholder-communication.md"
     - "../playbooks/disaster-recovery.md"
+  playbook_ref: "../../playbooks/deploy-release.md"
+  runbook_refs:
+    - "../../runbooks/zylos-cockpit.md"
 
 preconditions:
   - check: "Cockpit dist directory exists"

@@ -1,0 +1,78 @@
+slug: shopify
+display_name: Shopify Admin API
+auth_url: "https://${shop}.myshopify.com/admin/oauth/authorize"
+token_url: "https://${shop}.myshopify.com/admin/oauth/access_token"
+client_id: "${SHOPIFY_CLIENT_ID}"
+client_secret: "${SHOPIFY_CLIENT_SECRET}"
+redirect_uri: http://localhost:9090/callback/shopify
+scopes:
+  - read_products
+  - write_products
+  - read_orders
+  - read_customers
+  - read_inventory
+requires_approval: true
+rate_limit_rpm: 40
+actions:
+  - id: list_products
+    description: List products from the store
+    method: GET
+    url_template: "https://{shop}.myshopify.com/admin/api/2024-10/products.json?limit={limit}"
+    requires_approval: false
+
+  - id: get_product
+    description: Get a single product by ID
+    method: GET
+    url_template: "https://{shop}.myshopify.com/admin/api/2024-10/products/{product_id}.json"
+    requires_approval: false
+
+  - id: create_product
+    description: Create a new product
+    method: POST
+    url_template: "https://{shop}.myshopify.com/admin/api/2024-10/products.json"
+    requires_approval: true
+    body_schema:
+      type: object
+      required: [product]
+      properties:
+        product:
+          type: object
+          required: [title]
+          properties:
+            title: { type: string }
+            body_html: { type: string }
+            vendor: { type: string }
+            product_type: { type: string }
+            tags: { type: string }
+            variants: { type: array }
+
+  - id: list_orders
+    description: List orders with optional status filter
+    method: GET
+    url_template: "https://{shop}.myshopify.com/admin/api/2024-10/orders.json?status={status}&limit={limit}"
+    requires_approval: false
+
+  - id: get_order
+    description: Get a single order by ID
+    method: GET
+    url_template: "https://{shop}.myshopify.com/admin/api/2024-10/orders/{order_id}.json"
+    requires_approval: false
+
+  - id: list_customers
+    description: List customers
+    method: GET
+    url_template: "https://{shop}.myshopify.com/admin/api/2024-10/customers.json?limit={limit}"
+    requires_approval: false
+
+  - id: update_inventory
+    description: Adjust inventory level for an item
+    method: POST
+    url_template: "https://{shop}.myshopify.com/admin/api/2024-10/inventory_levels/adjust.json"
+    requires_approval: true
+    body_schema:
+      type: object
+      required: [location_id, inventory_item_id, available_adjustment]
+      properties:
+        location_id: { type: integer }
+        inventory_item_id: { type: integer }
+        available_adjustment: { type: integer }

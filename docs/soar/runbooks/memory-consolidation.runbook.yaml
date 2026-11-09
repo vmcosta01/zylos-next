@@ -8,6 +8,9 @@ metadata:
   tags: ["memory", "consolidation", "maintenance"]
   related_playbooks:
     - "../playbooks/adversarial-audit.md"
+  playbook_ref: "../../playbooks/aiops-anomaly-response.md"
+  runbook_refs:
+    - "../../runbooks/sentinel-aiops.md"
 
 preconditions:
   - check: "Memory system running"

@@ -127,6 +127,7 @@ pub const DEFAULT_SKILL_SCHEMA: &str = r#"{
 /// Código de erro categorizado para cada ValidationError
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+/// Enumeração ValidationCode.
 pub enum ValidationCode {
     /// Falha na fase 1: schema parse / type check
     SchemaParseError,
@@ -172,6 +173,7 @@ impl std::fmt::Display for ValidationCode {
 
 /// Erro de validação actionável com contexto completo
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura ValidationError.
 pub struct ValidationError {
     /// Caminho JSON pointer onde o erro ocorreu (ex: "/depends_on/0")
     pub path: String,
@@ -194,6 +196,7 @@ impl std::fmt::Display for ValidationError {
         if let Some(ref u) = self.docs_url {
             write!(f, "\n  → Docs: {}", u)?;
         }
+        // Variante Ok.
         Ok(())
     }
 }
@@ -205,6 +208,7 @@ impl ValidationError {
         code: ValidationCode,
         message: impl Into<String>,
     ) -> Self {
+        // Variante Self.
         Self {
             path: path.into(),
             code,
@@ -233,20 +237,26 @@ impl ValidationError {
 
 /// Erros de validação de schema (legacy — mantido para compatibilidade)
 #[derive(Error, Debug)]
+/// Enumeração SchemaError.
 pub enum SchemaError {
     #[error("schema não encontrado: {0}")]
+    // Variante SchemaNotFound.
     SchemaNotFound(String),
 
     #[error("falha ao carregar schema: {0}")]
+    // Variante SchemaLoadError.
     SchemaLoadError(#[from] std::io::Error),
 
     #[error("schema JSON inválido: {0}")]
+    // Variante SchemaParseError.
     SchemaParseError(#[from] serde_json::Error),
 
     #[error("compilação do schema falhou: {0}")]
+    // Variante CompilationError.
     CompilationError(String),
 
     #[error("validação falhou para '{skill_name}': {errors}")]
+    // Variante ValidationFailed.
     ValidationFailed { skill_name: String, errors: String },
 }
 
@@ -259,33 +269,47 @@ pub type SchemaResult<T> = Result<T, SchemaError>;
 
 /// Manifesto completo de uma skill para validação three-phase
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura SkillManifest.
 pub struct SkillManifest {
+    /// Campo name.
     pub name: String,
+    /// Campo description.
     pub description: String,
+    /// Campo version.
     pub version: String,
+    /// Campo path.
     pub path: String,
     #[serde(default)]
+    /// Campo category.
     pub category: Option<String>,
     #[serde(default)]
+    /// Campo tags.
     pub tags: Vec<String>,
     #[serde(default)]
+    /// Campo depends on.
     pub depends_on: Vec<String>,
     #[serde(default = "default_active")]
+    /// Campo active.
     pub active: bool,
     /// Trigger que ativa a skill (deve ser não-vazio para skills ativas)
     #[serde(default)]
+    /// Campo trigger.
     pub trigger: Option<String>,
     /// Versão mínima do Hermes requerida
     #[serde(default)]
+    /// Campo min hermes version.
     pub min_hermes_version: Option<String>,
     /// Tags de compatibilidade (ex: ["linux", "macos", "windows"])
     #[serde(default)]
+    /// Campo compatibility tags.
     pub compatibility_tags: Vec<String>,
     /// Artefatos referenciados pela skill (scripts, configs, etc.)
     #[serde(default)]
+    /// Campo artifacts.
     pub artifacts: Vec<String>,
     /// Metadados extras não validados pelo schema
     #[serde(flatten)]
+    /// Campo extra.
     pub extra: HashMap<String, Value>,
 }
 
@@ -343,12 +367,16 @@ struct CacheKey {
 
 /// Estatísticas de hit rate do cache
 #[derive(Debug, Clone, Default, Serialize)]
+/// Estrutura CacheStats.
 pub struct CacheStats {
+    /// Campo hits.
     pub hits: u64,
+    /// Campo misses.
     pub misses: u64,
 }
 
 impl CacheStats {
+    /// Função hit rate.
     pub fn hit_rate(&self) -> f64 {
         let total = self.hits + self.misses;
         if total == 0 {
@@ -359,7 +387,7 @@ impl CacheStats {
     }
 }
 
-/// Resultado cacheado preservando fases
+// Resultado cacheado preservando fases
 #[derive(Debug, Clone)]
 pub(crate) struct CachedResult {
     phase1: Vec<ValidationError>,
@@ -370,6 +398,7 @@ pub(crate) struct CachedResult {
 
 /// Cache de resultados de validação
 #[derive(Debug)]
+/// Estrutura ValidationCache.
 pub struct ValidationCache {
     entries: RwLock<HashMap<CacheKey, CachedResult>>,
     stats: RwLock<CacheStats>,
@@ -377,7 +406,9 @@ pub struct ValidationCache {
 }
 
 impl ValidationCache {
+    /// Função new.
     pub fn new(schema_version: impl Into<String>) -> Self {
+        // Variante Self.
         Self {
             entries: RwLock::new(HashMap::new()),
             stats: RwLock::new(CacheStats::default()),
@@ -385,7 +416,7 @@ impl ValidationCache {
         }
     }
 
-    /// Busca resultado no cache
+    // Busca resultado no cache
     pub(crate) fn get(&self, skill_digest: &str) -> Option<CachedResult> {
         let key = CacheKey {
             skill_digest: skill_digest.to_string(),
@@ -403,7 +434,7 @@ impl ValidationCache {
         result
     }
 
-    /// Insere resultado no cache
+    // Insere resultado no cache
     pub(crate) fn put(&self, skill_digest: &str, result: CachedResult) {
         let key = CacheKey {
             skill_digest: skill_digest.to_string(),
@@ -437,12 +468,16 @@ impl ValidationCache {
 
 /// Versões de schema suportadas
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Enumeração SchemaVersion.
 pub enum SchemaVersion {
+    /// Variante V1.
     V1,
+    /// Variante V2.
     V2,
 }
 
 impl SchemaVersion {
+    /// Função from str.
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "v1" | "1" | "draft-7" => Some(Self::V1),
@@ -451,6 +486,7 @@ impl SchemaVersion {
         }
     }
 
+    /// Função as str.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::V1 => "v1",
@@ -470,16 +506,24 @@ pub fn check_backward_compat(from: &SchemaVersion, to: &SchemaVersion) -> bool {
 
 /// Resultado da validação three-phase
 #[derive(Debug, Clone, Serialize)]
+/// Estrutura ValidationResult.
 pub struct ValidationResult {
+    /// Campo skill name.
     pub skill_name: String,
+    /// Campo phase1 errors.
     pub phase1_errors: Vec<ValidationError>,
+    /// Campo phase2 errors.
     pub phase2_errors: Vec<ValidationError>,
+    /// Campo phase3 errors.
     pub phase3_errors: Vec<ValidationError>,
+    /// Campo custom errors.
     pub custom_errors: Vec<ValidationError>,
+    /// Campo cached.
     pub cached: bool,
 }
 
 impl ValidationResult {
+    /// Função is valid.
     pub fn is_valid(&self) -> bool {
         self.phase1_errors.is_empty()
             && self.phase2_errors.is_empty()
@@ -487,6 +531,7 @@ impl ValidationResult {
             && self.custom_errors.is_empty()
     }
 
+    /// Função all errors.
     pub fn all_errors(&self) -> Vec<&ValidationError> {
         self.phase1_errors
             .iter()
@@ -496,6 +541,7 @@ impl ValidationResult {
             .collect()
     }
 
+    /// Função error count.
     pub fn error_count(&self) -> usize {
         self.phase1_errors.len()
             + self.phase2_errors.len()
@@ -506,19 +552,12 @@ impl ValidationResult {
 
 /// Validador de skills com pipeline three-phase
 pub struct SkillValidator {
-    /// Schema compilado para validação
     schema: JSONSchema,
-    /// Versão do schema
     version: String,
-    /// Validadores customizados registrados
     custom_validators: Vec<BoxedValidator>,
-    /// Cache de validação
     cache: ValidationCache,
-    /// Versão atual do Hermes para integration check
     hermes_version: String,
-    /// Tags de compatibilidade do ambiente atual
     env_compat_tags: HashSet<String>,
-    /// Skills conhecidas no registry (para checar deps)
     known_skills: HashSet<String>,
 }
 
@@ -563,6 +602,7 @@ impl SkillValidator {
 
         info!("SkillValidator carregado (schema: {})", version);
 
+        // Variante Ok.
         Ok(Self {
             schema: compiled,
             version: version.clone(),
@@ -630,10 +670,13 @@ impl SkillValidator {
         let validation = self.schema.validate(skill);
 
         match validation {
+            // Variante Ok.
             Ok(_) => {
                 debug!("Skill '{}' passou na validação", skill_name);
+                // Variante Ok.
                 Ok(())
             }
+            // Variante Err.
             Err(errors) => {
                 let error_messages: Vec<String> = errors
                     .map(|e| {
@@ -650,6 +693,7 @@ impl SkillValidator {
                     skill_name, formatted_errors
                 );
 
+                // Variante Err.
                 Err(SchemaError::ValidationFailed {
                     skill_name: skill_name.to_string(),
                     errors: formatted_errors,
@@ -739,7 +783,9 @@ impl SkillValidator {
 
         // Converte para JSON e valida contra schema
         let value = match serde_json::to_value(manifest) {
+            // Variante Ok.
             Ok(v) => v,
+            // Variante Err.
             Err(e) => {
                 errors.push(
                     ValidationError::new("/", ValidationCode::SchemaParseError, e.to_string())
@@ -937,7 +983,9 @@ impl SkillValidator {
         let mut all_errors = Vec::new();
         for handle in handles {
             match handle.await {
+                // Variante Ok.
                 Ok(errors) => all_errors.extend(errors),
+                // Variante Err.
                 Err(e) => debug!("Custom validator task failed: {}", e),
             }
         }
@@ -959,11 +1007,13 @@ fn classify_schema_error(path: &str, msg: &str) -> (ValidationCode, Option<Strin
     } else if msg_lower.contains("pattern") || msg_lower.contains("format") {
         (
             ValidationCode::InvalidFormat,
+            // Variante Some.
             Some("Verifique o formato do valor contra o padrão esperado".to_string()),
         )
     } else if msg_lower.contains("enum") {
         (
             ValidationCode::InvalidFormat,
+            // Variante Some.
             Some("Use um dos valores permitidos pelo enum".to_string()),
         )
     } else {
@@ -982,20 +1032,32 @@ fn default_suggestion(path: &str) -> String {
 
 /// Relatório de validação CI em formato JSON
 #[derive(Debug, Serialize, Deserialize)]
+/// Estrutura CiReport.
 pub struct CiReport {
+    /// Campo total skills.
     pub total_skills: usize,
+    /// Campo valid.
     pub valid: usize,
+    /// Campo invalid.
     pub invalid: usize,
+    /// Campo cache hit rate.
     pub cache_hit_rate: f64,
+    /// Campo results.
     pub results: Vec<CiSkillResult>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+/// Estrutura CiSkillResult.
 pub struct CiSkillResult {
+    /// Campo skill name.
     pub skill_name: String,
+    /// Campo valid.
     pub valid: bool,
+    /// Campo error count.
     pub error_count: usize,
+    /// Campo errors.
     pub errors: Vec<ValidationError>,
+    /// Campo cached.
     pub cached: bool,
 }
 
@@ -1065,6 +1127,7 @@ mod tests {
     }
 
     fn valid_manifest() -> SkillManifest {
+        /// Variante SkillManifest.
         SkillManifest {
             name: "test-skill".to_string(),
             description: "Uma skill de teste para validação".to_string(),

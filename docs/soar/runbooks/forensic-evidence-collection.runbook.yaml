@@ -10,6 +10,10 @@ metadata:
   related_playbooks:
     - "../playbooks/security-incident-response.md"
     - "../playbooks/disaster-recovery.md"
+  playbook_ref: "../../playbooks/evidence-chain-of-custody.md"
+  runbook_refs:
+    - "../../runbooks/evidence-ledger.md"
+    - "../../runbooks/proof-verification.md"
 
 preconditions:
   - check: "Evidence directory writable"

@@ -15,37 +15,53 @@ use zylos_live_comm::soar_bridge;
 
 /// Outcome of processing a single event through the full SOAR pipeline.
 #[derive(Debug, Clone, Serialize)]
+/// Estrutura PipelineResult.
 pub struct PipelineResult {
+    /// Campo event id.
     pub event_id: Uuid,
+    /// Campo dispatched playbooks.
     pub dispatched_playbooks: Vec<String>,
+    /// Campo execution results.
     pub execution_results: Vec<PlaybookExecutionSummary>,
 }
 
 /// Summary of executing one playbook for an event.
 #[derive(Debug, Clone, Serialize)]
+/// Estrutura PlaybookExecutionSummary.
 pub struct PlaybookExecutionSummary {
+    /// Campo playbook name.
     pub playbook_name: String,
+    /// Campo states executed.
     pub states_executed: usize,
+    /// Campo success.
     pub success: bool,
+    /// Campo error.
     pub error: Option<String>,
 }
 
 /// Shared orchestrator state — thread-safe access to all SOAR subsystems.
 pub struct OrchestratorState {
+    /// Campo router.
     pub router: EventRouter,
+    /// Campo registry.
     pub registry: RunbookRegistry,
+    /// Campo audit trail.
     pub audit_trail: AuditTrail,
+    /// Campo executor config.
     pub executor_config: ExecutorConfig,
+    /// Campo event bus.
     pub event_bus: Option<EventBus>,
 }
 
 impl OrchestratorState {
+    /// Função new.
     pub fn new(
         router: EventRouter,
         registry: RunbookRegistry,
         audit_trail: AuditTrail,
         executor_config: ExecutorConfig,
     ) -> Self {
+        // Variante Self.
         Self {
             router,
             registry,
@@ -68,7 +84,9 @@ pub struct SoarOrchestrator {
 }
 
 impl SoarOrchestrator {
+    /// Função new.
     pub fn new(state: Arc<RwLock<OrchestratorState>>) -> Self {
+        // Variante Self.
         Self { state }
     }
 
@@ -144,6 +162,7 @@ impl SoarOrchestrator {
             );
 
             match executor.execute_full(playbook, &mut cursor, &mut context).await {
+                // Variante Ok.
                 Ok(results) => {
                     let summary = PlaybookExecutionSummary {
                         playbook_name: playbook.name.clone(),
@@ -160,12 +179,14 @@ impl SoarOrchestrator {
                             &event_id.to_string(),
                             true,
                             summary.states_executed,
+                            // Variante None.
                             None,
                         );
                     }
 
                     execution_results.push(summary);
                 }
+                // Variante Err.
                 Err(e) => {
                     let err_msg = e.to_string();
                     let summary = PlaybookExecutionSummary {
@@ -183,6 +204,7 @@ impl SoarOrchestrator {
                             &event_id.to_string(),
                             false,
                             0,
+                            // Variante Some.
                             Some(&err_msg),
                         );
                     }
@@ -197,6 +219,7 @@ impl SoarOrchestrator {
             .map(|d| d.playbook.name.clone())
             .collect();
 
+        // Variante Ok.
         Ok(PipelineResult {
             event_id,
             dispatched_playbooks: playbook_names,

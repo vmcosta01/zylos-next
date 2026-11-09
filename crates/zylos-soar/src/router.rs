@@ -9,10 +9,15 @@ use uuid::Uuid;
 
 /// A dispatched incident ready for executor handoff.
 #[derive(Debug)]
+/// Estrutura DispatchedIncident.
 pub struct DispatchedIncident {
+    /// Campo incident id.
     pub incident_id: Uuid,
+    /// Campo playbook.
     pub playbook: Playbook,
+    /// Campo cursor.
     pub cursor: PlaybookCursor,
+    /// Campo context.
     pub context: IncidentContext,
 }
 
@@ -22,7 +27,9 @@ pub struct EventRouter {
 }
 
 impl EventRouter {
+    /// Função new.
     pub fn new() -> Self {
+        // Variante Self.
         Self {
             playbooks: Vec::new(),
         }
@@ -71,6 +78,7 @@ impl EventRouter {
             }
         }
 
+        // Variante Ok.
         Ok(dispatched)
     }
 
@@ -86,6 +94,7 @@ impl EventRouter {
                 return Ok(true);
             }
         }
+        // Variante Ok.
         Ok(false)
     }
 
@@ -99,7 +108,9 @@ impl EventRouter {
             let expected_value = parse_literal(expected_raw);
 
             match get_nested_value(event_value, path) {
+                // Variante Some.
                 Some(actual) => Ok(actual == &expected_value),
+                // Variante None.
                 None => Ok(false),
             }
         } else if let Some((path, expected_raw)) = expr.split_once("!=") {
@@ -109,12 +120,15 @@ impl EventRouter {
             let expected_value = parse_literal(expected_raw);
 
             match get_nested_value(event_value, path) {
+                // Variante Some.
                 Some(actual) => Ok(actual != &expected_value),
+                // Variante None.
                 None => Ok(true), // field missing != value is true
             }
         } else {
             // Fallback: treat as existence check (truthy)
             let path = expr.trim().strip_prefix("event.").unwrap_or(expr.trim());
+            // Variante Ok.
             Ok(get_nested_value(event_value, path).is_some())
         }
     }
@@ -139,10 +153,13 @@ fn get_nested_value<'a>(value: &'a Value, path: &str) -> Option<&'a Value> {
     let mut current = value;
     for key in path.split('.') {
         match current.get(key) {
+            // Variante Some.
             Some(v) => current = v,
+            // Variante None.
             None => return None,
         }
     }
+    // Variante Some.
     Some(current)
 }
 
@@ -159,6 +176,7 @@ mod tests {
     use chrono::Utc;
 
     fn make_event(category: EventCategory, severity: Severity) -> ZylosSecurityEvent {
+        /// Variante ZylosSecurityEvent.
         ZylosSecurityEvent {
             id: Uuid::new_v4(),
             received_at: Utc::now(),

@@ -30,6 +30,7 @@ impl Default for BenchmarkConfig {
 #[derive(Debug, Clone)]
 pub struct BenchmarkResults {
     pub config: BenchmarkConfig,
+    #[allow(dead_code)]
     pub render_times_ms: Vec<f64>,
     pub avg_render_ms: f64,
     pub p95_render_ms: f64,

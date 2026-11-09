@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 /// AG-UI event types per spec v0.1
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, utoipa::ToSchema)]
 #[serde(tag = "type", content = "data")]
+/// Enumeração AgUiEvent.
 pub enum AgUiEvent {
     /// Start of a text message stream
     TextMessageStart {
@@ -89,6 +90,7 @@ pub enum AgUiEvent {
 /// Decision for an approval request.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
+/// Enumeração ApprovalDecision.
 pub enum ApprovalDecision {
     Approved,
     Denied,
@@ -99,6 +101,7 @@ pub enum ApprovalDecision {
 /// Status of a completed or failed run.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
+/// Enumeração RunStatus.
 pub enum RunStatus {
     Completed,
     Failed,
@@ -107,6 +110,7 @@ pub enum RunStatus {
 }
 
 impl AgUiEvent {
+    /// Função text start.
     pub fn text_start(message_id: &str, role: &str) -> Self {
         Self::TextMessageStart {
             message_id: message_id.to_string(),
@@ -114,6 +118,7 @@ impl AgUiEvent {
         }
     }
 
+    /// Função text delta.
     pub fn text_delta(message_id: &str, delta: &str) -> Self {
         Self::TextMessageContent {
             message_id: message_id.to_string(),
@@ -121,18 +126,21 @@ impl AgUiEvent {
         }
     }
 
+    /// Função text end.
     pub fn text_end(message_id: &str) -> Self {
         Self::TextMessageEnd {
             message_id: message_id.to_string(),
         }
     }
 
+    /// Função heartbeat.
     pub fn heartbeat() -> Self {
         Self::Heartbeat {
             timestamp: Utc::now(),
         }
     }
 
+    /// Função error.
     pub fn error(code: &str, message: &str) -> Self {
         Self::Error {
             code: code.to_string(),
@@ -140,6 +148,7 @@ impl AgUiEvent {
         }
     }
 
+    /// Função state snapshot.
     pub fn state_snapshot(state: serde_json::Value) -> Self {
         Self::StateSnapshot {
             state,
@@ -147,6 +156,7 @@ impl AgUiEvent {
         }
     }
 
+    /// Função tool call start.
     pub fn tool_call_start(tool_call_id: &str, tool_name: &str, arguments: serde_json::Value) -> Self {
         Self::ToolCallStart {
             tool_call_id: tool_call_id.to_string(),
@@ -155,6 +165,7 @@ impl AgUiEvent {
         }
     }
 
+    /// Função tool call result.
     pub fn tool_call_result(tool_call_id: &str, result: serde_json::Value, is_error: bool) -> Self {
         Self::ToolCallResult {
             tool_call_id: tool_call_id.to_string(),
@@ -163,6 +174,7 @@ impl AgUiEvent {
         }
     }
 
+    /// Função run started.
     pub fn run_started(run_id: &str, thread_id: &str, parent_run_id: Option<String>, input: Option<serde_json::Value>) -> Self {
         Self::RunStarted {
             run_id: run_id.to_string(),
@@ -172,6 +184,7 @@ impl AgUiEvent {
         }
     }
 
+    /// Função run finished.
     pub fn run_finished(run_id: &str, thread_id: &str, status: RunStatus, output: Option<serde_json::Value>) -> Self {
         Self::RunFinished {
             run_id: run_id.to_string(),
@@ -181,12 +194,14 @@ impl AgUiEvent {
         }
     }
 
+    /// Função tool call end.
     pub fn tool_call_end(tool_call_id: &str) -> Self {
         Self::ToolCallEnd {
             tool_call_id: tool_call_id.to_string(),
         }
     }
 
+    /// Função custom event.
     pub fn custom_event(name: &str, value: serde_json::Value) -> Self {
         Self::CustomEvent {
             name: name.to_string(),
@@ -194,6 +209,7 @@ impl AgUiEvent {
         }
     }
 
+    /// Função approval request.
     pub fn approval_request(
         approval_id: &str,
         summary: &str,
@@ -211,6 +227,7 @@ impl AgUiEvent {
         }
     }
 
+    /// Função approval response.
     pub fn approval_response(
         approval_id: &str,
         decision: ApprovalDecision,

@@ -192,10 +192,12 @@ pub struct OutcomeTracker {
     /// Recently sent notification keys (for dedup).
     recent_notifications: std::collections::HashSet<NotificationDedupKey>,
     /// Maximum age for notification dedup entries (seconds).
+    #[allow(dead_code)]
     dedup_window_secs: u64,
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct TrackedOutcome {
     outcome: Outcome,
     last_updated: DateTime<Utc>,

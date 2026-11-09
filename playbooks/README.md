@@ -40,6 +40,10 @@
 | Deploy e Release | `zylos-gateway.md`, `zylos-docker.md`, `fase*-*.md` (todos) |
 | Onboarding | `fase0-foundation.md`, `README.md` (índice completo) |
 | Auditoria Adversarial | Todos os runbooks de fase + `evals/audits/*` |
+| Resposta AIOps | [`aiops-anomaly-response.md`](aiops-anomaly-response.md) | Estratégia de resposta a anomalias detectadas pelo Sentinel | ✅ Novo |
+| Cadeia de Custódia | [`evidence-chain-of-custody.md`](evidence-chain-of-custody.md) | Governança de preservação e exportação de evidências | ✅ Novo |
+| Orquestração Workflows | [`workflow-orchestration.md`](workflow-orchestration.md) | Decisões de arquitetura DAG e resposta a falhas sistêmicas | ✅ Novo |
+| Resolução Conflitos | [`conflict-resolution.md`](conflict-resolution.md) | Estratégia de seleção de resolução multi-agente | ✅ Novo |
 | Estratégico Geral | Todos os playbooks e runbooks |
 
 ---

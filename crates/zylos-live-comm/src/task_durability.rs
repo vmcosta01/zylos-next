@@ -22,6 +22,7 @@ pub type LeaseId = String;
 
 /// Task state machine: queued → running → waiting_approval/waiting_input → succeeded/failed/cancelled.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Enumeração TaskState.
 pub enum TaskState {
     Queued,
     Running,
@@ -71,20 +72,31 @@ impl TaskState {
 
 /// A durable task record.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura DurableTask.
 pub struct DurableTask {
+    /// Campo id.
     pub id: TaskId,
+    /// Campo payload.
     pub payload: String,
+    /// Campo state.
     pub state: TaskState,
+    /// Campo lease id.
     pub lease_id: Option<LeaseId>,
+    /// Campo lease until.
     pub lease_until: Option<DateTime<Utc>>,
+    /// Campo consecutive failures.
     pub consecutive_failures: u32,
+    /// Campo next retry at.
     pub next_retry_at: Option<DateTime<Utc>>,
+    /// Campo created at.
     pub created_at: DateTime<Utc>,
+    /// Campo updated at.
     pub updated_at: DateTime<Utc>,
 }
 
 /// Configuration for the task worker.
 #[derive(Debug, Clone)]
+/// Estrutura TaskWorkerConfig.
 pub struct TaskWorkerConfig {
     /// Lease duration before another worker can steal.
     pub lease_duration: Duration,
@@ -100,6 +112,7 @@ pub struct TaskWorkerConfig {
 
 impl Default for TaskWorkerConfig {
     fn default() -> Self {
+        // Variante Self.
         Self {
             lease_duration: Duration::from_secs(300), // 5 minutes
             maintenance_interval: Duration::from_secs(60),
@@ -112,16 +125,20 @@ impl Default for TaskWorkerConfig {
 
 /// Errors from task operations.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+/// Enumeração TaskError.
 pub enum TaskError {
     #[error("task not found")]
     NotFound,
     #[error("task already claimed by another worker")]
     AlreadyClaimed,
     #[error("invalid state transition from {from} to {to}")]
+    // Variante InvalidTransition.
     InvalidTransition { from: String, to: String },
     #[error("circuit breaker open: {failures} consecutive failures")]
+    // Variante CircuitBreakerOpen.
     CircuitBreakerOpen { failures: u32 },
     #[error("database error: {0}")]
+    // Variante Database.
     Database(String),
 }
 
@@ -143,6 +160,7 @@ impl TaskStore {
     pub fn new_in_memory(config: TaskWorkerConfig) -> Result<Self, TaskError> {
         let conn = Connection::open_in_memory()?;
         Self::init_schema(&conn)?;
+        // Variante Ok.
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
             config,
@@ -154,6 +172,7 @@ impl TaskStore {
         let conn = Connection::open(path)?;
         conn.execute_batch("PRAGMA journal_mode=WAL;")?;
         Self::init_schema(&conn)?;
+        // Variante Ok.
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
             config,
@@ -203,6 +222,7 @@ impl TaskStore {
              VALUES (?1, ?2, 'queued', 0, ?3, ?3)",
             params![id, payload, now.to_rfc3339()],
         )?;
+        // Variante Ok.
         Ok(id)
     }
 
@@ -249,6 +269,7 @@ impl TaskStore {
                  FROM durable_tasks WHERE lease_id = ?1",
                 params![lease_id],
                 |row| {
+                    // Variante Ok.
                     Ok(DurableTask {
                         id: row.get(0)?,
                         payload: row.get(1)?,
@@ -264,6 +285,7 @@ impl TaskStore {
             )
             .optional()?;
 
+        // Variante Ok.
         Ok(task)
     }
 
@@ -315,6 +337,7 @@ impl TaskStore {
         }
 
         let _next_retry: Option<DateTime<Utc>> = None; // reserved for future use
+        // Variante Ok.
         Ok(())
     }
 
@@ -356,6 +379,7 @@ impl TaskStore {
             return Err(TaskError::CircuitBreakerOpen { failures });
         }
 
+        // Variante Ok.
         Ok(())
     }
 
@@ -383,6 +407,7 @@ impl TaskStore {
             params![now.to_rfc3339()],
         )?;
 
+        // Variante Ok.
         Ok(recovered as u32)
     }
 
@@ -404,6 +429,7 @@ impl TaskStore {
         if rows == 0 {
             return Err(TaskError::NotFound);
         }
+        // Variante Ok.
         Ok(())
     }
 
@@ -440,6 +466,7 @@ impl TaskStore {
             params![state.to_db()],
             |row| row.get(0),
         )?;
+        // Variante Ok.
         Ok(count)
     }
 
@@ -701,7 +728,7 @@ mod tests {
         store.enqueue("b".into()).unwrap();
         assert_eq!(store.count_by_state(TaskState::Queued).unwrap(), 2);
 
-        let claimed = store.try_claim("w1").unwrap().unwrap();
+        let _claimed = store.try_claim("w1").unwrap().unwrap();
         assert_eq!(store.count_by_state(TaskState::Queued).unwrap(), 1);
         assert_eq!(store.count_by_state(TaskState::Running).unwrap(), 1);
     }

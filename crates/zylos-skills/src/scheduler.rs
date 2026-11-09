@@ -12,26 +12,34 @@ use tracing::{debug, error, info, warn};
 
 /// Erros do sistema de scheduler
 #[derive(Error, Debug)]
+/// Enumeração SchedulerError.
 pub enum SchedulerError {
     #[error("rotina '{0}' não encontrada")]
+    // Variante RoutineNotFound.
     RoutineNotFound(String),
 
     #[error("expressão cron inválida: {0}")]
+    // Variante InvalidCron.
     InvalidCron(String),
 
     #[error("falha ao persistir estado: {0}")]
+    // Variante PersistenceError.
     PersistenceError(String),
 
     #[error("falha de I/O: {0}")]
+    // Variante IoError.
     IoError(#[from] std::io::Error),
 
     #[error("JSON inválido: {0}")]
+    // Variante ParseError.
     ParseError(#[from] serde_json::Error),
 
     #[error("rotina já existe: {0}")]
+    // Variante DuplicateRoutine.
     DuplicateRoutine(String),
 
     #[error("execução falhou: {0}")]
+    // Variante ExecutionFailed.
     ExecutionFailed(String),
 }
 
@@ -41,14 +49,15 @@ pub type SchedulerResult<T> = Result<T, SchedulerError>;
 /// Tipo de gatilho da rotina
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
+/// Enumeração TriggerType.
 pub enum TriggerType {
-    /// Expressão cron (ex: "0 */6 * * *")
+    // Expressão cron (ex: "0 */6 * * *")
     Cron { expression: String },
-    /// Gatilho por evento (ex: "on_push", "on_merge")
+    // Gatilho por evento (ex: "on_push", "on_merge")
     Event { event: String },
     /// Execução manual sob demanda
     Manual,
-    /// Intervalo fixo em segundos
+    // Intervalo fixo em segundos
     Interval { seconds: u64 },
 }
 
@@ -66,10 +75,15 @@ impl std::fmt::Display for TriggerType {
 /// Status atual da rotina
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
+/// Enumeração RoutineStatus.
 pub enum RoutineStatus {
+    /// Variante Active.
     Active,
+    /// Variante Paused.
     Paused,
+    /// Variante Disabled.
     Disabled,
+    /// Variante Failed.
     Failed,
 }
 
@@ -86,6 +100,7 @@ impl std::fmt::Display for RoutineStatus {
 
 /// Definição de uma rotina agendada
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura Routine.
 pub struct Routine {
     /// ID único da rotina
     pub id: String,
@@ -104,6 +119,7 @@ pub struct Routine {
 
     /// Argumentos para o comando/skill
     #[serde(default)]
+    /// Campo args.
     pub args: Vec<String>,
 
     /// Status atual
@@ -117,18 +133,22 @@ pub struct Routine {
 
     /// Contador de execuções consecutivas com falha
     #[serde(default)]
+    /// Campo consecutive failures.
     pub consecutive_failures: u32,
 
     /// Máximo de tentativas antes de desativar
     #[serde(default = "default_max_retries")]
+    /// Campo max retries.
     pub max_retries: u32,
 
     /// Timeout em segundos
     #[serde(default = "default_timeout")]
+    /// Campo timeout seconds.
     pub timeout_seconds: u64,
 
     /// Tags para organização
     #[serde(default)]
+    /// Campo tags.
     pub tags: Vec<String>,
 
     /// Criado em (ISO 8601)
@@ -148,6 +168,7 @@ fn default_timeout() -> u64 {
 
 /// Registro de execução de uma rotina
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura ExecutionLog.
 pub struct ExecutionLog {
     /// ID da execução
     pub execution_id: String,
@@ -179,6 +200,7 @@ pub struct ExecutionLog {
 
 /// Estado persistente do scheduler
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura SchedulerState.
 pub struct SchedulerState {
     /// Versão do formato de estado
     pub version: String,
@@ -195,6 +217,7 @@ pub struct SchedulerState {
 
 impl Default for SchedulerState {
     fn default() -> Self {
+        // Variante Self.
         Self {
             version: "1.0.0".to_string(),
             routines: HashMap::new(),
@@ -206,6 +229,7 @@ impl Default for SchedulerState {
 
 /// Gerenciador de rotinas agendadas
 #[derive(Debug)]
+/// Estrutura RoutineScheduler.
 pub struct RoutineScheduler {
     state: SchedulerState,
     state_path: Option<String>,
@@ -215,6 +239,7 @@ pub struct RoutineScheduler {
 impl RoutineScheduler {
     /// Cria um scheduler vazio
     pub fn new() -> Self {
+        // Variante Self.
         Self {
             state: SchedulerState::default(),
             state_path: None,
@@ -233,6 +258,7 @@ impl RoutineScheduler {
             path.display()
         );
 
+        // Variante Ok.
         Ok(Self {
             state,
             state_path: Some(path.display().to_string()),
@@ -252,6 +278,7 @@ impl RoutineScheduler {
             warn!("Nenhum caminho de estado configurado; save ignorado");
         }
 
+        // Variante Ok.
         Ok(())
     }
 
@@ -273,6 +300,7 @@ impl RoutineScheduler {
 
         info!("Rotina registrada: '{}' ({})", routine.name, routine.trigger);
         self.state.routines.insert(routine.id.clone(), routine);
+        // Variante Ok.
         Ok(())
     }
 
@@ -323,6 +351,7 @@ impl RoutineScheduler {
         routine.status = RoutineStatus::Paused;
         routine.updated_at = chrono::Utc::now().to_rfc3339();
         info!("Rotina '{}' pausada", id);
+        // Variante Ok.
         Ok(())
     }
 
@@ -338,6 +367,7 @@ impl RoutineScheduler {
         routine.consecutive_failures = 0;
         routine.updated_at = chrono::Utc::now().to_rfc3339();
         info!("Rotina '{}' reativada", id);
+        // Variante Ok.
         Ok(())
     }
 
@@ -433,6 +463,7 @@ impl RoutineScheduler {
             .filter(|l| l.success)
             .count();
 
+        // Variante SchedulerStats.
         SchedulerStats {
             total_routines: total,
             active_routines: active,
@@ -545,13 +576,21 @@ impl Default for RoutineScheduler {
 
 /// Estatísticas resumidas do scheduler
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura SchedulerStats.
 pub struct SchedulerStats {
+    /// Campo total routines.
     pub total_routines: usize,
+    /// Campo active routines.
     pub active_routines: usize,
+    /// Campo paused routines.
     pub paused_routines: usize,
+    /// Campo failed routines.
     pub failed_routines: usize,
+    /// Campo total executions.
     pub total_executions: usize,
+    /// Campo successful executions.
     pub successful_executions: usize,
+    /// Campo success rate.
     pub success_rate: f64,
 }
 
@@ -578,12 +617,14 @@ fn validate_cron_expression(expr: &str) -> SchedulerResult<()> {
         }
     }
 
+    // Variante Ok.
     Ok(())
 }
 
 /// Cria uma rotina de exemplo para testes
 pub fn sample_routine(id: &str, name: &str) -> Routine {
     let now = chrono::Utc::now().to_rfc3339();
+    // Variante Routine.
     Routine {
         id: id.to_string(),
         name: name.to_string(),

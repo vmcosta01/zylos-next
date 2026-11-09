@@ -15,13 +15,18 @@ pub enum PermissionDecision {
     Deny,
 }
 
-/// Persistent inbox entry for permission decisions.
+/// Entrada persistente de decisão de permissão no inbox do contexto.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InboxEntry {
+    /// ID único da entrada (UUID v4).
     pub id: String,
+    /// Domínio ao qual a permissão se aplica.
     pub domain: String,
+    /// Tipo de permissão solicitada (e.g., "geolocation", "notifications").
     pub permission_type: String,
+    /// Decisão registrada para esta permissão.
     pub decision: PermissionDecision,
+    /// Timestamp UTC em que a decisão foi registrada.
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -49,13 +54,18 @@ impl Default for BrowserContextConfig {
     }
 }
 
-/// An isolated browser context with anti-detect fingerprinting.
+/// Contexto isolado de browser com fingerprint anti-detect determinístico.
 #[derive(Debug)]
 pub struct BrowserContext {
+    /// Identificador único do contexto (derivado do fingerprint).
     pub id: String,
+    /// Configuração deste contexto.
     pub config: BrowserContextConfig,
+    /// Fingerprint determinístico associado a este contexto.
     pub fingerprint: BrowserFingerprint,
+    /// Inbox persistente de decisões de permissão por domínio.
     inbox: HashMap<String, InboxEntry>,
+    /// Contagem atual de abas abertas.
     active_tabs: usize,
 }
 

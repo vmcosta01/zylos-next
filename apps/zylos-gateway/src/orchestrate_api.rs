@@ -245,7 +245,7 @@ async fn dispatch_live_comm(action: &str, state: &AppState) -> Result<serde_json
 // DAG executor
 // ---------------------------------------------------------------------------
 
-async fn execute_dag(
+pub async fn execute_dag(
     state: &AppState,
     nodes: &[DagNode],
     rollback_on_failure: bool,

@@ -29,8 +29,11 @@ use uuid::Uuid;
 
 /// Tenant context injected into request extensions
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura TenantContext.
 pub struct TenantContext {
+    /// Campo tenant id.
     pub tenant_id: String,
+    /// Campo user id.
     pub user_id: Option<String>,
 }
 
@@ -53,6 +56,7 @@ pub async fn multi_tenant_middleware(mut request: Request, next: Next) -> Respon
         });
 
     let tenant_id = match tenant_id {
+        // Variante Some.
         Some(id) if !id.is_empty() => id,
         _ => "default".to_string(),
     };
@@ -77,15 +81,22 @@ pub async fn multi_tenant_middleware(mut request: Request, next: Next) -> Respon
 /// RBAC permission levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[repr(u8)]
+/// Enumeração RbacLevel.
 pub enum RbacLevel {
+    // Variante Viewer.
     Viewer = 0,
+    // Variante Operator.
     Operator = 1,
+    // Variante Developer.
     Developer = 2,
+    // Variante Admin.
     Admin = 3,
+    // Variante Owner.
     Owner = 4,
 }
 
 impl RbacLevel {
+    /// Função from str.
     pub fn from_str(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "owner" => Self::Owner,
@@ -104,21 +115,31 @@ impl RbacLevel {
 
 /// Declarative permission matrix entry
 #[derive(Debug, Clone)]
+/// Estrutura PermissionEntry.
 pub struct PermissionEntry {
     pub path_prefix: &'static str,
     pub method: &'static str,
+    /// Campo min level.
     pub min_level: RbacLevel,
 }
 
 /// Default permission matrix
 pub static PERMISSION_MATRIX: &[PermissionEntry] = &[
+    // Variante PermissionEntry.
     PermissionEntry { path_prefix: "/health", method: "GET", min_level: RbacLevel::Viewer },
+    // Variante PermissionEntry.
     PermissionEntry { path_prefix: "/events", method: "GET", min_level: RbacLevel::Viewer },
+    // Variante PermissionEntry.
     PermissionEntry { path_prefix: "/ws", method: "GET", min_level: RbacLevel::Viewer },
+    // Variante PermissionEntry.
     PermissionEntry { path_prefix: "/api/v1/skills", method: "GET", min_level: RbacLevel::Viewer },
+    // Variante PermissionEntry.
     PermissionEntry { path_prefix: "/api/v1/skills", method: "POST", min_level: RbacLevel::Developer },
+    // Variante PermissionEntry.
     PermissionEntry { path_prefix: "/api/v1/skills", method: "DELETE", min_level: RbacLevel::Admin },
+    // Variante PermissionEntry.
     PermissionEntry { path_prefix: "/api/v1/admin", method: "*", min_level: RbacLevel::Admin },
+    // Variante PermissionEntry.
     PermissionEntry { path_prefix: "/api/v1/config", method: "*", min_level: RbacLevel::Owner },
 ];
 
@@ -129,6 +150,7 @@ struct RbacCacheEntry {
 }
 
 #[derive(Clone)]
+/// Estrutura RbacCache.
 pub struct RbacCache {
     entries: Arc<RwLock<HashMap<String, RbacCacheEntry>>>,
     ttl: Duration,
@@ -136,7 +158,9 @@ pub struct RbacCache {
 }
 
 impl RbacCache {
+    /// Função new.
     pub fn new(ttl_secs: u64, max_entries: usize) -> Self {
+        // Variante Self.
         Self {
             entries: Arc::new(RwLock::new(HashMap::with_capacity(max_entries.min(1000)))),
             ttl: Duration::from_secs(ttl_secs),
@@ -144,6 +168,7 @@ impl RbacCache {
         }
     }
 
+    /// Função get.
     pub async fn get(&self, key: &str) -> Option<RbacLevel> {
         let entries = self.entries.read().await;
         entries.get(key).and_then(|e| {
@@ -155,6 +180,7 @@ impl RbacCache {
         })
     }
 
+    /// Função put.
     pub async fn put(&self, key: String, level: RbacLevel) {
         let mut entries = self.entries.write().await;
         if entries.len() >= self.max_entries {
@@ -228,21 +254,21 @@ pub async fn rbac_middleware(
 
 /// Multi-tier rate limiter configuration
 #[derive(Clone)]
+/// Estrutura MultiTierRateLimiter.
 pub struct MultiTierRateLimiter {
-    /// Global: 10K req/s
     global: Arc<RateLimiter<governor::state::NotKeyed, InMemoryState, DefaultClock>>,
-    /// Per-tenant: 1K req/s (keyed by tenant_id string)
     per_tenant: Arc<RateLimiter<String, governor::state::keyed::DashMapStateStore<String>, DefaultClock>>,
-    /// Per-user: 100 req/s (keyed by user_id string)
     per_user: Arc<RateLimiter<String, governor::state::keyed::DashMapStateStore<String>, DefaultClock>>,
 }
 
 impl MultiTierRateLimiter {
+    /// Função new.
     pub fn new() -> Self {
         let global_quota = Quota::per_second(NonZeroU32::new(10_000).unwrap());
         let tenant_quota = Quota::per_second(NonZeroU32::new(1_000).unwrap());
         let user_quota = Quota::per_second(NonZeroU32::new(100).unwrap());
 
+        // Variante Self.
         Self {
             global: Arc::new(RateLimiter::direct(global_quota)),
             per_tenant: Arc::new(RateLimiter::keyed(tenant_quota)),
@@ -250,15 +276,18 @@ impl MultiTierRateLimiter {
         }
     }
 
+    /// Função check global.
     pub fn check_global(&self) -> Result<(), ()> {
         self.global.check().map_err(|_| ())
     }
 
+    /// Função check tenant.
     pub fn check_tenant(&self, tenant_id: &str) -> Result<(), ()> {
         let key = tenant_id.to_string();
         self.per_tenant.check_key(&key).map_err(|_| ())
     }
 
+    /// Função check user.
     pub fn check_user(&self, user_id: &str) -> Result<(), ()> {
         let key = user_id.to_string();
         self.per_user.check_key(&key).map_err(|_| ())
@@ -382,6 +411,7 @@ pub async fn correlation_id_middleware(mut request: Request, next: Next) -> Resp
 
 /// Wrapper type for correlation ID in extensions
 #[derive(Debug, Clone)]
+/// Estrutura CorrelationId.
 pub struct CorrelationId(pub String);
 
 /// Build a TraceLayer configured for structured JSON logging
@@ -410,7 +440,9 @@ pub fn build_trace_layer() -> TraceLayer<
         (status = 200, description = "Process is alive", body = HealthResponse),
     ),
 )]
+/// Função health live.
 pub async fn health_live() -> impl IntoResponse {
+    // Variante Json.
     Json(HealthResponse {
         status: "ok".to_string(),
         timestamp: chrono::Utc::now().to_rfc3339(),
@@ -427,6 +459,7 @@ pub async fn health_live() -> impl IntoResponse {
         (status = 503, description = "One or more dependencies unavailable", body = HealthResponse),
     ),
 )]
+/// Função health ready.
 pub async fn health_ready(State(state): State<GatewayState>) -> impl IntoResponse {
     let checks = state.readiness_checker.check_all().await;
     let all_ok = checks.iter().all(|(_, ok)| *ok);
@@ -447,30 +480,38 @@ pub async fn health_ready(State(state): State<GatewayState>) -> impl IntoRespons
 }
 
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
+/// Estrutura HealthResponse.
 pub struct HealthResponse {
+    /// Campo status.
     pub status: String,
+    /// Campo timestamp.
     pub timestamp: String,
 }
 
 /// Pluggable readiness checker
 #[derive(Clone)]
+/// Estrutura ReadinessChecker.
 pub struct ReadinessChecker {
     checks: Arc<Vec<(&'static str, Arc<dyn Fn() -> futures::future::BoxFuture<'static, bool> + Send + Sync>)>>,
 }
 
 impl ReadinessChecker {
+    /// Função new.
     pub fn new() -> Self {
+        // Variante Self.
         Self {
             checks: Arc::new(Vec::new()),
         }
     }
 
+    /// Função with check.
     pub fn with_check(mut self, name: &'static str, check: impl Fn() -> futures::future::BoxFuture<'static, bool> + Send + Sync + 'static) -> Self {
         let checks = Arc::get_mut(&mut self.checks).expect("exclusive access");
         checks.push((name, Arc::new(check)));
         self
     }
 
+    /// Função check all.
     pub async fn check_all(&self) -> Vec<(String, bool)> {
         let mut results = Vec::new();
         for (name, check) in self.checks.iter() {
@@ -498,13 +539,16 @@ impl Default for ReadinessChecker {
 /// Drains in-flight requests (max 30s), notifies SSE/WS connections,
 /// cancels background tasks via CancellationToken.
 #[derive(Clone)]
+/// Estrutura GracefulShutdown.
 pub struct GracefulShutdown {
     token: CancellationToken,
     drain_timeout: Duration,
 }
 
 impl GracefulShutdown {
+    /// Função new.
     pub fn new(drain_timeout_secs: u64) -> Self {
+        // Variante Self.
         Self {
             token: CancellationToken::new(),
             drain_timeout: Duration::from_secs(drain_timeout_secs),
@@ -536,6 +580,7 @@ impl GracefulShutdown {
 
     /// Install SIGTERM handler (Unix only; no-op on other platforms)
     #[cfg(unix)]
+    /// Função install signal handler.
     pub fn install_signal_handler(&self) {
         let token = self.token.clone();
         tokio::spawn(async move {
@@ -550,6 +595,7 @@ impl GracefulShutdown {
     }
 
     #[cfg(not(unix))]
+    /// Função install signal handler.
     pub fn install_signal_handler(&self) {
         // On Windows, Ctrl+C is handled by tokio runtime defaults
         info!("Signal handler: using platform default (non-Unix)");
@@ -575,6 +621,7 @@ impl Default for GracefulShutdown {
         (status = 200, description = "OpenAPI 3.1 specification in JSON format"),
     ),
 )]
+/// Função openapi json.
 pub async fn openapi_json() -> impl IntoResponse {
     let spec = crate::openapi::generate_openapi_json();
     (
@@ -593,6 +640,7 @@ pub async fn openapi_json() -> impl IntoResponse {
         (status = 200, description = "OpenAPI 3.1 specification in YAML format"),
     ),
 )]
+/// Função openapi yaml.
 pub async fn openapi_yaml() -> impl IntoResponse {
     let spec = crate::openapi::generate_openapi_yaml();
     (
@@ -608,16 +656,23 @@ pub async fn openapi_yaml() -> impl IntoResponse {
 
 /// Configuration for the gateway
 #[derive(Clone)]
+/// Estrutura GatewayConfig.
 pub struct GatewayConfig {
+    /// Campo jwt config.
     pub jwt_config: crate::auth::JwtConfig,
+    /// Campo rbac cache ttl secs.
     pub rbac_cache_ttl_secs: u64,
+    /// Campo rbac cache max entries.
     pub rbac_cache_max_entries: usize,
+    /// Campo drain timeout secs.
     pub drain_timeout_secs: u64,
+    /// Campo readiness checker.
     pub readiness_checker: ReadinessChecker,
 }
 
 impl Default for GatewayConfig {
     fn default() -> Self {
+        // Variante Self.
         Self {
             jwt_config: crate::auth::JwtConfig::default(),
             rbac_cache_ttl_secs: 60,
@@ -630,11 +685,17 @@ impl Default for GatewayConfig {
 
 /// Shared gateway state passed through Axum's State extractor
 #[derive(Clone)]
+/// Estrutura GatewayState.
 pub struct GatewayState {
+    /// Campo rbac cache.
     pub rbac_cache: RbacCache,
+    /// Campo rate limiter.
     pub rate_limiter: MultiTierRateLimiter,
+    /// Campo readiness checker.
     pub readiness_checker: ReadinessChecker,
+    /// Campo shutdown.
     pub shutdown: GracefulShutdown,
+    /// Campo event bus.
     pub event_bus: crate::event_bus::EventBus,
 }
 

@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool};
 use sqlx::Row;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::HashMap;
 use std::str::FromStr;
 use uuid::Uuid;
 
@@ -97,10 +97,15 @@ impl Default for Priority {
 /// A single unit of work in the swarm.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Task {
+    /// Unique identifier for this task.
     pub id: TaskId,
+    /// Human-readable name for this task.
     pub name: String,
+    /// Detailed description of the work to be done.
     pub description: String,
+    /// Current lifecycle state of this task.
     pub state: TaskState,
+    /// Scheduling priority level.
     pub priority: Priority,
     /// IDs of tasks that must complete before this one can start.
     pub dependencies: Vec<TaskId>,
@@ -120,9 +125,13 @@ pub struct Task {
     pub result: Option<serde_json::Value>,
     /// Error message if failed.
     pub error: Option<String>,
+    /// Timestamp when this task was created.
     pub created_at: DateTime<Utc>,
+    /// Timestamp of the last modification.
     pub updated_at: DateTime<Utc>,
+    /// Timestamp when execution started, if applicable.
     pub started_at: Option<DateTime<Utc>>,
+    /// Timestamp when the task reached a terminal state.
     pub completed_at: Option<DateTime<Utc>>,
     /// Parent task ID for hierarchical decomposition.
     pub parent_id: Option<TaskId>,
@@ -131,6 +140,10 @@ pub struct Task {
 }
 
 impl Task {
+    /// Creates a new task with the given name and description.
+    ///
+    /// The task starts in [`TaskState::Pending`] with default priority,
+    /// 3 max retries, and a freshly generated UUID.
     pub fn new(name: impl Into<String>, description: impl Into<String>) -> Self {
         let now = Utc::now();
         Self {
@@ -157,26 +170,31 @@ impl Task {
         }
     }
 
+    /// Sets the dependency list for this task (builder pattern).
     pub fn with_dependencies(mut self, deps: Vec<TaskId>) -> Self {
         self.dependencies = deps;
         self
     }
 
+    /// Sets the scheduling priority for this task (builder pattern).
     pub fn with_priority(mut self, priority: Priority) -> Self {
         self.priority = priority;
         self
     }
 
+    /// Sets the required agent capabilities for this task (builder pattern).
     pub fn with_capabilities(mut self, caps: Vec<String>) -> Self {
         self.required_capabilities = caps;
         self
     }
 
+    /// Attaches an arbitrary JSON payload to this task (builder pattern).
     pub fn with_payload(mut self, payload: serde_json::Value) -> Self {
         self.payload = payload;
         self
     }
 
+    /// Sets the parent task ID for hierarchical decomposition (builder pattern).
     pub fn with_parent(mut self, parent_id: TaskId) -> Self {
         self.parent_id = Some(parent_id);
         self
@@ -204,17 +222,28 @@ impl Task {
 /// An agent participating in the swarm.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SwarmAgent {
+    /// Unique identifier for this agent.
     pub id: AgentId,
+    /// Human-readable name for this agent.
     pub name: String,
+    /// List of capability tags this agent provides.
     pub capabilities: Vec<String>,
+    /// Maximum number of tasks this agent can run simultaneously.
     pub max_concurrent_tasks: usize,
+    /// Number of tasks currently assigned to this agent.
     pub current_load: usize,
+    /// Whether this agent is currently available for scheduling.
     pub active: bool,
+    /// Timestamp of the last heartbeat received from this agent.
     pub last_heartbeat: DateTime<Utc>,
+    /// Arbitrary key-value metadata attached to this agent.
     pub metadata: HashMap<String, String>,
 }
 
 impl SwarmAgent {
+    /// Creates a new active agent with the given ID and name.
+    ///
+    /// Defaults to 1 max concurrent task and zero current load.
     pub fn new(id: impl Into<String>, name: impl Into<String>) -> Self {
         Self {
             id: id.into(),
@@ -228,6 +257,9 @@ impl SwarmAgent {
         }
     }
 
+    /// Returns how many more tasks this agent can accept right now.
+    ///
+    /// Returns 0 if the agent is inactive or at capacity.
     pub fn available_capacity(&self) -> usize {
         if !self.active {
             return 0;
@@ -235,6 +267,8 @@ impl SwarmAgent {
         self.max_concurrent_tasks.saturating_sub(self.current_load)
     }
 
+    /// Checks whether this agent has the capabilities and capacity to handle
+    /// the given task.
     pub fn can_handle(&self, task: &Task) -> bool {
         if !self.active || self.available_capacity() == 0 {
             return false;
@@ -251,37 +285,59 @@ impl SwarmAgent {
 /// Result of scheduling a batch of tasks.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScheduleResult {
+    /// Pairs of (task_id, agent_id) that were successfully assigned.
     pub assignments: Vec<(TaskId, AgentId)>,
+    /// Tasks that could not be scheduled because dependencies are unmet.
     pub blocked_tasks: Vec<TaskId>,
+    /// Tasks whose required capabilities match no registered agent.
     pub unassignable_tasks: Vec<TaskId>,
+    /// Non-fatal errors encountered during scheduling.
     pub errors: Vec<String>,
 }
 
 /// Aggregate statistics about the swarm.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SwarmStats {
+    /// Total number of tasks across all states.
     pub total_tasks: usize,
+    /// Tasks waiting for dependencies to resolve.
     pub pending_tasks: usize,
+    /// Tasks eligible for scheduling (all dependencies met).
     pub ready_tasks: usize,
+    /// Tasks currently assigned to an agent and executing.
     pub running_tasks: usize,
+    /// Tasks that completed successfully.
     pub done_tasks: usize,
+    /// Tasks that failed after exhausting retries.
     pub failed_tasks: usize,
+    /// Tasks blocked waiting for external input.
     pub blocked_tasks: usize,
+    /// Tasks cancelled by user or system.
     pub cancelled_tasks: usize,
+    /// Total number of registered agents.
     pub total_agents: usize,
+    /// Number of agents currently marked active.
     pub active_agents: usize,
+    /// Sum of max_concurrent_tasks across all active agents.
     pub total_capacity: usize,
+    /// Sum of current_load across all agents.
     pub used_capacity: usize,
 }
 
 /// Query filter for task lookups.
 #[derive(Debug, Clone, Default)]
 pub struct TaskQuery {
+    /// Filter by exact task state.
     pub state: Option<TaskState>,
+    /// Filter by assigned agent ID.
     pub assigned_agent: Option<AgentId>,
+    /// Filter by parent task ID.
     pub parent_id: Option<TaskId>,
+    /// Filter by tag substring match.
     pub tag: Option<String>,
+    /// Maximum number of results to return.
     pub limit: Option<usize>,
+    /// Number of results to skip (for pagination).
     pub offset: Option<usize>,
 }
 
@@ -290,21 +346,30 @@ pub struct TaskQuery {
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, thiserror::Error)]
+/// Errors produced by swarm orchestrator operations.
 pub enum SwarmError {
+    /// Wraps a sqlx database error.
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
+    /// Wraps a serde_json serialization/deserialization error.
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
+    /// A referenced task does not exist in the store.
     #[error("Task not found: {0}")]
     TaskNotFound(String),
+    /// A referenced agent does not exist in the registry.
     #[error("Agent not found: {0}")]
     AgentNotFound(String),
+    /// The task dependency graph contains a cycle.
     #[error("Cycle detected in task dependencies")]
     CycleDetected,
+    /// An attempted state transition violates the state machine rules.
     #[error("Invalid state transition: {0} -> {1}")]
     InvalidTransition(String, String),
+    /// Wraps a std::io::Error.
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+    /// Catch-all for internal orchestrator errors.
     #[error("Internal: {0}")]
     Internal(String),
 }
@@ -798,7 +863,7 @@ impl SwarmOrchestrator {
             .iter()
             .map(|a| (a.id.clone(), a.current_load))
             .collect();
-        let agent_map: HashMap<&str, &SwarmAgent> = agents.iter().map(|a| (a.id.as_str(), a)).collect();
+        let _agent_map: HashMap<&str, &SwarmAgent> = agents.iter().map(|a| (a.id.as_str(), a)).collect();
 
         let mut assignments = Vec::new();
         let mut unassignable = Vec::new();

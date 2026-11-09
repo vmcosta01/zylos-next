@@ -154,6 +154,15 @@ Runbooks são guias operacionais ("como fazer"). Para decisões estratégicas ("
 | Onboarding | [`playbooks/onboarding-devs.md`](../playbooks/onboarding-devs.md) | Ao iniciar no projeto ou mentorar novos devs |
 | Auditoria Adversarial | [`playbooks/adversarial-audit.md`](../playbooks/adversarial-audit.md) | Antes de submeter artefatos críticos para aprovação |
 | Governança Geral | [`PLAYBOOK.md`](../PLAYBOOK.md) | Para entender valores, RACI e gates de fase |
+| Desktop Installer Build | [`desktop-installer-build.md`](desktop-installer-build.md) | Build e distribuição de instaladores cross-platform (NSIS/WiX/DMG/AppImage/deb/rpm) |
+| Finance CSV Skill | [`finance-csv-skill.md`](finance-csv-skill.md) | Operação da skill de importação e categorização de extratos financeiros BR |
+| Web Research Adapters | [`web-research-adapters.md`](web-research-adapters.md) | Configuração e troubleshooting dos adapters Parallel/Exa/Firecrawl |
+| Helm Hardened Deployment | [`helm-hardened-deployment.md`](helm-hardened-deployment.md) | Deploy do chart Helm com HPA custom, PDB, NetworkPolicy e ServiceMonitor |
+| Sentinel AIOps | [`sentinel-aiops.md`](sentinel-aiops.md) | Detecção de anomalias, thresholds e recalibração do módulo AIOps |
+| Cerebelo Orchestration | [`cerebelo-orchestration.md`](cerebelo-orchestration.md) | Debug de DAGs, checkpoints e recovery de workflows multi-agente |
+| Proof Verification | [`proof-verification.md`](proof-verification.md) | Verificação de integridade de evidências e certificados de conformidade |
+| Resolver Conflicts | [`resolver-conflicts.md`](resolver-conflicts.md) | Resolução de conflitos multi-agente via majority vote/adversarial/HITL |
+| Evidence Ledger | [`evidence-ledger.md`](evidence-ledger.md) | Consulta, exportação e verificação do registro imutável de evidências |
 
 **Regra:** Todo runbook de troubleshooting deve referenciar o playbook de incident-response. Todo runbook de deploy deve referenciar o playbook de deploy-release.
 
@@ -165,10 +174,10 @@ Os seguintes componentes ainda precisam de runbooks dedicados antes do release v
 
 | Componente | Prioridade | Justificativa |
 |------------|-----------|---------------|
-| `zylos-cli` | Alta | Interface primária do usuário final |
-| `zylos-daemon` | Alta | Processo background crítico |
-| `zylos-cockpit` | Média | Coberto parcialmente por fase6, mas precisa de runbook operacional standalone |
-| Deploy/CI/CD | Alta | Pipeline de release automatizado |
-| Monitoring/Observability | Média | Metrics, logs, alerting em produção |
+| `zylos-goals` | Baixa | Sistema de metas — crate stub, documentar quando implementar |
+| `zylos-swarm-orchestrator` | Média | Orquestração de swarm — crate stub |
+| `zylos-personalities` | Baixa | Sistema de personalidades — crate stub |
 
-**Ação:** Criar estes runbooks durante a Fase 7 como parte dos critérios de saída para release v1.0.
+**Nota:** Runbooks para Desktop Installer, Finance CSV, Web Research Adapters, Helm Hardened Deployment, CLI, Daemon, Cockpit, Sentinel, Cerebelo, Proof, Resolver e Evidence-Ledger foram criados e já estão indexados acima.
+
+**Ação:** Implementar os 3 crates stub restantes e criar seus runbooks durante a Fase 7 como parte dos critérios de saída para release v1.0.

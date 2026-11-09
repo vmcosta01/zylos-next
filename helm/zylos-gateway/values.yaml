@@ -48,12 +48,43 @@ resources:
     cpu: 100m
     memory: 128Mi
 
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+  # maxUnavailable: 1
+
+# Network Policy
+networkPolicy:
+  enabled: true
+  allowAllEgress: false
+  allowedEgressCIDRs:
+    - "0.0.0.0/0"  # Allow HTTPS outbound; restrict in production
+
+# Monitoring & Observability
+monitoring:
+  serviceMonitor:
+    enabled: true
+    scrapeInterval: "15s"
+    scrapeTimeout: "10s"
+    additionalLabels: {}
+    namespace: ""
+  grafanaDashboard:
+    enabled: true
+
+# Autoscaling custom metrics
 autoscaling:
-  enabled: false
+  enabled: true
   minReplicas: 1
   maxReplicas: 10
   targetCPUUtilizationPercentage: 80
   targetMemoryUtilizationPercentage: 80
+  scaleUpStabilization: 60
+  scaleDownStabilization: 300
+  customMetrics:
+    enabled: true
+    targetActiveAgents: "20"
+    targetQueueDepth: "50"
 
 nodeSelector: {}
 

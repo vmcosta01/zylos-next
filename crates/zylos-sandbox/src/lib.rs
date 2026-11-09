@@ -11,6 +11,7 @@ pub mod docker_sandbox;
 pub mod browser_antidetect;
 pub mod browser_profile_store;
 pub mod secure_input;
+pub mod screen_share;
 
 pub use wasm_sandbox::{
     ExecutionResult, GlobalValue, InputFingerprint, NetworkPolicy, SandboxConfig, SandboxError,

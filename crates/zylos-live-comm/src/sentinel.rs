@@ -16,6 +16,7 @@ use std::sync::Mutex;
 
 /// A health issue detected by a sentinel detector.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+/// Estrutura HealthIssue.
 pub struct HealthIssue {
     /// Normalized signature hash (tool + error category).
     pub signature: String,
@@ -34,6 +35,7 @@ pub struct HealthIssue {
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// Enumeração Severity.
 pub enum Severity {
     Info,
     Warning,
@@ -44,11 +46,17 @@ pub enum Severity {
 /// Raw observation fed into detectors.
 /// Detectors are pure functions over slices of these — no side effects.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura Observation.
 pub struct Observation {
+    /// Campo tool.
     pub tool: String,
+    /// Campo error message.
     pub error_message: Option<String>,
+    /// Campo status code.
     pub status_code: Option<u16>,
+    /// Campo actor id.
     pub actor_id: Option<String>,
+    /// Campo timestamp.
     pub timestamp: DateTime<Utc>,
     /// Arbitrary metadata (will be privacy-stripped before output).
     pub metadata: HashMap<String, String>,
@@ -56,9 +64,13 @@ pub struct Observation {
 
 /// Result from a single detector invocation.
 #[derive(Debug, Clone)]
+/// Estrutura DetectorFinding.
 pub struct DetectorFinding {
+    /// Campo detector.
     pub detector: String,
+    /// Campo severity.
     pub severity: Severity,
+    /// Campo summary.
     pub summary: String,
     /// Raw text used to compute the normalized signature.
     pub signature_input: String,
@@ -66,11 +78,17 @@ pub struct DetectorFinding {
 
 /// Team incident report (rate-limited).
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura IncidentReport.
 pub struct IncidentReport {
+    /// Campo signature.
     pub signature: String,
+    /// Campo severity.
     pub severity: Severity,
+    /// Campo summary.
     pub summary: String,
+    /// Campo reported at.
     pub reported_at: DateTime<Utc>,
+    /// Campo suppressed.
     pub suppressed: bool,
 }
 
@@ -257,6 +275,7 @@ fn try_match_ipv4_at(chars: &[char], start: usize) -> Option<(usize,)> {
             pos += 1; // skip dot
         }
     }
+    // Variante Some.
     Some((pos - start,))
 }
 
@@ -369,7 +388,9 @@ pub struct IssueStore {
 }
 
 impl IssueStore {
+    /// Função new.
     pub fn new() -> Self {
+        // Variante Self.
         Self {
             issues: Mutex::new(HashMap::new()),
         }
@@ -447,7 +468,9 @@ pub struct IncidentRateLimiter {
 }
 
 impl IncidentRateLimiter {
+    /// Função new.
     pub fn new(max_reports: u32, window_seconds: i64) -> Self {
+        // Variante Self.
         Self {
             max_reports,
             window_seconds,
@@ -481,6 +504,7 @@ impl IncidentRateLimiter {
         let active: Vec<_> = reports.iter().filter(|t| **t > cutoff).collect();
 
         if active.len() < self.max_reports as usize {
+            // Variante None.
             None
         } else {
             // Oldest active report expires first
@@ -495,19 +519,23 @@ impl IncidentRateLimiter {
 // Sentinel scanner (orchestrates detectors + store + rate limiter)
 // ---------------------------------------------------------------------------
 
+/// Estrutura SentinelScanner.
 pub struct SentinelScanner {
     store: IssueStore,
     rate_limiter: IncidentRateLimiter,
 }
 
 impl SentinelScanner {
+    /// Função new.
     pub fn new() -> Self {
+        // Variante Self.
         Self {
             store: IssueStore::new(),
             rate_limiter: IncidentRateLimiter::default_hourly(),
         }
     }
 
+    /// Função with rate limiter.
     pub fn with_rate_limiter(mut self, limiter: IncidentRateLimiter) -> Self {
         self.rate_limiter = limiter;
         self
@@ -529,6 +557,7 @@ impl SentinelScanner {
     /// Report an incident to the team (rate-limited).
     pub fn report_incident(&self, signature: &str, severity: Severity, summary: &str, now: DateTime<Utc>) -> IncidentReport {
         let allowed = self.rate_limiter.try_report(now);
+        // Variante IncidentReport.
         IncidentReport {
             signature: signature.to_string(),
             severity,
@@ -558,6 +587,7 @@ mod tests {
     use super::*;
 
     fn obs(tool: &str, error: Option<&str>, status: Option<u16>) -> Observation {
+        /// Variante Observation.
         Observation {
             tool: tool.into(),
             error_message: error.map(Into::into),
@@ -715,6 +745,7 @@ mod tests {
             now,
         );
         store.upsert(
+            /// Variante DetectorFinding.
             DetectorFinding {
                 detector: "b".into(),
                 severity: Severity::Warning,

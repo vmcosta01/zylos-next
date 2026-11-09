@@ -31,5 +31,8 @@ optional = true
 default = []
 gui = ["dep:tauri", "dep:tauri-plugin-shell"]
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 tempfile = { workspace = true }

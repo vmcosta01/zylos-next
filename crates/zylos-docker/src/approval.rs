@@ -3,10 +3,11 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-/// Risk level of a container operation.
+/// Risk level of a container operation, used to gate actions through the
+/// [`ApprovalWorkflow`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RiskLevel {
-    /// No approval needed (read-only, ephemeral).
+    /// No approval needed (read-only, ephemeral operations).
     Low,
     /// Requires explicit approval (filesystem writes, network access).
     Medium,
@@ -24,22 +25,39 @@ impl fmt::Display for RiskLevel {
     }
 }
 
-/// Decision from the approval workflow.
+/// Outcome of an approval check performed by [`ApprovalWorkflow::evaluate`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ApprovalDecision {
-    Approved { reason: String },
-    Denied { reason: String },
-    Pending { requested_at: chrono::DateTime<chrono::Utc> },
+    /// The operation was approved and may proceed.
+    Approved {
+        /// Human-readable explanation of why the operation was allowed.
+        reason: String,
+    },
+    /// The operation was rejected and must not proceed.
+    Denied {
+        /// Human-readable explanation of why the operation was blocked.
+        reason: String,
+    },
+    /// The operation is awaiting external approval (human or policy engine).
+    Pending {
+        /// Timestamp when the approval request was created.
+        requested_at: chrono::DateTime<chrono::Utc>,
+    },
 }
 
 /// Approval workflow that gates high-risk container operations.
+///
+/// Controls which [`RiskLevel`]s require explicit approval before a
+/// [`DockerSandbox`](crate::DockerSandbox) operation may proceed. By default,
+/// only [`RiskLevel::High`] and [`RiskLevel::Medium`] operations are gated.
 #[derive(Debug, Clone)]
 pub struct ApprovalWorkflow {
-    /// Whether approval is required for medium-risk operations.
+    /// Whether approval is required for medium-risk operations (default: `true`).
     pub require_medium: bool,
-    /// Whether approval is required for low-risk operations.
+    /// Whether approval is required for low-risk operations (default: `false`).
     pub require_low: bool,
-    /// Auto-approve after timeout (None = never auto-approve).
+    /// Auto-approve after this duration elapses without an external decision.
+    /// `None` means requests remain [`ApprovalDecision::Pending`] indefinitely.
     pub auto_approve_after: Option<std::time::Duration>,
 }
 
@@ -55,11 +73,18 @@ impl Default for ApprovalWorkflow {
 
 impl ApprovalWorkflow {
     /// Create a new approval workflow with default settings.
+    ///
+    /// Equivalent to [`ApprovalWorkflow::default()`]: medium-risk operations
+    /// require approval, low-risk do not, and no auto-approve timeout is set.
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Check whether an operation at the given risk level requires approval.
+    ///
+    /// [`RiskLevel::High`] always returns `true`. [`RiskLevel::Medium`] and
+    /// [`RiskLevel::Low`] are gated by [`require_medium`](Self::require_medium)
+    /// and [`require_low`](Self::require_low) respectively.
     pub fn requires_approval(&self, level: RiskLevel) -> bool {
         match level {
             RiskLevel::High => true,
@@ -68,9 +93,16 @@ impl ApprovalWorkflow {
         }
     }
 
-    /// Evaluate an approval request. In production this would consult
-    /// an external policy engine or human inbox; here we implement the
-    /// decision logic skeleton.
+    /// Evaluate an approval request for the given risk level and operation.
+    ///
+    /// Returns [`ApprovalDecision::Approved`] when the risk level does not
+    /// require approval. Otherwise returns [`ApprovalDecision::Pending`] as a
+    /// placeholder until an external policy engine or human inbox responds.
+    ///
+    /// # Arguments
+    /// * `level` — risk classification of the operation.
+    /// * `_operation` — human-readable operation name (reserved for future
+    ///   policy-engine integration).
     pub fn evaluate(
         &self,
         level: RiskLevel,
@@ -126,5 +158,50 @@ mod tests {
         let wf = ApprovalWorkflow::default();
         let decision = wf.evaluate(RiskLevel::High, "mount /host");
         assert!(matches!(decision, ApprovalDecision::Pending { .. }));
+    }
+
+    #[test]
+    fn test_risk_level_display() {
+        assert_eq!(format!("{}", RiskLevel::Low), "low");
+        assert_eq!(format!("{}", RiskLevel::Medium), "medium");
+        assert_eq!(format!("{}", RiskLevel::High), "high");
+    }
+
+    #[test]
+    fn test_approval_decision_serialization_roundtrip() {
+        let decisions = vec![
+            ApprovalDecision::Approved { reason: "ok".to_string() },
+            ApprovalDecision::Denied { reason: "nope".to_string() },
+            ApprovalDecision::Pending { requested_at: chrono::Utc::now() },
+        ];
+        for d in decisions {
+            let json = serde_json::to_string(&d).expect("serialize");
+            let _: ApprovalDecision = serde_json::from_str(&json).expect("deserialize");
+        }
+    }
+
+    #[test]
+    fn test_evaluate_auto_approves_low_when_not_required() {
+        let wf = ApprovalWorkflow {
+            require_low: false,
+            require_medium: false,
+            auto_approve_after: None,
+        };
+        let low = wf.evaluate(RiskLevel::Low, "read");
+        let med = wf.evaluate(RiskLevel::Medium, "write");
+        assert!(matches!(low, ApprovalDecision::Approved { .. }));
+        assert!(matches!(med, ApprovalDecision::Approved { .. }));
+        // High always requires approval regardless of flags
+        let high = wf.evaluate(RiskLevel::High, "rm -rf");
+        assert!(matches!(high, ApprovalDecision::Pending { .. }));
+    }
+
+    #[test]
+    fn test_new_equals_default() {
+        let a = ApprovalWorkflow::new();
+        let b = ApprovalWorkflow::default();
+        assert_eq!(a.require_medium, b.require_medium);
+        assert_eq!(a.require_low, b.require_low);
+        assert_eq!(a.auto_approve_after, b.auto_approve_after);
     }
 }

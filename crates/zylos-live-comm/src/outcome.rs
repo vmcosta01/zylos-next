@@ -15,13 +15,10 @@ use std::sync::{Arc, Mutex};
 
 /// Three-valued outcome for write operations.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Enumeração Outcome.
 pub enum Outcome {
-    /// Write confirmed successful (2xx response).
     Succeeded,
-    /// Write confirmed failed (4xx, validation error, explicit rejection).
     Failed,
-    /// Write outcome indeterminate (network error, 5xx, timeout).
-    /// Requires human confirmation before proceeding — never auto-retried.
     OutcomeUnknown,
 }
 
@@ -58,6 +55,7 @@ impl Outcome {
 
 /// Classification of HTTP/write errors into Outcome tri-state.
 #[derive(Debug, Clone)]
+/// Estrutura OutcomeClassifier.
 pub struct OutcomeClassifier;
 
 impl OutcomeClassifier {
@@ -90,7 +88,9 @@ impl OutcomeClassifier {
     /// Classify from a Result where Err = network/IO error.
     pub fn from_result<T, E>(result: &Result<T, E>) -> Outcome {
         match result {
+            // Variante Ok.
             Ok(_) => Outcome::Succeeded,
+            // Variante Err.
             Err(_) => Outcome::OutcomeUnknown,
         }
     }
@@ -98,12 +98,19 @@ impl OutcomeClassifier {
 
 /// A single audit entry recording an outcome transition.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura OutcomeAuditEntry.
 pub struct OutcomeAuditEntry {
+    /// Campo timestamp.
     pub timestamp: DateTime<Utc>,
+    /// Campo operation id.
     pub operation_id: String,
+    /// Campo previous outcome.
     pub previous_outcome: Option<String>,
+    /// Campo new outcome.
     pub new_outcome: String,
+    /// Campo reason.
     pub reason: String,
+    /// Campo actor.
     pub actor: String,
 }
 
@@ -114,7 +121,9 @@ pub struct OutcomeAuditLog {
 }
 
 impl OutcomeAuditLog {
+    /// Função new.
     pub fn new(capacity: usize) -> Self {
+        // Variante Self.
         Self {
             entries: Arc::new(Mutex::new(VecDeque::with_capacity(capacity))),
             capacity,
@@ -207,7 +216,9 @@ pub struct NotificationTracker {
 }
 
 impl NotificationTracker {
+    /// Função new.
     pub fn new(max_entries: usize) -> Self {
+        // Variante Self.
         Self {
             seen: Arc::new(Mutex::new(std::collections::HashSet::new())),
             max_entries,

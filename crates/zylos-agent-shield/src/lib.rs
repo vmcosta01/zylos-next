@@ -149,8 +149,11 @@ pub enum RedactionStrategy {
 /// A user-defined pattern to scan for.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CustomPattern {
+    /// Human-readable name for this custom pattern.
     pub name: String,
+    /// Regular expression pattern to match against.
     pub pattern: String,
+    /// Label applied to findings matched by this pattern.
     pub label: String,
 }
 
@@ -167,14 +170,21 @@ pub struct AuditEntry {
     pub fingerprint: String,
 }
 
+/// Categories of security events recorded in the audit log.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AuditEventType {
+    /// Personally identifiable information was detected in a payload.
     PiiDetected,
+    /// A credential or secret was blocked from leaving the system.
     CredentialBlocked,
+    /// Outbound content was filtered due to policy violations.
     OutboundFiltered,
+    /// A configured security policy was violated.
     PolicyViolation,
+    /// A scan operation completed successfully.
     ScanCompleted,
+    /// The shield configuration was modified at runtime.
     ConfigChanged,
 }
 
@@ -191,12 +201,17 @@ impl std::fmt::Display for AuditEventType {
     }
 }
 
+/// Severity level for audit log entries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Severity {
+    /// Informational event; no action required.
     Info,
+    /// Potential concern; warrants review.
     Warning,
+    /// Significant security event; should be investigated.
     High,
+    /// Critical security breach or data leak; immediate action required.
     Critical,
 }
 
@@ -215,16 +230,22 @@ impl std::fmt::Display for Severity {
 // Error Type
 // ---------------------------------------------------------------------------
 
+/// Errors that can occur during shield operations.
 #[derive(Debug, thiserror::Error)]
 pub enum ShieldError {
+    /// An error occurred while interacting with the SQLite audit database.
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
+    /// A regex pattern failed to compile.
     #[error("Regex compilation error: {0}")]
     Regex(#[from] regex::Error),
+    /// JSON serialization or deserialization failed.
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
+    /// A filesystem I/O error occurred.
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+    /// An internal logic error with a descriptive message.
     #[error("Internal: {0}")]
     Internal(String),
 }
@@ -444,11 +465,16 @@ impl AgentShield {
 // Stats
 // ---------------------------------------------------------------------------
 
+/// Aggregate statistics about shield audit events.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShieldStats {
+    /// Total number of audit events recorded.
     pub total_audit_events: usize,
+    /// Number of events with `Severity::Critical`.
     pub critical_events: usize,
+    /// Number of events with `Severity::High`.
     pub high_events: usize,
+    /// Number of outbound messages blocked by the filter.
     pub outbound_blocked: usize,
 }
 
@@ -754,6 +780,109 @@ mod tests {
         };
         let result = shield.scan("Email: user@example.com", "test");
         assert!(result.redacted_text.contains("[HASH:"));
+    }
+
+    #[test]
+    fn test_detects_ssn() {
+        let shield = test_shield();
+        let result = shield.scan("SSN: 123-45-6789", "test");
+        assert!(result.has_findings);
+        assert_eq!(result.findings[0].sensitive_type, SensitiveType::Ssn);
+    }
+
+    #[test]
+    fn test_detects_credit_card() {
+        let shield = test_shield();
+        // Use a format without spaces/dashes to avoid phone regex matching first
+        let result = shield.scan("Card: 4111111111111111", "test");
+        assert!(result.has_findings);
+        assert!(
+            result
+                .findings
+                .iter()
+                .any(|f| f.sensitive_type == SensitiveType::CreditCard),
+            "Expected CreditCard finding, got: {:?}",
+            result.findings.iter().map(|f| f.sensitive_type).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_detects_private_key() {
+        let shield = test_shield();
+        let result = shield.scan("-----BEGIN RSA PRIVATE KEY-----\nMIIE...", "test");
+        assert!(result.has_findings);
+        assert_eq!(result.findings[0].sensitive_type, SensitiveType::PrivateKey);
+    }
+
+    #[test]
+    fn test_custom_pattern_detection() {
+        let mut config = ShieldConfig::default();
+        config.custom_patterns.push(CustomPattern {
+            name: "ticket_id".into(),
+            pattern: r"TICKET-\d{4}".into(),
+            label: "Support Ticket ID".into(),
+        });
+        let patterns = compile_patterns(&config).unwrap();
+        let shield = AgentShield {
+            config: Arc::new(config),
+            patterns: Arc::new(patterns),
+            pool: None,
+        };
+        let result = shield.scan("Ref: TICKET-9921", "test");
+        assert!(result.has_findings);
+        assert_eq!(result.findings[0].sensitive_type, SensitiveType::Custom);
+    }
+
+    #[test]
+    fn test_remove_redaction_strategy() {
+        let mut config = ShieldConfig::default();
+        config.redaction_strategy = RedactionStrategy::Remove;
+        let patterns = compile_patterns(&config).unwrap();
+        let shield = AgentShield {
+            config: Arc::new(config),
+            patterns: Arc::new(patterns),
+            pool: None,
+        };
+        let result = shield.scan("Email me at user@example.com please", "test");
+        assert!(!result.redacted_text.contains("user@example.com"));
+        assert!(!result.redacted_text.contains("[REDACTED"));
+    }
+
+    #[test]
+    fn test_fixed_redaction_strategy() {
+        let mut config = ShieldConfig::default();
+        config.redaction_strategy = RedactionStrategy::Fixed("***".into());
+        let patterns = compile_patterns(&config).unwrap();
+        let shield = AgentShield {
+            config: Arc::new(config),
+            patterns: Arc::new(patterns),
+            pool: None,
+        };
+        let result = shield.scan("Contact: user@example.com", "test");
+        assert!(result.redacted_text.contains("***"));
+        assert!(!result.redacted_text.contains("user@example.com"));
+    }
+
+    #[test]
+    fn test_check_outbound_allows_clean_text() {
+        let shield = test_shield();
+        let result = shield.check_outbound("Hello world", "dest").unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_check_outbound_blocks_sensitive_text() {
+        let shield = test_shield();
+        let result = shield.check_outbound("secret: password=abc123xyz", "dest").unwrap();
+        assert!(result.is_some());
+        assert!(result.unwrap().has_findings);
+    }
+
+    #[test]
+    fn test_config_accessor() {
+        let shield = test_shield();
+        assert!(shield.config().detect_email);
+        assert!(!shield.config().detect_ip_addresses);
     }
 
     #[test]

@@ -11,17 +11,22 @@ use tracing::info;
 
 /// Erros do glossário
 #[derive(Error, Debug)]
+/// Enumeração GlossaryError.
 pub enum GlossaryError {
     #[error("glossário não encontrado: {0}")]
+    // Variante NotFound.
     NotFound(String),
 
     #[error("falha ao ler glossário: {0}")]
+    // Variante IoError.
     IoError(#[from] std::io::Error),
 
     #[error("glossário JSON inválido: {0}")]
+    // Variante ParseError.
     ParseError(#[from] serde_json::Error),
 
     #[error("termo '{0}' não encontrado no glossário")]
+    // Variante TermNotFound.
     TermNotFound(String),
 }
 
@@ -30,6 +35,7 @@ pub type GlossaryResult<T> = Result<T, GlossaryError>;
 
 /// Definição de um termo no glossário
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// Estrutura GlossaryTerm.
 pub struct GlossaryTerm {
     /// Termo canônico (lowercase, kebab-case)
     pub term: String,
@@ -39,33 +45,40 @@ pub struct GlossaryTerm {
 
     /// Sinônimos ou aliases para busca
     #[serde(default)]
+    /// Campo aliases.
     pub aliases: Vec<String>,
 
     /// Tags de domínio para grouping
     #[serde(default)]
+    /// Campo tags.
     pub tags: Vec<String>,
 
     /// Referências cruzadas a outros termos
     #[serde(default)]
+    /// Campo see also.
     pub see_also: Vec<String>,
 
     /// Exemplo de uso em contexto
     #[serde(default)]
+    /// Campo example.
     pub example: Option<String>,
 }
 
 /// Estrutura raiz do GLOSSARY.json
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura Glossary.
 pub struct Glossary {
     /// Versão do glossário
     pub version: String,
 
     /// Timestamp da última atualização (ISO 8601)
     #[serde(default)]
+    /// Campo updated at.
     pub updated_at: Option<String>,
 
     /// Total de termos
     #[serde(default)]
+    /// Campo total terms.
     pub total_terms: usize,
 
     /// Termos indexados
@@ -74,14 +87,12 @@ pub struct Glossary {
 
 /// Cache de glossário com busca otimizada
 #[derive(Debug)]
+/// Estrutura GlossaryIndex.
 pub struct GlossaryIndex {
-    /// Termos indexados por nome canônico
     terms: HashMap<String, GlossaryTerm>,
 
-    /// Índice reverso: alias → termo canônico
     alias_map: HashMap<String, String>,
 
-    /// Métricas
     load_time_ms: f64,
 }
 
@@ -118,6 +129,7 @@ impl GlossaryIndex {
             load_time_ms
         );
 
+        // Variante Ok.
         Ok(Self {
             terms,
             alias_map,
@@ -127,6 +139,7 @@ impl GlossaryIndex {
 
     /// Cria um glossário vazio
     pub fn empty() -> Self {
+        // Variante Self.
         Self {
             terms: HashMap::new(),
             alias_map: HashMap::new(),
@@ -159,6 +172,7 @@ impl GlossaryIndex {
             }
         }
 
+        // Variante Err.
         Err(GlossaryError::TermNotFound(query.to_string()))
     }
 
@@ -289,6 +303,7 @@ mod tests {
     use std::fs;
 
     fn sample_term(name: &str) -> GlossaryTerm {
+        /// Variante GlossaryTerm.
         GlossaryTerm {
             term: name.to_string(),
             definition: format!("Definição do termo {}", name),

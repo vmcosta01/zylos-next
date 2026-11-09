@@ -76,21 +76,30 @@ impl LedgerEntry {
 /// A Merkle proof for verifying an entry's inclusion in a batch.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MerkleProof {
+    /// ID of the entry this proof covers.
     pub entry_id: String,
+    /// Hash of the entry being proved.
     pub entry_hash: String,
+    /// Position of the entry in the ordered hash list.
     pub leaf_index: usize,
+    /// Sibling hashes from leaf to root.
     pub path: Vec<MerklePathNode>,
+    /// Expected Merkle root this proof validates against.
     pub root: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A single node in a Merkle proof path.
 pub struct MerklePathNode {
+    /// Sibling hash at this level of the tree.
     pub hash: String,
+    /// Whether this sibling is on the left or right.
     pub direction: Direction,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Direction of a sibling node in a Merkle proof path.
 pub enum Direction {
     Left,
     Right,
@@ -99,35 +108,52 @@ pub enum Direction {
 /// Verification result for a ledger entry or batch.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VerificationResult {
+    /// Whether all checks passed.
     pub valid: bool,
+    /// ID of the verified entry.
     pub entry_id: String,
+    /// Individual check results.
     pub checks: Vec<VerificationCheck>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Result of a single verification check.
 pub struct VerificationCheck {
+    /// Name of the check (e.g. "payload_hash", "signature").
     pub name: String,
+    /// Whether this check passed.
     pub passed: bool,
+    /// Human-readable detail when the check fails.
     pub detail: Option<String>,
 }
 
 /// Request to append a new entry to the ledger.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppendRequest {
+    /// Category of evidence (e.g. "tool_output", "agent_decision").
     pub evidence_type: String,
+    /// Identity of the actor that produced this evidence.
     pub actor: String,
+    /// Human-readable description of the evidence.
     pub description: String,
+    /// The actual evidence data as JSON.
     pub payload: serde_json::Value,
+    /// Optional tags for filtering and grouping.
     pub tags: Vec<String>,
 }
 
 /// Statistics about the ledger.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LedgerStats {
+    /// Total number of entries in the ledger.
     pub total_entries: u64,
+    /// Sequence number of the most recent entry, if any.
     pub latest_sequence: Option<u64>,
+    /// Entry hash of the most recent entry, if any.
     pub latest_entry_hash: Option<String>,
+    /// Current Merkle root over all entries, if any.
     pub merkle_root: Option<String>,
+    /// Breakdown of entries by evidence_type.
     pub evidence_type_counts: Vec<(String, u64)>,
 }
 
@@ -136,6 +162,7 @@ pub struct LedgerStats {
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, thiserror::Error)]
+/// Errors produced by evidence ledger operations.
 pub enum LedgerError {
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),

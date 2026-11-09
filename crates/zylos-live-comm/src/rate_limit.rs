@@ -19,6 +19,7 @@ pub type SharedRateLimiter = Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClo
 
 /// Configuration for rate limiting
 #[derive(Clone)]
+/// Estrutura RateLimitConfig.
 pub struct RateLimitConfig {
     /// Maximum requests per window
     pub max_requests: u32,
@@ -28,6 +29,7 @@ pub struct RateLimitConfig {
 
 impl Default for RateLimitConfig {
     fn default() -> Self {
+        // Variante Self.
         Self {
             max_requests: 100,
             window_secs: 60,
@@ -56,8 +58,11 @@ pub async fn rate_limit_middleware(
         .cloned();
 
     match limiter {
+        // Variante Some.
         Some(limiter) => match limiter.check() {
+            // Variante Ok.
             Ok(_) => next.run(request).await,
+            // Variante Err.
             Err(_) => {
                 let body = serde_json::json!({
                     "error": "rate limit exceeded",
@@ -67,6 +72,7 @@ pub async fn rate_limit_middleware(
                 (StatusCode::TOO_MANY_REQUESTS, axum::Json(body)).into_response()
             }
         },
+        // Variante None.
         None => {
             // No limiter configured — pass through (dev mode)
             next.run(request).await

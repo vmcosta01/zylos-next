@@ -1,0 +1,95 @@
+metadata:
+  name: "zylos-gateway"
+  version: "1.0"
+  trigger: "gateway_health_check_fails OR gateway_port_unreachable OR gateway_high_latency OR gateway_panic_detected"
+  audience: ["dev_pleno", "dev_senior", "sre"]
+  estimated_duration_minutes: 15
+  tags: ["gateway", "api", "critical", "soar-executable"]
+  related_playbooks:
+    - "../../playbooks/incident-response.md"
+    - "../../playbooks/disaster-recovery.md"
+  playbook_ref: "../../playbooks/deploy-release.md"
+  runbook_refs:
+    - "../../runbooks/zylos-gateway.md"
+
+preconditions:
+  - check: "Gateway binary exists"
+    command: "which zylos-gateway || test -f ./target/release/zylos-gateway"
+    expected: "exit_code:0"
+    on_failure: "abort"
+  - check: "Config file is valid"
+    command: "test -f ${ZYLOS_CONFIG:-config/gateway.toml}"
+    expected: "exit_code:0"
+    on_failure: "warn"
+  - check: "Port 3000 is available"
+    command: "! ss -tlnp | grep -q ':3000 '"
+    expected: "exit_code:0"
+    on_failure: "warn"
+
+steps:
+  - id: "check_health_endpoint"
+    action: "execute"
+    command: "curl -sf --max-time 5 http://localhost:3000/gateway/health"
+    timeout_seconds: 10
+    on_success: "check_ready_endpoint"
+    on_failure: "restart_gateway"
+
+  - id: "check_ready_endpoint"
+    action: "execute"
+    command: "curl -sf --max-time 5 http://localhost:3000/gateway/ready"
+    timeout_seconds: 10
+    on_success: "check_subsystems"
+    on_failure: "wait_and_retry_ready"
+
+  - id: "wait_and_retry_ready"
+    action: "wait"
+    duration_seconds: 10
+    next_step: "check_ready_endpoint"
+    max_retries: 3
+    on_max_retries_exceeded: "escalate"
+
+  - id: "check_subsystems"
+    action: "execute"
+    command: "curl -sf --max-time 5 http://localhost:3000/api/v1/phase2/status | python3 -c 'import sys,json; d=json.load(sys.stdin); errs=[k for k,v in d.get(\"subsystems\",{}).items() if v.get(\"status\")==\"error\"]; print(\"ERRORS:\",errs) if errs else print(\"OK\")'"
+    timeout_seconds: 10
+    on_success: "validate_sse_stream"
+    on_failure: "log_subsystem_errors"
+
+  - id: "validate_sse_stream"
+    action: "execute"
+    command: "timeout 3 curl -sf -N http://localhost:3000/api/v1/events 2>/dev/null | head -5"
+    timeout_seconds: 8
+    on_success: "mark_healthy"
+    on_failure: "warn_sse_unavailable"
+
+  - id: "restart_gateway"
+    action: "execute"
+    command: "pkill -f zylos-gateway; sleep 2; nohup zylos-gateway > /var/log/zylos/gateway.log 2>&1 &"
+    timeout_seconds: 15
+    human_approval_required: true
+    on_success: "wait_and_retry_ready"
+    on_failure: "escalate"
+
+  - id: "log_subsystem_errors"
+    action: "execute"
+    command: "journalctl -u zylos-gateway --no-pager -n 50 2>/dev/null || tail -50 /var/log/zylos/gateway.log"
+    timeout_seconds: 10
+    next_step: "escalate"
+
+  - id: "warn_sse_unavailable"
+    action: "log"
+    level: "warning"
+    message: "SSE stream unavailable but health checks pass; cockpit real-time features degraded"
+    next_step: "mark_healthy"
+
+  - id: "mark_healthy"
+    action: "log"
+    level: "info"
+    message: "Gateway health verified successfully"
+    terminal: true
+
+  - id: "escalate"
+    action: "escalate"
+    severity: "high"
+    message: "Gateway recovery failed after automated attempts"
+    terminal: true

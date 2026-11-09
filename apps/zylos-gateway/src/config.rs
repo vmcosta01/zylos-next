@@ -29,7 +29,7 @@ pub struct GatewayConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerConfig {
-    /// Listen address (e.g. "0.0.0.0:3000")
+    /// Listen address (e.g. "127.0.0.1:3000"; use ZYLOS_LISTEN=0.0.0.0:3000 para expor)
     #[serde(default = "default_listen_addr")]
     pub listen_addr: String,
 
@@ -74,7 +74,7 @@ pub struct SkillsConfig {
 // --- Defaults ---
 
 fn default_listen_addr() -> String {
-    "0.0.0.0:3000".to_string()
+    "127.0.0.1:3000".to_string()
 }
 fn default_shutdown_timeout_secs() -> u64 {
     5
@@ -204,7 +204,7 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = GatewayConfig::default();
-        assert_eq!(config.server.listen_addr, "0.0.0.0:3000");
+        assert_eq!(config.server.listen_addr, "127.0.0.1:3000");
         assert_eq!(config.server.shutdown_timeout_secs, 5);
         assert!(config.health.ready_enabled);
         assert!(config.health.live_enabled);
@@ -217,7 +217,7 @@ mod tests {
         std::env::remove_var("ZYLOS_LISTEN");
         let config =
             GatewayConfig::load(Some(std::path::Path::new("/nonexistent/config.toml"))).unwrap();
-        assert_eq!(config.server.listen_addr, "0.0.0.0:3000");
+        assert_eq!(config.server.listen_addr, "127.0.0.1:3000");
     }
 
     #[test]

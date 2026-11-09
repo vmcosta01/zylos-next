@@ -9,6 +9,9 @@ metadata:
     - "../playbooks/security-incident-response.md"
     - "../playbooks/disaster-recovery.md"
     - "../playbooks/capacity-planning.md"
+  playbook_ref: "../../playbooks/incident-response.md"
+  runbook_refs:
+    - "../../runbooks/zylos-daemon.md"
 
 preconditions:
   - check: "Daemon binary exists in PATH"

@@ -11,16 +11,23 @@ use uuid::Uuid;
 
 /// Outcome of executing a single playbook state.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura StateExecutionResult.
 pub struct StateExecutionResult {
+    /// Campo state name.
     pub state_name: String,
+    /// Campo runbook name.
     pub runbook_name: Option<String>,
+    /// Campo runbook result.
     pub runbook_result: Option<RunbookResult>,
+    /// Campo audit entry id.
     pub audit_entry_id: Uuid,
+    /// Campo next state.
     pub next_state: Option<String>,
 }
 
 /// Configuration for the executor engine.
 #[derive(Debug, Clone)]
+/// Estrutura ExecutorConfig.
 pub struct ExecutorConfig {
     /// Maximum time (seconds) to wait for a runbook execution before timing out.
     pub default_timeout_secs: u64,
@@ -32,6 +39,7 @@ pub struct ExecutorConfig {
 
 impl Default for ExecutorConfig {
     fn default() -> Self {
+        // Variante Self.
         Self {
             default_timeout_secs: 300,
             max_retries: 3,
@@ -48,11 +56,13 @@ pub struct PlaybookExecutor<'a> {
 }
 
 impl<'a> PlaybookExecutor<'a> {
+    /// Função new.
     pub fn new(
         registry: &'a RunbookRegistry,
         audit_trail: &'a mut AuditTrail,
         config: ExecutorConfig,
     ) -> Self {
+        // Variante Self.
         Self {
             registry,
             audit_trail,
@@ -102,10 +112,12 @@ impl<'a> PlaybookExecutor<'a> {
 
             for attempt in 0..=self.config.max_retries {
                 match runbook.execute(context.clone()).await {
+                    // Variante Ok.
                     Ok(r) => {
                         result = Some(r);
                         break;
                     }
+                    // Variante Err.
                     Err(e) => {
                         last_error = Some(e);
                         if attempt < self.config.max_retries {
@@ -119,11 +131,15 @@ impl<'a> PlaybookExecutor<'a> {
             }
 
             match result {
+                // Variante Some.
                 Some(r) if r.success => (Some(r), AuditResult::Success),
+                // Variante Some.
                 Some(r) => (
+                    // Variante Some.
                     Some(r.clone()),
                     AuditResult::Failure(r.message.clone()),
                 ),
+                // Variante None.
                 None => {
                     let err_msg = last_error
                         .map(|e| e.to_string())
@@ -161,6 +177,7 @@ impl<'a> PlaybookExecutor<'a> {
         // Advance cursor
         let next_state = cursor.advance(playbook, &context.metadata)?;
 
+        // Variante Ok.
         Ok(StateExecutionResult {
             state_name: state.name.clone(),
             runbook_name: state.runbook.clone(),
@@ -203,6 +220,7 @@ impl<'a> PlaybookExecutor<'a> {
             }
         }
 
+        // Variante Ok.
         Ok(results)
     }
 }

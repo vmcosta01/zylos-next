@@ -18,6 +18,7 @@ pub type ApprovalId = String;
 
 /// Hash of tool call arguments — args never leave the server.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+/// Estrutura ArgsHash.
 pub struct ArgsHash(pub String);
 
 impl ArgsHash {
@@ -26,14 +27,15 @@ impl ArgsHash {
         let mut hasher = Sha256::new();
         hasher.update(args.to_string().as_bytes());
         let hash = hex::encode(hasher.finalize());
+        // Variante Self.
         Self(hash[..32].to_string())
     }
 }
 
 /// Current state of an approval request.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Enumeração ApprovalStatus.
 pub enum ApprovalStatus {
-    /// Waiting for human decision.
     Pending,
     /// Approved by a human.
     Approved {
@@ -46,14 +48,15 @@ pub enum ApprovalStatus {
         declined_at: DateTime<Utc>,
         reason: Option<String>,
     },
-    /// TTL expired without decision.
     Expired,
 }
 
 /// An approval request stored server-side.
 /// The client only receives `id`, `summary`, `args_hash`, and `status`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura ApprovalRequest.
 pub struct ApprovalRequest {
+    /// Campo id.
     pub id: ApprovalId,
     /// Human-readable summary of what the tool call does.
     pub summary: String,
@@ -74,11 +77,13 @@ pub struct ApprovalRequest {
     /// Original arguments stored server-side for idempotent recovery.
     /// Never serialized to client responses.
     #[serde(skip_serializing)]
+    /// Campo args.
     pub args: serde_json::Value,
 }
 
 /// Configuration for approval behavior.
 #[derive(Debug, Clone)]
+/// Estrutura ApprovalConfig.
 pub struct ApprovalConfig {
     /// Default TTL for approval requests.
     pub default_ttl: Duration,
@@ -90,6 +95,7 @@ pub struct ApprovalConfig {
 
 impl Default for ApprovalConfig {
     fn default() -> Self {
+        // Variante Self.
         Self {
             default_ttl: Duration::minutes(60),
             headless_excluded_tools: vec![
@@ -119,7 +125,9 @@ pub struct ApprovalStore {
 }
 
 impl ApprovalStore {
+    /// Função new.
     pub fn new(config: ApprovalConfig) -> Self {
+        // Variante Self.
         Self {
             approvals: Arc::new(RwLock::new(HashMap::new())),
             config,
@@ -187,6 +195,7 @@ impl ApprovalStore {
                     approved_by: approved_by.to_string(),
                     approved_at: Utc::now(),
                 };
+                // Variante Ok.
                 Ok(request.clone())
             }
             ApprovalStatus::Approved { .. } => Err(ApprovalError::AlreadyDecided),
@@ -219,6 +228,7 @@ impl ApprovalStore {
                     declined_at: Utc::now(),
                     reason,
                 };
+                // Variante Ok.
                 Ok(request.clone())
             }
             _ => Err(ApprovalError::AlreadyDecided),
@@ -236,6 +246,7 @@ impl ApprovalStore {
             request.status = ApprovalStatus::Expired;
         }
 
+        // Variante Some.
         Some(ApprovalClientView {
             id: request.id.clone(),
             summary: mask_secrets(&request.summary, &self.config.secret_fields),
@@ -272,6 +283,7 @@ impl ApprovalStore {
             _ => {
                 // Already decided — return cached view
                 drop(store);
+                // Variante Ok.
                 Ok(self.get_client_view(approval_id))
             }
         }
@@ -298,20 +310,31 @@ impl ApprovalStore {
 
 /// Client-safe view of an approval — never contains raw args.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura ApprovalClientView.
 pub struct ApprovalClientView {
+    /// Campo id.
     pub id: ApprovalId,
+    /// Campo summary.
     pub summary: String,
+    /// Campo tool name.
     pub tool_name: String,
+    /// Campo args hash.
     pub args_hash: ArgsHash,
+    /// Campo thread id.
     pub thread_id: String,
+    /// Campo tool call id.
     pub tool_call_id: String,
+    /// Campo expires at.
     pub expires_at: DateTime<Utc>,
+    /// Campo status.
     pub status: ApprovalStatus,
+    /// Campo headless excluded.
     pub headless_excluded: bool,
 }
 
 /// Errors from approval operations.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+/// Enumeração ApprovalError.
 pub enum ApprovalError {
     #[error("approval request not found")]
     NotFound,

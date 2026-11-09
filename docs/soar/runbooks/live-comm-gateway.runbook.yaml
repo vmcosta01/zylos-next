@@ -8,6 +8,9 @@ metadata:
   tags: ["live-comm", "gateway", "websocket", "ag-ui"]
   related_playbooks:
     - "../playbooks/incident-response.md"
+  playbook_ref: "../../playbooks/incident-response.md"
+  runbook_refs:
+    - "../../runbooks/zylos-gateway.md"
 
 preconditions:
   - check: "Live-comm crate compiled"

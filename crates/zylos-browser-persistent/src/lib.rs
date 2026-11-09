@@ -13,18 +13,28 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 use uuid::Uuid;
 
+/// Errors that can occur during browser session management.
+///
+/// Covers database failures, I/O errors, serialization issues,
+/// missing sessions, expired sessions, and profile directory creation failures.
 #[derive(Debug, Error)]
 pub enum BrowserError {
+    /// The requested session ID does not exist in the database.
     #[error("session not found: {0}")]
     SessionNotFound(String),
+    /// An underlying SQLite/database operation failed.
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
+    /// A filesystem I/O operation failed (e.g., creating or removing profile dirs).
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
+    /// JSON serialization or deserialization of session metadata failed.
     #[error("serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
+    /// Failed to create the on-disk profile directory for a browser session.
     #[error("profile directory creation failed: {0}")]
     ProfileCreation(String),
+    /// The session exceeded its configured TTL and is no longer valid.
     #[error("session expired: {0}")]
     SessionExpired(String),
 }
@@ -32,45 +42,71 @@ pub enum BrowserError {
 /// Metadata for a persistent browser session
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BrowserSession {
+    /// Unique identifier for this session (UUID v4).
     pub session_id: String,
+    /// Identifier of the agent that owns this session.
     pub agent_id: String,
+    /// Filesystem path to the isolated browser profile directory.
     pub profile_dir: PathBuf,
+    /// Timestamp when the session was first created.
     pub created_at: DateTime<Utc>,
+    /// Timestamp of the most recent access to this session.
     pub last_used_at: DateTime<Utc>,
+    /// Optional custom user-agent string override.
     pub user_agent: Option<String>,
+    /// Browser viewport width in pixels.
     pub viewport_width: u32,
+    /// Browser viewport height in pixels.
     pub viewport_height: u32,
+    /// Extra HTTP headers injected into every request made by this session.
     pub extra_headers: HashMap<String, String>,
+    /// Arbitrary tags for categorizing and filtering sessions.
     pub tags: Vec<String>,
 }
 
 /// Cookie entry stored in SQLite
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StoredCookie {
+    /// Cookie name.
     pub name: String,
+    /// Cookie value.
     pub value: String,
+    /// Domain scope (e.g., `.example.com`).
     pub domain: String,
+    /// URL path scope (e.g., `/`).
     pub path: String,
+    /// Optional expiration timestamp; `None` means session cookie.
     pub expires: Option<DateTime<Utc>>,
+    /// Whether the cookie should only be sent over HTTPS.
     pub secure: bool,
+    /// Whether the cookie is inaccessible to JavaScript.
     pub http_only: bool,
+    /// SameSite attribute (`"strict"`, `"lax"`, or `"none"`).
     pub same_site: String,
 }
 
 /// LocalStorage / SessionStorage entry
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StorageEntry {
+    /// Origin (scheme + host + port) that owns this storage entry.
     pub origin: String,
+    /// Storage key.
     pub key: String,
+    /// Stored value as a string.
     pub value: String,
+    /// Which browser storage API this entry belongs to.
     pub storage_type: StorageType,
 }
 
+/// Identifies which browser storage API a [`StorageEntry`] belongs to.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum StorageType {
+    /// Persistent localStorage that survives page reloads.
     Local,
+    /// Ephemeral sessionStorage cleared when the tab closes.
     Session,
+    /// Structured IndexedDB storage.
     IndexedDb,
 }
 
@@ -112,7 +148,11 @@ pub struct BrowserSessionManager {
 }
 
 impl BrowserSessionManager {
-    /// Create a new BrowserSessionManager with the given SQLite pool
+    /// Create a new BrowserSessionManager with the given SQLite pool.
+    ///
+    /// Runs embedded migrations to create the `browser_sessions`,
+    /// `browser_cookies`, and `browser_storage` tables, then ensures
+    /// the profiles base directory exists on disk.
     pub async fn new(pool: SqlitePool, config: BrowserManagerConfig) -> Result<Self, BrowserError> {
         // Run migrations
         sqlx::query(
@@ -167,7 +207,12 @@ impl BrowserSessionManager {
         Ok(Self { pool, config })
     }
 
-    /// Create or resume a browser session for an agent
+    /// Create or resume a browser session for an agent.
+    ///
+    /// Returns the most recently used active session for `agent_id` if one
+    /// exists and has not expired. Otherwise creates a new session with a
+    /// fresh profile directory. When the agent has reached
+    /// `max_sessions_per_agent`, the oldest session is evicted first.
     pub async fn get_or_create_session(
         &self,
         agent_id: &str,
@@ -292,7 +337,10 @@ impl BrowserSessionManager {
         })
     }
 
-    /// Store cookies for a session
+    /// Store cookies for a session.
+    ///
+    /// Uses `INSERT OR REPLACE` so re-storing the same cookie
+    /// (same session + name + domain + path) updates its value and attributes.
     pub async fn store_cookies(
         &self,
         session_id: &str,
@@ -319,7 +367,9 @@ impl BrowserSessionManager {
         Ok(())
     }
 
-    /// Retrieve all cookies for a session
+    /// Retrieve all cookies for a session.
+    ///
+    /// Returns an empty vector if the session has no stored cookies.
     pub async fn get_cookies(&self, session_id: &str) -> Result<Vec<StoredCookie>, BrowserError> {
         let rows = sqlx::query_as::<_, (String, String, String, String, Option<String>, bool, bool, String)>(
             "SELECT name, value, domain, path, expires, secure, http_only, same_site FROM browser_cookies WHERE session_id = ?",
@@ -343,7 +393,10 @@ impl BrowserSessionManager {
             .collect())
     }
 
-    /// Store a storage entry (localStorage / sessionStorage / IndexedDB)
+    /// Store a storage entry (localStorage / sessionStorage / IndexedDB).
+    ///
+    /// Uses `INSERT OR REPLACE` keyed on (session_id, origin, key, storage_type),
+    /// so re-storing the same entry overwrites the previous value.
     pub async fn store_storage_entry(
         &self,
         session_id: &str,
@@ -369,7 +422,10 @@ impl BrowserSessionManager {
         Ok(())
     }
 
-    /// Get all storage entries for a session
+    /// Get all storage entries for a session.
+    ///
+    /// Returns entries across all origins and storage types. Filter client-side
+    /// by `origin` or `storage_type` if needed.
     pub async fn get_storage_entries(
         &self,
         session_id: &str,
@@ -396,7 +452,10 @@ impl BrowserSessionManager {
             .collect())
     }
 
-    /// List all sessions for an agent
+    /// List all sessions for an agent.
+    ///
+    /// Results are ordered by `last_used_at` descending (most recent first).
+    /// Returns an empty vector if the agent has no sessions.
     pub async fn list_sessions(&self, agent_id: &str) -> Result<Vec<BrowserSession>, BrowserError> {
         let rows = sqlx::query_as::<_, (String, String, String, String, String, Option<String>, i32, i32, String, String)>(
             "SELECT session_id, agent_id, profile_dir, created_at, last_used_at, user_agent, viewport_width, viewport_height, extra_headers, tags FROM browser_sessions WHERE agent_id = ? ORDER BY last_used_at DESC",
@@ -426,7 +485,11 @@ impl BrowserSessionManager {
             .collect())
     }
 
-    /// Destroy a session and clean up its profile directory
+    /// Destroy a session and clean up its profile directory.
+    ///
+    /// Deletes the session row from SQLite (cascading to cookies and storage)
+    /// and removes the on-disk profile directory. No-op if the session ID
+    /// does not exist.
     pub async fn destroy_session(&self, session_id: &str) -> Result<(), BrowserError> {
         // Get profile dir before deleting
         let row: Option<(String,)> = sqlx::query_as(
@@ -453,7 +516,10 @@ impl BrowserSessionManager {
         Ok(())
     }
 
-    /// Update session viewport and user agent
+    /// Update session viewport and user agent.
+    ///
+    /// Only the provided fields are updated; pass `None` to leave a field
+    /// unchanged. Also bumps `last_used_at` to the current time.
     pub async fn update_session_config(
         &self,
         session_id: &str,
@@ -576,5 +642,159 @@ mod tests {
 
         mgr.destroy_session(&session.session_id).await.unwrap();
         assert!(!session.profile_dir.exists());
+    }
+
+    #[tokio::test]
+    async fn test_storage_entry_roundtrip() {
+        let pool = SqlitePool::connect(":memory:").await.unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let config = BrowserManagerConfig {
+            profiles_base_dir: tmp.path().to_path_buf(),
+            ..Default::default()
+        };
+        let mgr = BrowserSessionManager::new(pool, config).await.unwrap();
+
+        let session = mgr
+            .get_or_create_session("agent-storage", &[])
+            .await
+            .unwrap();
+
+        let entry = StorageEntry {
+            origin: "https://example.com".into(),
+            key: "theme".into(),
+            value: "dark".into(),
+            storage_type: StorageType::Local,
+        };
+
+        mgr.store_storage_entry(&session.session_id, &entry)
+            .await
+            .unwrap();
+
+        let entries = mgr.get_storage_entries(&session.session_id).await.unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].key, "theme");
+        assert_eq!(entries[0].value, "dark");
+        assert_eq!(entries[0].storage_type, StorageType::Local);
+
+        // Overwrite same entry
+        let updated = StorageEntry {
+            origin: "https://example.com".into(),
+            key: "theme".into(),
+            value: "light".into(),
+            storage_type: StorageType::Local,
+        };
+        mgr.store_storage_entry(&session.session_id, &updated)
+            .await
+            .unwrap();
+
+        let entries = mgr.get_storage_entries(&session.session_id).await.unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].value, "light");
+    }
+
+    #[tokio::test]
+    async fn test_list_sessions_ordered() {
+        let pool = SqlitePool::connect(":memory:").await.unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let config = BrowserManagerConfig {
+            profiles_base_dir: tmp.path().to_path_buf(),
+            max_sessions_per_agent: 10,
+            ..Default::default()
+        };
+        let mgr = BrowserSessionManager::new(pool, config).await.unwrap();
+
+        // Create two sessions for different agents to avoid get_or_create reuse
+        let s1 = mgr
+            .get_or_create_session("agent-list-a", &[])
+            .await
+            .unwrap();
+        let s2 = mgr
+            .get_or_create_session("agent-list-b", &[])
+            .await
+            .unwrap();
+
+        let list_a = mgr.list_sessions("agent-list-a").await.unwrap();
+        assert_eq!(list_a.len(), 1);
+        assert_eq!(list_a[0].session_id, s1.session_id);
+
+        let list_b = mgr.list_sessions("agent-list-b").await.unwrap();
+        assert_eq!(list_b.len(), 1);
+        assert_eq!(list_b[0].session_id, s2.session_id);
+
+        // Non-existent agent returns empty
+        let list_none = mgr.list_sessions("agent-nonexistent").await.unwrap();
+        assert!(list_none.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_update_session_config() {
+        let pool = SqlitePool::connect(":memory:").await.unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let config = BrowserManagerConfig {
+            profiles_base_dir: tmp.path().to_path_buf(),
+            ..Default::default()
+        };
+        let mgr = BrowserSessionManager::new(pool, config).await.unwrap();
+
+        let session = mgr
+            .get_or_create_session("agent-update", &[])
+            .await
+            .unwrap();
+
+        assert_eq!(session.viewport_width, 1280);
+        assert_eq!(session.viewport_height, 720);
+        assert!(session.user_agent.is_none());
+
+        mgr.update_session_config(
+            &session.session_id,
+            Some(1920),
+            Some(1080),
+            Some("TestBot/1.0".into()),
+        )
+        .await
+        .unwrap();
+
+        let sessions = mgr.list_sessions("agent-update").await.unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].viewport_width, 1920);
+        assert_eq!(sessions[0].viewport_height, 1080);
+        assert_eq!(sessions[0].user_agent.as_deref(), Some("TestBot/1.0"));
+    }
+
+    #[tokio::test]
+    async fn test_max_sessions_eviction() {
+        let pool = SqlitePool::connect(":memory:").await.unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let config = BrowserManagerConfig {
+            profiles_base_dir: tmp.path().to_path_buf(),
+            max_sessions_per_agent: 2,
+            ..Default::default()
+        };
+        let mgr = BrowserSessionManager::new(pool, config).await.unwrap();
+
+        // Create first session
+        let s1 = mgr
+            .get_or_create_session("agent-evict", &[])
+            .await
+            .unwrap();
+
+        // Force a second session by destroying and re-creating
+        mgr.destroy_session(&s1.session_id).await.unwrap();
+        let s2 = mgr
+            .get_or_create_session("agent-evict", &[])
+            .await
+            .unwrap();
+        assert_ne!(s1.session_id, s2.session_id);
+
+        // Force a third session — should evict s2 (oldest after s1 was destroyed)
+        mgr.destroy_session(&s2.session_id).await.unwrap();
+        let s3 = mgr
+            .get_or_create_session("agent-evict", &[])
+            .await
+            .unwrap();
+
+        let sessions = mgr.list_sessions("agent-evict").await.unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].session_id, s3.session_id);
     }
 }

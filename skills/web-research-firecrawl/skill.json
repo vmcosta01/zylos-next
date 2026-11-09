@@ -1,0 +1,10 @@
+{
+  "name": "web-research-firecrawl",
+  "version": "1.0.0",
+  "description": "Firecrawl web scraping adapter with zylos-proof grounding pipeline",
+  "provider": "firecrawl",
+  "api_base": "https://api.firecrawl.dev/v1",
+  "auth": "bearer_token",
+  "rate_limit": {"requests_per_minute": 15, "daily_quota": 300},
+  "proof_levels": {"scraped_content": "confirmed", "synthesized": "verified"}
+}

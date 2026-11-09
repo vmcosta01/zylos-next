@@ -8,6 +8,9 @@ metadata:
   tags: ["cortex", "proof", "resolver", "panel", "cerebelo", "learn"]
   related_playbooks:
     - "../playbooks/adversarial-audit.md"
+  playbook_ref: "../../playbooks/adversarial-audit.md"
+  runbook_refs:
+    - "../../runbooks/cerebelo-orchestration.md"
 
 preconditions:
   - check: "All CORTEX crates compiled"

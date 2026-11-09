@@ -16,32 +16,40 @@ use crate::error::{DockerError, Result};
 /// Unique identifier for a sandbox container.
 pub type SandboxId = String;
 
-/// Status of a sandbox container.
+/// Lifecycle status of a sandbox container.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ContainerStatus {
+    /// Container has been created but not yet started.
     Created,
+    /// Container is currently running.
     Running,
+    /// Container has been stopped gracefully.
     Stopped,
+    /// Container has been removed from the Docker daemon.
     Removed,
+    /// Container entered an error state with the given message.
     Error(String),
 }
 
 /// Configuration for a Docker sandbox instance.
+///
+/// Use [`SandboxConfig::default()`] for sensible defaults (Alpine 3.19,
+/// 256 MB RAM, no network) and override only what you need.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SandboxConfig {
-    /// Base image to use (e.g., "alpine:3.19", "ubuntu:24.04").
+    /// Base image to use (e.g., `"alpine:3.19"`, `"ubuntu:24.04"`).
     pub image: String,
-    /// Maximum memory in bytes (default: 256MB).
+    /// Maximum memory in bytes (default: 256 MB).
     pub memory_limit: i64,
-    /// CPU quota (default: 1.0 = one core).
+    /// CPU quota expressed as a fraction of one core (default: `1.0`).
     pub cpu_quota: f64,
-    /// Whether to allow network access.
+    /// Whether to allow outbound network access from the container.
     pub network_enabled: bool,
-    /// Host paths to mount read-only.
+    /// Host paths to mount into the container as read-only volumes.
     pub readonly_mounts: Vec<String>,
-    /// Working directory inside the container.
+    /// Working directory inside the container (default: `"/workspace"`).
     pub workdir: String,
-    /// Environment variables.
+    /// Environment variables passed to the container at creation time.
     pub env: HashMap<String, String>,
 }
 
@@ -71,6 +79,15 @@ pub struct DockerSandbox {
 
 impl DockerSandbox {
     /// Create a new Docker sandbox with the given configuration.
+    ///
+    /// Connects to the local Docker daemon and assigns a unique
+    /// `zylos-sandbox-<uuid>` identifier. The container is **not** created or
+    /// started until [`create`](Self::create) and [`start`](Self::start) are
+    /// called respectively.
+    ///
+    /// # Errors
+    /// Returns [`DockerError::DaemonUnavailable`] when the Docker daemon
+    /// cannot be reached.
     pub async fn new(config: SandboxConfig) -> Result<Self> {
         let docker = Docker::connect_with_local_defaults()
             .map_err(|e| DockerError::DaemonUnavailable(e.to_string()))?;
@@ -86,22 +103,29 @@ impl DockerSandbox {
         })
     }
 
-    /// Get the sandbox identifier.
+    /// Get the unique sandbox identifier (e.g., `"zylos-sandbox-<uuid>"`).
     pub fn id(&self) -> &str {
         &self.id
     }
 
-    /// Get current container status.
+    /// Get the current lifecycle status of the container.
     pub fn status(&self) -> &ContainerStatus {
         &self.status
     }
 
-    /// Set the approval workflow for this sandbox.
+    /// Replace the approval workflow used to gate risky operations.
     pub fn set_approval_workflow(&mut self, workflow: ApprovalWorkflow) {
         self.approval = workflow;
     }
 
-    /// Create the container without starting it.
+    /// Create the container in the Docker daemon without starting it.
+    ///
+    /// Applies resource limits, network mode, environment variables and
+    /// working directory from the [`SandboxConfig`] provided at construction.
+    ///
+    /// # Errors
+    /// Returns [`DockerError::CreationFailed`] when the daemon rejects the
+    /// container configuration or the image cannot be pulled.
     pub async fn create(&mut self) -> Result<()> {
         let host_config = HostConfig {
             memory: Some(self.config.memory_limit),
@@ -144,7 +168,16 @@ impl DockerSandbox {
         Ok(())
     }
 
-    /// Start the container. Requires approval for medium-risk operations.
+    /// Start the container.
+    ///
+    /// Gated by [`RiskLevel::Medium`] through the configured
+    /// [`ApprovalWorkflow`]. Returns an error when approval is denied or
+    /// still pending.
+    ///
+    /// # Errors
+    /// - [`DockerError::ApprovalDenied`] — approval was rejected or is pending.
+    /// - [`DockerError::ExecutionFailed`] — the Docker daemon refused to start
+    ///   the container.
     pub async fn start(&mut self) -> Result<()> {
         let decision = self.approval.evaluate(RiskLevel::Medium, "start_container");
         match decision {
@@ -169,7 +202,14 @@ impl DockerSandbox {
         Ok(())
     }
 
-    /// Stop the container gracefully.
+    /// Stop the container gracefully with a 10-second timeout.
+    ///
+    /// Transitions the container to [`ContainerStatus::Stopped`]. Safe to call
+    /// on an already-stopped container (the Docker daemon treats it as a no-op).
+    ///
+    /// # Errors
+    /// Returns [`DockerError::ExecutionFailed`] when the daemon cannot stop
+    /// the container within the timeout period.
     pub async fn stop(&mut self) -> Result<()> {
         self.docker
             .stop_container(&self.id, Some(StopContainerOptions { t: 10 }))
@@ -181,7 +221,15 @@ impl DockerSandbox {
         Ok(())
     }
 
-    /// Remove the container. Requires approval for high-risk operations.
+    /// Remove the container from the Docker daemon.
+    ///
+    /// Gated by [`RiskLevel::High`] through the configured
+    /// [`ApprovalWorkflow`]. If the container is still running it will be
+    /// stopped first via [`stop`](Self::stop).
+    ///
+    /// # Errors
+    /// - [`DockerError::ApprovalDenied`] — approval was rejected or is pending.
+    /// - [`DockerError::NotFound`] — the container no longer exists in the daemon.
     pub async fn remove(&mut self) -> Result<()> {
         let decision = self.approval.evaluate(RiskLevel::High, "remove_container");
         match decision {
@@ -217,7 +265,16 @@ impl DockerSandbox {
         Ok(())
     }
 
-    /// Execute a command inside the container and return stdout.
+    /// Execute a command inside the running container and return its stdout.
+    ///
+    /// Both stdout and stderr are captured; the returned string contains
+    /// whatever the Docker daemon streamed back. The container must be in
+    /// [`ContainerStatus::Running`] — calling this on a stopped or removed
+    /// sandbox returns an error immediately without contacting the daemon.
+    ///
+    /// # Errors
+    /// - [`DockerError::ExecutionFailed`] — the container is not running, the
+    ///   exec instance could not be created, or the command stream failed.
     pub async fn exec(&self, cmd: &[&str]) -> Result<String> {
         if self.status != ContainerStatus::Running {
             return Err(DockerError::ExecutionFailed(format!(
@@ -300,5 +357,81 @@ mod tests {
             }
             Err(e) => panic!("Unexpected error: {:?}", e),
         }
+    }
+
+    #[test]
+    fn test_sandbox_config_custom_values() {
+        let mut env = HashMap::new();
+        env.insert("FOO".to_string(), "bar".to_string());
+        let config = SandboxConfig {
+            image: "ubuntu:24.04".to_string(),
+            memory_limit: 512 * 1024 * 1024,
+            cpu_quota: 2.0,
+            network_enabled: true,
+            readonly_mounts: vec!["/host/data".to_string()],
+            workdir: "/app".to_string(),
+            env,
+        };
+        assert_eq!(config.image, "ubuntu:24.04");
+        assert_eq!(config.memory_limit, 512 * 1024 * 1024);
+        assert_eq!(config.cpu_quota, 2.0);
+        assert!(config.network_enabled);
+        assert_eq!(config.readonly_mounts.len(), 1);
+        assert_eq!(config.workdir, "/app");
+        assert_eq!(config.env.get("FOO").map(|s| s.as_str()), Some("bar"));
+    }
+
+    #[test]
+    fn test_container_status_serialization_roundtrip() {
+        let statuses = vec![
+            ContainerStatus::Created,
+            ContainerStatus::Running,
+            ContainerStatus::Stopped,
+            ContainerStatus::Removed,
+            ContainerStatus::Error("something broke".to_string()),
+        ];
+        for status in statuses {
+            let json = serde_json::to_string(&status).expect("serialize");
+            let deserialized: ContainerStatus =
+                serde_json::from_str(&json).expect("deserialize");
+            assert_eq!(status, deserialized);
+        }
+    }
+
+    #[test]
+    fn test_sandbox_config_serialization_roundtrip() {
+        let config = SandboxConfig {
+            image: "alpine:3.19".to_string(),
+            memory_limit: 128 * 1024 * 1024,
+            cpu_quota: 0.5,
+            network_enabled: false,
+            readonly_mounts: vec!["/mnt".to_string()],
+            workdir: "/workspace".to_string(),
+            env: HashMap::from([("KEY".to_string(), "val".to_string())]),
+        };
+        let json = serde_json::to_string(&config).expect("serialize");
+        let deserialized: SandboxConfig = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(deserialized.image, config.image);
+        assert_eq!(deserialized.memory_limit, config.memory_limit);
+        assert_eq!(deserialized.cpu_quota, config.cpu_quota);
+        assert_eq!(deserialized.network_enabled, config.network_enabled);
+        assert_eq!(deserialized.readonly_mounts, config.readonly_mounts);
+        assert_eq!(deserialized.workdir, config.workdir);
+        assert_eq!(deserialized.env, config.env);
+    }
+
+    #[test]
+    fn test_set_approval_workflow_replaces_previous() {
+        // Verify set_approval_workflow compiles and accepts a custom workflow.
+        // We cannot construct DockerSandbox without Docker, so we test the
+        // ApprovalWorkflow replacement logic independently.
+        let wf = ApprovalWorkflow {
+            require_medium: false,
+            require_low: true,
+            auto_approve_after: Some(std::time::Duration::from_secs(30)),
+        };
+        assert!(!wf.requires_approval(RiskLevel::Medium));
+        assert!(wf.requires_approval(RiskLevel::Low));
+        assert_eq!(wf.auto_approve_after, Some(std::time::Duration::from_secs(30)));
     }
 }

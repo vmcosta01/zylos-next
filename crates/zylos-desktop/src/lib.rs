@@ -15,6 +15,15 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 // ---------------------------------------------------------------------------
+// Backend Modules
+// ---------------------------------------------------------------------------
+
+pub mod gateway_embed;
+pub mod notifications;
+pub mod tray;
+pub mod workspace;
+
+// ---------------------------------------------------------------------------
 // Desktop Configuration
 // ---------------------------------------------------------------------------
 
@@ -85,10 +94,13 @@ impl DesktopConfig {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
+    /// Filesystem I/O error during config load/save operations.
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+    /// JSON parsing error when reading config file.
     #[error("JSON parse error: {0}")]
     Parse(#[from] serde_json::Error),
+    /// JSON serialization error when writing config file.
     #[error("Serialization error: {0}")]
     Serialize(serde_json::Error),
 }
@@ -101,32 +113,54 @@ pub enum ConfigError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum IpcRequest {
-    /// Get current gateway health/status
+    /// Get current gateway health/status.
+    ///
+    /// Backend responds with [`IpcResponse::Status`] containing health,
+    /// version, uptime, and active agent count.
     #[serde(rename = "get_status")]
     GetStatus,
-    /// Send a prompt to the orchestrator
+    /// Send a prompt to the orchestrator.
+    ///
+    /// Backend responds with [`IpcResponse::PromptAck`] containing the
+    /// run ID for tracking the agent execution.
     #[serde(rename = "send_prompt")]
     SendPrompt { message: String, thread_id: Option<String> },
-    /// List available skills
+    /// List available skills from the consolidated registry.
+    ///
+    /// Backend responds with [`IpcResponse::Skills`] containing summaries
+    /// of all registered skills across agents.
     #[serde(rename = "list_skills")]
     ListSkills,
-    /// List SOAR playbooks
+    /// List SOAR playbooks available for execution.
+    ///
+    /// Backend responds with [`IpcResponse::Playbooks`] containing
+    /// playbook summaries with step counts.
     #[serde(rename = "list_playbooks")]
     ListPlaybooks,
-    /// Execute an integration action
+    /// Execute an integration action (e.g., send email, create issue).
+    ///
+    /// Backend responds with [`IpcResponse::ActionResult`] containing
+    /// success status, result payload, or error message.
     #[serde(rename = "execute_action")]
     ExecuteAction {
         provider: String,
         action: String,
         params: serde_json::Value,
     },
-    /// Open external URL in system browser
+    /// Open external URL in system default browser.
+    ///
+    /// No response is sent; the frontend should handle UI updates locally.
     #[serde(rename = "open_external")]
     OpenExternal { url: String },
-    /// Minimize window to tray
+    /// Minimize the main window to the system tray.
+    ///
+    /// No response is sent; window visibility is managed by the backend.
     #[serde(rename = "minimize_to_tray")]
     MinimizeToTray,
-    /// Check for updates
+    /// Check for application updates from the configured update server.
+    ///
+    /// Backend responds with [`IpcResponse::UpdateAvailable`] if a newer
+    /// version exists, or [`IpcResponse::NoUpdate`] otherwise.
     #[serde(rename = "check_update")]
     CheckUpdate,
 }
@@ -135,45 +169,67 @@ pub enum IpcRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum IpcResponse {
+    /// Response to [`IpcRequest::GetStatus`] with gateway health metrics.
     #[serde(rename = "status")]
     Status {
+        /// Whether the gateway backend is healthy and responsive.
         healthy: bool,
+        /// Semantic version string of the gateway backend.
         version: String,
+        /// Gateway uptime in seconds since last start.
         uptime_secs: u64,
+        /// Number of currently active agent instances.
         active_agents: usize,
     },
+    /// Acknowledgment for [`IpcRequest::SendPrompt`] with the assigned run ID.
     #[serde(rename = "prompt_ack")]
     PromptAck { run_id: String },
+    /// Response to [`IpcRequest::ListSkills`] with skill summaries.
     #[serde(rename = "skills")]
     Skills { skills: Vec<SkillSummary> },
+    /// Response to [`IpcRequest::ListPlaybooks`] with playbook summaries.
     #[serde(rename = "playbooks")]
     Playbooks { playbooks: Vec<PlaybookSummary> },
+    /// Response to [`IpcRequest::ExecuteAction`] with execution result.
     #[serde(rename = "action_result")]
     ActionResult {
+        /// Whether the action completed successfully.
         success: bool,
+        /// Result payload on success; `None` on failure.
         result: Option<serde_json::Value>,
+        /// Error message on failure; `None` on success.
         error: Option<String>,
     },
+    /// Response to [`IpcRequest::CheckUpdate`] when a newer version is available.
     #[serde(rename = "update_available")]
     UpdateAvailable { version: String, changelog: String },
+    /// Response to [`IpcRequest::CheckUpdate`] when already on latest version.
     #[serde(rename = "no_update")]
     NoUpdate,
+    /// Generic error response for failed IPC operations.
     #[serde(rename = "error")]
     Error { code: String, message: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillSummary {
+    /// Unique skill identifier (e.g., `"web_search"`).
     pub name: String,
+    /// Human-readable description of what the skill does.
     pub description: String,
+    /// Optional category for grouping skills in UI (e.g., `"research"`, `"coding"`).
     pub category: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlaybookSummary {
+    /// Unique playbook identifier.
     pub id: String,
+    /// Human-readable playbook name.
     pub name: String,
+    /// Description of the playbook's purpose and behavior.
     pub description: String,
+    /// Number of discrete steps in the playbook execution sequence.
     pub steps: usize,
 }
 
@@ -185,16 +241,24 @@ pub struct PlaybookSummary {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "action")]
 pub enum DeepLink {
-    /// Open a specific thread/conversation
+    /// Open a specific thread/conversation in the cockpit UI.
+    ///
+    /// URL format: `zylos://open_thread?thread_id=<uuid>`
     #[serde(rename = "open_thread")]
     OpenThread { thread_id: String },
-    /// Trigger a skill execution
+    /// Trigger execution of a registered skill with optional parameters.
+    ///
+    /// URL format: `zylos://run_skill?skill=<name>&params=<json>`
     #[serde(rename = "run_skill")]
     RunSkill { skill: String, params: Option<serde_json::Value> },
-    /// Open settings page
+    /// Open the settings/preferences page, optionally at a specific section.
+    ///
+    /// URL format: `zylos://settings?page=<section>`
     #[serde(rename = "settings")]
     Settings { page: Option<String> },
-    /// OAuth callback redirect
+    /// OAuth callback redirect after external provider authentication.
+    ///
+    /// URL format: `zylos://oauth_callback?provider=<p>&code=<c>&state=<s>`
     #[serde(rename = "oauth_callback")]
     OAuthCallback {
         provider: String,
@@ -264,10 +328,13 @@ impl DeepLink {
 
 #[derive(Debug, thiserror::Error)]
 pub enum DeepLinkError {
+    /// URL scheme is not `zylos://`.
     #[error("Invalid scheme: expected zylos://")]
     InvalidScheme,
+    /// Required query parameter is missing from the URL.
     #[error("Missing required parameter: {0}")]
     MissingParam(&'static str),
+    /// Deep link action is not recognized by the parser.
     #[error("Unknown deep link action: {0}")]
     UnknownAction(String),
 }
@@ -279,11 +346,17 @@ pub enum DeepLinkError {
 /// System tray menu actions
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TrayAction {
+    /// Show the main application window.
     ShowWindow,
+    /// Hide the main application window (minimize to tray).
     HideWindow,
+    /// Open the cockpit dashboard view.
     OpenDashboard,
+    /// Restart the embedded gateway backend process.
     RestartGateway,
+    /// Check for application updates.
     CheckUpdates,
+    /// Quit the application completely.
     Quit,
 }
 

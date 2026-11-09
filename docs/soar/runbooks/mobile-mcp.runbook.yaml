@@ -8,6 +8,9 @@ metadata:
   tags: ["mobile", "mcp", "sync", "multi-device"]
   related_playbooks:
     - "../playbooks/incident-response.md"
+  playbook_ref: "../../playbooks/deploy-release.md"
+  runbook_refs:
+    - "../../runbooks/zylos-mobile.md"
 
 preconditions:
   - check: "Mobile crate compiled"

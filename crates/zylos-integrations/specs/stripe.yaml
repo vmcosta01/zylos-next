@@ -1,0 +1,77 @@
+slug: stripe
+display_name: Stripe
+auth_url: https://connect.stripe.com/oauth/authorize
+token_url: https://connect.stripe.com/oauth/token
+client_id: "${STRIPE_CLIENT_ID}"
+client_secret: "${STRIPE_CLIENT_SECRET}"
+redirect_uri: http://localhost:9090/callback/stripe
+scopes:
+  - read_write
+requires_approval: true
+rate_limit_rpm: 100
+actions:
+  - id: list_customers
+    description: List all customers
+    method: GET
+    url_template: https://api.stripe.com/v1/customers?limit={limit}
+    requires_approval: false
+
+  - id: create_customer
+    description: Create a new customer
+    method: POST
+    url_template: https://api.stripe.com/v1/customers
+    requires_approval: true
+    body_schema:
+      type: object
+      properties:
+        email: { type: string, format: email }
+        name: { type: string }
+        description: { type: string }
+        metadata: { type: object }
+
+  - id: list_charges
+    description: List charges with optional filtering
+    method: GET
+    url_template: https://api.stripe.com/v1/charges?limit={limit}&customer={customer}
+    requires_approval: false
+
+  - id: create_payment_intent
+    description: Create a PaymentIntent for accepting payments
+    method: POST
+    url_template: https://api.stripe.com/v1/payment_intents
+    requires_approval: true
+    body_schema:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount: { type: integer, minimum: 1 }
+        currency: { type: string }
+        customer: { type: string }
+        description: { type: string }
+        payment_method_types: { type: array, items: { type: string } }
+        metadata: { type: object }
+
+  - id: list_subscriptions
+    description: List active subscriptions
+    method: GET
+    url_template: https://api.stripe.com/v1/subscriptions?status={status}&limit={limit}
+    requires_approval: false
+
+  - id: create_refund
+    description: Refund a charge or payment intent
+    method: POST
+    url_template: https://api.stripe.com/v1/refunds
+    requires_approval: true
+    body_schema:
+      type: object
+      properties:
+        charge: { type: string }
+        payment_intent: { type: string }
+        amount: { type: integer }
+        reason: { type: string, enum: [duplicate, fraudulent, requested_by_customer] }
+
+  - id: list_invoices
+    description: List invoices
+    method: GET
+    url_template: https://api.stripe.com/v1/invoices?limit={limit}&customer={customer}
+    requires_approval: false

@@ -10,59 +10,92 @@ use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use thiserror::Error;
 
+/// Erros produzidos pelo roteador aterrado durante validação de coleira,
+/// alvos sagrados e propostas de mudança.
 #[derive(Debug, Error)]
 pub enum RouterError {
     #[error("alvo fora da coleira: {target} (distância={distance}, max={max})")]
     OutOfLeash { target: String, distance: f64, max: f64 },
-    #[error("alvo sagrado modificado sem aprovação: {0}")]
-    SacredTargetModified(String),
-    #[error("proposta de mudança rejeitada: {0}")]
-    ChangeRejected(String),
-    #[error("capacidade inventada bloqueada: {0}")]
-    InventedCapabilityBlocked(String),
-}
+    /// Um alvo marcado como sagrado foi modificado sem aprovação humana.
+        #[error("alvo sagrado modificado sem aprovação: {0}")]
+        SacredTargetModified(String),
+        /// A proposta de mudança foi rejeitada pelo gate de risco ou política.
+        #[error("proposta de mudança rejeitada: {0}")]
+        ChangeRejected(String),
+        /// Uma capacidade não registrada foi referenciada e bloqueada.
+        #[error("capacidade inventada bloqueada: {0}")]
+        InventedCapabilityBlocked(String),
+    }
 
+/// Nível de risco associado a um alvo ou proposta de mudança.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RiskLevel { Low, Medium, High, Critical }
 
+/// Capacidade registrada no roteador com metadados de matching e segurança.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Capability {
+    /// Identificador único da capacidade.
     pub id: String,
+    /// Nome legível da capacidade.
     pub name: String,
+    /// Palavras-chave para matching exato em queries.
     pub keywords: Vec<String>,
+    /// Se verdadeiro, alterações nesta capacidade exigem aprovação humana.
     pub sacred: bool,
+    /// Vetor de embedding para matching semântico.
     pub embedding: Vec<f64>,
+    /// Histórico de acertos (0.0–1.0) usado como tiebreak quando habilitado.
     pub track_record: f64,
 }
 
+/// Resultado de uma operação de roteamento.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RouteResult {
+    /// ID da capacidade selecionada.
     pub capability_id: String,
+    /// Score de relevância do match (maior = melhor).
     pub score: f64,
+    /// Verdadeiro quando nenhum match foi encontrado e o fallback foi usado.
     pub is_fallback: bool,
+    /// Tipo de match que produziu este resultado.
     pub match_type: MatchType,
 }
 
+/// Estratégia usada para produzir um [`RouteResult`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MatchType { ExactKeyword, Semantic, Fallback }
 
+/// Proposta de mudança de alvo gerada pelo roteador ou por um agente.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChangeProposal {
+    /// Alvo original antes da proposta.
     pub original_target: String,
+    /// Novo alvo proposto.
     pub proposed_target: String,
+    /// Justificativa textual para a mudança.
     pub justification: String,
+    /// Distância semântica entre os dois alvos.
     pub distance: f64,
+    /// Nível de risco inferido para o alvo original.
     pub risk_level: RiskLevel,
+    /// Sempre verdadeiro: mudanças exigem aprovação humana.
     pub requires_human: bool,
+    /// Status de aprovação; começa como `false`.
     pub approved: bool,
 }
 
+/// Configuração da coleira (leash) que limita o escopo do roteador.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LeashConfig {
+    /// Distância coseno máxima permitida entre origem e alvo.
     pub max_distance: f64,
+    /// Se verdadeiro, fallbacks recorrentes geram propostas de mudança.
     pub allow_change_proposals: bool,
+    /// Conjunto de IDs de capacidades sagradas (imutáveis sem aprovação).
     pub sacred_targets: HashSet<String>,
+    /// Número mínimo de fallbacks repetidos antes de propor mudança.
     pub proposal_threshold: usize,
+    /// Se verdadeiro, usa `track_record` como critério de desempate.
     pub use_track_record_tiebreak: bool,
 }
 
@@ -78,13 +111,18 @@ impl Default for LeashConfig {
     }
 }
 
+/// Entrada agregada de um cluster de fallbacks recorrentes.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FallbackClusterEntry {
+    /// Marcador normalizado que identifica o cluster.
     pub marker: String,
+    /// Número de vezes que este cluster foi observado.
     pub count: usize,
+    /// Timestamp RFC 3339 da última ocorrência.
     pub last_seen: String,
 }
 
+/// Roteador aterrado com coleira, alvos sagrados e detecção de capacidades inventadas.
 pub struct GroundedRouter {
     config: LeashConfig,
     capabilities: Vec<Capability>,
@@ -94,17 +132,20 @@ pub struct GroundedRouter {
 }
 
 impl GroundedRouter {
+    /// Cria um novo roteador com a configuração de coleira fornecida.
     pub fn new(config: LeashConfig) -> Self {
         Self { config, capabilities: Vec::new(), change_log: Vec::new(),
                fallback_clusters: HashMap::new(), registered_ids: HashSet::new() }
     }
 
+    /// Registra uma capacidade; se for sagrada, adiciona-a ao conjunto de alvos protegidos.
     pub fn add_capability(&mut self, cap: Capability) {
         if cap.sacred { self.config.sacred_targets.insert(cap.id.clone()); }
         self.registered_ids.insert(cap.id.clone());
         self.capabilities.push(cap);
     }
 
+    /// Verifica se uma capacidade está registrada (não inventada).
     pub fn is_real(&self, capability_id: &str) -> bool {
         self.registered_ids.contains(capability_id)
     }
@@ -115,6 +156,10 @@ impl GroundedRouter {
              .map(|s| s.to_string()).collect()
     }
 
+    /// Calcula a distância coseno entre dois vetores normalizados.
+    ///
+    /// Retorna `1.0` (máxima dissimilaridade) se os vetores tiverem
+    /// tamanhos diferentes ou forem vazios.
     pub fn cosine_distance(a: &[f64], b: &[f64]) -> f64 {
         if a.len() != b.len() || a.is_empty() { return 1.0; }
         let dot: f64 = a.iter().zip(b).map(|(x,y)| x*y).sum();
@@ -124,6 +169,7 @@ impl GroundedRouter {
         1.0 - (dot / (na * nb))
     }
 
+    /// Valida se o alvo está dentro da coleira; retorna a distância ou erro.
     pub fn check_leash(&self, origin: &[f64], target: &[f64]) -> Result<f64, RouterError> {
         let d = Self::cosine_distance(origin, target);
         if d > self.config.max_distance {
@@ -131,6 +177,9 @@ impl GroundedRouter {
         } else { Ok(d) }
     }
 
+    /// Roteia uma query para a melhor capacidade registrada usando keyword + semântica.
+    ///
+    /// Retorna fallback (`general-purpose`) quando nenhum match atinge os thresholds.
     pub fn route(&self, query: &str) -> RouteResult {
         let tokens = Self::tokenize(query);
         let mut best: Option<(String, f64, MatchType)> = None;
@@ -170,12 +219,14 @@ impl GroundedRouter {
         let mut t = Self::tokenize(query); t.sort(); t.dedup(); t.join(":")
     }
 
+    /// Registra uma ocorrência de fallback e retorna a entrada atualizada do cluster.
     pub fn record_fallback(&mut self, query: &str) -> FallbackClusterEntry {
         let m = Self::normalize_marker(query);
         let e = self.fallback_clusters.entry(m.clone()).or_insert_with(|| FallbackClusterEntry { marker: m, count: 0, last_seen: String::new() });
         e.count += 1; e.last_seen = chrono::Utc::now().to_rfc3339(); e.clone()
     }
 
+    /// Roteia e, se o fallback atingir o threshold configurado, gera uma proposta de mudança.
     pub fn route_com_proposta(&mut self, query: &str) -> (RouteResult, Option<ChangeProposal>) {
         let r = self.route(query);
         if r.is_fallback {
@@ -198,6 +249,9 @@ impl GroundedRouter {
         else { RiskLevel::Low }
     }
 
+    /// Propõe uma mudança de alvo validando alvos sagrados e capacidades inventadas.
+    ///
+    /// Retorna erro se o alvo original for sagrado ou se o proposto não estiver registrado.
     pub fn propose_change(&mut self, original: &str, proposed: &str, justification: impl Into<String>, distance: f64) -> Result<ChangeProposal, RouterError> {
         if self.config.sacred_targets.contains(original) { return Err(RouterError::SacredTargetModified(original.into())); }
         if !self.is_real(proposed) && proposed != "general-purpose" { return Err(RouterError::InventedCapabilityBlocked(proposed.into())); }
@@ -207,9 +261,134 @@ impl GroundedRouter {
         self.change_log.push(p.clone()); Ok(p)
     }
 
+    /// Retorna o log completo de propostas de mudança registradas.
     pub fn change_log(&self) -> &[ChangeProposal] { &self.change_log }
+    /// Retorna todos os clusters de fallback observados até agora.
     pub fn fallback_clusters(&self) -> &HashMap<String, FallbackClusterEntry> { &self.fallback_clusters }
 }
+
+
+// ─── Channel Registry & Session Manager ────────────────────────────────
+
+use channels::{ChannelAdapter, ChannelSession, InboundMessage, OutboundMessage, ChannelError};
+
+/// Registry that dispatches inbound/outbound messages to the correct adapter
+pub struct ChannelRegistry {
+    adapters: HashMap<String, Box<dyn ChannelAdapter>>,
+}
+
+impl ChannelRegistry {
+    pub fn new() -> Self {
+        Self { adapters: HashMap::new() }
+    }
+
+    /// Register a channel adapter. Returns error if name already taken.
+    pub fn register(&mut self, adapter: impl ChannelAdapter + 'static) -> Result<(), String> {
+        let name = adapter.name().to_string();
+        if self.adapters.contains_key(&name) {
+            return Err(format!("channel '{}' already registered", name));
+        }
+        self.adapters.insert(name, Box::new(adapter));
+        Ok(())
+    }
+
+    /// Get a reference to an adapter by name
+    pub fn get(&self, name: &str) -> Option<&dyn ChannelAdapter> {
+        self.adapters.get(name).map(|a| a.as_ref())
+    }
+
+    /// List all configured channel names
+    pub fn list_configured(&self) -> Vec<&str> {
+        self.adapters.iter()
+            .filter(|(_, a)| a.is_configured())
+            .map(|(k, _)| k.as_str())
+            .collect()
+    }
+
+    /// Dispatch an inbound webhook payload to the named channel
+    pub async fn receive(&self, channel: &str, payload: bytes::Bytes) -> Result<InboundMessage, ChannelError> {
+        let adapter = self.adapters.get(channel)
+            .ok_or_else(|| ChannelError::InvalidMessage(format!("unknown channel: {}", channel)))?;
+        adapter.receive(payload).await
+    }
+
+    /// Send an outbound message through the named channel
+    pub async fn send(&self, channel: &str, target: &str, msg: OutboundMessage) -> Result<(), ChannelError> {
+        let adapter = self.adapters.get(channel)
+            .ok_or_else(|| ChannelError::InvalidMessage(format!("unknown channel: {}", channel)))?;
+        adapter.send(target, msg).await
+    }
+
+    /// Verify webhook for the named channel
+    pub async fn verify_webhook(&self, channel: &str, challenge: &str, signature: Option<&str>, body: &[u8]) -> Result<String, ChannelError> {
+        let adapter = self.adapters.get(channel)
+            .ok_or_else(|| ChannelError::InvalidMessage(format!("unknown channel: {}", channel)))?;
+        adapter.verify_webhook(challenge, signature, body).await
+    }
+}
+
+impl Default for ChannelRegistry {
+    /// Cria um registry vazio via [`ChannelRegistry::new`].
+    fn default() -> Self { Self::new() }
+}
+
+/// Manages channel sessions (external user ↔ zylos user mapping)
+/// Gerencia sessões de canal mapeando usuários externos para usuários zylos.
+pub struct SessionManager {
+    sessions: HashMap<String, ChannelSession>,
+    /// Index: external_user_id → session id
+    external_index: HashMap<String, String>,
+}
+
+impl SessionManager {
+    /// Cria um gerenciador de sessões vazio.
+    pub fn new() -> Self {
+        Self { sessions: HashMap::new(), external_index: HashMap::new() }
+    }
+
+    /// Create or retrieve a session for an external user on a channel
+    /// Obtém ou cria uma sessão para um usuário externo em um canal específico.
+    ///
+    /// Atualiza `last_active_at` em acessos subsequentes.
+    pub fn get_or_create(&mut self, channel_type: &str, external_user_id: &str, zylos_user_id: &str) -> &ChannelSession {
+        let key = format!("{}:{}", channel_type, external_user_id);
+        if !self.sessions.contains_key(&key) {
+            let now = chrono::Utc::now().timestamp();
+            let session = ChannelSession {
+                id: uuid::Uuid::new_v4().to_string(),
+                channel_type: channel_type.to_string(),
+                external_user_id: external_user_id.to_string(),
+                zylos_user_id: zylos_user_id.to_string(),
+                metadata: serde_json::Value::Null,
+                last_active_at: now,
+                created_at: now,
+            };
+            self.external_index.insert(key.clone(), session.id.clone());
+            self.sessions.insert(key.clone(), session);
+        }
+        // Touch last_active_at
+        if let Some(s) = self.sessions.get_mut(&key) {
+            s.last_active_at = chrono::Utc::now().timestamp();
+        }
+        self.sessions.get(&key).unwrap()
+    }
+
+    /// Look up a session by channel + external user
+    pub fn lookup(&self, channel_type: &str, external_user_id: &str) -> Option<&ChannelSession> {
+        let key = format!("{}:{}", channel_type, external_user_id);
+        self.sessions.get(&key)
+    }
+
+    /// Count active sessions
+    pub fn count(&self) -> usize {
+        self.sessions.len()
+    }
+}
+
+impl Default for SessionManager {
+    fn default() -> Self { Self::new() }
+}
+
 
 #[cfg(test)]
 mod tests {

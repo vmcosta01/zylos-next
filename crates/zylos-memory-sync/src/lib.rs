@@ -11,9 +11,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqliteRow};
-use sqlx::{FromRow, Row};
+use sqlx::Row;
 use std::collections::HashMap;
-use std::path::Path;
 use std::str::FromStr;
 use uuid::Uuid;
 
@@ -99,37 +98,55 @@ impl MemoryEntry {
 /// A sync operation representing a change to be propagated.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncOp {
+    /// Unique identifier for this sync operation (UUID v4).
     pub op_id: String,
+    /// The content-addressed ID of the memory entry this operation targets.
     pub entry_id: String,
+    /// The type of sync operation (upsert, delete, or touch).
     pub op_type: SyncOpType,
+    /// When this operation was recorded.
     pub timestamp: DateTime<Utc>,
+    /// The harness that originated this operation.
     pub source_harness: String,
 }
 
+/// The type of a sync operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SyncOpType {
+    /// Insert or update a memory entry.
     Upsert,
+    /// Delete a memory entry.
     Delete,
+    /// Touch (bump version/timestamp without changing content).
     Touch,
 }
 
 /// Result of a sync reconciliation between two harnesses.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncResult {
+    /// Number of entries inserted or updated during sync.
     pub entries_upserted: usize,
+    /// Number of entries deleted during sync.
     pub entries_deleted: usize,
+    /// Number of version conflicts resolved via last-writer-wins.
     pub conflicts_resolved: usize,
+    /// Non-fatal errors encountered during sync.
     pub errors: Vec<String>,
 }
 
 /// Query filter for memory lookups.
 #[derive(Debug, Clone, Default)]
 pub struct MemoryQuery {
+    /// Filter by exact namespace match.
     pub namespace: Option<String>,
+    /// Filter by key prefix (SQL LIKE pattern).
     pub key_prefix: Option<String>,
+    /// Filter by tag substring match.
     pub tag: Option<String>,
+    /// Maximum number of results to return.
     pub limit: Option<usize>,
+    /// Number of results to skip (for pagination).
     pub offset: Option<usize>,
 }
 
@@ -137,18 +154,25 @@ pub struct MemoryQuery {
 // Error Type
 // ---------------------------------------------------------------------------
 
+/// Errors that can occur during memory sync operations.
 #[derive(Debug, thiserror::Error)]
 pub enum MemorySyncError {
+    /// Underlying SQLite database error.
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
+    /// JSON serialization/deserialization error.
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
+    /// Requested entry does not exist.
     #[error("Entry not found: {0}")]
     NotFound(String),
+    /// Version conflict detected during merge.
     #[error("Conflict: entry {0} has divergent versions")]
     Conflict(String),
+    /// Filesystem I/O error.
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+    /// Catch-all for internal invariant violations.
     #[error("Internal: {0}")]
     Internal(String),
 }
@@ -535,10 +559,14 @@ impl MemoryStore {
 // Stats
 // ---------------------------------------------------------------------------
 
+/// Aggregate statistics about the memory store contents and sync state.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemoryStats {
+    /// Total number of memory entries across all namespaces.
     pub total_entries: usize,
+    /// Number of sync operations not yet applied by downstream harnesses.
     pub pending_sync_ops: usize,
+    /// Entry count broken down by namespace.
     pub namespace_counts: HashMap<String, usize>,
 }
 

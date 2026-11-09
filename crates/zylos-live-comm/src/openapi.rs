@@ -9,7 +9,7 @@ use crate::agui::AgUiEvent;
 use crate::auth::Claims;
 use crate::routes::FilterParams;
 
-/// OpenAPI documentation root for zylos-live-comm
+// OpenAPI documentation root for zylos-live-comm
 #[derive(OpenApi)]
 #[openapi(
     paths(
@@ -35,6 +35,7 @@ use crate::routes::FilterParams;
     ),
     modifiers(&SecurityAddon),
 )]
+/// Estrutura ApiDoc.
 pub struct ApiDoc;
 
 /// Security scheme addon for JWT Bearer auth
@@ -54,6 +55,7 @@ impl utoipa::Modify for SecurityAddon {
 
 /// Standard error response
 #[derive(serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+/// Estrutura ErrorResponse.
 pub struct ErrorResponse {
     /// Error message
     pub error: String,
@@ -63,6 +65,7 @@ pub struct ErrorResponse {
 
 /// Rate limit exceeded response
 #[derive(serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+/// Estrutura RateLimitResponse.
 pub struct RateLimitResponse {
     /// Error message
     pub error: String,
@@ -85,6 +88,7 @@ pub struct RateLimitResponse {
     ),
     security(("bearer_auth" = []))
 )]
+/// Função sse events endpoint.
 pub fn sse_events_endpoint() {}
 
 /// WebSocket streaming endpoint documentation
@@ -100,6 +104,7 @@ pub fn sse_events_endpoint() {}
     ),
     security(("bearer_auth" = []))
 )]
+/// Função ws stream endpoint.
 pub fn ws_stream_endpoint() {}
 
 /// Generate the OpenAPI JSON specification

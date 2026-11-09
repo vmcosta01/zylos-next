@@ -8,37 +8,54 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
+/// Errors produced by the DAG resolver.
 #[derive(Debug, Error)]
 pub enum ResolverError {
+    /// A cycle was detected in the DAG.
     #[error("ciclo detectado no DAG: {0}")]
     CycleDetected(String),
+    /// Referenced node does not exist in the graph.
     #[error("no nao encontrado: {0}")]
     NodeNotFound(String),
+    /// Checkpoint file is corrupt or unreadable.
     #[error("checkpoint corrompido: {0}")]
     CheckpointCorrupted(String),
+    /// A glue proof between two nodes failed validation.
     #[error("prova falhou: {0}")]
     ProofFailed(String),
+    /// Execution limit (depth, nodes) was reached.
     #[error("limite atingido: {0}")]
     LimitReached(String),
+    /// Glue between two nodes could not be established.
     #[error("glue falhou entre {from} e {to}: {reason}")]
     GlueFailed { from: String, to: String, reason: String },
+    /// Filesystem I/O error.
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }
 
+/// Lifecycle status of a DAG node.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NodeStatus { Pending, Running, Completed, Failed, Skipped }
 
+/// A single node in the resolver DAG.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DagNode {
+    /// Unique identifier for this node.
     pub id: String,
+    /// Human-readable description of the node's purpose.
     pub description: String,
+    /// IDs of nodes that must complete before this one.
     pub dependencies: Vec<String>,
+    /// Current execution status.
     pub status: NodeStatus,
+    /// Hash of the result produced after completion.
     pub result_hash: Option<String>,
+    /// Depth from the nearest root (computed by `compute_depths`).
     pub depth: u32,
 }
 
+/// BFS frontier with deduplication and snapshot/restore support.
 #[derive(Debug, Clone)]
 pub struct BfsFrontier {
     queue: VecDeque<String>,
@@ -46,15 +63,22 @@ pub struct BfsFrontier {
 }
 
 impl BfsFrontier {
+    /// Create an empty frontier.
     pub fn new() -> Self { Self { queue: VecDeque::new(), visited: HashSet::new() } }
+    /// Enqueue a node ID if it has not been visited yet.
     pub fn push(&mut self, node_id: impl Into<String>) {
         let id = node_id.into();
         if self.visited.insert(id.clone()) { self.queue.push_back(id); }
     }
+    /// Dequeue the next node ID, or `None` if empty.
     pub fn next(&mut self) -> Option<String> { self.queue.pop_front() }
+    /// Returns `true` when there are no pending nodes.
     pub fn is_empty(&self) -> bool { self.queue.is_empty() }
+    /// Number of pending nodes in the frontier.
     pub fn len(&self) -> usize { self.queue.len() }
+    /// Snapshot the current queue for checkpoint persistence.
     pub fn snapshot(&self) -> Vec<String> { self.queue.iter().cloned().collect() }
+    /// Restore a frontier from a previously saved snapshot.
     pub fn restore(snapshot: &[String]) -> Self {
         let mut f = Self::new();
         for id in snapshot { f.push(id.clone()); }
@@ -63,72 +87,113 @@ impl BfsFrontier {
 }
 impl Default for BfsFrontier { fn default() -> Self { Self::new() } }
 
+/// Metadata about a single resolver run (corrida).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Corrida {
+    /// Origin node where the run started.
     pub desde: String,
+    /// Target node the run aims to reach.
     pub alvo: String,
+    /// RFC 3339 timestamp when the run began.
     pub timestamp_inicio: String,
+    /// RFC 3339 timestamp when the run finished, if completed.
     pub timestamp_fim: Option<String>,
 }
 impl Corrida {
+    /// Create a new corrida starting now.
     pub fn nova(desde: impl Into<String>, alvo: impl Into<String>) -> Self {
         Self { desde: desde.into(), alvo: alvo.into(), timestamp_inicio: chrono::Utc::now().to_rfc3339(), timestamp_fim: None }
     }
+    /// Mark the corrida as finished with the current timestamp.
     pub fn finalizar(&mut self) { self.timestamp_fim = Some(chrono::Utc::now().to_rfc3339()); }
+    /// Validate that required fields are non-empty.
     pub fn valida(&self) -> bool { !self.desde.is_empty() && !self.alvo.is_empty() && !self.timestamp_inicio.is_empty() }
 }
 
+/// Serializable checkpoint for resuming a resolver run.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResolverCheckpoint {
+    /// Set of node IDs that completed successfully.
     pub completed_nodes: HashSet<String>,
+    /// Map of failed node IDs to their failure reasons.
     pub failed_nodes: HashMap<String, String>,
+    /// Frontier queue at the time of the checkpoint.
     pub frontier_snapshot: Vec<String>,
+    /// Current wave number.
     pub wave: u32,
+    /// RFC 3339 timestamp of the checkpoint.
     pub timestamp: String,
+    /// SHA-256 hash chain linking this checkpoint to previous ones.
     pub chain_hash: String,
+    /// Optional corrida metadata.
     pub corrida: Option<Corrida>,
 }
 
+/// Configuration knobs for the DAG resolver.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResolverConfig {
+    /// Maximum allowed depth from root nodes.
     pub max_depth: u32,
+    /// Maximum number of nodes to process before truncation.
     pub max_nodes: usize,
+    /// Maximum parallel batch size per wave (`None` = unlimited).
     pub max_parallel: Option<usize>,
+    /// Optional path to persist checkpoints for resume.
     pub persist_path: Option<PathBuf>,
 }
 impl Default for ResolverConfig {
     fn default() -> Self { Self { max_depth: 3, max_nodes: 50, max_parallel: None, persist_path: None } }
 }
 
+/// Outcome of a completed (or truncated) resolver run.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResolveResult {
+    /// Node IDs that completed successfully.
     pub completed: HashSet<String>,
+    /// Node IDs that failed, mapped to failure reasons.
     pub failed: HashMap<String, String>,
+    /// Whether execution was truncated due to limits.
     pub truncated: bool,
+    /// Total number of nodes processed across all waves.
     pub total_nodes_processed: usize,
+    /// Number of BFS waves executed.
     pub waves: u32,
+    /// Glue proofs generated between dependent nodes.
     pub glue_proofs: Vec<GlueProof>,
 }
 
+/// Cryptographic proof linking two dependent DAG nodes.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GlueProof {
+    /// Source node ID.
     pub from_node: String,
+    /// Target node ID.
     pub to_node: String,
+    /// Claim text from the source node.
     pub claim_from: String,
+    /// Claim text from the target node.
     pub claim_to: String,
+    /// SHA-256 hash binding both claims and result hashes.
     pub hash: String,
+    /// Whether the glue proof passed validation.
     pub valid: bool,
 }
 
+/// In-memory representation of a directed acyclic graph.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DagGraph {
+    /// Map of node IDs to their definitions.
     pub nodes: HashMap<String, DagNode>,
+    /// Directed edges as (from, to) pairs.
     pub edges: Vec<(String, String)>,
 }
 
 impl DagGraph {
+    /// Create an empty DAG.
     pub fn new() -> Self { Self { nodes: HashMap::new(), edges: Vec::new() } }
+    /// Insert a node into the graph.
     pub fn add_node(&mut self, node: DagNode) { self.nodes.insert(node.id.clone(), node); }
+    /// Add a directed edge; also registers the dependency on the target node.
     pub fn add_edge(&mut self, from: impl Into<String>, to: impl Into<String>) {
         let f = from.into(); let t = to.into();
         self.edges.push((f.clone(), t.clone()));
@@ -136,6 +201,7 @@ impl DagGraph {
             if !node.dependencies.contains(&f) { node.dependencies.push(f); }
         }
     }
+    /// Detect whether the graph contains any cycles via DFS.
     pub fn has_cycle(&self) -> bool {
         let mut visited = HashSet::new();
         let mut rec_stack = HashSet::new();
@@ -154,11 +220,13 @@ impl DagGraph {
         }
         rec_stack.remove(node); false
     }
+    /// Return node IDs whose dependencies are all satisfied and are still pending.
     pub fn ready_nodes(&self, completed: &HashSet<String>) -> Vec<String> {
         self.nodes.values().filter(|n| {
             !completed.contains(&n.id) && n.status == NodeStatus::Pending && n.dependencies.iter().all(|d| completed.contains(d))
         }).map(|n| n.id.clone()).collect()
     }
+    /// Compute and assign depth values for every node via BFS from roots.
     pub fn compute_depths(&mut self) {
         let roots: Vec<String> = self.nodes.values().filter(|n| n.dependencies.is_empty()).map(|n| n.id.clone()).collect();
         let mut depths: HashMap<String, u32> = HashMap::new();
@@ -178,6 +246,7 @@ impl DagGraph {
 }
 impl Default for DagGraph { fn default() -> Self { Self::new() } }
 
+/// Atomically save a checkpoint to disk using a temp-file rename.
 pub fn save_checkpoint(path: &Path, checkpoint: &ResolverCheckpoint) -> Result<(), ResolverError> {
     let tmp = path.with_extension("tmp");
     let json = serde_json::to_string_pretty(checkpoint).map_err(|e| ResolverError::CheckpointCorrupted(e.to_string()))?;
@@ -185,11 +254,14 @@ pub fn save_checkpoint(path: &Path, checkpoint: &ResolverCheckpoint) -> Result<(
     std::fs::rename(&tmp, path)?;
     Ok(())
 }
+/// Load a checkpoint from disk, returning `None` on any error.
 pub fn load_checkpoint(path: &Path) -> Option<ResolverCheckpoint> {
     match std::fs::read_to_string(path) { Ok(c) => serde_json::from_str(&c).ok(), Err(_) => None }
 }
+/// Remove a checkpoint file if it exists.
 pub fn clear_checkpoint(path: &Path) { let _ = std::fs::remove_file(path); }
 
+/// Produce a glue proof binding two adjacent DAG nodes via SHA-256.
 pub fn glue(from_node: &DagNode, to_node: &DagNode, claim_from: &str, claim_to: &str) -> Result<GlueProof, ResolverError> {
     if from_node.status != NodeStatus::Completed {
         return Err(ResolverError::GlueFailed { from: from_node.id.clone(), to: to_node.id.clone(),
@@ -204,6 +276,7 @@ pub fn glue(from_node: &DagNode, to_node: &DagNode, claim_from: &str, claim_to: 
         hash: format!("{:x}", h.finalize()), valid: true })
 }
 
+/// Execute the DAG resolver with BFS waves, checkpointing, and optional parallelism.
 pub fn resolve<F>(dag: &mut DagGraph, config: &ResolverConfig, mut executor: F) -> Result<ResolveResult, ResolverError>
 where F: FnMut(&str, &DagNode) -> Result<String, String> {
     if dag.has_cycle() { return Err(ResolverError::CycleDetected("DAG contem ciclo".into())); }

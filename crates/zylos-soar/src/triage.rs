@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 /// Action determined by the triage engine.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Enumeração TriageAction.
 pub enum TriageAction {
     /// Isolate asset and notify on-call (Critical + Breach).
     IsolateAndNotify,
@@ -21,10 +22,15 @@ pub enum TriageAction {
 
 /// Output of the triage decision.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura TriageDecision.
 pub struct TriageDecision {
+    /// Campo action.
     pub action: TriageAction,
+    /// Campo playbook.
     pub playbook: Option<String>,
+    /// Campo confidence.
     pub confidence: f64,
+    /// Campo reason.
     pub reason: String,
 }
 
@@ -32,8 +38,10 @@ pub struct TriageDecision {
 pub struct TriageEngine;
 
 impl TriageEngine {
+    /// Função new.
     pub fn new() -> Self {
-        Self
+            // Retorna nova instância do TriageEngine.
+            Self
     }
 
     /// Classify an event into a triage decision.
@@ -95,6 +103,7 @@ mod tests {
     use uuid::Uuid;
 
     fn make_event(severity: Severity, category: EventCategory) -> ZylosSecurityEvent {
+        /// Variante ZylosSecurityEvent.
         ZylosSecurityEvent {
             id: Uuid::new_v4(),
             source: "test".to_string(),

@@ -8,8 +8,11 @@ pub mod manifest;
 pub mod error;
 pub mod db;
 pub mod executor;
+pub mod composio;
+pub mod channel;
 
 pub use error::{IntegrationError, Result};
+pub use channel::{ChannelAdapter, ChannelRegistry, MessageId, OutboundMessage, SendResult};
 pub use manifest::IntegrationSpec;
 pub use oauth::{OAuthFlow, OAuthSession, TokenBundle};
 pub use executor::ActionExecutor;
@@ -130,6 +133,36 @@ impl IntegrationRegistry {
         self.db.delete_tokens(user_id, slug).await?;
         info!(user_id, provider = slug, "Tokens revoked");
         Ok(())
+    }
+
+    /// Initialize the channel registry with all available platform adapters.
+    /// Reads credentials from environment variables or token store.
+    pub fn init_channel_registry(&self) -> crate::channel::ChannelRegistry {
+        use crate::channel::{ChannelRegistry, wechat_work::WeChatWorkAdapter, feishu::FeishuAdapter};
+        
+        let mut registry = ChannelRegistry::new();
+        
+        // WeChat Work adapter
+        if let (Ok(corp_id), Ok(agent_id)) = (
+            std::env::var("WECHAT_CORP_ID"),
+            std::env::var("WECHAT_AGENT_ID"),
+        ) {
+            let adapter = WeChatWorkAdapter::new(corp_id, agent_id, None);
+            registry.register(Box::new(adapter));
+            tracing::info!("Registered WeChat Work channel adapter");
+        }
+        
+        // Feishu adapter
+        if let (Ok(app_id), Ok(app_secret)) = (
+            std::env::var("FEISHU_APP_ID"),
+            std::env::var("FEISHU_APP_SECRET"),
+        ) {
+            let adapter = FeishuAdapter::new(app_id, app_secret, None);
+            registry.register(Box::new(adapter));
+            tracing::info!("Registered Feishu channel adapter");
+        }
+        
+        registry
     }
 }
 

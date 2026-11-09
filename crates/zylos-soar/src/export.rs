@@ -16,31 +16,40 @@ use thiserror::Error;
 
 /// Export system errors.
 #[derive(Error, Debug)]
+/// Enumeração SoarExportError.
 pub enum SoarExportError {
     #[error("playbook '{0}' has no states to export")]
+    // Variante EmptyPlaybook.
     EmptyPlaybook(String),
 
     #[error("unsupported export format: '{0}'")]
+    // Variante UnsupportedFormat.
     UnsupportedFormat(String),
 
     #[error("I/O error: {0}")]
+    // Variante IoError.
     IoError(#[from] std::io::Error),
 
     #[error("JSON serialization error: {0}")]
+    // Variante JsonError.
     JsonError(#[from] serde_json::Error),
 
     #[error("YAML serialization error: {0}")]
+    // Variante YamlError.
     YamlError(#[from] serde_yaml::Error),
 
     #[error("output directory does not exist: {0}")]
+    // Variante OutputDirMissing.
     OutputDirMissing(String),
 }
 
+/// Alias de tipo ExportResult.
 pub type ExportResult<T> = Result<T, SoarExportError>;
 
 /// Supported export formats.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+/// Enumeração SoarExportFormat.
 pub enum SoarExportFormat {
     /// .cursor/rules — Cursor IDE format
     CursorRules,
@@ -51,6 +60,7 @@ pub enum SoarExportFormat {
 }
 
 impl SoarExportFormat {
+    /// Função extension.
     pub fn extension(&self) -> &'static str {
         match self {
             SoarExportFormat::CursorRules => "mdc",
@@ -59,6 +69,7 @@ impl SoarExportFormat {
         }
     }
 
+    /// Função dir name.
     pub fn dir_name(&self) -> &'static str {
         match self {
             SoarExportFormat::CursorRules => ".cursor/rules",
@@ -70,44 +81,71 @@ impl SoarExportFormat {
 
 /// Exportable representation of a SOAR playbook.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura ExportablePlaybook.
 pub struct ExportablePlaybook {
+    /// Campo name.
     pub name: String,
+    /// Campo version.
     pub version: String,
+    /// Campo description.
     pub description: String,
+    /// Campo triggers.
     pub triggers: Vec<String>,
+    /// Campo roles.
     pub roles: HashMap<String, String>,
+    /// Campo states.
     pub states: Vec<ExportableState>,
+    /// Campo terminal states.
     pub terminal_states: Vec<String>,
 }
 
 /// Exportable representation of a playbook state.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura ExportableState.
 pub struct ExportableState {
+    /// Campo name.
     pub name: String,
+    /// Campo auto.
     pub auto: bool,
+    /// Campo approval required.
     pub approval_required: bool,
+    /// Campo runbook.
     pub runbook: Option<String>,
+    /// Campo timeout minutes.
     pub timeout_minutes: Option<u32>,
+    /// Campo escalation.
     pub escalation: Option<String>,
+    /// Campo transitions.
     pub transitions: Vec<ExportableTransition>,
+    /// Campo actions.
     pub actions: Vec<String>,
+    /// Campo terminal.
     pub terminal: bool,
 }
 
 /// Exportable transition between states.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura ExportableTransition.
 pub struct ExportableTransition {
+    /// Campo condition.
     pub condition: Option<String>,
+    /// Campo to.
     pub to: String,
 }
 
 /// Result of an export operation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura SoarExportReport.
 pub struct SoarExportReport {
+    /// Campo format.
     pub format: SoarExportFormat,
+    /// Campo playbooks exported.
     pub playbooks_exported: usize,
+    /// Campo total states.
     pub total_states: usize,
+    /// Campo output path.
     pub output_path: PathBuf,
+    /// Campo errors.
     pub errors: Vec<String>,
 }
 
@@ -168,6 +206,7 @@ impl From<&Playbook> for ExportablePlaybook {
             terminal_states.join(", ")
         );
 
+        // Variante ExportablePlaybook.
         ExportablePlaybook {
             name: pb.name.clone(),
             version: pb.version.clone(),
@@ -186,7 +225,9 @@ pub struct SoarExporter {
 }
 
 impl SoarExporter {
+    /// Função new.
     pub fn new(playbooks: Vec<ExportablePlaybook>) -> Self {
+        // Variante Self.
         Self { playbooks }
     }
 
@@ -217,34 +258,41 @@ impl SoarExporter {
             SoarExportFormat::CursorRules => {
                 for pb in &self.playbooks {
                     match self.export_cursor_rule(pb, output_dir) {
+                        // Variante Ok.
                         Ok(()) => {
                             exported += 1;
                             total_states += pb.states.len();
                         }
+                        // Variante Err.
                         Err(e) => errors.push(format!("{}: {}", pb.name, e)),
                     }
                 }
             }
             SoarExportFormat::ClineRules => {
                 match self.export_cline_rules(output_dir) {
+                    // Variante Ok.
                     Ok(()) => {
                         exported = self.playbooks.len();
                         total_states = self.playbooks.iter().map(|p| p.states.len()).sum();
                     }
+                    // Variante Err.
                     Err(e) => errors.push(e.to_string()),
                 }
             }
             SoarExportFormat::ClaudePlugin => {
                 match self.export_claude_plugin(output_dir) {
+                    // Variante Ok.
                     Ok(()) => {
                         exported = self.playbooks.len();
                         total_states = self.playbooks.iter().map(|p| p.states.len()).sum();
                     }
+                    // Variante Err.
                     Err(e) => errors.push(e.to_string()),
                 }
             }
         }
 
+        // Variante Ok.
         Ok(SoarExportReport {
             format: format.clone(),
             playbooks_exported: exported,
@@ -308,7 +356,9 @@ impl SoarExporter {
                     lines.push("- Transitions:".to_string());
                     for t in &s.transitions {
                         match &t.condition {
+                            // Variante Some.
                             Some(cond) => lines.push(format!("  - → `{}` (if `{}`)", t.to, cond)),
+                            // Variante None.
                             None => lines.push(format!("  - → `{}`", t.to)),
                         }
                     }
@@ -370,6 +420,7 @@ tags: [{tags}]
         );
 
         std::fs::write(path, content)?;
+        // Variante Ok.
         Ok(())
     }
 
@@ -402,6 +453,7 @@ tags: [{tags}]
 
         let json = serde_json::to_string_pretty(&wrapper)?;
         std::fs::write(rules_dir.join("soar-rules.json"), json)?;
+        // Variante Ok.
         Ok(())
     }
 
@@ -441,6 +493,7 @@ tags: [{tags}]
 
         let manifest_json = serde_json::to_string_pretty(&manifest)?;
         std::fs::write(plugin_dir.join("manifest.json"), manifest_json)?;
+        // Variante Ok.
         Ok(())
     }
 }
@@ -512,6 +565,7 @@ mod tests {
     use std::fs;
 
     fn sample_playbook() -> Playbook {
+        /// Variante Playbook.
         Playbook {
             name: "security-incident-response".to_string(),
             version: "1.0".to_string(),
@@ -525,6 +579,7 @@ mod tests {
                 approver: Some("security-manager".to_string()),
             },
             states: vec![
+                /// Variante PlaybookState.
                 PlaybookState {
                     name: "triage".to_string(),
                     auto: true,
@@ -533,10 +588,12 @@ mod tests {
                     timeout_minutes: None,
                     escalation: None,
                     next: vec![
+                        /// Variante Transition.
                         Transition {
                             condition: Some("triage.confirmed_breach == true".to_string()),
                             to: "containment".to_string(),
                         },
+                        /// Variante Transition.
                         Transition {
                             condition: Some("triage.false_positive == true".to_string()),
                             to: "closed".to_string(),
@@ -545,6 +602,7 @@ mod tests {
                     actions: vec![],
                     terminal: false,
                 },
+                /// Variante PlaybookState.
                 PlaybookState {
                     name: "containment".to_string(),
                     auto: false,
@@ -559,6 +617,7 @@ mod tests {
                     actions: vec![],
                     terminal: false,
                 },
+                /// Variante PlaybookState.
                 PlaybookState {
                     name: "eradication".to_string(),
                     auto: true,
@@ -573,6 +632,7 @@ mod tests {
                     actions: vec![],
                     terminal: false,
                 },
+                /// Variante PlaybookState.
                 PlaybookState {
                     name: "recovery".to_string(),
                     auto: true,
@@ -587,6 +647,7 @@ mod tests {
                     actions: vec![],
                     terminal: false,
                 },
+                /// Variante PlaybookState.
                 PlaybookState {
                     name: "post_incident".to_string(),
                     auto: true,
@@ -601,6 +662,7 @@ mod tests {
                     ],
                     terminal: true,
                 },
+                /// Variante PlaybookState.
                 PlaybookState {
                     name: "closed".to_string(),
                     auto: true,

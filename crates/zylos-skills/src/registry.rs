@@ -21,26 +21,34 @@ use tracing::{debug, info, warn};
 
 /// Erros do registry de skills
 #[derive(Error, Debug)]
+/// Enumeração RegistryError.
 pub enum RegistryError {
     #[error("index.json não encontrado em {0}")]
+    // Variante IndexNotFound.
     IndexNotFound(PathBuf),
 
     #[error("falha ao ler index.json: {0}")]
+    // Variante IoError.
     IoError(#[from] std::io::Error),
 
     #[error("index.json malformado: {0}")]
+    // Variante ParseError.
     ParseError(#[from] serde_json::Error),
 
     #[error("schema validation falhou para skill '{name}': {reason}")]
+    // Variante SchemaValidation.
     SchemaValidation { name: String, reason: String },
 
     #[error("skill '{0}' não encontrada no registry")]
+    // Variante SkillNotFound.
     SkillNotFound(String),
 
     #[error("ciclo de dependências detectado: {0:?}")]
+    // Variante DependencyCycle.
     DependencyCycle(Vec<String>),
 
     #[error("conflito de versão semver para skill '{name}': requerido {required}, disponível {available}")]
+    /// Variante SemverConflict.
     SemverConflict {
         name: String,
         required: String,
@@ -48,6 +56,7 @@ pub enum RegistryError {
     },
 
     #[error("integrity check falhou para skill '{name}': digest esperado {expected}, encontrado {actual}")]
+    /// Variante IntegrityMismatch.
     IntegrityMismatch {
         name: String,
         expected: String,
@@ -60,34 +69,42 @@ pub type RegistryResult<T> = Result<T, RegistryError>;
 
 /// Métricas de uso de uma skill
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// Estrutura UsageStats.
 pub struct UsageStats {
     /// Timestamp do último uso (unix epoch millis)
     #[serde(default)]
+    /// Campo last used.
     pub last_used: u64,
 
     /// Contador total de usos
     #[serde(default)]
+    /// Campo use count.
     pub use_count: u64,
 
     /// Taxa de sucesso (0.0 a 1.0)
     #[serde(default)]
+    /// Campo success rate.
     pub success_rate: f64,
 
     /// Latência média em ms
     #[serde(default)]
+    /// Campo avg latency ms.
     pub avg_latency_ms: f64,
 
     /// Contador interno de sucessos (para calcular success_rate)
     #[serde(default, skip_serializing)]
+    /// Campo success count.
     pub success_count: u64,
 
     /// Contador interno de falhas
     #[serde(default, skip_serializing)]
+    /// Campo failure count.
     pub failure_count: u64,
 }
 
 impl Default for UsageStats {
     fn default() -> Self {
+        // Variante Self.
         Self {
             last_used: 0,
             use_count: 0,
@@ -133,6 +150,7 @@ impl UsageStats {
 
 /// Metadata de uma skill no index.json
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// Estrutura SkillEntry.
 pub struct SkillEntry {
     /// Nome único da skill (kebab-case)
     pub name: String,
@@ -148,30 +166,37 @@ pub struct SkillEntry {
 
     /// Categoria opcional para grouping
     #[serde(default)]
+    /// Campo category.
     pub category: Option<String>,
 
     /// Tags para busca e filtering
     #[serde(default)]
+    /// Campo tags.
     pub tags: Vec<String>,
 
     /// Trigger phrases para semantic discovery
     #[serde(default)]
+    /// Campo trigger phrases.
     pub trigger_phrases: Vec<String>,
 
     /// Dependências de outras skills (nomes)
     #[serde(default)]
+    /// Campo depends on.
     pub depends_on: Vec<String>,
 
     /// Se a skill está ativa (pruning = false quando deprecated)
     #[serde(default = "default_active")]
+    /// Campo active.
     pub active: bool,
 
     /// Content-addressable digest (SHA-256 hex do conteúdo SKILL.md)
     #[serde(default)]
+    /// Campo digest.
     pub digest: String,
 
     /// Métricas de uso
     #[serde(default)]
+    /// Campo usage.
     pub usage: UsageStats,
 }
 
@@ -181,34 +206,41 @@ fn default_active() -> bool {
 
 /// Política de pruning para skills pouco usadas
 #[derive(Debug, Clone, Copy, PartialEq)]
+/// Enumeração PruningPolicy.
 pub enum PruningPolicy {
     /// Remove skills menos recentemente usadas
     Lru,
     /// Remove skills menos frequentemente usadas
     Lfu,
-    /// Remove skills com success_rate abaixo do threshold
+    // Remove skills com success_rate abaixo do threshold
     SuccessRateThreshold(f64),
 }
 
 /// Resultado de semantic search com score
 #[derive(Debug, Clone)]
+/// Estrutura SearchResult.
 pub struct SearchResult<'a> {
+    /// Campo entry.
     pub entry: &'a SkillEntry,
+    /// Campo score.
     pub score: f64,
 }
 
 /// Estrutura raiz do index.json
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura SkillsIndex.
 pub struct SkillsIndex {
     /// Versão do formato do index
     pub version: String,
 
     /// Timestamp da última geração (ISO 8601)
     #[serde(default)]
+    /// Campo generated at.
     pub generated_at: Option<String>,
 
     /// Total de skills registradas
     #[serde(default)]
+    /// Campo total skills.
     pub total_skills: usize,
 
     /// Entradas de skills
@@ -217,6 +249,7 @@ pub struct SkillsIndex {
 
 /// Métricas agregadas do registry
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura RegistryMetrics.
 pub struct RegistryMetrics {
     /// Skills mais usadas (top N)
     pub most_used: Vec<(String, u64)>,
@@ -232,17 +265,14 @@ pub struct RegistryMetrics {
 
 /// Registry de skills com cache e descoberta automática
 #[derive(Debug)]
+/// Estrutura SkillRegistry.
 pub struct SkillRegistry {
-    /// Skills indexadas por nome
     entries: HashMap<String, SkillEntry>,
 
-    /// Caminho base do diretório de skills
     base_path: PathBuf,
 
-    /// Métricas de performance
     load_time_ms: f64,
 
-    /// Modo dry-run (não modifica estado)
     dry_run: bool,
 }
 
@@ -275,6 +305,7 @@ impl SkillRegistry {
             load_time_ms
         );
 
+        // Variante Ok.
         Ok(Self {
             entries,
             base_path: base_path.to_path_buf(),
@@ -285,6 +316,7 @@ impl SkillRegistry {
 
     /// Cria um registry vazio (para testing ou construção manual)
     pub fn empty(base_path: &Path) -> Self {
+        // Variante Self.
         Self {
             entries: HashMap::new(),
             base_path: base_path.to_path_buf(),
@@ -450,6 +482,7 @@ impl SkillRegistry {
             .get_mut(name)
             .ok_or_else(|| RegistryError::SkillNotFound(name.to_string()))?;
         entry.usage.record_usage(success, latency_ms);
+        // Variante Ok.
         Ok(())
     }
 
@@ -569,6 +602,7 @@ impl SkillRegistry {
             path.pop();
             visited.insert(name.to_string());
             result.push(name.to_string());
+            // Variante Ok.
             Ok(())
         }
 
@@ -581,6 +615,7 @@ impl SkillRegistry {
             &mut stack,
         )?;
 
+        // Variante Ok.
         Ok(result)
     }
 
@@ -595,6 +630,7 @@ impl SkillRegistry {
                 }
             }
         }
+        // Variante Ok.
         Ok(deps)
     }
 
@@ -635,6 +671,7 @@ impl SkillRegistry {
 
             let skill_path = self.base_path.join(&entry.path);
             match std::fs::read(&skill_path) {
+                // Variante Ok.
                 Ok(content) => {
                     let actual = Self::compute_digest(&content);
                     if actual != entry.digest {
@@ -645,6 +682,7 @@ impl SkillRegistry {
                         });
                     }
                 }
+                // Variante Err.
                 Err(e) => {
                     warn!("Não foi possível ler '{}': {}", skill_path.display(), e);
                 }
@@ -697,6 +735,7 @@ impl SkillRegistry {
             .map(|(name, _)| name.clone())
             .collect();
 
+        // Variante RegistryMetrics.
         RegistryMetrics {
             most_used,
             least_successful,
@@ -760,6 +799,7 @@ impl SkillRegistry {
         let mut skills: Vec<SkillEntry> = self.entries.values().cloned().collect();
         skills.sort_by(|a, b| a.name.cmp(&b.name));
 
+        // Variante SkillsIndex.
         SkillsIndex {
             version: "1.0.0".to_string(),
             generated_at: None,
@@ -781,6 +821,7 @@ mod tests {
     use std::fs;
 
     fn make_entry(name: &str) -> SkillEntry {
+        /// Variante SkillEntry.
         SkillEntry {
             name: name.to_string(),
             description: format!("{} skill", name),

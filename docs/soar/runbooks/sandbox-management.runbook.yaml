@@ -8,6 +8,9 @@ metadata:
   tags: ["sandbox", "wasm", "docker", "security"]
   related_playbooks:
     - "../playbooks/security-incident-response.md"
+  playbook_ref: "../../playbooks/deploy-release.md"
+  runbook_refs:
+    []
 
 preconditions:
   - check: "WASM runtime available"

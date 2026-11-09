@@ -106,7 +106,7 @@ pub fn create_phase2_router(state: Phase2State) -> Router {
                 let personalities = personalities.clone();
                 let swarm = swarm.clone();
                 let ledger = ledger.clone();
-                let cdp_proxy = cdp_proxy.clone();
+                let _cdp_proxy = cdp_proxy.clone();
                 async move {
                     let shield_stats = shield.stats().await.ok();
                     let memsync_stats = memory_sync.stats().await.ok();

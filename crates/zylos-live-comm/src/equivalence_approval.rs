@@ -87,20 +87,17 @@ pub fn compute_equivalence_hash(
 /// Four-tier decision source for approval decisions.
 /// Priority order: Safety > TeamRule > PersonalRule > AutoReview > Default.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+/// Enumeração DecisionTier.
 pub enum DecisionTier {
-    /// Default policy — lowest priority.
     Default,
-    /// Automated review (e.g., LLM-based risk assessment).
     AutoReview,
-    /// User's personal rule/grant.
     PersonalRule,
-    /// Team-level rule/policy.
     TeamRule,
-    /// Safety constraint — highest priority, never overridable.
     Safety,
 }
 
 impl DecisionTier {
+    /// Função label.
     pub fn label(&self) -> &'static str {
         match self {
             DecisionTier::Default => "default",
@@ -114,11 +111,17 @@ impl DecisionTier {
 
 /// A single decision entry from a specific tier.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura TierDecision.
 pub struct TierDecision {
+    /// Campo tier.
     pub tier: DecisionTier,
+    /// Campo approved.
     pub approved: bool,
+    /// Campo reason.
     pub reason: String,
+    /// Campo rule id.
     pub rule_id: Option<String>,
+    /// Campo decided at.
     pub decided_at: DateTime<Utc>,
 }
 
@@ -128,24 +131,22 @@ pub struct TierDecision {
 
 /// Distinct refusal reasons with informative messages.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Enumeração RefusalReason.
 pub enum RefusalReason {
-    /// Explicitly declined by a human approver.
+    // Explicitly declined by a human approver.
     DeclinedByPerson(String),
-    /// An identical approval is already pending.
     AlreadyWaiting,
-    /// Blocked by a safety-tier rule.
+    // Blocked by a safety-tier rule.
     SafetyBlock(String),
-    /// Blocked by a team policy.
+    // Blocked by a team policy.
     TeamPolicyBlock(String),
-    /// Rate limit exceeded.
     RateLimited,
-    /// Actor not authorized for this action.
     NotAuthorized,
-    /// Action expired before approval.
     Expired,
 }
 
 impl RefusalReason {
+    /// Função message.
     pub fn message(&self) -> String {
         match self {
             RefusalReason::DeclinedByPerson(who) => {
@@ -181,6 +182,7 @@ impl RefusalReason {
         }
     }
 
+    /// Função code.
     pub fn code(&self) -> &'static str {
         match self {
             RefusalReason::DeclinedByPerson(_) => "DECLINED_BY_PERSON",
@@ -200,31 +202,47 @@ impl RefusalReason {
 
 /// Current state of an approval request.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Enumeração ApprovalState.
 pub enum ApprovalState {
     Pending,
     Approved,
+    // Variante Declined.
     Declined(RefusalReason),
     Expired,
 }
 
 /// A stored approval record keyed by equivalence hash.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura ApprovalRecord.
 pub struct ApprovalRecord {
+    /// Campo equivalence hash.
     pub equivalence_hash: String,
+    /// Campo actor id.
     pub actor_id: String,
+    /// Campo bot id.
     pub bot_id: String,
+    /// Campo tool ref.
     pub tool_ref: String,
+    /// Campo effect.
     pub effect: String,
+    /// Campo scope.
     pub scope: String,
+    /// Campo state.
     pub state: ApprovalState,
+    /// Campo tier decisions.
     pub tier_decisions: Vec<TierDecision>,
+    /// Campo final tier.
     pub final_tier: DecisionTier,
+    /// Campo created at.
     pub created_at: DateTime<Utc>,
+    /// Campo resolved at.
     pub resolved_at: Option<DateTime<Utc>>,
+    /// Campo ttl seconds.
     pub ttl_seconds: u64,
 }
 
 impl ApprovalRecord {
+    /// Função is expired.
     pub fn is_expired(&self) -> bool {
         if self.ttl_seconds == 0 {
             return false; // no TTL = never expires
@@ -235,6 +253,7 @@ impl ApprovalRecord {
         elapsed >= self.ttl_seconds as i64
     }
 
+    /// Função is resolved.
     pub fn is_resolved(&self) -> bool {
         // Only truly resolved when resolved_at is set.
         // Lower-tier denials set state to Declined but leave resolved_at=None
@@ -249,9 +268,13 @@ impl ApprovalRecord {
 
 /// Captured continuation context for resuming after approval.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura ContinuationContext.
 pub struct ContinuationContext {
+    /// Campo approval hash.
     pub approval_hash: String,
+    /// Campo resume data.
     pub resume_data: serde_json::Value,
+    /// Campo captured at.
     pub captured_at: DateTime<Utc>,
 }
 
@@ -290,17 +313,26 @@ where
 
 /// Escalation request — always available regardless of grants.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura EscalationRequest.
 pub struct EscalationRequest {
+    /// Campo from actor.
     pub from_actor: String,
+    /// Campo to target.
     pub to_target: String,
+    /// Campo reason.
     pub reason: String,
+    /// Campo related approval hash.
     pub related_approval_hash: Option<String>,
+    /// Campo urgency.
     pub urgency: EscalationUrgency,
+    /// Campo context.
     pub context: serde_json::Value,
+    /// Campo created at.
     pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Enumeração EscalationUrgency.
 pub enum EscalationUrgency {
     Low,
     Normal,
@@ -310,9 +342,13 @@ pub enum EscalationUrgency {
 
 /// Result of an escalation attempt.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura EscalationResult.
 pub struct EscalationResult {
+    /// Campo success.
     pub success: bool,
+    /// Campo escalation id.
     pub escalation_id: String,
+    /// Campo message.
     pub message: String,
 }
 
@@ -322,7 +358,9 @@ pub struct EscalationTool {
 }
 
 impl EscalationTool {
+    /// Função new.
     pub fn new() -> Self {
+        // Variante Self.
         Self {
             escalations: Mutex::new(Vec::new()),
         }
@@ -339,6 +377,7 @@ impl EscalationTool {
         let mut escalations = self.escalations.lock().unwrap();
         escalations.push(request);
 
+        // Variante EscalationResult.
         EscalationResult {
             success: true,
             escalation_id: id,
@@ -347,6 +386,7 @@ impl EscalationTool {
         }
     }
 
+    /// Função all escalations.
     pub fn all_escalations(&self) -> Vec<EscalationRequest> {
         self.escalations.lock().unwrap().clone()
     }
@@ -369,7 +409,9 @@ pub struct EquivalenceApprovalService {
 }
 
 impl EquivalenceApprovalService {
+    /// Função new.
     pub fn new() -> Self {
+        // Variante Self.
         Self {
             records: Mutex::new(HashMap::new()),
             escalation: EscalationTool::new(),
@@ -499,6 +541,7 @@ impl EquivalenceApprovalService {
         }
 
         record.tier_decisions.push(decision);
+        // Variante Ok.
         Ok(ApplyResult::Applied)
     }
 
@@ -544,17 +587,19 @@ impl Default for EquivalenceApprovalService {
 
 /// Result of submitting an approval request.
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Enumeração SubmitResult.
 pub enum SubmitResult {
-    /// New approval created, now pending.
+    // New approval created, now pending.
     NewPending(String),
-    /// Equivalent approval already approved — reuse.
+    // Equivalent approval already approved — reuse.
     ReusedApproved(String),
-    /// Equivalent approval already pending — reuse.
+    // Equivalent approval already pending — reuse.
     ReusedPending(String),
 }
 
 /// Result of applying a tier decision.
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Enumeração ApplyResult.
 pub enum ApplyResult {
     Applied,
     SafetyBlocked,
@@ -722,6 +767,7 @@ mod tests {
         // Try to override with team rule approval — must fail
         let override_result = svc.apply_tier_decision(
             &hash,
+            /// Variante TierDecision.
             TierDecision {
                 tier: DecisionTier::TeamRule,
                 approved: true,
@@ -766,6 +812,7 @@ mod tests {
         // Team rule approve overrides default
         svc.apply_tier_decision(
             &hash,
+            /// Variante TierDecision.
             TierDecision {
                 tier: DecisionTier::TeamRule,
                 approved: true,
@@ -895,6 +942,7 @@ mod tests {
     async fn test_continuation_absent_outside_scope() {
         // Accessing task-local without setting it first panics.
         // Verify that within a scope initialized to None, has/take return false/None.
+        /// Variante CONTINUATION CTX.
         CONTINUATION_CTX
             .scope(std::cell::RefCell::new(None), async {
                 assert!(!has_continuation());

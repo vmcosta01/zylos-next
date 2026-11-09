@@ -7,17 +7,19 @@ Runtime de orquestração de agentes com DAG executor, lifecycle management, P2P
 | Task | Descrição | Status |
 |------|-----------|--------|
 | 2.1.1 | DAG Runtime (petgraph + tokio) | ✅ Implementado |
-| 2.1.2 | Kanban integration | ❌ Ausente |
+| 2.1.2 | Kanban integration | ✅ Implementado — `kanban_bridge.rs` com bidirectional sync |
 | 2.1.3 | WorkflowDSL | ✅ Implementado |
 | 2.2.1 | CerebeloExecutor | ✅ Implementado |
 | 2.2.2 | Lifecycle gating | ✅ Implementado |
-| 2.3 | P2P federation | ⚠️ Parcial — P2PMessenger local implementado, networking real ausente |
+| 2.3 | P2P federation | ✅ Implementado — `p2p_network.rs` com QUIC transport |
 
 ## Features Implementadas
 
 - **DagExecutor**: petgraph toposort + cycle detection, conditional edges (CEL-like evaluator), semaphore backpressure, checkpoint/restore SQLite, retry/backoff, artifact passing, cancellation via CancellationToken
 - **LifecycleManager**: DashMap + JoinSet agent registry, spawn/kill/shutdown_all com timeout, state broadcasting
 - **P2PMessenger**: topic-based pub/sub in-process, dead letter queue FIFO, TTL expiration, publish_with_ack
+- **P2P Network**: QUIC-based transport layer (Quinn + rustls), blake3 integrity framing, peer discovery via seeds, NetworkBridge integration with P2PMessenger
+- **Kanban Bridge**: bidirectional sync between DAG execution and Hermes Kanban, task column mapping, polling for external changes, transport-agnostic backend trait
 - **CerebeloExecutor**: multi-backend (Local/Docker/Wasm stubs), ExecutionAuthority task_local, VerifySpec command execution, HeartbeatMonitor (60s/180s), IdempotencyTracker, RecoveryLadder (Retry→Decompose→Delegate→EscalateHuman), CerebeloWriteGate integration
 - **WorkflowDSL**: YAML parsing → DagDefinition, validation (unique IDs, edge refs, DFS cycle detection, conditions), compile_spec roundtrip
 - **ArtifactProvenance**: node_id/run_id/timestamp/verification_status/parent_artifacts tracking
@@ -61,10 +63,8 @@ pub fn validate_workflow(spec: &WorkflowSpec) -> Result<(), Vec<ValidationError>
 
 ## Gaps Críticos
 
-1. **Kanban integration (Task 2.1.2)**: completamente ausente — sem boardstate connector ou kanban sync
-2. **P2P networking real**: P2PMessenger é in-process apenas; sem TCP/QUIC/WebRTC transport layer para federação entre nós
-3. **Docker/Wasm backends**: stubs retornando OutcomeUncertainty — implementação real pendente
-4. **chrono_now_stub()**: placeholder em p2p.rs indicando que timestamp real não está wired
+1. **Docker/Wasm backends**: stubs retornando OutcomeUncertainty — implementação real pendente
+2. **chrono_now_stub()**: placeholder em p2p.rs indicando que timestamp real não está wired
 
 ## Exemplo de Uso
 

@@ -11,17 +11,22 @@ use tracing::{debug, info};
 
 /// Erros do sistema de debt tracking
 #[derive(Error, Debug)]
+/// Enumeração DebtError.
 pub enum DebtError {
     #[error("falha ao ler arquivo: {0}")]
+    // Variante IoError.
     IoError(#[from] std::io::Error),
 
     #[error("JSON inválido: {0}")]
+    // Variante ParseError.
     ParseError(#[from] serde_json::Error),
 
     #[error("diretório não encontrado: {0}")]
+    // Variante DirectoryNotFound.
     DirectoryNotFound(String),
 
     #[error("nenhuma dívida encontrada")]
+    /// Variante NoDebtFound.
     NoDebtFound,
 }
 
@@ -31,11 +36,13 @@ pub type DebtResult<T> = Result<T, DebtError>;
 /// Severidade da dívida técnica
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Default)]
 #[serde(rename_all = "lowercase")]
+/// Enumeração DebtSeverity.
 pub enum DebtSeverity {
     /// Baixa prioridade, pode esperar
     Low,
     /// Média prioridade, resolver no próximo sprint
     #[default]
+    /// Variante Medium.
     Medium,
     /// Alta prioridade, resolver urgentemente
     High,
@@ -59,6 +66,7 @@ impl std::fmt::Display for DebtSeverity {
 /// Categoria da dívida técnica
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+/// Enumeração DebtCategory.
 pub enum DebtCategory {
     /// Código duplicado ou redundante
     Duplication,
@@ -76,7 +84,7 @@ pub enum DebtCategory {
     Dependency,
     /// Design/API inconsistente
     Design,
-    /// Outro tipo de dívida
+    // Outro tipo de dívida
     Other(String),
 }
 
@@ -104,6 +112,7 @@ impl Default for DebtCategory {
 
 /// Item individual de dívida técnica extraído de um comentário `shortcut:`
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura DebtItem.
 pub struct DebtItem {
     /// Descrição da dívida
     pub description: String,
@@ -125,15 +134,18 @@ pub struct DebtItem {
 
     /// Tags associadas
     #[serde(default)]
+    /// Campo tags.
     pub tags: Vec<String>,
 
     /// Ticket ou issue relacionada (opcional)
     #[serde(default)]
+    /// Campo ticket.
     pub ticket: Option<String>,
 }
 
 /// Relatório consolidado de dívida técnica
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura DebtReport.
 pub struct DebtReport {
     /// Total de itens encontrados
     pub total_items: usize,
@@ -159,14 +171,15 @@ pub struct DebtReport {
 
 /// Parser de comentários `shortcut:`
 #[derive(Debug)]
+/// Estrutura DebtParser.
 pub struct DebtParser {
-    /// Prefixo do marcador de dívida
     marker: String,
 }
 
 impl DebtParser {
     /// Cria um parser com o marcador padrão `shortcut:`
     pub fn new() -> Self {
+        // Variante Self.
         Self {
             marker: "shortcut:".to_string(),
         }
@@ -174,6 +187,7 @@ impl DebtParser {
 
     /// Cria um parser com marcador customizado
     pub fn with_marker(marker: &str) -> Self {
+        // Variante Self.
         Self {
             marker: marker.to_string(),
         }
@@ -279,6 +293,7 @@ impl DebtParser {
         }
         description = desc_parts.join(" ");
 
+        // Variante DebtItem.
         DebtItem {
             description,
             severity,
@@ -306,6 +321,7 @@ impl DebtParser {
             dir.display()
         );
 
+        // Variante Ok.
         Ok(all_items)
     }
 
@@ -336,6 +352,7 @@ impl DebtParser {
             }
         }
 
+        // Variante Ok.
         Ok(())
     }
 }
@@ -381,6 +398,7 @@ pub fn generate_report(items: Vec<DebtItem>, scanned_dir: &str) -> DebtReport {
         (1.0 - (weighted / max_possible)).max(0.0)
     };
 
+    // Variante DebtReport.
     DebtReport {
         total_items: total,
         by_severity,
@@ -560,6 +578,7 @@ fn clean_code() {
     #[test]
     fn test_generate_report_with_items() {
         let items = vec![
+            /// Variante DebtItem.
             DebtItem {
                 description: "Fix A".to_string(),
                 severity: DebtSeverity::High,
@@ -570,6 +589,7 @@ fn clean_code() {
                 tags: vec![],
                 ticket: None,
             },
+            /// Variante DebtItem.
             DebtItem {
                 description: "Fix B".to_string(),
                 severity: DebtSeverity::Low,

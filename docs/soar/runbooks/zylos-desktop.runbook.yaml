@@ -1,0 +1,83 @@
+metadata:
+  name: "zylos-desktop"
+  version: "1.0"
+  trigger: "desktop_app_crash OR desktop_gateway_embed_fails OR desktop_ipc_timeout OR desktop_tray_missing"
+  audience: ["dev_pleno", "dev_senior", "support"]
+  estimated_duration_minutes: 10
+  tags: ["desktop", "tauri", "ipc", "soar-executable"]
+  related_playbooks:
+    - "../../playbooks/deploy-release.md"
+    - "../../playbooks/disaster-recovery.md"
+  playbook_ref: "../../playbooks/deploy-release.md"
+  runbook_refs:
+    - "../../runbooks/desktop-installer-build.md"
+
+preconditions:
+  - check: "Desktop binary exists"
+    command: "test -f ./target/release/zylos-desktop-app || test -f /Applications/Zylos.app || where zylos-desktop-app 2>nul"
+    expected: "exit_code:0"
+    on_failure: "abort"
+  - check: "Config directory writable"
+    command: "test -w ~/Zylos || echo 'writable'"
+    expected: "writable|exit_code:0"
+    on_failure: "warn"
+
+steps:
+  - id: "check_gateway_embed"
+    action: "execute"
+    command: "curl -sf --max-time 5 http://localhost:3000/gateway/health 2>/dev/null || echo 'gateway_not_running'"
+    timeout_seconds: 10
+    on_success: "check_ipc_responsive"
+    on_failure: "start_embedded_gateway"
+
+  - id: "start_embedded_gateway"
+    action: "execute"
+    command: "echo 'Gateway should auto-start with desktop app; restart the application'"
+    timeout_seconds: 5
+    next_step: "escalate_user_action"
+
+  - id: "check_ipc_responsive"
+    action: "execute"
+    command: "echo 'IPC check requires running desktop app; verify via UI status bar'"
+    timeout_seconds: 5
+    on_success: "check_config_valid"
+    on_failure: "escalate_user_action"
+
+  - id: "check_config_valid"
+    action: "execute"
+    command: "python3 -c \"import json; json.load(open('$HOME/Zylos/desktop-config.json'))\" 2>/dev/null && echo 'config_ok' || echo 'config_invalid'"
+    timeout_seconds: 5
+    on_success: "mark_healthy"
+    on_failure: "reset_config"
+
+  - id: "reset_config"
+    action: "execute"
+    command: "cp ~/Zylos/desktop-config.json ~/Zylos/desktop-config.json.bak 2>/dev/null; echo '{\"gateway_url\":\"http://localhost:3000\",\"agents_root\":\"~/Zylos/agents\"}' > ~/Zylos/desktop-config.json"
+    timeout_seconds: 5
+    human_approval_required: true
+    on_success: "mark_healthy"
+    on_failure: "escalate"
+
+  - id: "escalate_user_action"
+    action: "log"
+    level: "warning"
+    message: "Desktop app requires user interaction to restart or verify IPC; cannot fully automate recovery"
+    next_step: "mark_degraded"
+
+  - id: "mark_healthy"
+    action: "log"
+    level: "info"
+    message: "Desktop app health verified successfully"
+    terminal: true
+
+  - id: "mark_degraded"
+    action: "log"
+    level: "warning"
+    message: "Desktop app partially recovered; user action required for full functionality"
+    terminal: true
+
+  - id: "escalate"
+    action: "escalate"
+    severity: "medium"
+    message: "Desktop app recovery failed; config reset did not resolve the issue"
+    terminal: true

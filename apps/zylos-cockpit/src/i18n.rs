@@ -7,12 +7,14 @@ use leptos::prelude::*;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum Locale {
     PtBr,
     EnUs,
 }
 
 impl Locale {
+    #[allow(dead_code)]
     pub fn code(&self) -> &'static str {
         match self {
             Locale::PtBr => "pt-BR",
@@ -85,6 +87,7 @@ impl I18n {
         }
     }
 
+    #[allow(dead_code)]
     pub fn locale(&self) -> RwSignal<Locale> {
         self.locale
     }
@@ -102,6 +105,7 @@ impl I18n {
             .to_string()
     }
 
+    #[allow(dead_code)]
     pub fn set_locale(&self, locale: Locale) {
         self.locale.set(locale);
     }

@@ -44,6 +44,7 @@ pub struct OAuthSession {
 
 /// Manages OAuth2 PKCE flows for all registered providers.
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct OAuthFlow {
     db: TokenStore,
     pending_sessions: Arc<RwLock<std::collections::HashMap<String, PendingSession>>>,
@@ -66,7 +67,7 @@ impl OAuthFlow {
     }
 
     /// Initiate an OAuth2 PKCE authorization flow.
-    pub async fn initiate(&self, spec: &IntegrationSpec, redirect_uri: &str) -> Result<OAuthSession> {
+    pub async fn initiate(&self, spec: &IntegrationSpec, _redirect_uri: &str) -> Result<OAuthSession> {
         let client = build_client(spec)?;
 
         let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();

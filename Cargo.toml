@@ -27,6 +27,10 @@ members = [
     "crates/zylos-ag-ui",
     "crates/zylos-desktop",
     "crates/zylos-goals",
+    "crates/zylos-vault",
+    "crates/zylos-templates",
+    "apps/zylos-desktop/src-tauri",
+    "crates/zylos-a2m",
     "crates/zylos-browser-takeover",
     "crates/zylos-evidence-ledger",
     "tests/zylos-e2e",
@@ -105,6 +109,9 @@ zylos-browser-persistent = { path = "crates/zylos-browser-persistent" }
 zylos-ag-ui = { path = "crates/zylos-ag-ui" }
 zylos-desktop = { path = "crates/zylos-desktop" }
 zylos-goals = { path = "crates/zylos-goals" }
+zylos-vault = { path = "crates/zylos-vault" }
+zylos-templates = { path = "crates/zylos-templates" }
+zylos-a2m = { path = "crates/zylos-a2m" }
 zylos-browser-takeover = { path = "crates/zylos-browser-takeover" }
 zylos-evidence-ledger = { path = "crates/zylos-evidence-ledger" }
 async-stream = "0.3"

@@ -23,6 +23,7 @@ pub struct HealthResponse {
 
 /// Dashboard state machine (APP_FLOW.md mandatory states)
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
 pub enum DashboardState {
     Loading,
     Empty,
@@ -99,7 +100,8 @@ pub fn App() -> impl IntoView {
     // Initialize global contexts
     let _theme_ctx = provide_theme();
     let _i18n_ctx = provide_i18n(Locale::PtBr);
-    let _stream_ctx = provide_stream(StreamConfig::default());
+    let stream_ctx = provide_stream(StreamConfig::default());
+    stream_ctx.connect(); // abre o SSE em /api/v1/events
 
     let (state, set_state) = signal(DashboardState::Loading);
     let (active_tab, set_active_tab) = signal(Tab::Agents);

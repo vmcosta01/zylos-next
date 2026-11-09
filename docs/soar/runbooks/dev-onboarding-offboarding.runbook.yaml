@@ -8,6 +8,9 @@ metadata:
   related_playbooks:
     - "../playbooks/stakeholder-communication.md"
     - "../playbooks/security-incident-response.md"
+  playbook_ref: "../../playbooks/onboarding-devs.md"
+  runbook_refs:
+    []
 
 preconditions:
   - check: "GitHub CLI authenticated"

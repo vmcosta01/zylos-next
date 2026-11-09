@@ -21,16 +21,27 @@ use uuid::Uuid;
 // ---------------------------------------------------------------------------
 
 /// Functional division that groups related personalities.
+///
+/// Divisions organize agent personalities into logical categories reflecting
+/// organizational roles. Each personality belongs to exactly one division.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Division {
+    /// Software engineering and systems development.
     Engineering,
+    /// Research, analysis, and knowledge synthesis.
     Research,
+    /// Infrastructure, deployment, and operational workflows.
     Operations,
+    /// Design, UX, and creative problem-solving.
     Creative,
+    /// Security auditing, threat modeling, and compliance.
     Security,
+    /// Project management, coordination, and planning.
     Management,
+    /// User support, onboarding, and assistance.
     Support,
+    /// User-defined division for custom personalities.
     Custom,
 }
 
@@ -97,25 +108,37 @@ impl Default for CommunicationStyle {
 }
 
 /// Behavioral trait that shapes agent decision-making.
+///
+/// Traits are weighted characteristics that influence how an agent approaches
+/// tasks, communicates, and makes decisions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BehavioralTrait {
+    /// Trait identifier (e.g. "precision", "pragmatism").
     pub name: String,
+    /// Human-readable description of the trait's effect.
     pub description: String,
     /// Weight 0.0–1.0 indicating how strongly this trait influences behavior.
     pub weight: f64,
 }
 
 /// Expertise domain with proficiency level.
+///
+/// Represents a specific area of knowledge or skill that an agent possesses,
+/// used to frame LLM context and route tasks appropriately.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExpertiseDomain {
+    /// Domain name (e.g. "Rust", "System Design", "Threat Modeling").
     pub domain: String,
-    /// Proficiency: beginner, intermediate, advanced, expert.
+    /// Proficiency level: beginner, intermediate, advanced, expert.
     pub proficiency: String,
     /// Years of equivalent experience (for LLM context framing).
     pub years_experience: Option<u32>,
 }
 
 /// Collaboration preference for multi-agent workflows.
+///
+/// Defines how an agent prefers to work within teams, including role,
+/// team size, and conflict resolution strategy.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CollaborationPreference {
     /// Preferred team size: solo, small (2-4), medium (5-10), large (10+).
@@ -140,25 +163,41 @@ impl Default for CollaborationPreference {
 }
 
 /// A complete agent personality profile.
+///
+/// Contains all configuration needed to define an agent's identity: division,
+/// communication style, behavioral traits, expertise domains, and collaboration
+/// preferences. Stored in SQLite via [`PersonalityRegistry`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PersonalityProfile {
+    /// Unique identifier (UUID v4).
     pub id: String,
+    /// URL-safe slug for lookups (e.g. "senior-engineer").
     pub slug: String,
+    /// Human-readable display name.
     pub display_name: String,
+    /// Functional division this personality belongs to.
     pub division: Division,
+    /// Free-text description of the personality's purpose and behavior.
     pub description: String,
+    /// System prompt fragment injected into LLM context.
     pub system_prompt_fragment: String,
+    /// Communication style configuration.
     pub communication_style: CommunicationStyle,
+    /// Weighted behavioral traits influencing decision-making.
     pub behavioral_traits: Vec<BehavioralTrait>,
+    /// Expertise domains with proficiency levels.
     pub expertise_domains: Vec<ExpertiseDomain>,
+    /// Collaboration preferences for multi-agent workflows.
     pub collaboration: CollaborationPreference,
     /// Tags for filtering and grouping.
     pub tags: Vec<String>,
     /// Whether this personality is active/available.
     pub active: bool,
-    /// Version for migration tracking.
+    /// Schema version for migration tracking.
     pub version: u32,
+    /// Creation timestamp.
     pub created_at: DateTime<Utc>,
+    /// Last update timestamp.
     pub updated_at: DateTime<Utc>,
 }
 
@@ -202,22 +241,38 @@ impl PersonalityProfile {
 }
 
 /// Query filter for personality lookups.
+///
+/// All fields are optional; omitted filters are not applied. Combine multiple
+/// filters to narrow results. Use with [`PersonalityRegistry::query`].
 #[derive(Debug, Clone, Default)]
 pub struct PersonalityQuery {
+    /// Filter by functional division.
     pub division: Option<Division>,
+    /// Filter by tag substring match.
     pub tag: Option<String>,
+    /// When true, only return active personalities.
     pub active_only: bool,
+    /// Substring search across display_name, description, and slug.
     pub search: Option<String>,
+    /// Maximum number of results to return.
     pub limit: Option<usize>,
+    /// Number of results to skip (for pagination).
     pub offset: Option<usize>,
 }
 
 /// Summary statistics about the personality registry.
+///
+/// Returned by [`PersonalityRegistry::stats`] to provide an overview of
+/// registered personalities, their divisions, and tag distribution.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PersonalityStats {
+    /// Total number of registered profiles (active + inactive).
     pub total_profiles: usize,
+    /// Number of currently active profiles.
     pub active_profiles: usize,
+    /// Profile count grouped by division name.
     pub division_counts: HashMap<String, usize>,
+    /// Profile count grouped by tag.
     pub tag_counts: HashMap<String, usize>,
 }
 
@@ -225,20 +280,28 @@ pub struct PersonalityStats {
 // Error Type
 // ---------------------------------------------------------------------------
 
+/// Errors that can occur when working with personality profiles.
 #[derive(Debug, thiserror::Error)]
 pub enum PersonalityError {
+    /// SQLite database error.
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
+    /// JSON serialization/deserialization error.
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
+    /// YAML parsing error (e.g. loading profiles from files).
     #[error("YAML parse error: {0}")]
     YamlParse(#[from] serde_yaml::Error),
+    /// Requested personality was not found.
     #[error("Not found: {0}")]
     NotFound(String),
+    /// A personality with the same slug already exists.
     #[error("Duplicate slug: {0}")]
     DuplicateSlug(String),
+    /// Filesystem I/O error.
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+    /// Catch-all for internal errors.
     #[error("Internal: {0}")]
     Internal(String),
 }
@@ -804,5 +867,134 @@ mod tests {
         let deleted = registry.delete("del-me").await.unwrap();
         assert!(deleted);
         assert!(registry.get_by_slug("del-me").await.unwrap().is_none());
+    }
+
+    #[test]
+    fn test_division_from_str_aliases() {
+        assert_eq!(Division::from_str("eng").unwrap(), Division::Engineering);
+        assert_eq!(Division::from_str("ops").unwrap(), Division::Operations);
+        assert_eq!(Division::from_str("sec").unwrap(), Division::Security);
+        assert_eq!(Division::from_str("mgmt").unwrap(), Division::Management);
+        assert!(Division::from_str("nonexistent").is_err());
+    }
+
+    #[test]
+    fn test_personality_profile_serialization_roundtrip() {
+        let mut p = PersonalityProfile::new("serde-test", "Serde Test", Division::Research);
+        p.description = "Testing serialization".into();
+        p.tags = vec!["test".into(), "serde".into()];
+        p.expertise_domains = vec![ExpertiseDomain {
+            domain: "Testing".into(),
+            proficiency: "expert".into(),
+            years_experience: Some(5),
+        }];
+
+        let json = serde_json::to_string(&p).unwrap();
+        let deserialized: PersonalityProfile = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.slug, "serde-test");
+        assert_eq!(deserialized.division, Division::Research);
+        assert_eq!(deserialized.tags.len(), 2);
+        assert_eq!(deserialized.expertise_domains[0].domain, "Testing");
+    }
+
+    #[test]
+    fn test_fingerprint_changes_on_content_change() {
+        let mut p = PersonalityProfile::new("fp-change", "FP Change", Division::Engineering);
+        let fp1 = p.fingerprint();
+        p.system_prompt_fragment = "Changed prompt".into();
+        let fp2 = p.fingerprint();
+        assert_ne!(fp1, fp2);
+    }
+
+    #[tokio::test]
+    async fn test_query_with_search_and_limit() {
+        let registry = PersonalityRegistry::open(":memory:").await.unwrap();
+        registry.create(&PersonalityProfile::new("alpha-one", "Alpha One", Division::Engineering)).await.unwrap();
+        registry.create(&PersonalityProfile::new("alpha-two", "Alpha Two", Division::Research)).await.unwrap();
+        registry.create(&PersonalityProfile::new("beta-one", "Beta One", Division::Engineering)).await.unwrap();
+
+        let results = registry.query(&PersonalityQuery {
+            search: Some("alpha".into()),
+            limit: Some(1),
+            ..Default::default()
+        }).await.unwrap();
+        assert_eq!(results.len(), 1);
+        assert!(results[0].slug.contains("alpha"));
+    }
+
+    #[tokio::test]
+    async fn test_get_by_id() {
+        let registry = PersonalityRegistry::open(":memory:").await.unwrap();
+        let profile = PersonalityProfile::new("id-lookup", "ID Lookup", Division::Creative);
+        let id = profile.id.clone();
+        registry.create(&profile).await.unwrap();
+
+        let retrieved = registry.get_by_id(&id).await.unwrap().unwrap();
+        assert_eq!(retrieved.slug, "id-lookup");
+        assert_eq!(retrieved.division, Division::Creative);
+    }
+
+    #[tokio::test]
+    async fn test_list_divisions_counts() {
+        let registry = PersonalityRegistry::open(":memory:").await.unwrap();
+        registry.create(&PersonalityProfile::new("e1", "E1", Division::Engineering)).await.unwrap();
+        registry.create(&PersonalityProfile::new("e2", "E2", Division::Engineering)).await.unwrap();
+        registry.create(&PersonalityProfile::new("r1", "R1", Division::Research)).await.unwrap();
+
+        let divisions = registry.list_divisions().await.unwrap();
+        assert_eq!(divisions.get("engineering"), Some(&2));
+        assert_eq!(divisions.get("research"), Some(&1));
+    }
+
+    #[tokio::test]
+    async fn test_stats_tag_counts() {
+        let registry = PersonalityRegistry::open(":memory:").await.unwrap();
+        let mut p1 = PersonalityProfile::new("tag1", "Tag1", Division::Engineering);
+        p1.tags = vec!["rust".into(), "backend".into()];
+        let mut p2 = PersonalityProfile::new("tag2", "Tag2", Division::Engineering);
+        p2.tags = vec!["rust".into(), "frontend".into()];
+        registry.create(&p1).await.unwrap();
+        registry.create(&p2).await.unwrap();
+
+        let stats = registry.stats().await.unwrap();
+        assert_eq!(stats.total_profiles, 2);
+        assert_eq!(stats.tag_counts.get("rust"), Some(&2));
+        assert_eq!(stats.tag_counts.get("backend"), Some(&1));
+        assert_eq!(stats.tag_counts.get("frontend"), Some(&1));
+    }
+
+    #[tokio::test]
+    async fn test_update_nonexistent_returns_false() {
+        let registry = PersonalityRegistry::open(":memory:").await.unwrap();
+        let profile = PersonalityProfile::new("ghost", "Ghost", Division::Custom);
+        let updated = registry.update(&profile).await.unwrap();
+        assert!(!updated);
+    }
+
+    #[tokio::test]
+    async fn test_delete_nonexistent_returns_false() {
+        let registry = PersonalityRegistry::open(":memory:").await.unwrap();
+        let deleted = registry.delete("does-not-exist").await.unwrap();
+        assert!(!deleted);
+    }
+
+    #[tokio::test]
+    async fn test_communication_style_default() {
+        let style = CommunicationStyle::default();
+        assert_eq!(style.tone, "professional");
+        assert_eq!(style.verbosity, "concise");
+        assert!(!style.use_emojis);
+        assert_eq!(style.language, "en");
+        assert!(style.proactive);
+        assert_eq!(style.format, "mixed");
+    }
+
+    #[tokio::test]
+    async fn test_collaboration_preference_default() {
+        let collab = CollaborationPreference::default();
+        assert_eq!(collab.preferred_team_size, "small");
+        assert_eq!(collab.role, "contributor");
+        assert!(collab.defer_to_experts);
+        assert_eq!(collab.conflict_resolution, "data_driven");
     }
 }

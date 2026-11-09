@@ -19,44 +19,63 @@ use zylos_skills::{
 
 /// Shared state for skills API handlers
 #[derive(Clone)]
+/// Estrutura SkillsApiState.
 pub struct SkillsApiState {
+    /// Campo registry.
     pub registry: Arc<RwLock<SkillRegistry>>,
+    /// Campo validator.
     pub validator: Arc<SkillValidator>,
+    /// Campo eval flywheel.
     pub eval_flywheel: Arc<RwLock<EvalFlywheel>>,
 }
 
 /// Response for skill listing
 #[derive(Serialize, serde::Deserialize)]
+/// Estrutura SkillsListResponse.
 pub struct SkillsListResponse {
+    /// Campo total.
     pub total: usize,
+    /// Campo skills.
     pub skills: Vec<SkillEntry>,
 }
 
 /// Response for single skill lookup
 #[derive(Serialize, serde::Deserialize)]
+/// Estrutura SkillDetailResponse.
 pub struct SkillDetailResponse {
+    /// Campo skill.
     pub skill: SkillEntry,
 }
 
 /// Request body for eval run
 #[derive(Deserialize)]
+/// Estrutura EvalRunRequest.
 pub struct EvalRunRequest {
+    /// Campo test case id.
     pub test_case_id: String,
+    /// Campo scores.
     pub scores: Vec<EvalScoreInput>,
 }
 
 /// Individual score input for eval
 #[derive(Deserialize)]
+/// Estrutura EvalScoreInput.
 pub struct EvalScoreInput {
+    /// Campo criterion.
     pub criterion: String,
+    /// Campo score.
     pub score: f64,
+    /// Campo reasoning.
     pub reasoning: String,
 }
 
 /// Error response
 #[derive(Serialize, serde::Deserialize)]
+/// Estrutura ApiError.
 pub struct ApiError {
+    /// Campo error.
     pub error: String,
+    /// Campo code.
     pub code: String,
 }
 
@@ -88,6 +107,7 @@ async fn list_skills(
     let registry = state.registry.read().await;
     let skills: Vec<SkillEntry> = registry.list_all().into_iter().cloned().collect();
 
+    // Variante Ok.
     Ok(Json(SkillsListResponse {
         total: skills.len(),
         skills,
@@ -102,9 +122,11 @@ async fn get_skill(
     let registry = state.registry.read().await;
 
     match registry.get(&id) {
+        // Variante Ok.
         Ok(skill) => Ok(Json(SkillDetailResponse {
             skill: skill.clone(),
         })),
+        // Variante Err.
         Err(_) => Err(ApiError {
             error: format!("Skill '{}' not found", id),
             code: "NOT_FOUND".to_string(),
@@ -131,7 +153,9 @@ async fn run_eval(
     let mut flywheel = state.eval_flywheel.write().await;
 
     match flywheel.evaluate_mock(&request.test_case_id, scores) {
+        // Variante Ok.
         Ok(report) => Ok(Json(report)),
+        // Variante Err.
         Err(e) => Err(ApiError {
             error: e.to_string(),
             code: "EVAL_FAILED".to_string(),
@@ -182,6 +206,7 @@ mod tests {
             tags: vec![],
         });
 
+        /// Variante SkillsApiState.
         SkillsApiState {
             registry: Arc::new(RwLock::new(registry)),
             validator: Arc::new(SkillValidator::default_schema().unwrap()),

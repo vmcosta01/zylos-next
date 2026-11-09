@@ -18,14 +18,11 @@ use tracing::{debug, info_span, Instrument};
 
 /// Strategy applied when a subscriber's bounded channel is full.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Enumeração BackpressureStrategy.
 pub enum BackpressureStrategy {
-    /// Drop the oldest buffered event for that subscriber (default).
     DropOldest,
-    /// Drop the newest incoming event for that subscriber.
     DropNewest,
-    /// Block the producer until space is available (not recommended for broadcast).
     BlockProducer,
-    /// Log a slow-consumer alert and drop the event.
     SlowConsumerAlert,
 }
 
@@ -41,6 +38,7 @@ impl Default for BackpressureStrategy {
 
 #[derive(Clone)]
 struct Subscriber {
+    #[allow(dead_code)]
     id: String,
     topic_pattern: String,
     filter: Option<CompiledFilter>,
@@ -55,20 +53,28 @@ struct Subscriber {
 
 /// Per-topic metrics exposed for scraping / dashboards.
 #[derive(Debug, Default)]
+/// Estrutura TopicMetrics.
 pub struct TopicMetrics {
+    /// Campo publish count.
     pub publish_count: AtomicU64,
+    /// Campo subscriber count.
     pub subscriber_count: AtomicU64,
+    /// Campo drop count.
     pub drop_count: AtomicU64,
+    /// Campo latency sum us.
     pub latency_sum_us: AtomicU64,
 }
 
 impl TopicMetrics {
+    /// Função publish rate.
     pub fn publish_rate(&self) -> u64 {
         self.publish_count.load(Ordering::Relaxed)
     }
+    /// Função subscribers.
     pub fn subscribers(&self) -> u64 {
         self.subscriber_count.load(Ordering::Relaxed)
     }
+    /// Função drops.
     pub fn drops(&self) -> u64 {
         self.drop_count.load(Ordering::Relaxed)
     }
@@ -81,6 +87,7 @@ impl TopicMetrics {
 /// Central event bus integrating typed events, topic routing, backpressure,
 /// persistence, filtering, DLQ, schema validation and observability.
 #[derive(Clone)]
+/// Estrutura EventBus.
 pub struct EventBus {
     inner: Arc<Inner>,
 }
@@ -105,6 +112,7 @@ impl EventBus {
     /// * `store` – optional persistent backend; pass `None` for in-memory only.
     pub fn new(capacity: usize, store: Option<EventStore>) -> Self {
         let (global_tx, _) = broadcast::channel(capacity.max(1));
+        // Variante Self.
         Self {
             inner: Arc::new(Inner {
                 global_tx,
@@ -122,11 +130,13 @@ impl EventBus {
 
     // -- configuration ------------------------------------------------------
 
+    /// Função with strategy.
     pub fn with_strategy(mut self, s: BackpressureStrategy) -> Self {
         Arc::get_mut(&mut self.inner).unwrap().default_strategy = s;
         self
     }
 
+    /// Função with max retries.
     pub fn with_max_retries(mut self, n: u32) -> Self {
         Arc::get_mut(&mut self.inner).unwrap().max_retries_before_dlq = n;
         self
@@ -181,7 +191,9 @@ impl EventBus {
                     }
                 }
                 match sub.tx.send(envelope.clone()) {
+                    // Variante Ok.
                     Ok(_) => delivered += 1,
+                    // Variante Err.
                     Err(_) => {
                         self.inc_drop(&topic).await;
                     }
@@ -196,6 +208,7 @@ impl EventBus {
             self.add_latency(&topic, elapsed).await;
 
             debug!(seq = envelope.sequence, delivered, "published");
+            // Variante Ok.
             Ok(envelope.sequence)
         }
         .instrument(span)
@@ -214,6 +227,7 @@ impl EventBus {
         let id = id.into();
         let topic_pattern = topic_pattern.into();
         let filter = match filter_expr {
+            // Variante Some.
             Some(expr) if !expr.is_empty() => Some(
                 self.inner
                     .filter_cache
@@ -235,6 +249,7 @@ impl EventBus {
             map.insert(id, sub);
         }
         self.inc_sub_count(&topic_pattern).await;
+        // Variante Ok.
         Ok(rx)
     }
 
@@ -253,6 +268,7 @@ impl EventBus {
 
     // -- replay -------------------------------------------------------------
 
+    /// Função replay.
     pub fn replay(
         &self,
         topic: &str,
@@ -260,49 +276,60 @@ impl EventBus {
         limit: u64,
     ) -> Result<Vec<EventEnvelope>, LiveCommError> {
         match &self.inner.store {
+            // Variante Some.
             Some(store) => store
                 .replay(topic, last_sequence, limit)
                 .map_err(|e| LiveCommError::Persistence(e.to_string())),
+            // Variante None.
             None => Ok(Vec::new()),
         }
     }
 
     // -- dead letter queue --------------------------------------------------
 
+    /// Função list dead letters.
     pub fn list_dead_letters(
         &self,
         limit: u32,
     ) -> Result<Vec<crate::event_persistence::DeadLetterEntry>, LiveCommError> {
         match &self.inner.store {
+            // Variante Some.
             Some(store) => store
                 .list_dead_letters(limit)
                 .map_err(|e| LiveCommError::Persistence(e.to_string())),
+            // Variante None.
             None => Ok(Vec::new()),
         }
     }
 
+    /// Função ack dead letter.
     pub fn ack_dead_letter(&self, id: &str) -> Result<bool, LiveCommError> {
         match &self.inner.store {
+            // Variante Some.
             Some(store) => store
                 .ack_dead_letter(id)
                 .map_err(|e| LiveCommError::Persistence(e.to_string())),
+            // Variante None.
             None => Ok(false),
         }
     }
 
     // -- schema registry access ---------------------------------------------
 
+    /// Função schema registry.
     pub fn schema_registry(&self) -> &SchemaRegistry {
         &self.inner.schema_registry
     }
 
     // -- observability ------------------------------------------------------
 
+    /// Função topic metrics.
     pub async fn topic_metrics(&self, topic: &str) -> Option<Arc<TopicMetrics>> {
         let map = self.inner.metrics.read().await;
         map.get(topic).cloned()
     }
 
+    /// Função receiver count.
     pub fn receiver_count(&self) -> usize {
         self.inner.global_tx.receiver_count()
     }
@@ -348,8 +375,11 @@ impl EventBus {
             let f = filter.clone();
             async move {
                 match item {
+                    // Variante Ok.
                     Ok(env) if f(&env) => Some(Ok(env)),
+                    // Variante Ok.
                     Ok(_) => None,
+                    // Variante Err.
                     Err(e) => Some(Err(e)),
                 }
             }

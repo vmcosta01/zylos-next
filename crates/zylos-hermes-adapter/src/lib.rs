@@ -5,30 +5,51 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use uuid::Uuid;
 
-/// Perfil Hermes mapeado para um agente zylos
+/// A mapping between a Hermes profile and a zylos agent.
+///
+/// Each Hermes profile corresponds to exactly one zylos agent within a tenant,
+/// carrying its own capability set, model configuration, and governance flags.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HermesProfileMapping {
+    /// Unique identifier of the Hermes profile (e.g. `"researcher-a"`).
     pub hermes_profile_id: String,
+    /// Corresponding zylos agent identifier (e.g. `"agent-researcher-a"`).
     pub zylos_agent_id: String,
+    /// Logical tenant that groups related profiles (e.g. `"research"`, `"development"`).
     pub tenant: String,
+    /// List of capabilities enabled for this profile (e.g. `"mcp"`, `"skills"`, `"memory"`).
     pub capabilities: Vec<String>,
+    /// LLM provider name (e.g. `"anthropic"`, `"openai"`).
     pub model_provider: String,
+    /// Specific model identifier (e.g. `"claude-sonnet-4-20250514"`).
     pub model_name: String,
+    /// Maximum number of tasks this profile can execute concurrently.
     pub max_concurrent_tasks: u32,
+    /// Whether human-in-the-loop approval is required before task execution.
     pub approval_required: bool,
+    /// Whether equivalence hashing is enabled for output deduplication.
     pub equivalence_hash_enabled: bool,
 }
 
-/// Adapter que conecta zylos-next ao Hermes runtime
+/// Bridge adapter between zylos-next and the Hermes agent runtime.
+///
+/// Manages profile mappings, MCP endpoint configuration, and authentication
+/// for exposing zylos capabilities (skills, memory, HITL) to Hermes agents.
 pub struct HermesAdapter {
+    /// Registered profile mappings keyed by Hermes profile ID.
     profiles: HashMap<String, HermesProfileMapping>,
+    /// Base URL of the MCP HTTP server.
     mcp_endpoint: String,
+    /// Bearer token used to authenticate MCP requests.
     auth_token: String,
 }
 
 impl HermesAdapter {
+    /// Creates a new adapter instance with the given MCP endpoint and auth token.
+    ///
+    /// The adapter starts with no registered profiles; call [`register_profile`]
+    /// or [`load_default_profiles`] before exposing skills.
     pub fn new(mcp_endpoint: String, auth_token: String) -> Self {
         Self {
             profiles: HashMap::new(),
@@ -37,12 +58,18 @@ impl HermesAdapter {
         }
     }
 
-    /// Registra um perfil Hermes no adapter
+    /// Registers a single Hermes profile mapping in the adapter.
+    ///
+    /// If a profile with the same `hermes_profile_id` already exists, it is replaced.
     pub fn register_profile(&mut self, mapping: HermesProfileMapping) {
         self.profiles.insert(mapping.hermes_profile_id.clone(), mapping);
     }
 
-    /// Carrega 65 perfis padrão do Hermes
+    /// Loads the 65 built-in default Hermes profile mappings.
+    ///
+    /// Each profile is created with sensible defaults: Anthropic Claude Sonnet model,
+    /// 5 max concurrent tasks, equivalence hashing enabled, and approval required
+    /// only for `"approval"` and `"deployment"` tenants.
     pub fn load_default_profiles(&mut self) {
         let default_profiles = vec![
             ("default", "agent-default", "system"),
@@ -127,7 +154,14 @@ impl HermesAdapter {
         }
     }
 
-    /// Expõe skills do zylos via MCP HTTP para uso por agentes Hermes
+    /// Builds an MCP server configuration exposing zylos skills, memory, and HITL tools.
+    ///
+    /// Returns a [`McpServerConfig`] with four pre-defined tools:
+    /// `zylos_skill_search`, `zylos_skill_execute`, `zylos_memory_query`, and `zylos_hitl_request`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`HermesAdapterError::NoProfilesRegistered`] if no profiles have been loaded.
     pub async fn expose_skills_via_mcp(&self) -> Result<McpServerConfig, HermesAdapterError> {
         if self.profiles.is_empty() {
             return Err(HermesAdapterError::NoProfilesRegistered);
@@ -161,7 +195,12 @@ impl HermesAdapter {
         })
     }
 
-    /// Valida que todos os 65 perfis estão mapeados corretamente
+    /// Validates that at least 65 profiles are registered in the adapter.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`HermesAdapterError::InsufficientProfiles`] when fewer than 65
+    /// profiles have been registered.
     pub fn validate_profile_count(&self) -> Result<(), HermesAdapterError> {
         if self.profiles.len() < 65 {
             return Err(HermesAdapterError::InsufficientProfiles {
@@ -172,7 +211,7 @@ impl HermesAdapter {
         Ok(())
     }
 
-    /// Retorna métricas de integração
+    /// Computes aggregate integration metrics across all registered profiles.
     pub fn integration_metrics(&self) -> IntegrationMetrics {
         let approval_required_count = self.profiles.values()
             .filter(|p| p.approval_required)
@@ -193,34 +232,56 @@ impl HermesAdapter {
     }
 }
 
+/// Configuration for an MCP HTTP server exposing zylos tools.
 #[derive(Debug, Serialize)]
 pub struct McpServerConfig {
+    /// Full URL of the MCP skills endpoint.
     pub endpoint: String,
+    /// Authorization header value (e.g. `"Bearer <token>"`).
     pub auth_header: String,
+    /// List of MCP tools exposed by this server.
     pub tools: Vec<McpTool>,
 }
 
+/// A single tool definition in the MCP protocol.
 #[derive(Debug, Serialize)]
 pub struct McpTool {
+    /// Unique tool name (e.g. `"zylos_skill_search"`).
     pub name: String,
+    /// Human-readable description of what the tool does.
     pub description: String,
+    /// JSON Schema string describing the tool's input parameters.
     pub input_schema: String,
 }
 
+/// Aggregate metrics about the adapter's registered profiles.
 #[derive(Debug, Serialize)]
 pub struct IntegrationMetrics {
+    /// Total number of registered profiles.
     pub total_profiles: usize,
+    /// Number of profiles that require human-in-the-loop approval.
     pub approval_required_profiles: usize,
+    /// Number of profiles with equivalence hashing enabled.
     pub equivalence_hash_profiles: usize,
+    /// Number of distinct tenants across all profiles.
     pub unique_tenants: usize,
 }
 
+/// Errors produced by [`HermesAdapter`] operations.
 #[derive(Debug, thiserror::Error)]
 pub enum HermesAdapterError {
+    /// Returned when an operation requires at least one profile but none are registered.
     #[error("No profiles registered in adapter")]
     NoProfilesRegistered,
+    /// Returned when the profile count is below the expected minimum of 65.
     #[error("Insufficient profiles: expected {expected}, got {actual}")]
-    InsufficientProfiles { expected: usize, actual: usize },
+    InsufficientProfiles {
+        /// Expected minimum number of profiles.
+        expected: usize,
+        /// Actual number of registered profiles.
+        actual: usize,
+    },
+    /// Returned when the MCP HTTP connection cannot be established.
     #[error("MCP connection failed: {0}")]
     McpConnectionFailed(String),
 }
@@ -276,5 +337,144 @@ mod tests {
         );
 
         assert!(adapter.validate_profile_count().is_err());
+    }
+
+    #[test]
+    fn test_register_single_profile() {
+        let mut adapter = HermesAdapter::new(
+            "http://localhost:8080".to_string(),
+            "test-token".to_string(),
+        );
+
+        let mapping = HermesProfileMapping {
+            hermes_profile_id: "custom-profile".to_string(),
+            zylos_agent_id: "agent-custom".to_string(),
+            tenant: "custom".to_string(),
+            capabilities: vec!["mcp".to_string()],
+            model_provider: "openai".to_string(),
+            model_name: "gpt-4o".to_string(),
+            max_concurrent_tasks: 10,
+            approval_required: false,
+            equivalence_hash_enabled: false,
+        };
+
+        adapter.register_profile(mapping);
+        assert_eq!(adapter.profiles.len(), 1);
+        assert!(adapter.profiles.contains_key("custom-profile"));
+    }
+
+    #[test]
+    fn test_register_profile_overwrites_existing() {
+        let mut adapter = HermesAdapter::new(
+            "http://localhost:8080".to_string(),
+            "test-token".to_string(),
+        );
+        adapter.load_default_profiles();
+
+        let original_count = adapter.profiles.len();
+        let mapping = HermesProfileMapping {
+            hermes_profile_id: "default".to_string(),
+            zylos_agent_id: "agent-default-v2".to_string(),
+            tenant: "system".to_string(),
+            capabilities: vec!["mcp".to_string(), "skills".to_string()],
+            model_provider: "openai".to_string(),
+            model_name: "gpt-4o".to_string(),
+            max_concurrent_tasks: 20,
+            approval_required: true,
+            equivalence_hash_enabled: false,
+        };
+
+        adapter.register_profile(mapping);
+        assert_eq!(adapter.profiles.len(), original_count, "Overwrite should not change count");
+        assert_eq!(adapter.profiles["default"].zylos_agent_id, "agent-default-v2");
+        assert_eq!(adapter.profiles["default"].max_concurrent_tasks, 20);
+    }
+
+    #[tokio::test]
+    async fn test_expose_skills_empty_fails() {
+        let adapter = HermesAdapter::new(
+            "http://localhost:8080".to_string(),
+            "test-token".to_string(),
+        );
+
+        let result = adapter.expose_skills_via_mcp().await;
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            HermesAdapterError::NoProfilesRegistered => {}
+            other => panic!("Expected NoProfilesRegistered, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_integration_metrics_empty() {
+        let adapter = HermesAdapter::new(
+            "http://localhost:8080".to_string(),
+            "test-token".to_string(),
+        );
+
+        let metrics = adapter.integration_metrics();
+        assert_eq!(metrics.total_profiles, 0);
+        assert_eq!(metrics.approval_required_profiles, 0);
+        assert_eq!(metrics.equivalence_hash_profiles, 0);
+        assert_eq!(metrics.unique_tenants, 0);
+    }
+
+    #[test]
+    fn test_default_profiles_approval_flags() {
+        let mut adapter = HermesAdapter::new(
+            "http://localhost:8080".to_string(),
+            "test-token".to_string(),
+        );
+        adapter.load_default_profiles();
+
+        // approval and deployment tenants require approval
+        assert!(adapter.profiles["hitl-approver"].approval_required);
+        assert!(adapter.profiles["deploy-canary"].approval_required);
+        // other tenants do not
+        assert!(!adapter.profiles["default"].approval_required);
+        assert!(!adapter.profiles["researcher-a"].approval_required);
+    }
+
+    #[test]
+    fn test_mcp_config_auth_header_format() {
+        let mut adapter = HermesAdapter::new(
+            "http://example.com:9090".to_string(),
+            "my-secret-token".to_string(),
+        );
+        adapter.load_default_profiles();
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let config = rt.block_on(adapter.expose_skills_via_mcp()).unwrap();
+        assert_eq!(config.auth_header, "Bearer my-secret-token");
+        assert_eq!(config.endpoint, "http://example.com:9090/mcp/v1/skills");
+    }
+
+    #[test]
+    fn test_mcp_tool_names() {
+        let mut adapter = HermesAdapter::new(
+            "http://localhost:8080".to_string(),
+            "test-token".to_string(),
+        );
+        adapter.load_default_profiles();
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let config = rt.block_on(adapter.expose_skills_via_mcp()).unwrap();
+        let names: Vec<&str> = config.tools.iter().map(|t| t.name.as_str()).collect();
+        assert!(names.contains(&"zylos_skill_search"));
+        assert!(names.contains(&"zylos_skill_execute"));
+        assert!(names.contains(&"zylos_memory_query"));
+        assert!(names.contains(&"zylos_hitl_request"));
+    }
+
+    #[test]
+    fn test_error_display_messages() {
+        let err = HermesAdapterError::NoProfilesRegistered;
+        assert_eq!(format!("{}", err), "No profiles registered in adapter");
+
+        let err = HermesAdapterError::InsufficientProfiles { expected: 65, actual: 10 };
+        assert_eq!(format!("{}", err), "Insufficient profiles: expected 65, got 10");
+
+        let err = HermesAdapterError::McpConnectionFailed("timeout".to_string());
+        assert_eq!(format!("{}", err), "MCP connection failed: timeout");
     }
 }

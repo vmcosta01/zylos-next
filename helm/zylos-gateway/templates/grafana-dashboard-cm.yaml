@@ -1,0 +1,13 @@
+{{- if .Values.monitoring.grafanaDashboard.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "zylos-gateway.fullname" . }}-grafana-dashboard
+  labels:
+    {{- include "zylos-gateway.labels" . | nindent 4 }}
+    grafana_dashboard: "1"
+data:
+  zylos-gateway.json: |-
+    {{- .Files.Get "dashboards/zylos-gateway.json" | nindent 4 }}
+{{- end }}
+

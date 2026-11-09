@@ -1,0 +1,10 @@
+{
+  "name": "web-research-parallel",
+  "version": "1.0.0",
+  "description": "Parallel AI search adapter with zylos-proof grounding pipeline",
+  "provider": "parallel",
+  "api_base": "https://api.parallel.ai/v1",
+  "auth": "bearer_token",
+  "rate_limit": {"requests_per_minute": 30, "daily_quota": 1000},
+  "proof_levels": {"search_results": "observed", "extracted_content": "confirmed", "synthesized": "verified"}
+}

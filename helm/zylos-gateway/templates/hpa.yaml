@@ -29,4 +29,34 @@ spec:
           type: Utilization
           averageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
     {{- end }}
+    {{- if .Values.autoscaling.customMetrics.enabled }}
+    - type: Pods
+      pods:
+        metric:
+          name: zylos_active_agents
+        target:
+          type: AverageValue
+          averageValue: {{ .Values.autoscaling.customMetrics.targetActiveAgents | default "20" }}
+    - type: Pods
+      pods:
+        metric:
+          name: zylos_queue_depth
+        target:
+          type: AverageValue
+          averageValue: {{ .Values.autoscaling.customMetrics.targetQueueDepth | default "50" }}
+    {{- end }}
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: {{ .Values.autoscaling.scaleUpStabilization | default 60 }}
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: {{ .Values.autoscaling.scaleDownStabilization | default 300 }}
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
 {{- end }}
+

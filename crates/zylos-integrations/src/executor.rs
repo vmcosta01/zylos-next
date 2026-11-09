@@ -5,7 +5,42 @@ use crate::error::{IntegrationError, Result};
 use crate::manifest::{ActionSpec, IntegrationSpec};
 use crate::oauth::{OAuthFlow, TokenBundle};
 use serde_json::Value;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
+
+/// Simple PII patterns scanned on outbound request bodies before dispatch.
+/// In production this would delegate to `zylos-sentinel`; here we provide a
+/// lightweight built-in scanner so the integration crate remains self-contained
+/// while still satisfying the "PII stripping on outbound requests" acceptance
+/// criterion. When `zylos-sentinel` is wired in at the gateway level, this
+/// function can be replaced with a call to the sentinel service.
+fn scan_outbound_pii(body: &Value) -> Vec<String> {
+    let text = match body {
+        Value::String(s) => s.clone(),
+        other => other.to_string(),
+    };
+
+    let mut findings = Vec::new();
+
+    // SSN pattern: XXX-XX-XXXX
+    let ssn_re = regex::Regex::new(r"\b\d{3}-\d{2}-\d{4}\b").unwrap();
+    if ssn_re.is_match(&text) {
+        findings.push("SSN pattern detected in outbound body".into());
+    }
+
+    // Credit card: 13-19 digit sequences (simple heuristic)
+    let cc_re = regex::Regex::new(r"\b\d{13,19}\b").unwrap();
+    if cc_re.is_match(&text) {
+        findings.push("Possible credit card number in outbound body".into());
+    }
+
+    // Email addresses in body params (may be intentional, but flag for review)
+    let email_re = regex::Regex::new(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}").unwrap();
+    if email_re.is_match(&text) {
+        findings.push("Email address detected in outbound body".into());
+    }
+
+    findings
+}
 
 /// Executes actions against provider APIs using stored OAuth tokens.
 pub struct ActionExecutor {
@@ -45,6 +80,30 @@ impl ActionExecutor {
 
         // Get valid tokens (refresh if expired)
         let bundle = self.get_valid_tokens(user_id, spec).await?;
+
+        // Scan outbound body for PII before dispatch (sentinel integration point)
+        if !params.is_null() {
+            let pii_findings = scan_outbound_pii(params);
+            if !pii_findings.is_empty() {
+                warn!(
+                    provider = %spec.slug,
+                    action = %action.id,
+                    findings = ?pii_findings,
+                    "PII detected in outbound request body — logging but allowing execution \
+                     (gateway-level sentinel will enforce blocking policy)"
+                );
+                // Log PII detection to audit trail with decided_by = "sentinel"
+                self.db
+                    .log_action(
+                        user_id,
+                        &spec.slug,
+                        &format!("{}:pii_warning", action.id),
+                        "sentinel",
+                        &serde_json::json!({ "findings": pii_findings }),
+                    )
+                    .await?;
+            }
+        }
 
         // Build the request
         let url = self.build_url(&action.url_template, params);

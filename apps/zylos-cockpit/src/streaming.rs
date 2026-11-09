@@ -12,6 +12,7 @@ use wasm_bindgen_futures::spawn_local;
 /// AG-UI event types matching backend AgUiEvent enum
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data")]
+#[allow(dead_code)]
 pub enum AgUiStreamEvent {
     #[serde(rename = "heartbeat")]
     Heartbeat { timestamp: String },
@@ -87,6 +88,7 @@ pub enum AgUiStreamEvent {
 
 /// Connection state for the streaming client
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
 pub enum StreamState {
     Disconnected,
     Connecting,
@@ -97,6 +99,7 @@ pub enum StreamState {
 
 /// Accumulated text buffer for delta-compressed messages
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct MessageBuffer {
     pub message_id: String,
     pub agent_id: String,
@@ -106,6 +109,7 @@ pub struct MessageBuffer {
 
 /// Statistics for streaming performance monitoring
 #[derive(Debug, Clone, Default)]
+#[allow(dead_code)]
 pub struct StreamStats {
     pub events_received: u64,
     pub bytes_received: u64,
@@ -116,6 +120,7 @@ pub struct StreamStats {
 
 /// AG-UI Streaming Client configuration
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct StreamConfig {
     pub endpoint: String,
     pub max_reconnect_attempts: u32,
@@ -127,7 +132,7 @@ pub struct StreamConfig {
 impl Default for StreamConfig {
     fn default() -> Self {
         Self {
-            endpoint: "/events".to_string(),
+            endpoint: "/api/v1/events".to_string(),
             max_reconnect_attempts: 10,
             base_retry_ms: 1000,
             max_retry_ms: 30000,
@@ -138,6 +143,7 @@ impl Default for StreamConfig {
 
 /// Global streaming context provided to component tree
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct StreamContext {
     state: RwSignal<StreamState>,
     stats: RwSignal<StreamStats>,
@@ -145,6 +151,7 @@ pub struct StreamContext {
     config: StreamConfig,
 }
 
+#[allow(dead_code)]
 impl StreamContext {
     pub fn new(config: StreamConfig) -> Self {
         Self {
@@ -194,7 +201,7 @@ impl StreamContext {
         let jitter = if jitter_range > 0 {
             // Simple LCG-style hash from attempt number for deterministic jitter
             let hash = attempt.wrapping_mul(2654435761).wrapping_add(12345);
-            (hash as u64 % jitter_range)
+            hash as u64 % jitter_range
         } else {
             0
         };
@@ -299,6 +306,9 @@ impl StreamContext {
 
             if let Ok(event) = serde_json::from_str::<AgUiStreamEvent>(&data) {
                 Self::process_event(messages_signal, &event);
+            } else if let Some(event) = Self::from_gateway_envelope(&data) {
+                // Formato real do gateway: {"data":{"payload":{"type":"TextMessageContent","data":{..}}}}
+                Self::process_event(messages_signal, &event);
             }
         }) as Box<dyn FnMut(web_sys::MessageEvent)>);
         es.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
@@ -339,6 +349,26 @@ impl StreamContext {
     }
 
     /// Process a single AG-UI event and update message buffers
+    /// Converte o envelope SSE do gateway (AgUiEvent legado) no evento do cockpit.
+    fn from_gateway_envelope(raw: &str) -> Option<AgUiStreamEvent> {
+        let v: serde_json::Value = serde_json::from_str(raw).ok()?;
+        let p = v.get("data")?.get("payload")?;
+        let d = p.get("data")?;
+        let text = |k: &str| d.get(k).and_then(|x| x.as_str()).unwrap_or("").to_string();
+        match p.get("type")?.as_str()? {
+            "TextMessageStart" => Some(AgUiStreamEvent::TextStart {
+                message_id: text("message_id"),
+                agent_id: text("role"),
+            }),
+            "TextMessageContent" => Some(AgUiStreamEvent::TextDelta {
+                message_id: text("message_id"),
+                delta: text("delta"),
+            }),
+            "TextMessageEnd" => Some(AgUiStreamEvent::TextEnd { message_id: text("message_id") }),
+            _ => None,
+        }
+    }
+
     fn process_event(messages: RwSignal<Vec<MessageBuffer>>, event: &AgUiStreamEvent) {
         match event {
             AgUiStreamEvent::TextStart {
@@ -358,6 +388,14 @@ impl StreamContext {
                 messages.update(|msgs| {
                     if let Some(buf) = msgs.iter_mut().find(|m| m.message_id == *message_id) {
                         buf.content.push_str(delta);
+                    } else {
+                        // delta sem text_start (ex.: eventos vindos do Hermes): cria o buffer
+                        msgs.push(MessageBuffer {
+                            message_id: message_id.clone(),
+                            agent_id: "hermes".to_string(),
+                            content: delta.clone(),
+                            complete: false,
+                        });
                     }
                 });
             }

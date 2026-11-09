@@ -8,6 +8,9 @@ metadata:
   tags: ["hitl", "approval", "ag-ui", "human-in-the-loop"]
   related_playbooks:
     - "../playbooks/incident-response.md"
+  playbook_ref: "../../playbooks/conflict-resolution.md"
+  runbook_refs:
+    - "../../runbooks/resolver-conflicts.md"
 
 preconditions:
   - check: "HITL crate compiled"

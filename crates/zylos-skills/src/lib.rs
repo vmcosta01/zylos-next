@@ -3,12 +3,19 @@
 //! Sistema 6 do Master Plan: index.json discovery <100ms,
 //! JSON Schema compilado, eval flywheel e export pipeline.
 
+/// Módulo debt.
 pub mod debt;
+/// Módulo eval.
 pub mod eval;
+/// Módulo export.
 pub mod export;
+/// Módulo glossary.
 pub mod glossary;
+/// Módulo registry.
 pub mod registry;
+/// Módulo scheduler.
 pub mod scheduler;
+/// Módulo schema.
 pub mod schema;
 
 pub use debt::{DebtCategory, DebtError, DebtItem, DebtParser, DebtReport, DebtResult, DebtSeverity};

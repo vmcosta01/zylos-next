@@ -11,6 +11,7 @@ use tempfile::TempDir;
 use tokio::time::sleep;
 
 /// Test gateway handle — owns the child process and temp data dir.
+#[allow(dead_code)]
 pub struct TestGateway {
     pub port: u16,
     pub client: Client,
@@ -20,6 +21,7 @@ pub struct TestGateway {
 
 impl TestGateway {
     /// Spawn a fresh zylos-gateway on a random port with an ephemeral SQLite DB.
+    #[allow(dead_code)]
     pub async fn spawn() -> Result<Self> {
         let tmp = TempDir::new().context("create temp dir")?;
         let db_path = tmp.path().join("test.db");
@@ -62,6 +64,7 @@ impl TestGateway {
         anyhow::bail!("gateway did not become healthy within 30s")
     }
 
+    #[allow(dead_code)]
     pub fn base_url(&self) -> String {
         format!("http://127.0.0.1:{}", self.port)
     }
@@ -74,6 +77,7 @@ impl Drop for TestGateway {
 }
 
 /// Assert that a JSON response contains an expected key.
+#[allow(dead_code)]
 pub fn assert_json_key(json: &serde_json::Value, key: &str) {
     assert!(
         json.get(key).is_some(),

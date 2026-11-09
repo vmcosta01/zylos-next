@@ -40,6 +40,7 @@ impl EventStore {
                 created_at  TEXT NOT NULL
             );",
         )?;
+        // Variante Ok.
         Ok(Self {
             conn: Mutex::new(conn),
         })
@@ -64,6 +65,7 @@ impl EventStore {
         let seq = conn.last_insert_rowid() as u64;
         envelope.sequence = seq;
         debug!(seq, topic = %envelope.topic, "event persisted");
+        // Variante Ok.
         Ok(seq)
     }
 
@@ -89,6 +91,7 @@ impl EventStore {
             let ts: String = row.get(3)?;
             let sv: i64 = row.get(4)?;
             let payload_raw: String = row.get(5)?;
+            // Variante Ok.
             Ok((seq, id, topic, ts, sv, payload_raw))
         })?;
         let mut out = Vec::new();
@@ -108,6 +111,7 @@ impl EventStore {
                 payload,
             });
         }
+        // Variante Ok.
         Ok(out)
     }
 
@@ -133,6 +137,7 @@ impl EventStore {
         if affected > 0 {
             debug!(affected, ttl_hours, "purged expired events");
         }
+        // Variante Ok.
         Ok(affected)
     }
 
@@ -163,6 +168,7 @@ impl EventStore {
             ],
         )?;
         warn!(id = %envelope.id, error, retries, "event moved to DLQ");
+        // Variante Ok.
         Ok(())
     }
 
@@ -174,6 +180,7 @@ impl EventStore {
              FROM dead_letters ORDER BY created_at DESC LIMIT ?1",
         )?;
         let rows = stmt.query_map(params![limit as i64], |row| {
+            // Variante Ok.
             Ok(DeadLetterEntry {
                 id: row.get(0)?,
                 topic: row.get(1)?,
@@ -190,17 +197,25 @@ impl EventStore {
     pub fn ack_dead_letter(&self, id: &str) -> Result<bool, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
         let affected = conn.execute("DELETE FROM dead_letters WHERE id = ?1", params![id])?;
+        // Variante Ok.
         Ok(affected > 0)
     }
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
+/// Estrutura DeadLetterEntry.
 pub struct DeadLetterEntry {
+    /// Campo id.
     pub id: String,
+    /// Campo topic.
     pub topic: String,
+    /// Campo payload.
     pub payload: String,
+    /// Campo error.
     pub error: String,
+    /// Campo retries.
     pub retries: u32,
+    /// Campo created at.
     pub created_at: String,
 }
 

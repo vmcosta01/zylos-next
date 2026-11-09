@@ -1,6 +1,7 @@
 //! zylos-gateway library — exposes AppState and build_router for integration tests.
 
 pub mod config;
+pub mod hermes_api;
 pub mod orchestrate_api;
 pub mod phase2_integration;
 pub mod soar_api;
@@ -15,6 +16,7 @@ use zylos_live_comm::{
     skills_api::{SkillsApiState, create_skills_router},
 };
 use zylos_soar::orchestrator::SoarOrchestrator;
+use zylos_swarm_orchestrator::SwarmOrchestrator;
 
 /// Application state shared across all handlers
 #[derive(Clone)]
@@ -22,6 +24,8 @@ pub struct AppState {
     pub event_bus: EventBus,
     pub skills_state: SkillsApiState,
     pub soar_orchestrator: Arc<SoarOrchestrator>,
+    /// Swarm orchestrator for crew/task scheduling (Phase 2)
+    pub swarm: Arc<SwarmOrchestrator>,
     /// Readiness flag — set to true after all subsystems are initialized (Task 7.1.1)
     pub ready: Arc<std::sync::atomic::AtomicBool>,
 }
@@ -36,6 +40,7 @@ pub fn build_router(state: AppState) -> Router {
     // SOAR router needs AppState — resolve it here so it becomes Router<()> for merging
     let soar = soar_api::create_soar_router().with_state(state.clone());
     let orchestrate = orchestrate_api::create_orchestrate_router().with_state(state.clone());
+    let hermes = hermes_api::create_hermes_router(std::env::var("ZYLOS_HERMES_TOKEN").ok().filter(|t| t.len() >= 16)).with_state(state.clone());
 
     let ready_flag = state.ready.clone();
     let root_health = Router::new()
@@ -72,7 +77,7 @@ pub fn build_router(state: AppState) -> Router {
 
     Router::new()
         .merge(root_health)
-        .nest("/api/v1", cockpit.merge(sse).merge(skills).merge(soar).merge(orchestrate))
+        .nest("/api/v1", cockpit.merge(sse).merge(skills).merge(soar).merge(orchestrate).merge(hermes))
         .layer(tower_http::trace::TraceLayer::new_for_http())
         .layer(
             tower_http::cors::CorsLayer::new()

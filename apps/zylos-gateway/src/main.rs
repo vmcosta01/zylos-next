@@ -18,10 +18,13 @@ use zylos_skills::{EvalFlywheel, SkillRegistry, SkillValidator};
 use zylos_soar::{
     audit::AuditTrail,
     executor::ExecutorConfig,
+    loader::{load_all_playbooks, load_all_runbook_specs},
     orchestrator::{OrchestratorState, SoarOrchestrator},
     registry::RunbookRegistry,
     router::EventRouter,
+    yaml_runbook::YamlRunbook,
 };
+use zylos_swarm_orchestrator::SwarmOrchestrator;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -62,19 +65,46 @@ async fn main() -> anyhow::Result<()> {
     };
     info!("Skills registry initialized");
 
-    let soar_router = EventRouter::new();
-    let soar_registry = RunbookRegistry::new();
-    let soar_audit = AuditTrail::new(cfg.soar.audit_key.as_bytes());
-    let soar_executor_config = ExecutorConfig::default();
-    let soar_state = OrchestratorState::new(
-        soar_router,
-        soar_registry,
-        soar_audit,
-        soar_executor_config,
-    )
-    .with_event_bus(event_bus.clone());
-    let soar_orchestrator = Arc::new(SoarOrchestrator::new(Arc::new(RwLock::new(soar_state))));
-    info!("SOAR orchestrator initialized with EventBus");
+    let mut soar_router = EventRouter::new();
+        let mut soar_registry = RunbookRegistry::new();
+    
+        // --- Auto-load runbooks and playbooks from filesystem ---
+        let runbook_specs = load_all_runbook_specs();
+        info!("Discovered {} runbook specs on disk", runbook_specs.len());
+    
+        for spec in runbook_specs {
+            let name = spec.metadata.name.clone();
+            let yaml_runbook = Box::new(YamlRunbook::new(spec));
+            soar_registry.register(yaml_runbook);
+            info!("Registered YAML runbook: {}", name);
+        }
+    
+        let playbooks = load_all_playbooks();
+        info!("Discovered {} playbooks on disk", playbooks.len());
+    
+        for playbook in playbooks {
+            let name = playbook.name.clone();
+            soar_router.register_playbook(playbook);
+            info!("Registered playbook: {}", name);
+        }
+    
+        let soar_audit = AuditTrail::new(cfg.soar.audit_key.as_bytes());
+        let soar_executor_config = ExecutorConfig::default();
+        let soar_state = OrchestratorState::new(
+            soar_router,
+            soar_registry,
+            soar_audit,
+            soar_executor_config,
+        )
+        .with_event_bus(event_bus.clone());
+        let soar_orchestrator = Arc::new(SoarOrchestrator::new(Arc::new(RwLock::new(soar_state))));
+        info!("SOAR orchestrator initialized with EventBus and auto-loaded runbooks/playbooks");
+
+    // Swarm Orchestrator — task/crew scheduling (Phase 2, in-memory)
+    let swarm = SwarmOrchestrator::open(":memory:")
+        .await
+        .map_err(|e| anyhow::anyhow!("swarm init: {}", e))?;
+    info!("Swarm orchestrator initialized (in-memory)");
 
     // Readiness flag — set after all subsystems are up
     let ready = Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -83,6 +113,7 @@ async fn main() -> anyhow::Result<()> {
         event_bus,
         skills_state,
         soar_orchestrator,
+        swarm: Arc::new(swarm),
         ready: ready.clone(),
     };
 

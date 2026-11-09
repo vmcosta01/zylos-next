@@ -8,6 +8,10 @@ metadata:
   tags: ["verification", "proof", "panel", "adversarial"]
   related_playbooks:
     - "../playbooks/adversarial-audit.md"
+  playbook_ref: "../../playbooks/evidence-chain-of-custody.md"
+  runbook_refs:
+    - "../../runbooks/proof-verification.md"
+    - "../../runbooks/evidence-ledger.md"
 
 preconditions:
   - check: "Proof engine compiled"

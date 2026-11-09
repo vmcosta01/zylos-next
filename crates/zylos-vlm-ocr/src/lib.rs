@@ -4,9 +4,13 @@
 //! structured extraction of text, tables, formulas, and diagrams from images.
 //! Designed as a sidecar process that agents can invoke via MCP or direct API.
 
+/// HTTP client for VLM OCR endpoints.
 pub mod client;
+/// Structured types for OCR requests, responses, and elements.
 pub mod types;
+/// Error types and result alias for OCR operations.
 pub mod error;
+/// SVG parsing and rendering for extracted diagrams and formulas.
 pub mod svg;
 
 pub use client::{VlmOcrClient, OcrConfig};

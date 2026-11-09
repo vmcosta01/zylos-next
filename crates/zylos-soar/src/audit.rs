@@ -10,26 +10,42 @@ type HmacSha256 = Hmac<Sha256>;
 
 /// A single immutable audit entry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura AuditEntry.
 pub struct AuditEntry {
+    /// Campo id.
     pub id: Uuid,
+    /// Campo incident id.
     pub incident_id: Uuid,
+    /// Campo timestamp.
     pub timestamp: DateTime<Utc>,
+    /// Campo actor.
     pub actor: String,
+    /// Campo action.
     pub action: String,
+    /// Campo parameters.
     pub parameters: serde_json::Value,
+    /// Campo result.
     pub result: AuditResult,
+    /// Campo previous state hash.
     pub previous_state_hash: Option<String>,
+    /// Campo current state hash.
     pub current_state_hash: String,
+    /// Campo signature.
     pub signature: String,
 }
 
 /// Outcome of an audited action.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Enumeração AuditResult.
 pub enum AuditResult {
+    /// Variante Success.
     Success,
+    // Variante Failure.
     Failure(String),
+    /// Variante Timeout.
     Timeout,
+    // Variante Skipped.
     Skipped(String),
 }
 
@@ -42,6 +58,7 @@ pub struct AuditTrail {
 impl AuditTrail {
     /// Create a new audit trail with the given HMAC signing key.
     pub fn new(signing_key: impl Into<Vec<u8>>) -> Self {
+        // Variante Self.
         Self {
             signing_key: signing_key.into(),
             entries: Vec::new(),
@@ -76,13 +93,16 @@ impl AuditTrail {
         entry.signature = self.sign(&entry)?;
         self.entries.push(entry);
 
+        // Variante Ok.
         Ok(self.entries.last().unwrap().id)
     }
 
     /// Verify the signature of an entry against this trail's key.
     pub fn verify(&self, entry: &AuditEntry) -> bool {
         match self.sign(entry) {
+            // Variante Ok.
             Ok(expected) => expected == entry.signature,
+            // Variante Err.
             Err(_) => false,
         }
     }
@@ -109,16 +129,20 @@ impl AuditTrail {
         let mut mac =
             HmacSha256::new_from_slice(&self.signing_key).map_err(|_| AuditError::InvalidKey)?;
         mac.update(canonical.as_bytes());
+        // Variante Ok.
         Ok(hex::encode(mac.finalize().into_bytes()))
     }
 }
 
 /// Errors from audit operations.
 #[derive(Debug, thiserror::Error)]
+/// Enumeração AuditError.
 pub enum AuditError {
     #[error("invalid HMAC signing key")]
+    /// Variante InvalidKey.
     InvalidKey,
     #[error("serialization error: {0}")]
+    // Variante Serialization.
     Serialization(#[from] serde_json::Error),
 }
 
@@ -178,6 +202,7 @@ mod tests {
         assert_eq!(entries.len(), 2);
         assert_eq!(
             entries[1].previous_state_hash.as_deref(),
+            // Variante Some.
             Some("hash_1")
         );
     }

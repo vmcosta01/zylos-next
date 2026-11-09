@@ -17,33 +17,46 @@ use tracing::{info, warn};
 
 /// Audit log entry for security-relevant events
 #[derive(Debug, Clone, Serialize)]
+/// Estrutura AuditEntry.
 pub struct AuditEntry {
+    /// Campo timestamp.
     pub timestamp: String,
+    /// Campo event type.
     pub event_type: String,
+    /// Campo source ip.
     pub source_ip: String,
+    /// Campo user agent.
     pub user_agent: String,
+    /// Campo path.
     pub path: String,
+    /// Campo method.
     pub method: String,
+    /// Campo status.
     pub status: u16,
     #[serde(skip_serializing_if = "Option::is_none")]
+    /// Campo detail.
     pub detail: Option<String>,
 }
 
 /// Thread-safe audit log buffer
 #[derive(Clone)]
+/// Estrutura AuditLog.
 pub struct AuditLog {
     entries: Arc<Mutex<Vec<AuditEntry>>>,
     max_entries: usize,
 }
 
 impl AuditLog {
+    /// Função new.
     pub fn new(max_entries: usize) -> Self {
+        // Variante Self.
         Self {
             entries: Arc::new(Mutex::new(Vec::with_capacity(max_entries.min(10000)))),
             max_entries,
         }
     }
 
+    /// Função record.
     pub async fn record(&self, entry: AuditEntry) {
         let mut log = self.entries.lock().await;
         if log.len() >= self.max_entries {
@@ -54,11 +67,13 @@ impl AuditLog {
         log.push(entry);
     }
 
+    /// Função recent.
     pub async fn recent(&self, limit: usize) -> Vec<AuditEntry> {
         let log = self.entries.lock().await;
         log.iter().rev().take(limit).cloned().collect()
     }
 
+    /// Função count.
     pub async fn count(&self) -> usize {
         self.entries.lock().await.len()
     }
@@ -159,8 +174,10 @@ pub async fn audit_middleware(
         method,
         status,
         detail: if status >= 400 {
+            // Variante Some.
             Some(format!("HTTP {} response", status))
         } else {
+            // Variante None.
             None
         },
     };
@@ -216,7 +233,6 @@ pub fn detect_sql_injection(input: &str) -> bool {
     patterns.iter().any(|p| lower.contains(p))
 }
 
-/// Validate that a string does not contain XSS patterns (basic heuristic)
 pub fn detect_xss(input: &str) -> bool {
     let lower = input.to_lowercase();
     let patterns = [
@@ -233,7 +249,6 @@ pub fn detect_xss(input: &str) -> bool {
     patterns.iter().any(|p| lower.contains(p))
 }
 
-/// Validate path traversal attempts
 pub fn detect_path_traversal(input: &str) -> bool {
     input.contains("..") || input.contains("%2e%2e") || input.contains("%252e%252e")
 }

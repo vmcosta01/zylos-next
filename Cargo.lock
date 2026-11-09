@@ -216,6 +216,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "argon2"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c3610892ee6e0cbce8ae2700349fcf8f98adb0dbfbee85aec3c9179d29cc072"
+dependencies = [
+ "base64ct",
+ "blake2",
+ "cpufeatures 0.2.17",
+ "password-hash",
+]
+
+[[package]]
 name = "arrayref"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1348,6 +1360,15 @@ dependencies = [
  "radium",
  "tap",
  "wyz",
+]
+
+[[package]]
+name = "blake2"
+version = "0.10.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46502ad458c9a52b69d4d4d32775c788b7a1b85e8bc9d482d92250fc0e3f8efe"
+dependencies = [
+ "digest 0.10.7",
 ]
 
 [[package]]
@@ -7470,6 +7491,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "password-hash"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "346f04948ba92c43e8469c1ee6736c7563d71012b17d40745260fe106aac2166"
+dependencies = [
+ "base64ct",
+ "rand_core 0.6.4",
+ "subtle",
+]
+
+[[package]]
 name = "paste"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13232,6 +13264,20 @@ name = "zeroize"
 version = "1.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e13084392c5e4bc371903e2935a5eaeed24905a7511356b883835e18a78f6879"
+dependencies = [
+ "zeroize_derive",
+]
+
+[[package]]
+name = "zeroize_derive"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c50655cbb0fe3fc43170059e702f1ce5e19b84cec58dc87b037a09935c2f328"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
 
 [[package]]
 name = "zerotrie"
@@ -13319,6 +13365,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27bc9d5b815bc103f142aa054f561d9187d191692ec7c2d1e2b4737f8dbd7296"
 dependencies = [
  "zune-core",
+]
+
+[[package]]
+name = "zylos-a2m"
+version = "0.1.0"
+dependencies = [
+ "async-stream",
+ "chrono",
+ "futures",
+ "hex",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -13466,9 +13531,13 @@ name = "zylos-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "clap",
+ "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "serde_yaml",
  "tokio",
+ "toml 0.8.23",
  "tracing",
  "tracing-subscriber",
  "zylos-core",
@@ -13495,6 +13564,7 @@ name = "zylos-core"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "serde_json",
  "thiserror 2.0.21",
  "tracing",
 ]
@@ -13504,13 +13574,17 @@ name = "zylos-daemon"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "axum 0.7.9",
+ "clap",
  "serde",
  "serde_json",
  "tokio",
+ "toml 0.8.23",
  "tracing",
  "tracing-subscriber",
  "zylos-bot-system",
  "zylos-core",
+ "zylos-soar",
 ]
 
 [[package]]
@@ -13519,6 +13593,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "dirs 5.0.1",
+ "libc",
  "serde",
  "serde_json",
  "serde_urlencoded",
@@ -13529,6 +13604,24 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "zylos-desktop-app"
+version = "0.1.0"
+dependencies = [
+ "open",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-shell",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+ "zylos-desktop",
 ]
 
 [[package]]
@@ -13694,6 +13787,7 @@ dependencies = [
  "mockall",
  "oauth2",
  "rand 0.8.8",
+ "regex",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
@@ -13919,6 +14013,7 @@ dependencies = [
  "futures-util",
  "hex",
  "proptest",
+ "rand 0.8.8",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -14050,6 +14145,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "zylos-templates"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "hex",
+ "reqwest 0.12.28",
+ "semver",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "zylos-triage"
 version = "0.1.0"
 dependencies = [
@@ -14062,6 +14175,27 @@ dependencies = [
  "tokio",
  "tracing",
  "zylos-proof",
+]
+
+[[package]]
+name = "zylos-vault"
+version = "0.1.0"
+dependencies = [
+ "aes-gcm",
+ "anyhow",
+ "argon2",
+ "chrono",
+ "hex",
+ "rand 0.8.8",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "uuid",
+ "zeroize",
 ]
 
 [[package]]

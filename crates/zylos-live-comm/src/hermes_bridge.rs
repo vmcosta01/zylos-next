@@ -10,11 +10,16 @@ use crate::event_bus::EventBus;
 
 /// Envelope format expected from Hermes plugins
 #[derive(Serialize, Deserialize, Debug, Clone)]
+/// Estrutura HermesEnvelope.
 pub struct HermesEnvelope {
+    /// Campo source.
     pub source: String,
+    /// Campo event type.
     pub event_type: String,
+    /// Campo payload.
     pub payload: serde_json::Value,
     #[serde(default)]
+    /// Campo timestamp.
     pub timestamp: Option<String>,
 }
 
@@ -24,7 +29,9 @@ pub struct HermesBridge {
 }
 
 impl HermesBridge {
+    /// Função new.
     pub fn new(bus: EventBus) -> Self {
+        // Variante Self.
         Self { bus }
     }
 

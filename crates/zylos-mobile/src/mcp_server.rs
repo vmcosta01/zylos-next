@@ -24,27 +24,45 @@ use crate::error::MobileError;
 // ---------------------------------------------------------------------------
 
 /// JSON-RPC 2.0 request envelope used by MCP.
+///
+/// All client requests are deserialized into this type before dispatch.
+/// The `params` field defaults to `Value::Null` when absent, allowing
+/// methods with no parameters (e.g. `ping`, `tools/list`) to share the
+/// same envelope type.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JsonRpcRequest {
+    /// Protocol version; must be `"2.0"`.
     pub jsonrpc: String,
+    /// Request identifier for correlating responses. `None` for notifications.
     pub id: Option<serde_json::Value>,
+    /// Method name (e.g. `"initialize"`, `"tools/call"`).
     pub method: String,
+    /// Method-specific parameters; defaults to `Value::Null` when omitted.
     #[serde(default)]
     pub params: serde_json::Value,
 }
 
 /// JSON-RPC 2.0 response envelope.
+///
+/// Exactly one of `result` or `error` is `Some`; the other is serialized
+/// as absent thanks to `skip_serializing_if`. Use the [`ok`](Self::ok) and
+/// [`err`](Self::err) constructors to guarantee this invariant.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JsonRpcResponse {
+    /// Protocol version; always `"2.0"`.
     pub jsonrpc: String,
+    /// Request identifier echoed from the corresponding request. `None` for notifications.
     pub id: Option<serde_json::Value>,
+    /// Successful result payload; present only on success responses.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<serde_json::Value>,
+    /// Error body; present only on error responses.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<McpErrorBody>,
 }
 
 impl JsonRpcResponse {
+    /// Build a successful JSON-RPC response with the given `id` and `result`.
     pub fn ok(id: Option<serde_json::Value>, result: serde_json::Value) -> Self {
         Self {
             jsonrpc: "2.0".into(),
@@ -54,6 +72,7 @@ impl JsonRpcResponse {
         }
     }
 
+    /// Build an error JSON-RPC response with the given `id`, numeric `code`, and human-readable `message`.
     pub fn err(id: Option<serde_json::Value>, code: i32, message: String) -> Self {
         Self {
             jsonrpc: "2.0".into(),
@@ -65,10 +84,16 @@ impl JsonRpcResponse {
 }
 
 /// MCP error body inside a JSON-RPC error response.
+///
+/// Follows the JSON-RPC 2.0 error object specification with an optional
+/// `data` field for structured diagnostic information.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct McpErrorBody {
+    /// Numeric error code (e.g. -32600, -32601, -32001..-32005).
     pub code: i32,
+    /// Human-readable error description.
     pub message: String,
+    /// Optional structured data providing additional context about the error.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<serde_json::Value>,
 }
@@ -204,6 +229,10 @@ struct ClientBucket {
 }
 
 impl RateLimiter {
+    /// Create a new rate limiter allowing `max_requests` per `window_secs` seconds.
+    ///
+    /// Each unique client ID gets its own token bucket that refills after the
+    /// configured window elapses.
     pub fn new(max_requests: u32, window_secs: u64) -> Self {
         Self {
             limits: RwLock::new(HashMap::new()),
@@ -261,6 +290,11 @@ struct AttachmentEntry {
 }
 
 impl AttachmentStore {
+    /// Create a new attachment store rooted at `base_dir` with entries expiring after `ttl_secs`.
+    ///
+    /// The directory is created lazily on the first [`store`](Self::store) call.
+    /// Expired entries are not deleted automatically; call [`cleanup_expired`](Self::cleanup_expired)
+    /// or use [`MobileMcpServer::spawn_attachment_cleanup`] for periodic pruning.
     pub fn new(base_dir: PathBuf, ttl_secs: u64) -> Self {
         Self {
             base_dir,
@@ -1190,5 +1224,168 @@ mod tests {
     fn test_base64_decode_no_padding() {
         let decoded = base64_decode("aGVsbG8").unwrap();
         assert_eq!(decoded, b"hello");
+    }
+
+    // -- Additional tests (docs + coverage expansion) -------------------------
+
+    #[test]
+    fn test_json_rpc_response_ok_serialization() {
+        let resp = JsonRpcResponse::ok(Some(serde_json::json!(42)), serde_json::json!({"status": "ok"}));
+        let serialized = serde_json::to_value(&resp).unwrap();
+        assert_eq!(serialized["jsonrpc"], "2.0");
+        assert_eq!(serialized["id"], 42);
+        assert_eq!(serialized["result"]["status"], "ok");
+        // error field must be absent (skip_serializing_if)
+        assert!(serialized.get("error").is_none());
+    }
+
+    #[test]
+    fn test_json_rpc_response_err_serialization() {
+        let resp = JsonRpcResponse::err(Some(serde_json::json!(7)), -32600, "bad request".into());
+        let serialized = serde_json::to_value(&resp).unwrap();
+        assert_eq!(serialized["jsonrpc"], "2.0");
+        assert_eq!(serialized["id"], 7);
+        assert_eq!(serialized["error"]["code"], -32600);
+        assert_eq!(serialized["error"]["message"], "bad request");
+        // result field must be absent
+        assert!(serialized.get("result").is_none());
+    }
+
+    #[test]
+    fn test_json_rpc_request_deserialize_minimal() {
+        // Notification (no id) with missing params should default to Null
+        let raw = r#"{"jsonrpc":"2.0","method":"notify/test"}"#;
+        let req: JsonRpcRequest = serde_json::from_str(raw).unwrap();
+        assert_eq!(req.method, "notify/test");
+        assert!(req.id.is_none());
+        assert!(req.params.is_null());
+    }
+
+    #[test]
+    fn test_mobile_error_to_mcp_error_body_codes() {
+        let cases: Vec<(MobileError, i32)> = vec![
+            (MobileError::InvalidRequest("x".into()), -32600),
+            (MobileError::Auth("x".into()), -32001),
+            (MobileError::RateLimit { client_id: "c".into(), retry_after_secs: 5 }, -32002),
+            (MobileError::Attachment("x".into()), -32003),
+            (MobileError::ResourceNotFound("x".into()), -32004),
+            (MobileError::Timeout("x".into()), -32005),
+            (MobileError::McpProtocol("x".into()), -32603),
+            (MobileError::Connection("x".into()), -32603),
+        ];
+        for (err, expected_code) in cases {
+            let body: McpErrorBody = err.into();
+            assert_eq!(body.code, expected_code, "unexpected code for variant");
+            assert!(!body.message.is_empty());
+            assert!(body.data.is_none());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_attachment_store_get_invalid_uri() {
+        let dir = std::env::temp_dir().join("zylos-test-invalid-uri");
+        let store = AttachmentStore::new(dir, 3600);
+        let result = store.get("not-a-valid-uri").await;
+        assert!(result.is_err());
+        let err_msg = format!("{}", result.unwrap_err());
+        assert!(err_msg.contains("invalid attachment URI"));
+    }
+
+    #[tokio::test]
+    async fn test_attachment_store_cleanup_expired() {
+        let dir = std::env::temp_dir().join("zylos-test-cleanup");
+        // TTL of 0 seconds means everything is immediately expired
+        let store = AttachmentStore::new(dir.clone(), 0);
+
+        let uri = store.store("a.txt", b"data", "text/plain").await.unwrap();
+        assert!(uri.starts_with("attachment://"));
+
+        // Small sleep to ensure elapsed > 0
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+
+        let removed = store.cleanup_expired().await;
+        assert_eq!(removed, 1);
+
+        // Second cleanup should find nothing
+        let removed2 = store.cleanup_expired().await;
+        assert_eq!(removed2, 0);
+    }
+
+    #[tokio::test]
+    async fn test_rate_limiter_distinct_clients() {
+        let limiter = RateLimiter::new(1, 60);
+        // Client A uses its single token
+        assert!(limiter.check("client-a").await.is_ok());
+        // Client A is now exhausted
+        assert!(limiter.check("client-a").await.is_err());
+        // Client B still has its own bucket
+        assert!(limiter.check("client-b").await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_ping_returns_pong() {
+        let server = make_server();
+        let req = make_request("ping", serde_json::json!({}));
+        let resp = server.dispatch(req, Some("ApiKey test-key")).await;
+        assert!(resp.error.is_none());
+        assert_eq!(resp.result.unwrap()["pong"], true);
+    }
+
+    #[tokio::test]
+    async fn test_tool_call_unknown_tool_returns_error() {
+        let server = make_server();
+        let req = make_request("tools/call", serde_json::json!({
+            "name": "nonexistent_tool",
+            "arguments": {}
+        }));
+        let resp = server.dispatch(req, Some("ApiKey test-key")).await;
+        assert!(resp.error.is_some());
+        // Should be a protocol-level error for unknown tool
+        assert!(resp.error.unwrap().code != 0);
+    }
+
+    #[tokio::test]
+    async fn test_resource_read_unknown_uri_returns_error() {
+        let server = make_server();
+        let req = make_request("resources/read", serde_json::json!({
+            "uri": "resource://does-not-exist"
+        }));
+        let resp = server.dispatch(req, Some("ApiKey test-key")).await;
+        assert!(resp.error.is_some());
+        assert_eq!(resp.error.unwrap().code, -32004);
+    }
+
+    #[tokio::test]
+    async fn test_prompts_get_unknown_returns_error() {
+        let server = make_server();
+        let req = make_request("prompts/get", serde_json::json!({
+            "name": "nonexistent_prompt",
+            "arguments": {}
+        }));
+        let resp = server.dispatch(req, Some("ApiKey test-key")).await;
+        assert!(resp.error.is_some());
+        assert_eq!(resp.error.unwrap().code, -32004);
+    }
+
+    #[tokio::test]
+    async fn test_handle_raw_invalid_json_returns_error() {
+        let server = make_server();
+        let result = server.handle_raw("not valid json{{{", Some("ApiKey test-key")).await;
+        // handle_raw may return Err(MobileError) for unparseable input, or an
+        // Ok JSON-RPC error response — either way the caller gets an error signal.
+        match &result {
+            Ok(json_str) => {
+                let resp: JsonRpcResponse = serde_json::from_str(json_str).unwrap();
+                assert!(resp.error.is_some(), "expected JSON-RPC error in response");
+            }
+            Err(e) => {
+                // Verify it's a serialization-related error
+                let msg = format!("{}", e);
+                assert!(
+                    msg.contains("Serialization") || msg.contains("serialization") || msg.contains("JSON"),
+                    "unexpected error variant for invalid JSON: {}", msg
+                );
+            }
+        }
     }
 }

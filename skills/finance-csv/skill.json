@@ -1,0 +1,30 @@
+{
+  "name": "finance-csv",
+  "version": "1.0.0",
+  "description": "Parse CSV/OFX/QFX financial exports, categorize transactions via ML classifier, generate spending summaries for cockpit dashboard",
+  "author": "zylos",
+  "category": "productivity",
+  "entry_points": {
+    "parse": "parser.py",
+    "categorize": "classifier.py",
+    "summarize": "reporter.py"
+  },
+  "config": {
+    "supported_formats": ["csv", "ofx", "qfx"],
+    "bank_presets": [
+      "nubank", "inter", "itau", "bradesco", "santander",
+      "bb", "caixa", "c6", "picpay", "mercadopago"
+    ],
+    "categories": [
+      "alimentação", "transporte", "moradia", "saúde",
+      "educação", "lazer", "compras", "serviços", "transferências", "outros"
+    ],
+    "recurring_threshold_days": 35,
+    "ml_model_path": "models/categorizer.pkl"
+  },
+  "acceptance_criteria": {
+    "min_bank_formats": 10,
+    "min_categorization_accuracy": 0.85,
+    "max_parse_time_secs": 5
+  }
+}

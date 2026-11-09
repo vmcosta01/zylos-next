@@ -31,10 +31,16 @@ use uuid::Uuid;
 // ─── Outcome Uncertainty (Task 7C.1.3) ──────────────────────────────────────
 
 /// Three-state outcome for write operations.
+///
+/// Used when network errors or ambiguous HTTP responses make it impossible
+/// to determine whether a side-effecting operation succeeded or failed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Outcome {
+    /// The operation completed successfully.
     Succeeded,
+    /// The operation definitively failed (e.g. 4xx, validation error).
     Failed,
+    /// The outcome cannot be determined (e.g. 5xx, network timeout).
     OutcomeUnknown,
 }
 
@@ -49,13 +55,42 @@ impl fmt::Display for Outcome {
 }
 
 /// Classification result from an HTTP response or operation.
+///
+/// Bundles an [`Outcome`] with a machine-readable reason tag and optional
+/// human-readable detail for logging and UI feedback.
+///
+/// # Examples
+///
+/// ```
+/// use zylos_hitl::{classify_http_status, Outcome};
+/// let verdict = classify_http_status(200);
+/// assert_eq!(verdict.outcome, Outcome::Succeeded);
+/// assert_eq!(verdict.reason, "http_200");
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OutcomeVerdict {
+    /// The classified outcome.
     pub outcome: Outcome,
+    /// Machine-readable reason tag (e.g. `http_200`, `network_timeout`).
     pub reason: String,
+    /// Optional human-readable detail.
     pub detail: Option<String>,
 }
 
+/// Classify an HTTP status code into an [`OutcomeVerdict`].
+///
+/// - 2xx → [`Outcome::Succeeded`]
+/// - 4xx → [`Outcome::Failed`]
+/// - 5xx → [`Outcome::OutcomeUnknown`]
+/// - other → [`Outcome::OutcomeUnknown`] with `_unexpected` suffix
+///
+/// # Examples
+///
+/// ```
+/// use zylos_hitl::{classify_http_status, Outcome};
+/// assert_eq!(classify_http_status(404).outcome, Outcome::Failed);
+/// assert_eq!(classify_http_status(503).outcome, Outcome::OutcomeUnknown);
+/// ```
 pub fn classify_http_status(status: u16) -> OutcomeVerdict {
     let (outcome, reason) = match status {
         200..=299 => (Outcome::Succeeded, format!("http_{status}")),
@@ -66,6 +101,19 @@ pub fn classify_http_status(status: u16) -> OutcomeVerdict {
     OutcomeVerdict { outcome, reason, detail: None }
 }
 
+/// Classify a network-level error as [`Outcome::OutcomeUnknown`].
+///
+/// Network errors are ambiguous — the request may have reached the server
+/// but the response was lost, so retry may be safe.
+///
+/// # Examples
+///
+/// ```
+/// use zylos_hitl::{classify_network_error, Outcome};
+/// let v = classify_network_error("timeout");
+/// assert_eq!(v.outcome, Outcome::OutcomeUnknown);
+/// assert_eq!(v.reason, "network_timeout");
+/// ```
 pub fn classify_network_error(error_kind: &str) -> OutcomeVerdict {
     OutcomeVerdict {
         outcome: Outcome::OutcomeUnknown,
@@ -74,6 +122,18 @@ pub fn classify_network_error(error_kind: &str) -> OutcomeVerdict {
     }
 }
 
+/// Classify a client-side validation error as [`Outcome::Failed`].
+///
+/// Validation failures are definitive — retrying with the same input will
+/// produce the same result.
+///
+/// # Examples
+///
+/// ```
+/// use zylos_hitl::{classify_validation_error, Outcome};
+/// let v = classify_validation_error("missing_field");
+/// assert_eq!(v.outcome, Outcome::Failed);
+/// ```
 pub fn classify_validation_error(reason: impl Into<String>) -> OutcomeVerdict {
     OutcomeVerdict {
         outcome: Outcome::Failed,
@@ -82,10 +142,17 @@ pub fn classify_validation_error(reason: impl Into<String>) -> OutcomeVerdict {
     }
 }
 
+/// Deduplication key for outcome notifications.
+///
+/// Combines `operation_id` and [`Outcome`] into a stable SHA-256 prefix
+/// to prevent duplicate alerts for the same operation+outcome pair.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct NotificationDedupKey(pub String);
 
 impl NotificationDedupKey {
+    /// Create a new dedup key from an operation ID and outcome.
+    ///
+    /// Returns a 16-character hex prefix of the SHA-256 hash.
     pub fn new(operation_id: &str, outcome: Outcome) -> Self {
         let mut hasher = Sha256::new();
         hasher.update(operation_id.as_bytes());
@@ -96,25 +163,43 @@ impl NotificationDedupKey {
     }
 }
 
+/// Audit log entry recording an outcome transition.
+///
+/// Stored for compliance and debugging to track how and why an operation's
+/// outcome changed over time.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OutcomeAuditEntry {
+    /// RFC 3339 timestamp of the transition.
     pub timestamp: String,
+    /// Identifier of the operation whose outcome changed.
     pub operation_id: String,
+    /// Previous outcome, if any.
     pub previous_outcome: Option<Outcome>,
+    /// New outcome after the transition.
     pub new_outcome: Outcome,
+    /// Machine-readable reason for the change.
     pub reason: String,
+    /// Identity of the actor or system that decided the new outcome.
     pub decided_by: String,
 }
 
 // ─── HITL Approval Types (Task 7C.1.1 + 7C.2.2) ───────────────────────────
 
 /// Four-tier decision hierarchy: safety > team_rule > personal_rule > auto_review > default.
+///
+/// Tiers are evaluated in order by [`decide_action`]; the first tier that
+/// returns a decision wins. Higher tiers override lower ones.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DecisionTier {
+    /// Highest priority: hard safety constraints.
     Safety,
+    /// Team-wide policy rules.
     TeamRule,
+    /// User-specific personal rules.
     PersonalRule,
+    /// Automated review heuristics.
     AutoReview,
+    /// Fallback when no higher tier matches.
     Default,
 }
 
@@ -131,11 +216,17 @@ impl fmt::Display for DecisionTier {
 }
 
 /// The action decided by the approval system.
+///
+/// Returned by [`decide_action`] and stored on [`ApprovalRequest`] after claim.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ApprovalDecision {
+    /// Allow the requested action as-is.
     Approve,
+    /// Deny the requested action.
     Reject,
+    /// Allow with modified arguments (JSON patch/value).
     Modify(serde_json::Value),
+    /// Escalate to a human reviewer with a reason string.
     Escalate(String),
 }
 
@@ -151,18 +242,28 @@ impl fmt::Display for ApprovalDecision {
 }
 
 /// Seven standardized refusal messages for clear UX feedback.
+///
+/// Each variant maps to a user-facing message via [`RefusalReason::message`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RefusalReason {
+    /// A person explicitly declined the action.
     DeclinedByPerson,
+    /// Another approval request is already pending for this action.
     AlreadyWaiting,
+    /// Withdrawn because approvals were disabled globally.
     WithdrawnApprovalsOff,
+    /// Withdrawn because a rule now allows the action without approval.
     WithdrawnRuleAllows,
+    /// The action was already handled by a person.
     HandledByPerson,
+    /// Cannot approve while the step is still running.
     StepStillRunning,
+    /// Cannot approve because the current step has unknown outcome.
     OutcomeUnknownInStep,
 }
 
 impl RefusalReason {
+    /// Return the user-facing message for this refusal reason.
     pub fn message(&self) -> &'static str {
         match self {
             Self::DeclinedByPerson => "Action declined by person",
@@ -183,13 +284,21 @@ impl fmt::Display for RefusalReason {
 }
 
 /// Status of an approval card.
+///
+/// Transitions: `Pending` → `Approved` | `Rejected` | `Expired` | `Withdrawn` | `Abandoned`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ApprovalStatus {
+    /// Awaiting a decision.
     Pending,
+    /// Approved by a person or policy tier.
     Approved,
+    /// Rejected by a person or policy tier.
     Rejected,
+    /// TTL expired without a decision.
     Expired,
+    /// Withdrawn because a rule changed or approvals were disabled.
     Withdrawn,
+    /// Abandoned by the requester or system.
     Abandoned,
 }
 
@@ -207,31 +316,60 @@ impl fmt::Display for ApprovalStatus {
 }
 
 /// An approval request in the AG-UI protocol.
-/// Args never travel to the client — only hash + summary.
+///
+/// Args never travel to the client — only the equivalence hash and summary
+/// are exposed. The full argument set is reconstructed server-side on claim.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApprovalRequest {
+    /// Unique identifier (UUID v4).
     pub id: String,
+    /// Human-readable summary shown in the approval card UI.
     pub summary: String,
+    /// Name or reference of the tool being invoked.
     pub tool_call: String,
     /// Equivalence hash of normalized args for approval reuse.
     pub args_hash: String,
     /// Time-to-live in seconds. Default: 3600 (60 min).
     pub ttl_secs: u64,
+    /// When the request was created.
     pub created_at: DateTime<Utc>,
+    /// When the request expires if not yet decided.
     pub expires_at: DateTime<Utc>,
+    /// Conversation/thread this request belongs to.
     pub thread_id: String,
+    /// Identity of the actor requesting approval.
     pub requester_id: String,
+    /// Current lifecycle status.
     pub status: ApprovalStatus,
+    /// The decision, once claimed.
     pub decision: Option<ApprovalDecision>,
+    /// When the decision was made.
     pub decided_at: Option<DateTime<Utc>>,
+    /// Which policy tier produced the decision.
     pub decided_by_tier: Option<DecisionTier>,
+    /// Why the request was refused, if applicable.
     pub refusal_reason: Option<RefusalReason>,
 }
 
 // ─── Equivalence Hashing (Task 7C.2.2) ─────────────────────────────────────
 
 /// Compute equivalence hash for approval reuse.
+///
 /// Uses SHA-256 (blake3 not yet in workspace deps; swap when added).
+///
+/// Volatile fields (`snapshot_id`, `ref`, `tool_call_id`, `signal`) are
+/// stripped and object keys are sorted so semantically identical requests
+/// produce the same hash regardless of field ordering or transient metadata.
+///
+/// # Examples
+///
+/// ```
+/// use zylos_hitl::compute_equivalence_hash;
+/// let h = compute_equivalence_hash("actor", "bot", "send_email", "write", "global",
+///     &serde_json::json!({"to": "a@b.com"}),
+///     &serde_json::json!({"body": "hi"}));
+/// assert_eq!(h.len(), 64); // SHA-256 hex
+/// ```
 pub fn compute_equivalence_hash(
     actor_id: &str,
     bot_id: &str,
@@ -298,12 +436,19 @@ fn stabilize_value(value: &serde_json::Value, depth: usize) -> String {
 // ─── Policy Tier Trait (Task 7C.2.2) ───────────────────────────────────────
 
 /// Trait for implementing custom policy tiers.
+///
+/// Implementors are evaluated in order by [`decide_action`]; return `None`
+/// to defer to the next tier, or `Some(decision)` to short-circuit.
 pub trait PolicyTier: Send + Sync {
+    /// Which tier level this policy occupies.
     fn tier(&self) -> DecisionTier;
+    /// Evaluate the request. Return `Some(decision)` to decide, `None` to pass.
     fn evaluate(&self, request: &ApprovalRequest) -> Option<ApprovalDecision>;
 }
 
 /// Default policy tier that always approves (fallback / testing).
+///
+/// Use as the last tier in a chain to ensure every request gets a decision.
 pub struct DefaultPolicyTier;
 
 impl PolicyTier for DefaultPolicyTier {
@@ -314,6 +459,28 @@ impl PolicyTier for DefaultPolicyTier {
 }
 
 /// Decide action through the four-tier hierarchy.
+///
+/// Iterates `tiers` in order; the first tier returning `Some` wins.
+/// If no tier matches, returns `Escalate("no_policy_match")` at [`DecisionTier::Default`].
+///
+/// # Examples
+///
+/// ```
+/// use zylos_hitl::{decide_action, DefaultPolicyTier, ApprovalDecision, DecisionTier};
+/// # use zylos_hitl::ApprovalRequest;
+/// # use chrono::Utc;
+/// let req = ApprovalRequest {
+///     id: "x".into(), summary: "x".into(), tool_call: "x".into(),
+///     args_hash: "x".into(), ttl_secs: 60, created_at: Utc::now(),
+///     expires_at: Utc::now(), thread_id: "t".into(), requester_id: "r".into(),
+///     status: zylos_hitl::ApprovalStatus::Pending, decision: None,
+///     decided_at: None, decided_by_tier: None, refusal_reason: None,
+/// };
+/// let tiers: Vec<Box<dyn zylos_hitl::PolicyTier>> = vec![Box::new(DefaultPolicyTier)];
+/// let (decision, tier) = decide_action(&req, &tiers);
+/// assert_eq!(decision, ApprovalDecision::Approve);
+/// assert_eq!(tier, DecisionTier::Default);
+/// ```
 pub fn decide_action(
     request: &ApprovalRequest,
     tiers: &[Box<dyn PolicyTier>],
@@ -329,6 +496,17 @@ pub fn decide_action(
 // ─── Permanent Error Detection (Task 7C.2.2) ──────────────────────────────
 
 /// Check if an error is permanent (structural) and should NOT be retried.
+///
+/// Matches substrings: `schema_validation`, `catalogue_entry_unknown`,
+/// `tool_not_found`, `headless_tool_suspension`, `invalid_schema`, `zod_error`.
+///
+/// # Examples
+///
+/// ```
+/// use zylos_hitl::is_permanent;
+/// assert!(is_permanent("schema_validation failed"));
+/// assert!(!is_permanent("network timeout"));
+/// ```
 pub fn is_permanent(error: &str) -> bool {
     let lower = error.to_lowercase();
     lower.contains("schema_validation")
@@ -342,22 +520,30 @@ pub fn is_permanent(error: &str) -> bool {
 // ─── WASM Policy Sandbox Stub (Task 7C.2.2) ───────────────────────────────
 
 /// Stub for WASM-based policy engine (wasmtime 25.0).
+///
+/// Currently a no-op placeholder; `evaluate()` always returns `None`.
+/// Will be replaced with real WASM execution when the runtime is integrated.
 pub struct WasmPolicySandbox {
     loaded: bool,
     module_name: Option<String>,
 }
 
 impl WasmPolicySandbox {
+    /// Create a new empty sandbox with no module loaded.
     pub fn new() -> Self { Self { loaded: false, module_name: None } }
 
+    /// Load a WASM module by name. Currently a stub that records the name.
     pub fn load_module(&mut self, name: &str, _wasm_bytes: &[u8]) -> std::result::Result<(), HitlError> {
         self.loaded = true;
         self.module_name = Some(name.to_string());
         Ok(())
     }
 
+    /// Whether a module has been loaded.
     pub fn is_loaded(&self) -> bool { self.loaded }
+    /// Name of the loaded module, if any.
     pub fn module_name(&self) -> Option<&str> { self.module_name.as_deref() }
+    /// Evaluate a request against the loaded WASM policy. Stub: always `None`.
     pub fn evaluate(&self, _request: &ApprovalRequest) -> Option<ApprovalDecision> { None }
 }
 
@@ -368,54 +554,87 @@ impl Default for WasmPolicySandbox {
 // ─── Execution Authority (task-local) ────────────────────────────────────────
 
 tokio::task_local! {
+    /// Task-local carrying the approved execution authority for the current scope.
+    ///
+    /// Set before executing an approved action so downstream code can verify
+    /// that the operation was authorized.
     pub static EXECUTION_AUTHORITY: ExecutionAuthority;
 }
 
+/// Proof of approval attached to an executing action.
+///
+/// Carried in the [`EXECUTION_AUTHORITY`] task-local so callees can verify
+/// that the current operation was approved without re-querying the store.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionAuthority {
+    /// The approval card ID that authorized this execution.
     pub approval_id: String,
+    /// Digest of the approved arguments for tamper detection.
     pub digest: String,
+    /// Identity of the approver.
     pub owner: String,
 }
 
 tokio::task_local! {
+    /// Task-local flag indicating a validation probe is active.
+    ///
+    /// When `true`, the current execution is a dry-run validation probe
+    /// and should not trigger side effects or consume approvals.
     pub static VALIDATION_PROBE_ACTIVE: bool;
 }
 
+/// Check whether the current task is running inside a validation probe.
+///
+/// Returns `false` if the task-local is not set (i.e. outside a probe scope).
 pub fn is_approval_recheck() -> bool {
     VALIDATION_PROBE_ACTIVE.try_with(|v| *v).unwrap_or(false)
 }
 
 // ─── Errors ─────────────────────────────────────────────────────────────────
 
+/// Errors produced by the HITL approval subsystem.
 #[derive(Error, Debug)]
 pub enum HitlError {
+    /// Database error from the SQLite backend.
     #[error("database error: {0}")]
     Database(#[from] rusqlite::Error),
+    /// No approval request found with the given ID.
     #[error("approval not found: {0}")]
     NotFound(String),
+    /// The approval request has expired (TTL elapsed).
     #[error("approval expired: {0}")]
     Expired(String),
+    /// Attempted to claim an already-decided approval.
     #[error("double claim prevented for approval {0}")]
     DoubleClaim(String),
+    /// The action was refused for a specific reason.
     #[error("refusal: {0}")]
     Refused(RefusalReason),
+    /// JSON serialization/deserialization error.
     #[error("serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
+    /// Lost the distributed lease for this approval.
     #[error("lost lease: {0}")]
     LostLease(String),
 }
 
+/// Convenience result type for HITL operations.
 pub type Result<T> = std::result::Result<T, HitlError>;
 
 // ─── Approval Storage Engine ────────────────────────────────────────────────
 
 /// Server-side approval storage with SQLite backend.
+///
+/// Thread-safe via `Arc<Mutex<Connection>>`; all methods are async.
+/// Initializes the `approval_cards` table and indexes on construction.
 pub struct ApprovalStore {
     conn: Arc<Mutex<Connection>>,
 }
 
 impl ApprovalStore {
+    /// Create a new store, initializing the `approval_cards` table and indexes.
+    ///
+    /// Safe to call multiple times — uses `CREATE TABLE IF NOT EXISTS`.
     pub fn new(conn: Connection) -> Result<Self> {
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS approval_cards (
@@ -442,6 +661,9 @@ impl ApprovalStore {
         Ok(Self { conn: Arc::new(Mutex::new(conn)) })
     }
 
+    /// Create and persist a new pending approval request.
+    ///
+    /// Generates a UUID v4 ID and computes `expires_at` from `ttl_secs`.
     pub async fn create_request(
         &self, summary: String, tool_call: String, args_hash: String,
         ttl_secs: u64, thread_id: String, requester_id: String,
@@ -465,6 +687,11 @@ impl ApprovalStore {
         })
     }
 
+    /// Claim a pending approval with a decision.
+    ///
+    /// Validates the request is still pending and not expired. Returns
+    /// [`HitlError::DoubleClaim`] if already decided, or [`HitlError::Expired`]
+    /// if the TTL has elapsed.
     pub async fn claim(&self, id: &str, decision: &ApprovalDecision, tier: &DecisionTier) -> Result<()> {
         let conn = self.conn.lock().await;
         let now = Utc::now();
@@ -496,6 +723,10 @@ impl ApprovalStore {
         Ok(())
     }
 
+    /// Find the most recent approved request matching the given args hash.
+    ///
+    /// Used for approval reuse: if an equivalent action was already approved,
+    /// skip re-prompting.
     pub async fn find_approved_by_hash(&self, args_hash: &str) -> Result<Option<ApprovalRequest>> {
         let conn = self.conn.lock().await;
         let row = conn.query_row(
@@ -508,6 +739,9 @@ impl ApprovalStore {
         Ok(row.and_then(|r| r.into_approval_request().ok()))
     }
 
+    /// Retrieve an approval request by ID.
+    ///
+    /// Returns [`HitlError::NotFound`] if no row matches.
     pub async fn get(&self, id: &str) -> Result<ApprovalRequest> {
         let conn = self.conn.lock().await;
         let row = conn.query_row(
@@ -519,6 +753,10 @@ impl ApprovalStore {
         row.into_approval_request()
     }
 
+    /// Withdraw all pending approvals matching `args_hash` where the deciding
+    /// tier is `default` or `personal_rule` (or undecided).
+    ///
+    /// Returns the number of rows withdrawn.
     pub async fn withdraw_allowed(&self, args_hash: &str) -> Result<u32> {
         let conn = self.conn.lock().await;
         let affected = conn.execute(
@@ -530,6 +768,10 @@ impl ApprovalStore {
         Ok(affected as u32)
     }
 
+    /// Abandon an approval request, recording the reason as an escalation.
+    ///
+    /// Applies to requests in `pending` or `approved` status. Returns
+    /// [`HitlError::NotFound`] if no matching row exists.
     pub async fn abandon(&self, id: &str, reason: &str) -> Result<()> {
         let conn = self.conn.lock().await;
         let now = Utc::now();
@@ -542,6 +784,9 @@ impl ApprovalStore {
         Ok(())
     }
 
+    /// Mark all pending requests past their `expires_at` as expired.
+    ///
+    /// Returns the number of rows expired. Call periodically to clean up.
     pub async fn expire_stale(&self) -> Result<u32> {
         let conn = self.conn.lock().await;
         let now = Utc::now().to_rfc3339();
@@ -552,6 +797,10 @@ impl ApprovalStore {
         Ok(affected as u32)
     }
 
+    /// List remaining pending approval IDs in a thread, excluding one ID.
+    ///
+    /// Used after approving one step to discover subsequent steps awaiting
+    /// approval in the same thread. Ordered by creation time ascending.
     pub async fn carry_on(&self, thread_id: &str, exclude_id: &str) -> Result<Vec<String>> {
         let conn = self.conn.lock().await;
         let mut stmt = conn.prepare(

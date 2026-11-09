@@ -1,0 +1,26 @@
+{
+  "name": "zylos-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Zylos Desktop Shell — SolidJS + Tauri v2 frontend",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-shell": "^2.0.0",
+    "@tauri-apps/plugin-notification": "^2.0.0",
+    "@tauri-apps/plugin-deep-link": "^2.0.0",
+    "@tauri-apps/plugin-updater": "^2.0.0",
+    "solid-js": "^1.9.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "typescript": "^5.6.0",
+    "vite": "^6.0.0",
+    "vite-plugin-solid": "^2.10.0"
+  }
+}

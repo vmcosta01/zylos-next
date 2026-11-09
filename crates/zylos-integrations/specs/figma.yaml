@@ -1,0 +1,61 @@
+slug: figma
+display_name: Figma
+auth_url: https://www.figma.com/oauth
+token_url: https://api.figma.com/v1/oauth/token
+client_id: "${FIGMA_CLIENT_ID}"
+client_secret: "${FIGMA_CLIENT_SECRET}"
+redirect_uri: http://localhost:9090/callback/figma
+scopes:
+  - file_read
+  - file_dev_resources:read
+  - webhooks:write
+requires_approval: false
+rate_limit_rpm: 60
+actions:
+  - id: get_file
+    description: Get a Figma file by key
+    method: GET
+    url_template: https://api.figma.com/v1/files/{file_key}
+    requires_approval: false
+
+  - id: get_file_nodes
+    description: Get specific nodes from a file
+    method: GET
+    url_template: https://api.figma.com/v1/files/{file_key}/nodes?ids={node_ids}
+    requires_approval: false
+
+  - id: get_images
+    description: Render images of file nodes
+    method: GET
+    url_template: https://api.figma.com/v1/images/{file_key}?ids={node_ids}&format={format}&scale={scale}
+    requires_approval: false
+
+  - id: get_comments
+    description: Get comments on a file
+    method: GET
+    url_template: https://api.figma.com/v1/files/{file_key}/comments
+    requires_approval: false
+
+  - id: post_comment
+    description: Add a comment to a file
+    method: POST
+    url_template: https://api.figma.com/v1/files/{file_key}/comments
+    requires_approval: true
+    body_schema:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
+        client_meta: { type: object }
+
+  - id: get_styles
+    description: Get published styles from a file
+    method: GET
+    url_template: https://api.figma.com/v1/files/{file_key}/styles
+    requires_approval: false
+
+  - id: get_components
+    description: Get published components from a file
+    method: GET
+    url_template: https://api.figma.com/v1/files/{file_key}/components
+    requires_approval: false

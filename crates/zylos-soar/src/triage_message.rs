@@ -20,16 +20,17 @@ use std::fmt;
 
 /// What initiated this triage request.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Enumeração Initiator.
 pub enum Initiator {
-    /// A human sent a message directly.
+    // A human sent a message directly.
     Person(String),
-    /// A scheduled routine fired (e.g., inbox check, calendar prep).
+    // A scheduled routine fired (e.g., inbox check, calendar prep).
     Routine(String),
-    /// An agent's responsibility triggered this (e.g., monitoring alert).
+    // An agent's responsibility triggered this (e.g., monitoring alert).
     Responsibility(String),
-    /// A memory consolidation or recall triggered this.
+    // A memory consolidation or recall triggered this.
     Memory(String),
-    /// A handoff from another agent or system.
+    // A handoff from another agent or system.
     Handoff { from: String, reason: String },
 }
 
@@ -47,23 +48,29 @@ impl fmt::Display for Initiator {
 
 /// Triage verdict — what should happen with this item.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Enumeração TriageVerdict.
 pub enum TriageVerdict {
-    /// Item can be safely deferred; no immediate action needed.
+    // Item can be safely deferred; no immediate action needed.
     CanWait { reason: String },
-    /// Item can be automatically handled without human involvement.
+    // Item can be automatically handled without human involvement.
     AutoHandle { action: String, reason: String },
-    /// Item requires human attention or decision.
+    // Item requires human attention or decision.
     NeedsYou { urgency: Urgency, summary: String },
-    /// Item should be discarded (spam, irrelevant).
+    // Item should be discarded (spam, irrelevant).
     Discard { reason: String },
 }
 
 /// Urgency level for items that need human attention.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Enumeração Urgency.
 pub enum Urgency {
+    /// Variante Low.
     Low,
+    /// Variante Medium.
     Medium,
+    /// Variante High.
     High,
+    /// Variante Critical.
     Critical,
 }
 
@@ -80,10 +87,11 @@ impl fmt::Display for Urgency {
 
 /// How a triage decision was made — critical for audit.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Enumeração DecidedBy.
 pub enum DecidedBy {
-    /// Stage 1 rule matched. Format: `rule:<rule_id>`.
+    // Stage 1 rule matched. Format: `rule:<rule_id>`.
     Rule(String),
-    /// Stage 2 model classified. Format: `model:<model_name>`.
+    // Stage 2 model classified. Format: `model:<model_name>`.
     Model(String),
 }
 
@@ -98,6 +106,7 @@ impl fmt::Display for DecidedBy {
 
 /// Complete triage result with audit trail.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura TriageResult.
 pub struct TriageResult {
     /// The verdict.
     pub verdict: TriageVerdict,
@@ -118,6 +127,7 @@ pub struct TriageResult {
 /// Rules are evaluated in order; first match wins.
 /// Rules MUST NOT produce `NeedsYou` verdicts — only safe negatives.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura TriageRule.
 pub struct TriageRule {
     /// Unique identifier for audit (`decided_by = "rule:<id>"`).
     pub id: String,
@@ -135,38 +145,45 @@ pub struct TriageRule {
 
 /// Pattern matching strategy for rules.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Enumeração RulePattern.
 pub enum RulePattern {
-    /// Case-insensitive substring match.
+    // Case-insensitive substring match.
     Contains(String),
-    /// Regex pattern match (simplified contains-based approximation).
+    // Regex pattern match (simplified contains-based approximation).
     Regex(String),
-    /// Sender/domain match (for email-like inputs).
+    // Sender/domain match (for email-like inputs).
     SenderDomain(String),
-    /// Header field match (key-value).
+    // Header field match (key-value).
     HeaderMatch { key: String, value: String },
-    /// Composite: all sub-patterns must match.
+    // Composite: all sub-patterns must match.
     AllOf(Vec<RulePattern>),
-    /// Composite: any sub-pattern must match.
+    // Composite: any sub-pattern must match.
     AnyOf(Vec<RulePattern>),
-    /// Negation: sub-pattern must NOT match.
+    // Negation: sub-pattern must NOT match.
     Not(Box<RulePattern>),
 }
 
 /// Errors from the triage engine.
 #[derive(Debug, Clone, thiserror::Error)]
+/// Enumeração TriageError.
 pub enum TriageError {
     #[error("model classification failed: {0}")]
+    // Variante ModelFailure.
     ModelFailure(String),
     #[error("invalid rule pattern: {0}")]
+    // Variante InvalidPattern.
     InvalidPattern(String),
     #[error("no rules configured and model unavailable")]
+    /// Variante NoFallbackAvailable.
     NoFallbackAvailable,
     #[error("input too large for triage: {size} bytes (max {max})")]
+    // Variante InputTooLarge.
     InputTooLarge { size: usize, max: usize },
 }
 
 /// Configuration for the two-stage triage engine.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura TriageConfig.
 pub struct TriageConfig {
     /// Maximum input size in bytes.
     pub max_input_bytes: usize,
@@ -180,6 +197,7 @@ pub struct TriageConfig {
 
 impl Default for TriageConfig {
     fn default() -> Self {
+        // Variante Self.
         Self {
             max_input_bytes: 100_000,
             model_name: "triage-llm".to_string(),
@@ -198,8 +216,10 @@ pub struct MessageTriageEngine {
 }
 
 impl MessageTriageEngine {
+    /// Função new.
     pub fn new(config: TriageConfig, mut rules: Vec<TriageRule>) -> Self {
         rules.sort_by_key(|r| r.priority);
+        // Variante Self.
         Self { config, rules }
     }
 
@@ -290,6 +310,7 @@ impl MessageTriageEngine {
         }
 
         // No rules matched, model disabled → use configured default
+        // Variante Ok.
         Ok(TriageResult {
             verdict: self.config.default_verdict.clone(),
             decided_by: DecidedBy::Rule("default".to_string()),
@@ -303,6 +324,7 @@ impl MessageTriageEngine {
     /// Create a standard set of built-in rules for common safe negatives.
     pub fn default_rules() -> Vec<TriageRule> {
         vec![
+            // Variante TriageRule.
             TriageRule {
                 id: "auto-reply".into(),
                 description: "Auto-reply / out-of-office messages".into(),
@@ -319,6 +341,7 @@ impl MessageTriageEngine {
                 priority: 10,
                 enabled: true,
             },
+            // Variante TriageRule.
             TriageRule {
                 id: "newsletter".into(),
                 description: "Newsletter / mailing list messages".into(),
@@ -333,6 +356,7 @@ impl MessageTriageEngine {
                 priority: 20,
                 enabled: true,
             },
+            // Variante TriageRule.
             TriageRule {
                 id: "promotion".into(),
                 description: "Promotional / marketing emails".into(),
@@ -349,6 +373,7 @@ impl MessageTriageEngine {
                 priority: 30,
                 enabled: true,
             },
+            // Variante TriageRule.
             TriageRule {
                 id: "notification".into(),
                 description: "Automated notifications (CI, monitoring, etc.)".into(),
@@ -366,6 +391,7 @@ impl MessageTriageEngine {
                 priority: 40,
                 enabled: true,
             },
+            // Variante TriageRule.
             TriageRule {
                 id: "bulk-mail".into(),
                 description: "Bulk / mass mail indicators".into(),
@@ -502,6 +528,7 @@ mod tests {
         let engine = MessageTriageEngine::new(config, MessageTriageEngine::default_rules());
 
         let model_fn = |_input: &str| -> Result<TriageVerdict, String> {
+            // Variante Ok.
             Ok(TriageVerdict::NeedsYou {
                 urgency: Urgency::High,
                 summary: "PR review request from colleague".into(),
@@ -512,6 +539,7 @@ mod tests {
             .classify(
                 "Hey, can you review this PR when you get a chance?",
                 Initiator::Person("colleague".into()),
+                // Variante Some.
                 Some(model_fn),
             )
             .unwrap();
@@ -530,6 +558,7 @@ mod tests {
         let engine = MessageTriageEngine::new(config, MessageTriageEngine::default_rules());
 
         let model_fn = |_input: &str| -> Result<TriageVerdict, String> {
+            // Variante Err.
             Err("API rate limit exceeded".into())
         };
 
@@ -721,6 +750,7 @@ mod tests {
     #[test]
     fn test_rules_sorted_by_priority() {
         let rules = vec![
+            /// Variante TriageRule.
             TriageRule {
                 id: "low".into(),
                 description: "".into(),
@@ -729,6 +759,7 @@ mod tests {
                 priority: 100,
                 enabled: true,
             },
+            /// Variante TriageRule.
             TriageRule {
                 id: "high".into(),
                 description: "".into(),

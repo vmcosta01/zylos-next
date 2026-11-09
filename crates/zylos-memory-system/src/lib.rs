@@ -23,6 +23,7 @@ pub mod write_gate;
 pub mod session_goal;
 pub mod migration;
 pub mod document_spaces;
+pub mod typed_semantic;
 
 pub use error::{MemoryError, Result};
 pub use types::{ContextNode, ContextEdge, ContextQuery, MemoryScope, NodeId};

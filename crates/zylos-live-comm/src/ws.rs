@@ -60,7 +60,9 @@ async fn handle_socket(
 
         while let Some(Ok(envelope)) = stream.next().await {
             let json = match serde_json::to_string(&envelope) {
+                // Variante Ok.
                 Ok(j) => j,
+                // Variante Err.
                 Err(_) => continue,
             };
             let msg = axum::extract::ws::Message::Text(json);

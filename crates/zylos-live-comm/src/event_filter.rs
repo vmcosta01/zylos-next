@@ -15,6 +15,7 @@ use tracing::debug;
 
 /// Compiled filter that can be evaluated against an EventEnvelope.
 #[derive(Clone)]
+/// Estrutura CompiledFilter.
 pub struct CompiledFilter {
     source: String,
     kind: FilterKind,
@@ -22,19 +23,18 @@ pub struct CompiledFilter {
 
 #[derive(Clone)]
 enum FilterKind {
-    /// Match everything
     All,
-    /// Topic pattern with wildcard support (e.g. "agents.*.state")
+    // Topic pattern with wildcard support (e.g. "agents.*.state")
     TopicPattern(String),
-    /// Exact event type match
+    // Exact event type match
     EventType(String),
-    /// Conjunction of sub-filters
+    // Conjunction of sub-filters
     And(Vec<CompiledFilter>),
-    /// Disjunction of sub-filters
+    // Disjunction of sub-filters
     Or(Vec<CompiledFilter>),
-    /// Negation
+    // Negation
     Not(Box<CompiledFilter>),
-    /// Field equality: field path == value
+    // Field equality: field path == value
     FieldEq(String, String),
 }
 
@@ -65,6 +65,7 @@ impl CompiledFilter {
         }
     }
 
+    /// Função source.
     pub fn source(&self) -> &str {
         &self.source
     }
@@ -86,6 +87,7 @@ fn resolve_field<'a>(envelope: &'a EventEnvelope, path: &str) -> Option<String> 
                 crate::event_types::ZylosEvent::SkillInvoked(_) => "SkillInvoked",
                 crate::event_types::ZylosEvent::Custom(c) => c.name.as_str(),
             };
+            // Variante Some.
             Some(et.to_string())
         }
         // Nested data fields — extract from serialized payload for simplicity
@@ -94,6 +96,7 @@ fn resolve_field<'a>(envelope: &'a EventEnvelope, path: &str) -> Option<String> 
             let json = serde_json::to_value(&envelope.payload).ok()?;
             // Navigate into "data" then the sub-field
             let val = json.get("data")?.get(field)?;
+            // Variante Some.
             Some(val.as_str().unwrap_or(&val.to_string()).to_string())
         }
         _ => None,
@@ -196,6 +199,7 @@ pub fn parse_expression(expr: &str) -> Result<CompiledFilter, String> {
         });
     }
 
+    // Variante Err.
     Err(format!("unsupported filter expression: {}", trimmed))
 }
 
@@ -215,14 +219,17 @@ fn find_top_level_op(s: &str, op: &str) -> Option<usize> {
         }
         i += 1;
     }
+    // Variante None.
     None
 }
 
 fn unquote(s: &str) -> Result<String, String> {
     let t = s.trim();
     if (t.starts_with('"') && t.ends_with('"')) || (t.starts_with('\'') && t.ends_with('\'')) {
+        // Variante Ok.
         Ok(t[1..t.len() - 1].to_string())
     } else {
+        // Variante Err.
         Err(format!("expected quoted string, got: {}", s))
     }
 }
@@ -237,7 +244,9 @@ pub struct FilterCache {
 }
 
 impl FilterCache {
+    /// Função new.
     pub fn new() -> Self {
+        // Variante Self.
         Self {
             cache: RwLock::new(HashMap::new()),
         }
@@ -255,9 +264,11 @@ impl FilterCache {
         let mut map = self.cache.write().unwrap();
         map.insert(expr.to_string(), compiled.clone());
         debug!(expr, "filter compiled and cached");
+        // Variante Ok.
         Ok(compiled)
     }
 
+    /// Função len.
     pub fn len(&self) -> usize {
         self.cache.read().unwrap().len()
     }

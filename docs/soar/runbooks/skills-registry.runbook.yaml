@@ -8,6 +8,10 @@ metadata:
   tags: ["skills", "registry", "eval"]
   related_playbooks:
     - "../playbooks/onboarding-devs.md"
+  playbook_ref: "../../playbooks/workflow-orchestration.md"
+  runbook_refs:
+    - "../../runbooks/web-research-adapters.md"
+    - "../../runbooks/finance-csv-skill.md"
 
 preconditions:
   - check: "Skills crate compiled"

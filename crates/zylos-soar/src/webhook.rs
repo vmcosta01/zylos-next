@@ -18,11 +18,14 @@ use uuid::Uuid;
 
 /// Shared application state for the webhook server.
 pub struct AppState {
+    /// Campo router.
     pub router: RwLock<EventRouter>,
 }
 
 impl AppState {
+    /// Função new.
     pub fn new(router: EventRouter) -> Self {
+        // Variante Self.
         Self {
             router: RwLock::new(router),
         }
@@ -31,29 +34,37 @@ impl AppState {
 
 /// Generic webhook payload — accepts any JSON and normalizes to `ZylosSecurityEvent`.
 #[derive(Debug, Clone, Deserialize)]
+/// Estrutura WebhookPayload.
 pub struct WebhookPayload {
     /// Optional event ID; auto-generated if missing.
     pub id: Option<Uuid>,
     /// Event source identifier (e.g. "crowdstrike", "sentinel-one").
     #[serde(default = "default_source")]
+    /// Campo source.
     pub source: String,
     /// Severity string: "critical", "high", "medium", "low", "info".
     #[serde(default = "default_severity_str")]
+    /// Campo severity.
     pub severity: String,
     /// Category string: "breach", "anomaly", "vulnerability", "compliance", "false_positive".
     #[serde(default = "default_category_str")]
+    /// Campo category.
     pub category: String,
     /// Human-readable title.
     #[serde(default = "default_title")]
+    /// Campo title.
     pub title: String,
     /// Optional description.
     #[serde(default)]
+    /// Campo description.
     pub description: String,
     /// Affected asset identifiers.
     #[serde(default)]
+    /// Campo affected assets.
     pub affected_assets: Vec<String>,
     /// Raw payload passthrough.
     #[serde(flatten)]
+    /// Campo extra.
     pub extra: serde_json::Value,
 }
 
@@ -72,8 +83,11 @@ fn default_title() -> String {
 
 /// Response returned after successful webhook ingestion.
 #[derive(Debug, Serialize)]
+/// Estrutura IngestResponse.
 pub struct IngestResponse {
+    /// Campo event id.
     pub event_id: Uuid,
+    /// Campo dispatched playbooks.
     pub dispatched_playbooks: Vec<String>,
 }
 
@@ -82,6 +96,7 @@ pub fn normalize_payload(payload: WebhookPayload) -> Result<ZylosSecurityEvent> 
     let severity = parse_severity(&payload.severity);
     let category = parse_category(&payload.category);
 
+    // Variante Ok.
     Ok(ZylosSecurityEvent::new(
         payload.source,
         severity,
@@ -121,7 +136,9 @@ async fn ingest_webhook(
     Json(payload): Json<WebhookPayload>,
 ) -> impl IntoResponse {
     let event = match normalize_payload(payload) {
+        // Variante Ok.
         Ok(e) => e,
+        // Variante Err.
         Err(e) => {
             return (
                 StatusCode::BAD_REQUEST,
@@ -136,7 +153,9 @@ async fn ingest_webhook(
     let event_id = event.id;
     let router = state.router.read().await;
     let dispatched = match router.route(&event) {
+        // Variante Ok.
         Ok(d) => d,
+        // Variante Err.
         Err(e) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,

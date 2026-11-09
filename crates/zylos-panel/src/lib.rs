@@ -4,9 +4,11 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Confidence level of a panel decision.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Confidencia { Alta, Media, Baixa }
 
+/// Canonical evaluation lens used by adversarial judges.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LenteCanonica {
     Funcionalidade,
@@ -17,6 +19,7 @@ pub enum LenteCanonica {
     Testes,
 }
 impl LenteCanonica {
+    /// Human-readable label for this lens.
     pub fn alcane(&self) -> &'static str {
         match self {
             Self::Funcionalidade => "funcionalidade",
@@ -27,6 +30,7 @@ impl LenteCanonica {
             Self::Testes => "testes",
         }
     }
+    /// Returns all canonical lenses in declaration order.
     pub fn todas() -> Vec<LenteCanonica> {
         vec![
             LenteCanonica::Funcionalidade,
@@ -39,33 +43,54 @@ impl LenteCanonica {
     }
 }
 
+/// A single vote cast by an adversarial judge.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JudgeVote {
+    /// Identifier of the judge that cast this vote.
     pub judge_id: String,
+    /// Identifier of the agent that generated the artifact under review.
     pub gerador_id: Option<String>,
+    /// Whether the judge approved the artifact.
     pub aprovado: bool,
+    /// Grounded refutation text when the vote is negative.
     pub refutacao_aterrada: Option<String>,
+    /// Evaluation lens this vote was cast under.
     pub lente: LenteCanonica,
+    /// Evidence traces supporting the vote decision.
     pub vestigios: Vec<String>,
 }
 
+/// Aggregated decision produced by the adversarial panel.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PanelDecision {
+    /// Whether the artifact was approved after aggregation.
     pub aprovado: bool,
+    /// Confidence level derived from vote distribution.
     pub confianca: Confidencia,
+    /// Total number of votes considered (after filtering).
     pub votos_totais: usize,
+    /// Number of approval votes.
     pub votos_aprovados: usize,
+    /// Number of grounded refutations that blocked approval.
     pub refutacoes_aterradas: usize,
+    /// Number of votes filtered out due to self-judgment.
     pub filtrados_auto_julgamento: usize,
+    /// Whether a deterministic guardrail triggered.
     pub guardrail_ativo: bool,
+    /// Whether false-success detection blocked approval.
     pub falso_sucesso_detectado: bool,
+    /// Canonical lenses covered by at least one vote.
     pub lentes_cobertas: Vec<LenteCanonica>,
 }
 
+/// Configuration for the adversarial panel aggregator.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PanelConfig {
+    /// Lenses that must be covered for a valid decision.
     pub lentes: Vec<LenteCanonica>,
+    /// Minimum number of votes required for a decision.
     pub min_votos: usize,
+    /// Minimum evidence traces required to avoid false-success flagging.
     pub falso_sucesso_min_vestigios: usize,
 }
 impl Default for PanelConfig {
@@ -78,6 +103,8 @@ impl Default for PanelConfig {
     }
 }
 
+/// Filter out votes where the judge is also the generator (self-judgment).
+/// Returns the filtered vote list and the count of removed votes.
 pub fn filtrar_auto_julgamento(votos: &[JudgeVote]) -> (Vec<JudgeVote>, usize) {
     let mut filtrados = Vec::new();
     let mut count = 0;
@@ -90,6 +117,8 @@ pub fn filtrar_auto_julgamento(votos: &[JudgeVote]) -> (Vec<JudgeVote>, usize) {
     (filtrados, count)
 }
 
+/// Detect false-success: approval votes without sufficient evidence traces.
+/// Returns `true` when the total vestigios across approved votes is below the threshold.
 pub fn detector_falso_sucesso(votos: &[JudgeVote], min_vestigios: usize) -> bool {
     let aprovados: Vec<&JudgeVote> = votos.iter().filter(|v| v.aprovado).collect();
     if aprovados.is_empty() { return false; }
@@ -97,6 +126,8 @@ pub fn detector_falso_sucesso(votos: &[JudgeVote], min_vestigios: usize) -> bool
     total_vestigios < min_vestigios
 }
 
+/// Deterministic guardrail that rejects obviously low-quality judge output.
+/// Returns a reason string when the content should be blocked, or `None` if acceptable.
 pub fn guardrail_deterministico(conteudo: &str) -> Option<String> {
     let trimmed = conteudo.trim().to_lowercase();
     if trimmed.is_empty() { return Some("conteudo vazio".into()); }
@@ -109,6 +140,7 @@ pub fn guardrail_deterministico(conteudo: &str) -> Option<String> {
     None
 }
 
+/// Aggregate judge votes into a single panel decision, applying all guardrails.
 pub fn aggregate_votes(config: &PanelConfig, votos: &[JudgeVote]) -> PanelDecision {
     let (filtrados, auto_filtrados) = filtrar_auto_julgamento(votos);
     let guard = guardrail_deterministico("");
@@ -126,6 +158,7 @@ pub fn aggregate_votes(config: &PanelConfig, votos: &[JudgeVote]) -> PanelDecisi
     }
 }
 
+/// Compute confidence level from vote counts and refutation presence.
 pub fn vote_confidence(total: usize, aprovados: usize, refutacoes: usize) -> Confidencia {
     if total == 0 { return Confidencia::Baixa; }
     if refutacoes > 0 { return Confidencia::Alta; }

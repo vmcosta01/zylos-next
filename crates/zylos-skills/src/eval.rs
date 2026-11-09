@@ -25,32 +25,42 @@ use tracing::{debug, info, warn};
 
 /// Erros do sistema de eval
 #[derive(Error, Debug)]
+/// Enumeração EvalError.
 pub enum EvalError {
     #[error("configuração de eval não encontrada: {0}")]
+    // Variante ConfigNotFound.
     ConfigNotFound(String),
 
     #[error("falha ao ler configuração: {0}")]
+    // Variante IoError.
     IoError(#[from] std::io::Error),
 
     #[error("JSON inválido: {0}")]
+    // Variante ParseError.
     ParseError(#[from] serde_json::Error),
 
     #[error("skill '{0}' não encontrada para avaliação")]
+    // Variante SkillNotFound.
     SkillNotFound(String),
 
     #[error("provedor LLM '{0}' não suportado")]
+    // Variante UnsupportedProvider.
     UnsupportedProvider(String),
 
     #[error("avaliação falhou: {0}")]
+    // Variante EvaluationFailed.
     EvaluationFailed(String),
 
     #[error("timeout após {0}s")]
+    // Variante Timeout.
     Timeout(u64),
 
     #[error("SQLite error: {0}")]
+    // Variante SqliteError.
     SqliteError(#[from] rusqlite::Error),
 
     #[error("regression detected: {skill} score dropped {delta:.1}% (baseline {baseline:.3} -> current {current:.3})")]
+    /// Variante RegressionDetected.
     RegressionDetected {
         skill: String,
         baseline: f64,
@@ -59,6 +69,7 @@ pub enum EvalError {
     },
 
     #[error("no baseline found for comparison")]
+    /// Variante NoBaseline.
     NoBaseline,
 }
 
@@ -72,10 +83,15 @@ pub type EvalResult<T> = Result<T, EvalError>;
 /// Provedores LLM suportados para julgamento
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
+/// Enumeração LlmProvider.
 pub enum LlmProvider {
+    /// Variante Gemini.
     Gemini,
+    /// Variante Claude.
     Claude,
+    /// Variante OpenAI.
     OpenAI,
+    /// Variante Local.
     Local,
 }
 
@@ -105,67 +121,103 @@ impl std::str::FromStr for LlmProvider {
 
 /// Critério de avaliação individual
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura EvalCriterion.
 pub struct EvalCriterion {
+    /// Campo name.
     pub name: String,
+    /// Campo description.
     pub description: String,
+    /// Campo weight.
     pub weight: f64,
+    /// Campo judge prompt.
     pub judge_prompt: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Campo goal contract criterion.
     pub goal_contract_criterion: Option<GoalContractCriterionRef>,
 }
 
 /// Reference to a Goal-Contract acceptance criterion (expansion #7)
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura GoalContractCriterionRef.
 pub struct GoalContractCriterionRef {
+    /// Campo contract id.
     pub contract_id: String,
+    /// Campo criterion index.
     pub criterion_index: usize,
     #[serde(default)]
+    /// Campo label.
     pub label: String,
 }
 
 /// Configuração de um caso de teste
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura EvalTestCase.
 pub struct EvalTestCase {
+    /// Campo id.
     pub id: String,
+    /// Campo skill name.
     pub skill_name: String,
+    /// Campo input.
     pub input: String,
     #[serde(default)]
+    /// Campo expected output.
     pub expected_output: Option<String>,
     #[serde(default)]
+    /// Campo context.
     pub context: HashMap<String, String>,
     #[serde(default)]
+    /// Campo criteria override.
     pub criteria_override: Vec<EvalCriterion>,
     #[serde(default)]
+    /// Campo tags.
     pub tags: Vec<String>,
 }
 
 /// Resultado de uma avaliação individual por critério
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura CriterionScore.
 pub struct CriterionScore {
+    /// Campo criterion.
     pub criterion: String,
+    /// Campo score.
     pub score: f64,
+    /// Campo reasoning.
     pub reasoning: String,
+    /// Campo duration ms.
     pub duration_ms: f64,
 }
 
 /// Resultado completo de uma avaliação
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura EvalReport.
 pub struct EvalReport {
     #[serde(default = "generate_run_id")]
+    /// Campo run id.
     pub run_id: String,
+    /// Campo test case id.
     pub test_case_id: String,
+    /// Campo skill name.
     pub skill_name: String,
+    /// Campo judge provider.
     pub judge_provider: LlmProvider,
+    /// Campo criteria scores.
     pub criteria_scores: Vec<CriterionScore>,
+    /// Campo overall score.
     pub overall_score: f64,
+    /// Campo verdict.
     pub verdict: String,
+    /// Campo evaluated at.
     pub evaluated_at: String,
+    /// Campo total duration ms.
     pub total_duration_ms: f64,
     #[serde(default)]
+    /// Campo notes.
     pub notes: Vec<String>,
     #[serde(default)]
+    /// Campo tags.
     pub tags: Vec<String>,
     #[serde(default)]
+    /// Campo goal contract refs.
     pub goal_contract_refs: Vec<GoalContractCriterionRef>,
 }
 
@@ -175,22 +227,33 @@ fn generate_run_id() -> String {
 
 /// Configuração global do eval flywheel
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura EvalConfig.
 pub struct EvalConfig {
+    /// Campo version.
     pub version: String,
+    /// Campo default provider.
     pub default_provider: LlmProvider,
     #[serde(default = "default_timeout")]
+    /// Campo timeout seconds.
     pub timeout_seconds: u64,
     #[serde(default = "default_pass_threshold")]
+    /// Campo pass threshold.
     pub pass_threshold: f64,
     #[serde(default = "default_review_threshold")]
+    /// Campo review threshold.
     pub review_threshold: f64,
+    /// Campo criteria.
     pub criteria: Vec<EvalCriterion>,
+    /// Campo test cases.
     pub test_cases: Vec<EvalTestCase>,
     #[serde(default = "default_regression_threshold")]
+    /// Campo regression threshold pct.
     pub regression_threshold_pct: f64,
     #[serde(default)]
+    /// Campo auto calibrate.
     pub auto_calibrate: bool,
     #[serde(default = "default_calibration_min_runs")]
+    /// Campo calibration min runs.
     pub calibration_min_runs: usize,
 }
 
@@ -205,14 +268,20 @@ fn default_calibration_min_runs() -> usize { 20 }
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+/// Estrutura BenchmarkLatency.
 pub struct BenchmarkLatency {
+    /// Campo p50 ms.
     pub p50_ms: f64,
+    /// Campo p95 ms.
     pub p95_ms: f64,
+    /// Campo p99 ms.
     pub p99_ms: f64,
+    /// Campo sample count.
     pub sample_count: usize,
 }
 
 impl BenchmarkLatency {
+    /// Função from samples.
     pub fn from_samples(mut samples: Vec<f64>) -> Self {
         if samples.is_empty() { return Self::default(); }
         samples.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
@@ -221,6 +290,7 @@ impl BenchmarkLatency {
             let idx = ((p / 100.0) * (n as f64 - 1.0)).round() as usize;
             samples[idx.min(n - 1)]
         };
+        // Variante Self.
         Self {
             p50_ms: percentile(50.0),
             p95_ms: percentile(95.0),
@@ -231,9 +301,13 @@ impl BenchmarkLatency {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura BenchmarkResult.
 pub struct BenchmarkResult {
+    /// Campo skill name.
     pub skill_name: String,
+    /// Campo latency.
     pub latency: BenchmarkLatency,
+    /// Campo measured at.
     pub measured_at: String,
 }
 
@@ -242,21 +316,34 @@ pub struct BenchmarkResult {
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura RegressionReport.
 pub struct RegressionReport {
+    /// Campo skill name.
     pub skill_name: String,
+    /// Campo baseline score.
     pub baseline_score: f64,
+    /// Campo current score.
     pub current_score: f64,
+    /// Campo delta pct.
     pub delta_pct: f64,
+    /// Campo is regression.
     pub is_regression: bool,
+    /// Campo threshold pct.
     pub threshold_pct: f64,
+    /// Campo criterion deltas.
     pub criterion_deltas: Vec<CriterionDelta>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura CriterionDelta.
 pub struct CriterionDelta {
+    /// Campo criterion.
     pub criterion: String,
+    /// Campo baseline.
     pub baseline: f64,
+    /// Campo current.
     pub current: f64,
+    /// Campo delta.
     pub delta: f64,
 }
 
@@ -265,11 +352,17 @@ pub struct CriterionDelta {
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura MultiModelResult.
 pub struct MultiModelResult {
+    /// Campo test case id.
     pub test_case_id: String,
+    /// Campo skill name.
     pub skill_name: String,
+    /// Campo per model.
     pub per_model: HashMap<String, f64>,
+    /// Campo aggregate score.
     pub aggregate_score: f64,
+    /// Campo model specific failures.
     pub model_specific_failures: Vec<String>,
 }
 
@@ -278,11 +371,17 @@ pub struct MultiModelResult {
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura CalibrationSuggestion.
 pub struct CalibrationSuggestion {
+    /// Campo suggested pass threshold.
     pub suggested_pass_threshold: f64,
+    /// Campo suggested review threshold.
     pub suggested_review_threshold: f64,
+    /// Campo historical pass rate.
     pub historical_pass_rate: f64,
+    /// Campo sample size.
     pub sample_size: usize,
+    /// Campo rationale.
     pub rationale: String,
 }
 
@@ -291,17 +390,26 @@ pub struct CalibrationSuggestion {
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Enumeração EvalExportFormat.
 pub enum EvalExportFormat {
+    /// Variante Markdown.
     Markdown,
+    /// Variante Json.
     Json,
+    /// Variante Csv.
     Csv,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura TrendDataPoint.
 pub struct TrendDataPoint {
+    /// Campo date.
     pub date: String,
+    /// Campo avg score.
     pub avg_score: f64,
+    /// Campo pass rate.
     pub pass_rate: f64,
+    /// Campo eval count.
     pub eval_count: usize,
 }
 
@@ -310,16 +418,25 @@ pub struct TrendDataPoint {
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+/// Estrutura EvalMetrics.
 pub struct EvalMetrics {
+    /// Campo total evaluations.
     pub total_evaluations: usize,
+    /// Campo pass rate.
     pub pass_rate: f64,
+    /// Campo avg score.
     pub avg_score: f64,
+    /// Campo top skills.
     pub top_skills: Vec<(String, f64)>,
+    /// Campo bottom skills.
     pub bottom_skills: Vec<(String, f64)>,
+    /// Campo criterion distribution.
     pub criterion_distribution: HashMap<String, Vec<f64>>,
     #[serde(default)]
+    /// Campo benchmark latencies.
     pub benchmark_latencies: HashMap<String, BenchmarkLatency>,
     #[serde(default)]
+    /// Campo trend.
     pub trend: Vec<TrendDataPoint>,
 }
 
@@ -328,22 +445,27 @@ pub struct EvalMetrics {
 // ---------------------------------------------------------------------------
 
 #[derive(Debug)]
+/// Estrutura EvalStore.
 pub struct EvalStore {
     conn: Mutex<rusqlite::Connection>,
 }
 
 impl EvalStore {
+    /// Função open.
     pub fn open(path: &Path) -> EvalResult<Self> {
         let conn = Mutex::new(rusqlite::Connection::open(path)?);
         let store = Self { conn };
         store.init_schema()?;
+        // Variante Ok.
         Ok(store)
     }
 
+    /// Função in memory.
     pub fn in_memory() -> EvalResult<Self> {
         let conn = Mutex::new(rusqlite::Connection::open_in_memory()?);
         let store = Self { conn };
         store.init_schema()?;
+        // Variante Ok.
         Ok(store)
     }
 
@@ -374,9 +496,11 @@ impl EvalStore {
             CREATE INDEX IF NOT EXISTS idx_bench_skill ON benchmark_data(skill_name);
             ",
         )?;
+        // Variante Ok.
         Ok(())
     }
 
+    /// Função save report.
     pub fn save_report(&self, report: &EvalReport) -> EvalResult<()> {
         let report_json = serde_json::to_string(report)?;
         let tags = report.tags.join(",");
@@ -385,6 +509,7 @@ impl EvalStore {
             "INSERT OR REPLACE INTO eval_runs
                 (run_id, test_case_id, skill_name, judge_provider, overall_score,
                  verdict, evaluated_at, total_duration_ms, report_json, tags)
+             // Variante VALUES.
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             rusqlite::params![
                 report.run_id, report.test_case_id, report.skill_name,
@@ -393,9 +518,11 @@ impl EvalStore {
                 report_json, tags,
             ],
         )?;
+        // Variante Ok.
         Ok(())
     }
 
+    /// Função query by skill.
     pub fn query_by_skill(&self, skill_name: &str) -> EvalResult<Vec<EvalReport>> {
         let __conn = self.conn.lock().unwrap();
         let mut stmt = __conn.prepare(
@@ -407,9 +534,11 @@ impl EvalStore {
             let json = row?;
             reports.push(serde_json::from_str(&json)?);
         }
+        // Variante Ok.
         Ok(reports)
     }
 
+    /// Função query by date range.
     pub fn query_by_date_range(&self, from: &str, to: &str) -> EvalResult<Vec<EvalReport>> {
         let __conn = self.conn.lock().unwrap();
         let mut stmt = __conn.prepare(
@@ -421,9 +550,11 @@ impl EvalStore {
             let json = row?;
             reports.push(serde_json::from_str(&json)?);
         }
+        // Variante Ok.
         Ok(reports)
     }
 
+    /// Função query by tag.
     pub fn query_by_tag(&self, tag: &str) -> EvalResult<Vec<EvalReport>> {
         let pattern = format!("%{}%", tag);
         let __conn = self.conn.lock().unwrap();
@@ -436,9 +567,11 @@ impl EvalStore {
             let json = row?;
             reports.push(serde_json::from_str(&json)?);
         }
+        // Variante Ok.
         Ok(reports)
     }
 
+    /// Função query by provider.
     pub fn query_by_provider(&self, provider: &LlmProvider) -> EvalResult<Vec<EvalReport>> {
         let __conn = self.conn.lock().unwrap();
         let mut stmt = __conn.prepare(
@@ -450,9 +583,11 @@ impl EvalStore {
             let json = row?;
             reports.push(serde_json::from_str(&json)?);
         }
+        // Variante Ok.
         Ok(reports)
     }
 
+    /// Função latest report for skill.
     pub fn latest_report_for_skill(&self, skill_name: &str) -> EvalResult<Option<EvalReport>> {
         let __conn = self.conn.lock().unwrap();
         let mut stmt = __conn.prepare(
@@ -461,18 +596,23 @@ impl EvalStore {
         let mut rows = stmt.query(rusqlite::params![skill_name])?;
         if let Some(row) = rows.next()? {
             let json: String = row.get(0)?;
+            // Variante Ok.
             Ok(Some(serde_json::from_str(&json)?))
         } else {
+            // Variante Ok.
             Ok(None)
         }
     }
 
+    /// Função count.
     pub fn count(&self) -> EvalResult<usize> {
         let __conn = self.conn.lock().unwrap();
         let c: usize = __conn.query_row("SELECT COUNT(*) FROM eval_runs", [], |row| row.get(0))?;
+        // Variante Ok.
         Ok(c)
     }
 
+    /// Função save benchmark.
     pub fn save_benchmark(&self, result: &BenchmarkResult) -> EvalResult<()> {
         let latency_json = serde_json::to_string(&result.latency)?;
         let __conn = self.conn.lock().unwrap();
@@ -480,9 +620,11 @@ impl EvalStore {
             "INSERT INTO benchmark_data (skill_name, latency_json, measured_at) VALUES (?1, ?2, ?3)",
             rusqlite::params![result.skill_name, latency_json, result.measured_at],
         )?;
+        // Variante Ok.
         Ok(())
     }
 
+    /// Função latest benchmark.
     pub fn latest_benchmark(&self, skill_name: &str) -> EvalResult<Option<BenchmarkResult>> {
         let __conn = self.conn.lock().unwrap();
         let mut stmt = __conn.prepare(
@@ -492,8 +634,10 @@ impl EvalStore {
         if let Some(row) = rows.next()? {
             let lj: String = row.get(0)?;
             let ma: String = row.get(1)?;
+            // Variante Ok.
             Ok(Some(BenchmarkResult { skill_name: skill_name.to_string(), latency: serde_json::from_str(&lj)?, measured_at: ma }))
         } else {
+            // Variante Ok.
             Ok(None)
         }
     }
@@ -504,6 +648,7 @@ impl EvalStore {
 // ---------------------------------------------------------------------------
 
 #[derive(Debug)]
+/// Estrutura EvalFlywheel.
 pub struct EvalFlywheel {
     config: EvalConfig,
     cache: HashMap<String, EvalReport>,
@@ -512,6 +657,7 @@ pub struct EvalFlywheel {
 }
 
 impl EvalFlywheel {
+    /// Função load.
     pub fn load(config_path: &Path) -> EvalResult<Self> {
         if !config_path.exists() {
             return Err(EvalError::ConfigNotFound(config_path.display().to_string()));
@@ -519,14 +665,19 @@ impl EvalFlywheel {
         let content = std::fs::read_to_string(config_path)?;
         let config: EvalConfig = serde_json::from_str(&content)?;
         info!("EvalFlywheel carregado: {} critérios, {} casos de teste", config.criteria.len(), config.test_cases.len());
+        // Variante Ok.
         Ok(Self { config, cache: HashMap::new(), metrics: EvalMetrics::default(), store: None })
     }
 
+    /// Função with config.
     pub fn with_config(config: EvalConfig) -> Self {
+        // Variante Self.
         Self { config, cache: HashMap::new(), metrics: EvalMetrics::default(), store: None }
     }
 
+    /// Função empty.
     pub fn empty() -> Self {
+        // Variante Self.
         Self {
             config: EvalConfig {
                 version: "1.0.0".to_string(),
@@ -546,15 +697,20 @@ impl EvalFlywheel {
         }
     }
 
+    /// Função with store.
     pub fn with_store(mut self, store: EvalStore) -> Self {
         self.store = Some(store);
         self
     }
 
+    /// Função add test case.
     pub fn add_test_case(&mut self, case: EvalTestCase) { self.config.test_cases.push(case); }
+    /// Função criteria.
     pub fn criteria(&self) -> &[EvalCriterion] { &self.config.criteria }
+    /// Função test cases.
     pub fn test_cases(&self) -> &[EvalTestCase] { &self.config.test_cases }
 
+    /// Função evaluate mock.
     pub fn evaluate_mock(&mut self, test_case_id: &str, scores: Vec<CriterionScore>) -> EvalResult<EvalReport> {
         let test_case = self.config.test_cases.iter().find(|tc| tc.id == test_case_id)
             .ok_or_else(|| EvalError::SkillNotFound(test_case_id.to_string()))?;
@@ -604,9 +760,11 @@ impl EvalFlywheel {
         self.cache.insert(test_case_id.to_string(), report.clone());
         self.update_metrics();
         debug!("Eval '{}' -> {:.2} ({})", test_case_id, overall_score, verdict);
+        // Variante Ok.
         Ok(report)
     }
 
+    /// Função generate judge prompt.
     pub fn generate_judge_prompt(&self, test_case: &EvalTestCase) -> String {
         let criteria_text: Vec<String> = self.config.criteria.iter().map(|c| {
             let gc_ref = c.goal_contract_criterion.as_ref()
@@ -641,11 +799,15 @@ Seja rigoroso mas justo. Penalize alucinações, incompletude e instruções amb
         )
     }
 
+    /// Função get report.
     pub fn get_report(&self, test_case_id: &str) -> Option<&EvalReport> { self.cache.get(test_case_id) }
+    /// Função list reports.
     pub fn list_reports(&self) -> Vec<&EvalReport> { self.cache.values().collect() }
+    /// Função metrics.
     pub fn metrics(&self) -> &EvalMetrics { &self.metrics }
 
     // Expansion #1
+    /// Função record benchmark.
     pub fn record_benchmark(&mut self, skill_name: &str, samples: Vec<f64>) -> BenchmarkResult {
         let latency = BenchmarkLatency::from_samples(samples);
         let result = BenchmarkResult { skill_name: skill_name.to_string(), latency: latency.clone(), measured_at: chrono::Utc::now().to_rfc3339() };
@@ -656,11 +818,13 @@ Seja rigoroso mas justo. Penalize alucinações, incompletude e instruções amb
         result
     }
 
+    /// Função get benchmark.
     pub fn get_benchmark(&self, skill_name: &str) -> Option<&BenchmarkLatency> {
         self.metrics.benchmark_latencies.get(skill_name)
     }
 
     // Expansion #2
+    /// Função detect regression.
     pub fn detect_regression(&self, current: &EvalReport, baseline: &EvalReport) -> RegressionReport {
         let delta_pct = if baseline.overall_score > 0.0 {
             ((baseline.overall_score - current.overall_score) / baseline.overall_score) * 100.0
@@ -671,16 +835,20 @@ Seja rigoroso mas justo. Penalize alucinações, incompletude e instruções amb
             let bs = baseline.criteria_scores.iter().find(|b| b.criterion == cs.criterion).map(|b| b.score).unwrap_or(0.0);
             criterion_deltas.push(CriterionDelta { criterion: cs.criterion.clone(), baseline: bs, current: cs.score, delta: cs.score - bs });
         }
+        // Variante RegressionReport.
         RegressionReport { skill_name: current.skill_name.clone(), baseline_score: baseline.overall_score, current_score: current.overall_score, delta_pct, is_regression, threshold_pct: self.config.regression_threshold_pct, criterion_deltas }
     }
 
+    /// Função detect regression vs stored.
     pub fn detect_regression_vs_stored(&self, current: &EvalReport) -> EvalResult<RegressionReport> {
         let baseline = self.store.as_ref().ok_or(EvalError::NoBaseline)?
             .latest_report_for_skill(&current.skill_name)?.ok_or(EvalError::NoBaseline)?;
+        // Variante Ok.
         Ok(self.detect_regression(current, &baseline))
     }
 
     // Expansion #3
+    /// Função evaluate multi model.
     pub fn evaluate_multi_model<F>(&mut self, test_case_id: &str, providers: &[LlmProvider], mut mock_scores_fn: F) -> EvalResult<MultiModelResult>
     where F: FnMut(&LlmProvider) -> Vec<CriterionScore> {
         let test_case = self.config.test_cases.iter().find(|tc| tc.id == test_case_id)
@@ -700,10 +868,12 @@ Seja rigoroso mas justo. Penalize alucinações, incompletude e instruções amb
             if score < self.config.review_threshold { model_specific_failures.push(provider.to_string()); }
         }
         let aggregate_score = if per_model.is_empty() { 0.0 } else { per_model.values().sum::<f64>() / per_model.len() as f64 };
+        // Variante Ok.
         Ok(MultiModelResult { test_case_id: test_case_id.to_string(), skill_name: test_case.skill_name.clone(), per_model, aggregate_score, model_specific_failures })
     }
 
     // Expansion #5
+    /// Função suggest calibration.
     pub fn suggest_calibration(&self) -> EvalResult<CalibrationSuggestion> {
         let reports: Vec<EvalReport> = self.cache.values().cloned().collect();
         let sample_size = reports.len();
@@ -726,6 +896,7 @@ Seja rigoroso mas justo. Penalize alucinações, incompletude e instruções amb
         let suggested_pass = sorted[pass_idx.min(sorted.len() - 1)];
         let review_idx = ((0.15) * (sorted.len() as f64 - 1.0)).round() as usize;
         let suggested_review = sorted[review_idx.min(sorted.len() - 1)];
+        // Variante Ok.
         Ok(CalibrationSuggestion {
             suggested_pass_threshold: (suggested_pass * 100.0).round() / 100.0,
             suggested_review_threshold: (suggested_review * 100.0).round() / 100.0,
@@ -734,6 +905,7 @@ Seja rigoroso mas justo. Penalize alucinações, incompletude e instruções amb
         })
     }
 
+    /// Função auto calibrate.
     pub fn auto_calibrate(&mut self) -> EvalResult<Option<CalibrationSuggestion>> {
         if !self.config.auto_calibrate { return Ok(None); }
         let suggestion = self.suggest_calibration()?;
@@ -741,11 +913,13 @@ Seja rigoroso mas justo. Penalize alucinações, incompletude e instruções amb
             self.config.pass_threshold = suggestion.suggested_pass_threshold;
             self.config.review_threshold = suggestion.suggested_review_threshold;
             info!("Auto-calibrated: pass={:.2}, review={:.2} ({})", self.config.pass_threshold, self.config.review_threshold, suggestion.rationale);
+            // Variante Ok.
             Ok(Some(suggestion))
         } else { Ok(None) }
     }
 
     // Expansion #6
+    /// Função export reports.
     pub fn export_reports(&self, format: EvalExportFormat) -> EvalResult<String> {
         match format {
             EvalExportFormat::Markdown => Ok(self.generate_markdown_report()),
@@ -766,9 +940,11 @@ Seja rigoroso mas justo. Penalize alucinações, incompletude e instruções amb
         for r in self.cache.values() {
             lines.push(format!("{},{},{},{},{:.4},{},{},{:.1},\"{}\"", r.run_id, r.test_case_id, r.skill_name, r.judge_provider, r.overall_score, r.verdict, r.evaluated_at, r.total_duration_ms, r.tags.join(";")));
         }
+        // Variante Ok.
         Ok(lines.join("\n"))
     }
 
+    /// Função compute trend.
     pub fn compute_trend(&mut self) {
         let mut by_date: HashMap<String, Vec<f64>> = HashMap::new();
         let mut pass_by_date: HashMap<String, (usize, usize)> = HashMap::new();
@@ -789,6 +965,7 @@ Seja rigoroso mas justo. Penalize alucinações, incompletude e instruções amb
     }
 
     // Expansion #7
+    /// Função link goal contract criterion.
     pub fn link_goal_contract_criterion(&mut self, criterion_name: &str, contract_id: &str, criterion_index: usize, label: &str) {
         for crit in &mut self.config.criteria {
             if crit.name == criterion_name {
@@ -798,11 +975,13 @@ Seja rigoroso mas justo. Penalize alucinações, incompletude e instruções amb
         }
     }
 
+    /// Função goal contract refs.
     pub fn goal_contract_refs(&self) -> Vec<&GoalContractCriterionRef> {
         self.config.criteria.iter().filter_map(|c| c.goal_contract_criterion.as_ref()).collect()
     }
 
     // Original report generation (preserved)
+    /// Função generate markdown report.
     pub fn generate_markdown_report(&self) -> String {
         let mut lines = vec![
             "# Relatório de Avaliação de Skills".to_string(),
@@ -849,6 +1028,7 @@ Seja rigoroso mas justo. Penalize alucinações, incompletude e instruções amb
         lines.join("\n")
     }
 
+    /// Função metrics to json.
     pub fn metrics_to_json(&self) -> EvalResult<String> {
         serde_json::to_string_pretty(&self.metrics).map_err(EvalError::ParseError)
     }
@@ -880,9 +1060,13 @@ Seja rigoroso mas justo. Penalize alucinações, incompletude e instruções amb
 
 fn default_criteria() -> Vec<EvalCriterion> {
     vec![
+        // Variante EvalCriterion.
         EvalCriterion { name: "correctness".to_string(), description: "A skill produz output correto e factualmente preciso".to_string(), weight: 0.35, judge_prompt: "O output está correto e livre de erros factuais?".to_string(), goal_contract_criterion: None },
+        // Variante EvalCriterion.
         EvalCriterion { name: "completeness".to_string(), description: "A skill cobre todos os aspectos solicitados no input".to_string(), weight: 0.25, judge_prompt: "Todos os aspectos do request foram abordados?".to_string(), goal_contract_criterion: None },
+        // Variante EvalCriterion.
         EvalCriterion { name: "clarity".to_string(), description: "As instruções são claras e não ambíguas".to_string(), weight: 0.20, judge_prompt: "As instruções são claras e fáceis de seguir?".to_string(), goal_contract_criterion: None },
+        // Variante EvalCriterion.
         EvalCriterion { name: "efficiency".to_string(), description: "A skill é eficiente em tokens e steps".to_string(), weight: 0.20, judge_prompt: "A skill evita verbosidade desnecessária e steps redundantes?".to_string(), goal_contract_criterion: None },
     ]
 }
@@ -892,14 +1076,19 @@ mod tests {
     use super::*;
 
     fn sample_test_case(id: &str, skill: &str) -> EvalTestCase {
+        // Variante EvalTestCase.
         EvalTestCase { id: id.to_string(), skill_name: skill.to_string(), input: "Teste de input para avaliação".to_string(), expected_output: Some("Output esperado".to_string()), context: HashMap::new(), criteria_override: vec![], tags: vec!["test".to_string()] }
     }
 
     fn sample_scores() -> Vec<CriterionScore> {
         vec![
+            // Variante CriterionScore.
             CriterionScore { criterion: "correctness".to_string(), score: 0.9, reasoning: "Output correto".to_string(), duration_ms: 100.0 },
+            // Variante CriterionScore.
             CriterionScore { criterion: "completeness".to_string(), score: 0.8, reasoning: "Cobriu tudo".to_string(), duration_ms: 80.0 },
+            // Variante CriterionScore.
             CriterionScore { criterion: "clarity".to_string(), score: 0.85, reasoning: "Instruções claras".to_string(), duration_ms: 60.0 },
+            // Variante CriterionScore.
             CriterionScore { criterion: "efficiency".to_string(), score: 0.7, reasoning: "Poderia ser mais conciso".to_string(), duration_ms: 50.0 },
         ]
     }

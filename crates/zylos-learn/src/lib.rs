@@ -9,12 +9,16 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
+/// Errors produced by the learning loop subsystem.
 #[derive(Debug, Error)]
 pub enum LearnError {
+    /// Outcome payload could not be parsed or classified.
     #[error("desfecho inválido: {0}")]
     InvalidOutcome(String),
+    /// One or more witness checks failed.
     #[error("witness check falhou: {0}")]
     WitnessFailed(String),
+    /// Filesystem I/O error.
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 }
@@ -62,10 +66,14 @@ pub struct Witness {
     pub check_type: WitnessCheckType,
 }
 
+/// Strategy used by a witness to verify anti-regression markers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WitnessCheckType {
+    /// Marker file must exist on disk.
     FileExists,
+    /// Marker file must contain the expected content substring.
     ContentMatch,
+    /// Marker script must exit with code zero.
     ExitCodeZero,
 }
 
@@ -79,6 +87,7 @@ pub struct LearningLoop {
 }
 
 impl LearningLoop {
+    /// Create a new learning loop backed by the given JSONL file.
     pub fn new(jsonl_path: impl Into<PathBuf>) -> Self {
         Self {
             pending: HashMap::new(),
@@ -195,8 +204,9 @@ impl LearningLoop {
         if failures.is_empty() { Ok(failures) } else { Err(LearnError::WitnessFailed(failures.join("; "))) }
     }
 
-    pub fn pending_count(&self) -> usize { self.pending.len() }
-}
+    /// Number of pending lessons currently tracked.
+        pub fn pending_count(&self) -> usize { self.pending.len() }
+    }
 
 #[cfg(test)]
 mod tests {
@@ -235,7 +245,7 @@ mod tests {
     #[test]
     fn test_recurrence_gate_3x() {
         let mut ll = LearningLoop::new("/tmp/test.jsonl");
-        for i in 0..3 {
+        for _i in 0..3 {
             let outcome = make_outcome(OutcomeClass::Escalacao, "timeout deploy error");
             ll.record_outcome(&outcome);
         }

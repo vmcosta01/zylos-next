@@ -231,7 +231,9 @@ impl WasiView for SandboxState {
 pub struct WasmSandbox {
     id: SandboxId,
     config: SandboxConfig,
+    #[allow(dead_code)]
     engine: Engine,
+    #[allow(dead_code)]
     module: Module,
     store: Store<SandboxState>,
     instance: Instance,

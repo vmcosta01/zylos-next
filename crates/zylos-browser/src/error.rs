@@ -27,4 +27,5 @@ pub enum BrowserError {
     Serialization(#[from] serde_json::Error),
 }
 
+/// Alias de resultado para operações do sandbox de browser.
 pub type Result<T> = std::result::Result<T, BrowserError>;

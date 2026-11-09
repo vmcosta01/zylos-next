@@ -11,28 +11,36 @@ use thiserror::Error;
 
 /// Erros do sistema de export
 #[derive(Error, Debug)]
+/// Enumeração ExportError.
 pub enum ExportError {
     #[error("skill '{0}' não encontrada no registry")]
+    // Variante SkillNotFound.
     SkillNotFound(String),
 
     #[error("formato de export '{0}' não suportado")]
+    // Variante UnsupportedFormat.
     UnsupportedFormat(String),
 
     #[error("falha de I/O: {0}")]
+    // Variante IoError.
     IoError(#[from] std::io::Error),
 
     #[error("falha de serialização JSON: {0}")]
+    // Variante JsonError.
     JsonError(#[from] serde_json::Error),
 
     #[error("diretório de saída não existe: {0}")]
+    // Variante OutputDirMissing.
     OutputDirMissing(String),
 }
 
+/// Alias de tipo ExportResult.
 pub type ExportResult<T> = Result<T, ExportError>;
 
 /// Formatos de export suportados
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+/// Enumeração ExportFormat.
 pub enum ExportFormat {
     /// .cursor/rules — formato Cursor IDE
     CursorRules,
@@ -43,6 +51,7 @@ pub enum ExportFormat {
 }
 
 impl ExportFormat {
+    /// Função extension.
     pub fn extension(&self) -> &'static str {
         match self {
             ExportFormat::CursorRules => "mdc",
@@ -51,6 +60,7 @@ impl ExportFormat {
         }
     }
 
+    /// Função dir name.
     pub fn dir_name(&self) -> &'static str {
         match self {
             ExportFormat::CursorRules => ".cursor/rules",
@@ -62,27 +72,42 @@ impl ExportFormat {
 
 /// Skill metadata mínima necessária para export
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura ExportableSkill.
 pub struct ExportableSkill {
+    /// Campo id.
     pub id: String,
+    /// Campo name.
     pub name: String,
+    /// Campo description.
     pub description: String,
+    /// Campo version.
     pub version: String,
+    /// Campo triggers.
     pub triggers: Vec<String>,
+    /// Campo instructions.
     pub instructions: String,
     #[serde(default)]
+    /// Campo tools.
     pub tools: Vec<String>,
     #[serde(default)]
+    /// Campo tags.
     pub tags: Vec<String>,
     #[serde(default)]
+    /// Campo metadata.
     pub metadata: HashMap<String, String>,
 }
 
 /// Resultado de uma operação de export
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura ExportReport.
 pub struct ExportReport {
+    /// Campo format.
     pub format: ExportFormat,
+    /// Campo skills exported.
     pub skills_exported: usize,
+    /// Campo output path.
     pub output_path: PathBuf,
+    /// Campo errors.
     pub errors: Vec<String>,
 }
 
@@ -92,7 +117,9 @@ pub struct SkillExporter {
 }
 
 impl SkillExporter {
+    /// Função new.
     pub fn new(skills: Vec<ExportableSkill>) -> Self {
+        // Variante Self.
         Self { skills }
     }
 
@@ -111,25 +138,32 @@ impl SkillExporter {
             ExportFormat::CursorRules => {
                 for skill in &self.skills {
                     match self.export_cursor_rule(skill, output_dir) {
+                        // Variante Ok.
                         Ok(()) => exported += 1,
+                        // Variante Err.
                         Err(e) => errors.push(format!("{}: {}", skill.id, e)),
                     }
                 }
             }
             ExportFormat::ClineRules => {
                 match self.export_cline_rules(output_dir) {
+                    // Variante Ok.
                     Ok(()) => exported = self.skills.len(),
+                    // Variante Err.
                     Err(e) => errors.push(e.to_string()),
                 }
             }
             ExportFormat::ClaudePlugin => {
                 match self.export_claude_plugin(output_dir) {
+                    // Variante Ok.
                     Ok(()) => exported = self.skills.len(),
+                    // Variante Err.
                     Err(e) => errors.push(e.to_string()),
                 }
             }
         }
 
+        // Variante Ok.
         Ok(ExportReport {
             format: format.clone(),
             skills_exported: exported,
@@ -205,6 +239,7 @@ tags: [{tags}]
         );
 
         std::fs::write(path, content)?;
+        // Variante Ok.
         Ok(())
     }
 
@@ -236,6 +271,7 @@ tags: [{tags}]
 
         let json = serde_json::to_string_pretty(&wrapper)?;
         std::fs::write(rules_dir.join("rules.json"), json)?;
+        // Variante Ok.
         Ok(())
     }
 
@@ -278,6 +314,7 @@ tags: [{tags}]
 
         let manifest_json = serde_json::to_string_pretty(&manifest)?;
         std::fs::write(plugin_dir.join("manifest.json"), manifest_json)?;
+        // Variante Ok.
         Ok(())
     }
 }
@@ -343,6 +380,7 @@ mod tests {
 
     fn sample_skills() -> Vec<ExportableSkill> {
         vec![
+            /// Variante ExportableSkill.
             ExportableSkill {
                 id: "code-review-v2".to_string(),
                 name: "Code Review v2".to_string(),
@@ -354,6 +392,7 @@ mod tests {
                 tags: vec!["review".to_string(), "security".to_string()],
                 metadata: HashMap::new(),
             },
+            /// Variante ExportableSkill.
             ExportableSkill {
                 id: "test-generator".to_string(),
                 name: "Test Generator".to_string(),

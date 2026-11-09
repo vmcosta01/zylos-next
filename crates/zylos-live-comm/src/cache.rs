@@ -31,6 +31,7 @@ impl CacheEntry {
 
 /// In-memory HTTP cache with TTL-based eviction
 #[derive(Clone)]
+/// Estrutura HttpCache.
 pub struct HttpCache {
     entries: Arc<RwLock<HashMap<String, CacheEntry>>>,
     default_ttl: Duration,
@@ -38,7 +39,9 @@ pub struct HttpCache {
 }
 
 impl HttpCache {
+    /// Função new.
     pub fn new(default_ttl_secs: u64, max_entries: usize) -> Self {
+        // Variante Self.
         Self {
             entries: Arc::new(RwLock::new(HashMap::with_capacity(max_entries.min(10000)))),
             default_ttl: Duration::from_secs(default_ttl_secs),
@@ -51,7 +54,9 @@ impl HttpCache {
         let method = request.method().as_str();
         let uri = request.uri();
         match uri.query() {
+            // Variante Some.
             Some(q) => format!("{}:{}?{}", method, uri.path(), q),
+            // Variante None.
             None => format!("{}:{}", method, uri.path()),
         }
     }
@@ -80,6 +85,7 @@ impl HttpCache {
             .body(axum::body::Body::from(entry.body.clone()))
             .ok()?;
 
+        // Variante Some.
         Some(response)
     }
 
@@ -125,6 +131,7 @@ impl HttpCache {
             .values()
             .filter(|e| e.is_expired(self.default_ttl))
             .count();
+        // Variante CacheStats.
         CacheStats {
             total_entries: total,
             active_entries: total - expired,
@@ -142,10 +149,15 @@ impl HttpCache {
 
 /// Cache statistics
 #[derive(Debug, Clone, serde::Serialize)]
+/// Estrutura CacheStats.
 pub struct CacheStats {
+    /// Campo total entries.
     pub total_entries: usize,
+    /// Campo active entries.
     pub active_entries: usize,
+    /// Campo expired entries.
     pub expired_entries: usize,
+    /// Campo max entries.
     pub max_entries: usize,
 }
 
@@ -180,7 +192,9 @@ pub async fn caching_middleware(
         // We need to read the body to cache it, then reconstruct
         let (parts, body) = response.into_parts();
         let body_bytes = match axum::body::to_bytes(body, 1024 * 1024).await {
+            // Variante Ok.
             Ok(b) => b.to_vec(),
+            // Variante Err.
             Err(_) => {
                 // Can't read body — return without caching
                 return Response::from_parts(parts, axum::body::Body::empty());

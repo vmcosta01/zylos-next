@@ -7,11 +7,17 @@ use uuid::Uuid;
 /// Severity levels for security events.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Enumeração Severity.
 pub enum Severity {
+    /// Variante Critical.
     Critical,
+    /// Variante High.
     High,
+    /// Variante Medium.
     Medium,
+    /// Variante Low.
     Low,
+    /// Variante Info.
     Info,
 }
 
@@ -43,11 +49,17 @@ impl std::fmt::Display for Severity {
 /// Category of security event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// Enumeração EventCategory.
 pub enum EventCategory {
+    /// Variante Breach.
     Breach,
+    /// Variante Anomaly.
     Anomaly,
+    /// Variante Vulnerability.
     Vulnerability,
+    /// Variante Compliance.
     Compliance,
+    /// Variante FalsePositive.
     FalsePositive,
 }
 
@@ -65,15 +77,25 @@ impl std::fmt::Display for EventCategory {
 
 /// Normalized security event from any source.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura ZylosSecurityEvent.
 pub struct ZylosSecurityEvent {
+    /// Campo id.
     pub id: Uuid,
+    /// Campo source.
     pub source: String,
+    /// Campo severity.
     pub severity: Severity,
+    /// Campo category.
     pub category: EventCategory,
+    /// Campo title.
     pub title: String,
+    /// Campo description.
     pub description: String,
+    /// Campo affected assets.
     pub affected_assets: Vec<String>,
+    /// Campo raw payload.
     pub raw_payload: serde_json::Value,
+    /// Campo received at.
     pub received_at: DateTime<Utc>,
 }
 
@@ -88,6 +110,7 @@ impl ZylosSecurityEvent {
         affected_assets: Vec<String>,
         raw_payload: serde_json::Value,
     ) -> Self {
+        // Variante Self.
         Self {
             id: Uuid::new_v4(),
             source: source.into(),

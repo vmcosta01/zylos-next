@@ -10,18 +10,27 @@ use uuid::Uuid;
 /// Versioned Zylos event envelope — all events carry metadata for routing,
 /// persistence, replay and observability.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+/// Estrutura EventEnvelope.
 pub struct EventEnvelope {
+    /// Campo id.
     pub id: String,
+    /// Campo topic.
     pub topic: String,
+    /// Campo timestamp.
     pub timestamp: DateTime<Utc>,
+    /// Campo sequence.
     pub sequence: u64,
+    /// Campo schema version.
     pub schema_version: u32,
     #[serde(flatten)]
+    /// Campo payload.
     pub payload: ZylosEvent,
 }
 
 impl EventEnvelope {
+    /// Função new.
     pub fn new(topic: impl Into<String>, payload: ZylosEvent, schema_version: u32) -> Self {
+        // Variante Self.
         Self {
             id: Uuid::new_v4().to_string(),
             topic: topic.into(),
@@ -37,67 +46,108 @@ impl EventEnvelope {
 /// the envelope's `schema_version` field.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
 #[serde(tag = "event_type", content = "data")]
+/// Enumeração ZylosEvent.
 pub enum ZylosEvent {
+    // Variante AgentStateChanged.
     AgentStateChanged(AgentStateChanged),
+    // Variante TaskCompleted.
     TaskCompleted(TaskCompleted),
+    // Variante MemoryUpdated.
     MemoryUpdated(MemoryUpdated),
+    // Variante ApprovalRequested.
     ApprovalRequested(ApprovalRequested),
+    // Variante DagProgressChanged.
     DagProgressChanged(DagProgressChanged),
+    // Variante SkillInvoked.
     SkillInvoked(SkillInvoked),
+    // Variante Custom.
     Custom(CustomEvent),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+/// Estrutura AgentStateChanged.
 pub struct AgentStateChanged {
+    /// Campo agent id.
     pub agent_id: String,
+    /// Campo previous state.
     pub previous_state: String,
+    /// Campo new state.
     pub new_state: String,
+    /// Campo reason.
     pub reason: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+/// Estrutura TaskCompleted.
 pub struct TaskCompleted {
+    /// Campo task id.
     pub task_id: String,
+    /// Campo agent id.
     pub agent_id: String,
+    /// Campo outcome.
     pub outcome: String,
+    /// Campo duration ms.
     pub duration_ms: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+/// Estrutura MemoryUpdated.
 pub struct MemoryUpdated {
+    /// Campo memory key.
     pub memory_key: String,
+    /// Campo operation.
     pub operation: String, // "insert", "update", "delete"
+    /// Campo namespace.
     pub namespace: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+/// Estrutura ApprovalRequested.
 pub struct ApprovalRequested {
+    /// Campo approval id.
     pub approval_id: String,
+    /// Campo requester id.
     pub requester_id: String,
+    /// Campo action description.
     pub action_description: String,
+    /// Campo expires at.
     pub expires_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+/// Estrutura DagProgressChanged.
 pub struct DagProgressChanged {
+    /// Campo dag id.
     pub dag_id: String,
+    /// Campo node id.
     pub node_id: String,
+    /// Campo status.
     pub status: String,
+    /// Campo completed nodes.
     pub completed_nodes: u32,
+    /// Campo total nodes.
     pub total_nodes: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+/// Estrutura SkillInvoked.
 pub struct SkillInvoked {
+    /// Campo skill name.
     pub skill_name: String,
+    /// Campo agent id.
     pub agent_id: String,
+    /// Campo arguments.
     pub arguments: serde_json::Value,
+    /// Campo invocation id.
     pub invocation_id: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema)]
+/// Estrutura CustomEvent.
 pub struct CustomEvent {
+    /// Campo name.
     pub name: String,
+    /// Campo payload.
     pub payload: serde_json::Value,
 }
 
@@ -112,6 +162,7 @@ pub struct SchemaRegistry {
 }
 
 impl SchemaRegistry {
+    /// Função new.
     pub fn new() -> Self {
         let mut reg = Self {
             schemas: RwLock::new(HashMap::new()),
@@ -138,6 +189,7 @@ impl SchemaRegistry {
         if !value.is_object() && event_type != "Custom" {
             return Err(format!("expected object for {} v{}, got {}", event_type, version, value));
         }
+        // Variante Ok.
         Ok(())
     }
 

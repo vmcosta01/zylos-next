@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 pub struct BenchmarkResult {
     pub name: String,
     pub iterations: u64,
+    #[allow(dead_code)]
     pub total_duration: Duration,
     pub p50: Duration,
     pub p95: Duration,

@@ -1,0 +1,28 @@
+[package]
+name = "zylos-templates"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Shareable agent blueprint templates for Zylos"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = "0.9"
+thiserror = { workspace = true }
+chrono = { workspace = true }
+semver = { version = "1.0", features = ["serde"] }
+sha2 = { workspace = true }
+hex = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true }
+reqwest = { version = "0.12", features = ["json"], optional = true }
+
+[features]
+default = []
+registry = ["reqwest"]
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

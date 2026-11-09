@@ -9,9 +9,13 @@ use crate::event_bus::EventBus;
 
 /// System health response for cockpit dashboard
 #[derive(Serialize, serde::Deserialize)]
+/// Estrutura HealthResponse.
 pub struct HealthResponse {
+    /// Campo status.
     pub status: String,
+    /// Campo active streams.
     pub active_streams: usize,
+    /// Campo version.
     pub version: String,
 }
 
@@ -25,6 +29,7 @@ pub fn create_cockpit_router(bus: EventBus) -> Router {
 async fn health_handler(
     axum::extract::State(bus): axum::extract::State<EventBus>,
 ) -> Json<HealthResponse> {
+    // Variante Json.
     Json(HealthResponse {
         status: "healthy".to_string(),
         active_streams: bus.receiver_count(),

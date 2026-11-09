@@ -33,6 +33,7 @@ pub struct VlmOcrClient {
 }
 
 impl VlmOcrClient {
+    /// Create a new VLM OCR client with the given configuration.
     pub fn new(config: OcrConfig) -> Self {
         let http = Client::builder()
             .timeout(Duration::from_secs(config.timeout_secs))
@@ -41,6 +42,7 @@ impl VlmOcrClient {
         Self { config, http }
     }
 
+    /// Returns a reference to the current client configuration.
     pub fn config(&self) -> &OcrConfig {
         &self.config
     }

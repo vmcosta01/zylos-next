@@ -61,6 +61,44 @@ pub struct HealthCheck {
     pub check_latency_ms: u64,
 }
 
+impl HealthCheck {
+    /// Create a new health check result.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use zylos_sentinel::{HealthCheck, Severity};
+    ///
+    /// let check = HealthCheck::new(
+    ///     "http_endpoint",
+    ///     "https://api.example.com/health",
+    ///     Severity::Healthy,
+    ///     "ok",
+    ///     None,
+    ///     42,
+    /// );
+    /// assert_eq!(check.detector_id, "http_endpoint");
+    /// assert_eq!(check.severity, Severity::Healthy);
+    /// ```
+    pub fn new(
+        detector_id: impl Into<String>,
+        target: impl Into<String>,
+        severity: Severity,
+        reason: impl Into<String>,
+        detail: Option<String>,
+        check_latency_ms: u64,
+    ) -> Self {
+        Self {
+            detector_id: detector_id.into(),
+            target: target.into(),
+            severity,
+            reason: reason.into(),
+            detail,
+            check_latency_ms,
+        }
+    }
+}
+
 /// Normalized incident signature for deduplication.
 /// Same root cause → same signature → suppressed duplicate alerts.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -84,13 +122,21 @@ impl IncidentSignature {
 /// An incident derived from a failing health check.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Incident {
+    /// Normalized signature for deduplication and rate limiting.
     pub signature: IncidentSignature,
+    /// Detector that produced this incident.
     pub detector_id: String,
+    /// Sanitized target description (no PII or credentials).
     pub target: String,
+    /// Severity level of the incident.
     pub severity: Severity,
+    /// Machine-readable reason code.
     pub reason: String,
+    /// Optional human-readable detail (privacy-safe).
     pub detail: Option<String>,
+    /// RFC 3339 timestamp of first occurrence.
     pub first_seen: String,
+    /// Number of times this incident has been observed.
     pub occurrence_count: u64,
 }
 
@@ -105,6 +151,17 @@ pub struct IncidentRateLimiter {
 }
 
 impl IncidentRateLimiter {
+    /// Create a new rate limiter with the given minimum interval between reports.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::time::Duration;
+    /// use zylos_sentinel::IncidentRateLimiter;
+    ///
+    /// let rl = IncidentRateLimiter::new(Duration::from_secs(300));
+    /// assert_eq!(rl.tracked_count(), 0);
+    /// ```
     pub fn new(min_interval: Duration) -> Self {
         Self {
             min_interval,
@@ -112,8 +169,22 @@ impl IncidentRateLimiter {
         }
     }
 
-    /// Returns true if this incident should be reported now.
-    /// Updates internal state if allowed.
+    /// Returns `true` if this incident should be reported now.
+    ///
+    /// Updates internal tracking state when allowed. Subsequent calls with the
+    /// same signature within `min_interval` return `false`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::time::Duration;
+    /// use zylos_sentinel::{IncidentRateLimiter, IncidentSignature};
+    ///
+    /// let mut rl = IncidentRateLimiter::new(Duration::from_secs(60));
+    /// let sig = IncidentSignature::new("det", "tgt", "reason");
+    /// assert!(rl.should_report(&sig));
+    /// assert!(!rl.should_report(&sig)); // blocked within interval
+    /// ```
     pub fn should_report(&mut self, signature: &IncidentSignature) -> bool {
         let now = Instant::now();
         if let Some(last) = self.last_reported.get(signature) {
@@ -137,7 +208,21 @@ impl IncidentRateLimiter {
 }
 
 /// Privacy sanitizer: strips sensitive data from health check outputs.
-/// Applied BEFORE any logging or reporting.
+///
+/// Applied **before** any logging or reporting. Removes Bearer tokens, common
+/// API key query parameters (`api_key=`, `apikey=`, `token=`, `secret=`,
+/// `password=`), and email addresses, replacing them with redaction markers.
+///
+/// # Examples
+///
+/// ```
+/// use zylos_sentinel::sanitize_for_output;
+///
+/// let safe = sanitize_for_output("Authorization: Bearer abc123 user@a.com");
+/// assert!(safe.contains("Bearer [REDACTED]"));
+/// assert!(safe.contains("[EMAIL_REDACTED]"));
+/// assert!(!safe.contains("abc123"));
+/// ```
 pub fn sanitize_for_output(text: &str) -> String {
     let mut result = text.to_string();
 
@@ -192,7 +277,28 @@ pub fn sanitize_for_output(text: &str) -> String {
 }
 
 /// Run all detectors and collect health checks.
-/// Each detector is a pure function: input → HealthCheck.
+///
+/// Each detector is a pure function: input → [`HealthCheck`]. Detectors are
+/// executed sequentially in the order provided.
+///
+/// # Examples
+///
+/// ```
+/// use zylos_sentinel::{run_health_scan, HealthCheck, Severity};
+///
+/// let detectors = vec![
+///     ("ping".to_string(), || HealthCheck {
+///         detector_id: "ping".into(),
+///         target: "localhost".into(),
+///         severity: Severity::Healthy,
+///         reason: "ok".into(),
+///         detail: None,
+///         check_latency_ms: 1,
+///     }),
+/// ];
+/// let results = run_health_scan(&detectors);
+/// assert_eq!(results.len(), 1);
+/// ```
 pub fn run_health_scan<F>(detectors: &[(String, F)]) -> Vec<HealthCheck>
 where
     F: Fn() -> HealthCheck,
@@ -204,6 +310,30 @@ where
 }
 
 /// Convert failing health checks into incidents, applying rate limiting.
+///
+/// Filters out [`Severity::Healthy`] checks, generates an
+/// [`IncidentSignature`] for each failure, and consults the
+/// [`IncidentRateLimiter`] to suppress duplicate alerts within the configured
+/// interval. Targets and details are sanitized via [`sanitize_for_output`].
+///
+/// # Examples
+///
+/// ```
+/// use std::time::Duration;
+/// use zylos_sentinel::{generate_incidents, HealthCheck, IncidentRateLimiter, Severity};
+///
+/// let checks = vec![HealthCheck {
+///     detector_id: "db".into(),
+///     target: "postgres".into(),
+///     severity: Severity::Critical,
+///     reason: "connection_refused".into(),
+///     detail: None,
+///     check_latency_ms: 50,
+/// }];
+/// let mut rl = IncidentRateLimiter::new(Duration::from_secs(60));
+/// let incidents = generate_incidents(&checks, &mut rl, "2026-11-06T00:00:00Z");
+/// assert_eq!(incidents.len(), 1);
+/// ```
 pub fn generate_incidents(
     checks: &[HealthCheck],
     rate_limiter: &mut IncidentRateLimiter,
@@ -234,7 +364,20 @@ pub fn generate_incidents(
 
 // ─── Privacy-First Hash ─────────────────────────────────────────────────────
 
-/// Hash PII/IDs for privacy-safe logging. Returns first 16 hex chars of SHA-256.
+/// Hash PII/IDs for privacy-safe logging.
+///
+/// Returns the first 16 hexadecimal characters of the SHA-256 digest. Use this
+/// to correlate log entries without exposing raw identifiers.
+///
+/// # Examples
+///
+/// ```
+/// use zylos_sentinel::privacy_hash;
+///
+/// let h = privacy_hash("user-12345");
+/// assert_eq!(h.len(), 16);
+/// assert!(h.chars().all(|c| c.is_ascii_hexdigit()));
+/// ```
 pub fn privacy_hash(value: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(value.as_bytes());
@@ -244,20 +387,42 @@ pub fn privacy_hash(value: &str) -> String {
 
 // ─── JSONL Append-Only Logger ───────────────────────────────────────────────
 
-/// A single JSONL log entry for audit trail.
+/// A single JSONL log entry for the audit trail.
+///
+/// Written by [`append_jsonl_log`] after each scan cycle and for every
+/// generated incident. All optional fields are `None` when not applicable to
+/// the event type.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SentinelLogEntry {
+    /// RFC 3339 timestamp of the event.
     pub timestamp: String,
+    /// Event category (e.g., `"scan_complete"`, `"incident"`).
     pub event_type: String,
+    /// Detector identifier, when applicable.
     pub detector_id: Option<String>,
+    /// Privacy-hashed target, when applicable.
     pub target_hash: Option<String>,
+    /// Severity string, when applicable.
     pub severity: Option<String>,
+    /// Machine-readable reason code, when applicable.
     pub reason: Option<String>,
+    /// Incident signature for correlation, when applicable.
     pub incident_signature: Option<String>,
+    /// Arbitrary structured details (JSON value).
     pub details: Option<serde_json::Value>,
 }
 
-/// Append a log entry to a JSONL file (append-only). Thread-safe via Mutex.
+/// Append a log entry to a JSONL file (append-only).
+///
+/// Creates `output_dir` if it does not exist and appends a single JSON line to
+/// `sentinel.jsonl` inside that directory. Safe to call concurrently from
+/// multiple async tasks; serialization is handled by the caller via
+/// [`tokio::sync::Mutex`] when needed.
+///
+/// # Errors
+///
+/// Returns [`std::io::Error`] if the directory cannot be created or the file
+/// cannot be opened/written.
 pub async fn append_jsonl_log(
     output_dir: &Path,
     entry: &SentinelLogEntry,
@@ -310,6 +475,18 @@ pub struct HealthScanner {
 }
 
 impl HealthScanner {
+    /// Create a new scanner with the given configuration.
+    ///
+    /// The internal rate limiter interval is derived from
+    /// [`SentinelConfig::rate_limit_per_hour`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use zylos_sentinel::{HealthScanner, SentinelConfig};
+    ///
+    /// let scanner = HealthScanner::new(SentinelConfig::default());
+    /// ```
     pub fn new(config: SentinelConfig) -> Self {
         let min_interval = Duration::from_secs(3600 / config.rate_limit_per_hour.max(1) as u64);
         Self {
@@ -320,6 +497,26 @@ impl HealthScanner {
     }
 
     /// Register a pure-function detector.
+    ///
+    /// Detectors are executed in registration order during each scan cycle.
+    /// The closure must be `Send + Sync + 'static` because the scanner may run
+    /// across threads inside a Tokio runtime.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use zylos_sentinel::{HealthCheck, HealthScanner, SentinelConfig, Severity};
+    ///
+    /// let mut scanner = HealthScanner::new(SentinelConfig::default());
+    /// scanner.add_detector("noop", || HealthCheck {
+    ///     detector_id: "noop".into(),
+    ///     target: "self".into(),
+    ///     severity: Severity::Healthy,
+    ///     reason: "ok".into(),
+    ///     detail: None,
+    ///     check_latency_ms: 0,
+    /// });
+    /// ```
     pub fn add_detector<F>(&mut self, name: impl Into<String>, detector: F)
     where
         F: Fn() -> HealthCheck + Send + Sync + 'static,
@@ -328,6 +525,10 @@ impl HealthScanner {
     }
 
     /// Run a single scan cycle: execute detectors, generate incidents, log results.
+    ///
+    /// Returns the list of newly generated (non-rate-limited) incidents. Each
+    /// cycle also writes a `scan_complete` entry and one `incident` entry per
+    /// generated incident to the configured JSONL log.
     pub async fn run_scan_cycle(&self) -> Vec<Incident> {
         let timestamp = Utc::now().to_rfc3339();
 
@@ -376,7 +577,11 @@ impl HealthScanner {
         incidents
     }
 
-    /// Start the periodic scan loop. Runs until shutdown signal.
+    /// Start the periodic scan loop.
+    ///
+    /// Ticks at [`SentinelConfig::scan_interval_secs`] and runs
+    /// [`run_scan_cycle`](Self::run_scan_cycle) on each tick. Exits cleanly
+    /// when `shutdown` receives a new value.
     pub async fn run_loop(&self, mut shutdown: tokio::sync::watch::Receiver<bool>) {
         let mut interval = tokio::time::interval(
             Duration::from_secs(self.config.scan_interval_secs),
@@ -397,7 +602,9 @@ impl HealthScanner {
         }
     }
 
-    /// Get current rate limiter tracked count.
+    /// Return the number of incident signatures currently tracked by the rate limiter.
+    ///
+    /// Useful for observability dashboards and backpressure signals.
     pub async fn tracked_signatures(&self) -> usize {
         self.rate_limiter.lock().await.tracked_count()
     }

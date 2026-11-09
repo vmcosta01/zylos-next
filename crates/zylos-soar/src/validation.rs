@@ -9,23 +9,37 @@ use std::collections::HashSet;
 
 /// Result of a full validation pass.
 #[derive(Debug, Clone, Serialize)]
+/// Estrutura ValidationReport.
 pub struct ValidationReport {
+    /// Campo playbook count.
     pub playbook_count: usize,
+    /// Campo runbook count.
     pub runbook_count: usize,
+    /// Campo unbound playbook states.
     pub unbound_playbook_states: Vec<String>,
+    /// Campo orphan runbooks.
     pub orphan_runbooks: Vec<String>,
+    /// Campo missing terminal states.
     pub missing_terminal_states: Vec<String>,
+    /// Campo triggerless playbooks.
     pub triggerless_playbooks: Vec<String>,
+    /// Campo adversarial findings.
     pub adversarial_findings: Vec<AdversarialFinding>,
+    /// Campo passed.
     pub passed: bool,
 }
 
 /// A single adversarial finding.
 #[derive(Debug, Clone, Serialize)]
+/// Estrutura AdversarialFinding.
 pub struct AdversarialFinding {
+    /// Campo severity.
     pub severity: String,
+    /// Campo category.
     pub category: String,
+    /// Campo description.
     pub description: String,
+    /// Campo affected component.
     pub affected_component: String,
 }
 
@@ -39,11 +53,13 @@ pub struct SoarValidator<'a> {
 }
 
 impl<'a> SoarValidator<'a> {
+    /// Função new.
     pub fn new(
         router: &'a EventRouter,
         registry: &'a RunbookRegistry,
         playbooks: Vec<&'a Playbook>,
     ) -> Self {
+        // Variante Self.
         Self {
             router,
             registry,

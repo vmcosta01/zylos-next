@@ -1,0 +1,57 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "title": "Active Agents",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "targets": [{"expr": "zylos_active_agents", "legendFormat": "agents"}],
+      "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 50}, {"color": "red", "value": 100}]}}}
+    },
+    {
+      "title": "Request Rate (req/s)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "targets": [{"expr": "rate(zylos_http_requests_total[5m])", "legendFormat": "{{method}} {{path}}"}]
+    },
+    {
+      "title": "Response Latency (p95)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "targets": [{"expr": "histogram_quantile(0.95, rate(zylos_http_request_duration_seconds_bucket[5m]))", "legendFormat": "p95"}]
+    },
+    {
+      "title": "Error Rate",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "targets": [{"expr": "rate(zylos_http_requests_total{status=~\"5..\"}[5m]) / rate(zylos_http_requests_total[5m])", "legendFormat": "error %"}]
+    },
+    {
+      "title": "Queue Depth",
+      "type": "gauge",
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "targets": [{"expr": "zylos_queue_depth", "legendFormat": "pending"}],
+      "fieldConfig": {"defaults": {"max": 1000, "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "orange", "value": 100}, {"color": "red", "value": 500}]}}}
+    },
+    {
+      "title": "Memory Usage",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "targets": [{"expr": "container_memory_working_set_bytes{pod=~\"zylos-gateway.*\"}", "legendFormat": "{{pod}}"}]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["zylos", "gateway"],
+  "templating": {"list": []},
+  "time": {"from": "now-1h", "to": "now"},
+  "title": "Zylos Gateway Dashboard",
+  "uid": "zylos-gateway",
+  "version": 1
+}
+

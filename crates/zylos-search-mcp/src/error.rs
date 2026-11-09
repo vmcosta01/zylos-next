@@ -24,4 +24,5 @@ pub enum SearchError {
     Io(#[from] std::io::Error),
 }
 
+/// Convenience result type for search operations.
 pub type Result<T> = std::result::Result<T, SearchError>;

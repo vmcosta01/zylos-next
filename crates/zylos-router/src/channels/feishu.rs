@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -59,6 +59,7 @@ impl RateLimiter {
 
 /// Feishu event subscription v2.0 schema
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct FeishuEvent {
     schema: Option<String>,
     header: Option<FeishuEventHeader>,
@@ -72,6 +73,7 @@ struct FeishuEvent {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct FeishuEventHeader {
     event_id: String,
     event_type: String,
@@ -83,6 +85,7 @@ struct FeishuEventHeader {
 
 /// Interactive card callback payload
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct CardCallback {
     open_id: Option<String>,
     user_id: Option<String>,
@@ -91,6 +94,7 @@ struct CardCallback {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct CardAction {
     value: serde_json::Value,
     tag: String,
@@ -283,7 +287,7 @@ impl ChannelAdapter for FeishuAdapter {
 
     async fn verify_webhook(
         &self,
-        challenge: &str,
+        _challenge: &str,
         signature: Option<&str>,
         body: &[u8],
     ) -> Result<String, ChannelError> {

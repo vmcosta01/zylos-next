@@ -17,6 +17,7 @@ use crate::approval::{ApprovalError, ApprovalStore};
 use crate::event_bus::EventBus;
 
 #[derive(Debug, Deserialize, utoipa::ToSchema, utoipa::IntoParams)]
+/// Estrutura FilterParams.
 pub struct FilterParams {
     /// Comma-separated event type names to include (e.g. "heartbeat,text_start").
     /// If absent or empty, all events are forwarded.
@@ -25,12 +26,17 @@ pub struct FilterParams {
 
 /// Request body for POST /approval/resolve.
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
+/// Estrutura ResolveApprovalRequest.
 pub struct ResolveApprovalRequest {
+    /// Campo approval id.
     pub approval_id: String,
+    /// Campo decision.
     pub decision: ApprovalDecision,
     #[serde(default)]
+    /// Campo reason.
     pub reason: Option<String>,
     #[serde(default = "default_resolved_by")]
+    /// Campo resolved by.
     pub resolved_by: String,
 }
 
@@ -40,9 +46,13 @@ fn default_resolved_by() -> String {
 
 /// Response body for POST /approval/resolve.
 #[derive(Debug, Serialize, utoipa::ToSchema)]
+/// Estrutura ResolveApprovalResponse.
 pub struct ResolveApprovalResponse {
+    /// Campo approval id.
     pub approval_id: String,
+    /// Campo status.
     pub status: String,
+    /// Campo message.
     pub message: String,
 }
 
@@ -74,26 +84,31 @@ async fn resolve_approval_handler(
     };
 
     match result {
+        // Variante Ok.
         Ok(request) => {
             let status = match &request.status {
                 crate::approval::ApprovalStatus::Approved { .. } => "approved",
                 crate::approval::ApprovalStatus::Declined { .. } => "declined",
                 _ => "unknown",
             };
+            // Variante Ok.
             Ok(Json(ResolveApprovalResponse {
                 approval_id: body.approval_id,
                 status: status.to_string(),
                 message: format!("Approval {} successfully", status),
             }))
         }
+        // Variante Err.
         Err(ApprovalError::NotFound) => Err((
             StatusCode::NOT_FOUND,
             format!("approval '{}' not found", body.approval_id),
         )),
+        // Variante Err.
         Err(ApprovalError::AlreadyDecided) => Err((
             StatusCode::CONFLICT,
             format!("approval '{}' already decided", body.approval_id),
         )),
+        // Variante Err.
         Err(ApprovalError::Expired) => Err((
             StatusCode::GONE,
             format!("approval '{}' has expired", body.approval_id),
@@ -101,6 +116,7 @@ async fn resolve_approval_handler(
     }
 }
 
+/// Função parse event types.
 pub fn parse_event_types(raw: &str) -> Vec<String> {
     raw.split(',')
         .map(|s| s.trim().to_string())
@@ -108,6 +124,7 @@ pub fn parse_event_types(raw: &str) -> Vec<String> {
         .collect()
 }
 
+/// Função matches filter.
 pub fn matches_filter(event: &AgUiEvent, types: &[String]) -> bool {
     if types.is_empty() {
         return true;
@@ -146,10 +163,13 @@ async fn sse_handler(
     let stream: SseStream = if allowed_types.is_empty() {
         Box::pin(bus.subscribe_legacy().filter_map(|item| async move {
             match item {
+                // Variante Ok.
                 Ok(envelope) => {
                     let json = serde_json::to_string(&envelope).ok()?;
+                    // Variante Some.
                     Some(Ok::<_, Infallible>(SseEvent::default().data(json)))
                 }
+                // Variante Err.
                 Err(_) => None,
             }
         }))
@@ -169,10 +189,13 @@ async fn sse_handler(
             })
             .filter_map(|item| async move {
                 match item {
+                    // Variante Ok.
                     Ok(envelope) => {
                         let json = serde_json::to_string(&envelope).ok()?;
+                        // Variante Some.
                         Some(Ok::<_, Infallible>(SseEvent::default().data(json)))
                     }
+                    // Variante Err.
                     Err(_) => None,
                 }
             }),

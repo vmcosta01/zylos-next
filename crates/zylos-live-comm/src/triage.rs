@@ -14,22 +14,24 @@ use std::collections::HashMap;
 
 /// What caused this triage turn to fire.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Enumeração Initiator.
 pub enum Initiator {
-    /// Direct human message.
+    // Direct human message.
     Person(String),
-    /// Scheduled routine fired.
+    // Scheduled routine fired.
     Routine(String),
-    /// Responsibility/check-in timer.
+    // Responsibility/check-in timer.
     Responsibility(String),
-    /// Memory recall triggered.
+    // Memory recall triggered.
     Memory(String),
-    /// Handoff from another agent or task.
+    // Handoff from another agent or task.
     Handoff(String),
-    /// System event (webhook, cron, etc.).
+    // System event (webhook, cron, etc.).
     System(String),
 }
 
 impl Initiator {
+    /// Função label.
     pub fn label(&self) -> &str {
         match self {
             Initiator::Person(_) => "person",
@@ -41,6 +43,7 @@ impl Initiator {
         }
     }
 
+    /// Função detail.
     pub fn detail(&self) -> &str {
         match self {
             Initiator::Person(s)
@@ -55,18 +58,18 @@ impl Initiator {
 
 /// Triage verdict — what action to take on an inbound item.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Enumeração TriageVerdict.
 pub enum TriageVerdict {
-    /// Safe to defer; no immediate human attention needed.
     CanWait,
-    /// Needs human attention / decision.
     NeedsYou,
-    /// Auto-handle (auto-reply, archive, label, etc.).
+    // Auto-handle (auto-reply, archive, label, etc.).
     AutoHandle(String),
-    /// Escalate to a specific person or team.
+    // Escalate to a specific person or team.
     Escalate(String),
 }
 
 impl TriageVerdict {
+    /// Função to db.
     pub fn to_db(&self) -> String {
         match self {
             TriageVerdict::CanWait => "can_wait".into(),
@@ -76,16 +79,22 @@ impl TriageVerdict {
         }
     }
 
+    /// Função from db.
     pub fn from_db(s: &str) -> Option<Self> {
         if s == "can_wait" {
+            // Variante Some.
             Some(TriageVerdict::CanWait)
         } else if s == "needs_you" {
+            // Variante Some.
             Some(TriageVerdict::NeedsYou)
         } else if let Some(action) = s.strip_prefix("auto_handle:") {
+            // Variante Some.
             Some(TriageVerdict::AutoHandle(action.to_string()))
         } else if let Some(target) = s.strip_prefix("escalate:") {
+            // Variante Some.
             Some(TriageVerdict::Escalate(target.to_string()))
         } else {
+            // Variante None.
             None
         }
     }
@@ -93,14 +102,21 @@ impl TriageVerdict {
 
 /// Audit record for every triage decision.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura TriageDecision.
 pub struct TriageDecision {
+    /// Campo timestamp.
     pub timestamp: DateTime<Utc>,
+    /// Campo item id.
     pub item_id: String,
+    /// Campo verdict.
     pub verdict: TriageVerdict,
     /// How the decision was reached: `"rule:<id>"` or `"model:<name>"`.
     pub decided_by: String,
+    /// Campo initiator.
     pub initiator: Initiator,
+    /// Campo confidence.
     pub confidence: f64,
+    /// Campo reasoning.
     pub reasoning: String,
 }
 
@@ -108,7 +124,9 @@ pub struct TriageDecision {
 /// Rules only produce safe-negative verdicts (CanWait, AutoHandle).
 /// They NEVER produce NeedsYou — that's reserved for Stage 2 model.
 pub struct TriageRule {
+    /// Campo id.
     pub id: String,
+    /// Campo description.
     pub description: String,
     /// Predicate evaluated against the inbound item.
     pub matcher: Box<dyn Fn(&TriageInput) -> bool + Send + Sync>,
@@ -131,33 +149,47 @@ impl std::fmt::Debug for TriageRule {
 
 /// Inbound item to triage.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura TriageInput.
 pub struct TriageInput {
+    /// Campo id.
     pub id: String,
+    /// Campo subject.
     pub subject: String,
+    /// Campo body.
     pub body: String,
+    /// Campo sender.
     pub sender: String,
+    /// Campo headers.
     pub headers: HashMap<String, String>,
+    /// Campo labels.
     pub labels: Vec<String>,
+    /// Campo received at.
     pub received_at: DateTime<Utc>,
+    /// Campo initiator.
     pub initiator: Initiator,
 }
 
 /// Structured prompt for Stage 2 model classification.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura TriageModelPrompt.
 pub struct TriageModelPrompt {
+    /// Campo system.
     pub system: String,
+    /// Campo user.
     pub user: String,
+    /// Campo expected schema.
     pub expected_schema: String,
 }
 
 /// Error type for triage operations.
 #[derive(Debug, Clone)]
+/// Enumeração TriageError.
 pub enum TriageError {
-    /// Stage 2 model failed — never silently default to a verdict.
+    // Stage 2 model failed — never silently default to a verdict.
     ModelFailure(String),
-    /// Invalid input.
+    // Invalid input.
     InvalidInput(String),
-    /// Rule configuration error.
+    // Rule configuration error.
     RuleConfig(String),
 }
 
@@ -232,7 +264,9 @@ pub struct TriageEngine {
 }
 
 impl TriageEngine {
+    /// Função new.
     pub fn new() -> Self {
+        // Variante Self.
         Self {
             rules: Vec::new(),
             model: None,
@@ -251,6 +285,7 @@ impl TriageEngine {
         self.rules.push(rule);
         // Keep sorted by priority (ascending = higher priority first)
         self.rules.sort_by_key(|r| r.priority);
+        // Variante Ok.
         Ok(())
     }
 
@@ -297,6 +332,7 @@ impl TriageEngine {
             reasoning,
         };
         self.record_decision(&decision);
+        // Variante Ok.
         Ok(decision)
     }
 
@@ -332,6 +368,7 @@ impl TriageEngine {
 
     /// Build the Stage 2 prompt for external use (e.g., sending to an LLM API).
     pub fn build_model_prompt(input: &TriageInput) -> TriageModelPrompt {
+        // Variante TriageModelPrompt.
         TriageModelPrompt {
             system: "You are a triage classifier. Given an inbound item, classify it into exactly one verdict:\n\
                      - can_wait: safe to defer, no immediate attention needed\n\
@@ -367,6 +404,7 @@ pub mod builtin_rules {
 
     /// Bulk/promotional email detection.
     pub fn bulk_promotions() -> TriageRule {
+        // Variante TriageRule.
         TriageRule {
             id: "bulk-promotions".into(),
             description: "Bulk/promotional emails based on headers and labels".into(),
@@ -387,6 +425,7 @@ pub mod builtin_rules {
 
     /// Auto-reply / out-of-office detection.
     pub fn auto_reply() -> TriageRule {
+        // Variante TriageRule.
         TriageRule {
             id: "auto-reply".into(),
             description: "Auto-reply and out-of-office messages".into(),
@@ -409,6 +448,7 @@ pub mod builtin_rules {
 
     /// Notification / alert emails (CI, monitoring, etc.).
     pub fn notifications() -> TriageRule {
+        // Variante TriageRule.
         TriageRule {
             id: "notifications".into(),
             description: "Automated notifications and alerts".into(),
@@ -431,6 +471,7 @@ pub mod builtin_rules {
 
     /// Spam detection via labels.
     pub fn spam_label() -> TriageRule {
+        // Variante TriageRule.
         TriageRule {
             id: "spam-label".into(),
             description: "Items labeled as spam".into(),
@@ -452,41 +493,63 @@ pub struct TriageEval {
 }
 
 #[derive(Debug, Clone)]
+/// Estrutura EvalCase.
 pub struct EvalCase {
+    /// Campo input.
     pub input: TriageInput,
+    /// Campo expected verdict.
     pub expected_verdict: TriageVerdict,
+    /// Campo expected decided by prefix.
     pub expected_decided_by_prefix: String, // "rule:" or "model:"
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura EvalResult.
 pub struct EvalResult {
+    /// Campo total.
     pub total: usize,
+    /// Campo correct.
     pub correct: usize,
+    /// Campo accuracy.
     pub accuracy: f64,
+    /// Campo by source.
     pub by_source: HashMap<String, EvalSourceStats>,
+    /// Campo failures.
     pub failures: Vec<EvalFailure>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura EvalSourceStats.
 pub struct EvalSourceStats {
+    /// Campo total.
     pub total: usize,
+    /// Campo correct.
     pub correct: usize,
+    /// Campo accuracy.
     pub accuracy: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Estrutura EvalFailure.
 pub struct EvalFailure {
+    /// Campo item id.
     pub item_id: String,
+    /// Campo expected.
     pub expected: String,
+    /// Campo got.
     pub got: String,
+    /// Campo decided by.
     pub decided_by: String,
 }
 
 impl TriageEval {
+    /// Função new.
     pub fn new(corpus: Vec<EvalCase>) -> Self {
+        // Variante Self.
         Self { corpus }
     }
 
+    /// Função run.
     pub fn run(&self, engine: &TriageEngine) -> Result<EvalResult, TriageError> {
         let mut correct = 0;
         let mut by_source: HashMap<String, EvalSourceStats> = HashMap::new();
@@ -544,6 +607,7 @@ impl TriageEval {
         }
 
         let total = self.corpus.len();
+        // Variante Ok.
         Ok(EvalResult {
             total,
             correct,
@@ -563,6 +627,7 @@ mod tests {
     use super::*;
 
     fn make_input(id: &str, subject: &str, sender: &str, labels: &[&str]) -> TriageInput {
+        /// Variante TriageInput.
         TriageInput {
             id: id.into(),
             subject: subject.into(),
@@ -618,6 +683,7 @@ mod tests {
         struct FailModel;
         impl TriageModel for FailModel {
             fn classify(&self, _: &TriageInput) -> Result<(TriageVerdict, f64, String), TriageError> {
+                // Variante Err.
                 Err(TriageError::ModelFailure("API timeout".into()))
             }
             fn name(&self) -> &str {
@@ -642,6 +708,7 @@ mod tests {
         struct GoodModel;
         impl TriageModel for GoodModel {
             fn classify(&self, _: &TriageInput) -> Result<(TriageVerdict, f64, String), TriageError> {
+                // Variante Ok.
                 Ok((TriageVerdict::NeedsYou, 0.85, "Urgent request detected".into()))
             }
             fn name(&self) -> &str {
@@ -683,6 +750,7 @@ mod tests {
         struct SimpleModel;
         impl TriageModel for SimpleModel {
             fn classify(&self, _: &TriageInput) -> Result<(TriageVerdict, f64, String), TriageError> {
+                // Variante Ok.
                 Ok((TriageVerdict::CanWait, 0.7, "Low priority".into()))
             }
             fn name(&self) -> &str {
@@ -802,6 +870,7 @@ mod tests {
         struct AlwaysNeedsYou;
         impl TriageModel for AlwaysNeedsYou {
             fn classify(&self, _: &TriageInput) -> Result<(TriageVerdict, f64, String), TriageError> {
+                // Variante Ok.
                 Ok((TriageVerdict::NeedsYou, 0.9, "Needs attention".into()))
             }
             fn name(&self) -> &str {
@@ -811,16 +880,19 @@ mod tests {
         engine.set_model(Box::new(AlwaysNeedsYou));
 
         let corpus = vec![
+            /// Variante EvalCase.
             EvalCase {
                 input: make_input("e1", "Auto-Reply: OOO", "x@y.com", &[]),
                 expected_verdict: TriageVerdict::AutoHandle("archive".into()),
                 expected_decided_by_prefix: "rule:".into(),
             },
+            /// Variante EvalCase.
             EvalCase {
                 input: make_input("e2", "Spam offer", "spam@evil.com", &["Spam"]),
                 expected_verdict: TriageVerdict::AutoHandle("trash".into()),
                 expected_decided_by_prefix: "rule:".into(),
             },
+            /// Variante EvalCase.
             EvalCase {
                 input: make_input("e3", "Important question", "colleague@co.com", &[]),
                 expected_verdict: TriageVerdict::NeedsYou,

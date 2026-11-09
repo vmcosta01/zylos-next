@@ -9,6 +9,10 @@ metadata:
     - "../playbooks/stakeholder-communication.md"
     - "../playbooks/disaster-recovery.md"
     - "../playbooks/vendor-dependency-pivot.md"
+  playbook_ref: "../../playbooks/deploy-release.md"
+  runbook_refs:
+    - "../../runbooks/helm-hardened-deployment.md"
+    - "../../runbooks/desktop-installer-build.md"
 
 preconditions:
   - check: "Git repository is clean"

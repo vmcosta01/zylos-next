@@ -1,0 +1,87 @@
+{
+  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-config-schema/schema.json",
+  "productName": "Zylos Gateway",
+  "version": "0.1.0",
+  "identifier": "com.zylos.desktop",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Zylos Gateway",
+        "width": 1280,
+        "height": 860,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    },
+    "trayIcon": {
+      "iconPath": "icons/icon.png",
+      "iconAsTemplate": true
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "msi", "dmg", "appimage", "deb", "rpm"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": true,
+        "languages": ["English", "PortugueseBR"]
+      },
+      "wix": {
+        "upgradeCode": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+      }
+    },
+    "linux": {
+      "deb": {
+        "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0"]
+      },
+      "appimage": {
+        "bundleMediaFramework": true
+      },
+      "rpm": {
+        "epoch": 0
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "entitlements": null,
+      "exceptionDomain": null
+    },
+    "shortDescription": "AI Agent Orchestration Platform",
+    "longDescription": "Zylos Gateway is a local-first AI agent orchestration platform with embedded gateway, multi-provider support, and desktop cockpit UI.",
+    "homepage": "https://github.com/zylos/zylos-next",
+    "licenseFile": "../../../LICENSE",
+    "copyright": "Copyright © 2026 Zylos Project",
+    "category": "DeveloperTool"
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["zylos"]
+      }
+    },
+    "updater": {
+      "endpoints": [
+        "https://github.com/zylos/zylos-next/releases/latest/download/latest.json"
+      ],
+      "pubkey": ""
+    }
+  }
+}

@@ -15,23 +15,33 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 /// JWT Claims structure
 #[derive(Debug, Serialize, Deserialize, Clone, utoipa::ToSchema)]
+/// Estrutura Claims.
 pub struct Claims {
+    /// Campo sub.
     pub sub: String,       // User ID
+    /// Campo role.
     pub role: String,      // RBAC role
+    /// Campo exp.
     pub exp: usize,        // Expiration timestamp
+    /// Campo iat.
     pub iat: usize,        // Issued at timestamp
 }
 
 /// Configuration for JWT authentication
 #[derive(Clone)]
+/// Estrutura JwtConfig.
 pub struct JwtConfig {
+    /// Campo secret.
     pub secret: String,
+    /// Campo issuer.
     pub issuer: String,
+    /// Campo expiration secs.
     pub expiration_secs: u64,
 }
 
 impl Default for JwtConfig {
     fn default() -> Self {
+        // Variante Self.
         Self {
             secret: std::env::var("ZYLOS_JWT_SECRET")
                 .unwrap_or_else(|_| "dev-secret-change-in-production".into()),
@@ -101,10 +111,12 @@ pub async fn jwt_auth_middleware(
     let token = &auth_header[7..];
 
     match config.validate_token(token) {
+        // Variante Ok.
         Ok(claims) => {
             request.extensions_mut().insert(claims);
             next.run(request).await
         }
+        // Variante Err.
         Err(_) => error_response(StatusCode::UNAUTHORIZED, "invalid or expired token"),
     }
 }
