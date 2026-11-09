@@ -63,6 +63,11 @@ enum Commands {
         #[command(subcommand)]
         action: BotAction,
     },
+    /// Provedores de IA: quais existem, se a chave está pronta, quais modelos oferecem
+    Provedores {
+        #[command(subcommand)]
+        action: ProvedoresAction,
+    },
     /// Stream or tail logs
     Logs {
         /// Number of lines to display
@@ -105,6 +110,14 @@ enum SoarAction {
 enum BotAction {
     /// Faz uma pergunta ao bot e imprime a resposta
     Perguntar { nome: String, pergunta: String },
+}
+
+#[derive(Subcommand)]
+enum ProvedoresAction {
+    /// Lista os provedores e se a chave de cada um está pronta
+    Listar,
+    /// Lista os modelos que o provedor oferece (pergunta a ele)
+    Modelos { nome: String },
 }
 
 /// O gateway espera o provedor por até 120 s; a CLI espera um pouco mais, para
@@ -158,10 +171,58 @@ async fn main() -> Result<()> {
         Commands::Bot { action } => match action {
             BotAction::Perguntar { nome, pergunta } => cmd_bot_perguntar(&cli.gateway_url, &nome, &pergunta).await?,
         },
+        Commands::Provedores { action } => {
+            let (caminho, formatar): (String, fn(&Value) -> String) = match action {
+                ProvedoresAction::Listar => ("provedores".into(), texto_dos_provedores),
+                ProvedoresAction::Modelos { nome } => (format!("provedores/{nome}/modelos"), texto_dos_modelos),
+            };
+            cmd_provedores(&cli.gateway_url, &caminho, formatar).await?
+        }
         Commands::Logs { tail } => cmd_logs(&client, &cli.gateway_url, tail).await?,
     }
 
     Ok(())
+}
+
+async fn cmd_provedores(base: &str, caminho: &str, formatar: fn(&Value) -> String) -> Result<()> {
+    let client = reqwest::Client::builder().timeout(TEMPO_BOT).build()?;
+    let url = format!("{}/api/v1/{}", base.trim_end_matches('/'), caminho);
+    let resp = client.get(&url).send().await.context("não deu para falar com o gateway")?;
+    let ok = resp.status().is_success();
+    let txt = resp.text().await.context("resposta do gateway ilegível")?;
+    match serde_json::from_str::<Value>(&txt) {
+        Ok(v) if ok => println!("{}", formatar(&v)),
+        _ => {
+            eprintln!("{}", texto_do_bot(false, &txt).unwrap_err());
+            std::process::exit(1);
+        }
+    }
+    Ok(())
+}
+
+/// Uma linha por provedor: nome, língua, chave pronta ou o problema.
+fn texto_dos_provedores(v: &Value) -> String {
+    let mut linhas = Vec::new();
+    for p in v["provedores"].as_array().map(Vec::as_slice).unwrap_or(&[]) {
+        let estado = if p["chave_pronta"] == true {
+            "chave pronta".to_string()
+        } else {
+            format!("sem chave: {}", p["problema_da_chave"].as_str().unwrap_or("?"))
+        };
+        linhas.push(format!(
+            "{:<12} {:<20} {}",
+            p["nome"].as_str().unwrap_or("?"),
+            p["lingua"].as_str().unwrap_or("?"),
+            estado
+        ));
+    }
+    linhas.join("\n")
+}
+
+/// Um modelo por linha, com o total no fim.
+fn texto_dos_modelos(v: &Value) -> String {
+    let ms: Vec<&str> = v["modelos"].as_array().map(|a| a.iter().filter_map(Value::as_str).collect()).unwrap_or_default();
+    format!("{}\n({} modelos em {})", ms.join("\n"), ms.len(), v["provedor"].as_str().unwrap_or("?"))
 }
 
 async fn cmd_bot_perguntar(base: &str, nome: &str, pergunta: &str) -> Result<()> {
@@ -605,6 +666,27 @@ mod tests {
         } else {
             panic!("wrong variant");
         }
+    }
+
+    #[test]
+    fn cli_parses_provedores() {
+        let cli = Cli::try_parse_from(["zylos", "provedores", "listar"]).unwrap();
+        assert!(matches!(cli.command, Commands::Provedores { action: ProvedoresAction::Listar }));
+        let cli = Cli::try_parse_from(["zylos", "provedores", "modelos", "nvidia"]).unwrap();
+        assert!(matches!(cli.command, Commands::Provedores { action: ProvedoresAction::Modelos { nome } } if nome == "nvidia"));
+    }
+
+    #[test]
+    fn texto_de_provedores_e_modelos() {
+        let v = serde_json::json!({"provedores": [
+            {"nome": "nvidia", "lingua": "openai_chat", "chave_pronta": true},
+            {"nome": "openai-api", "lingua": "openai_chat", "chave_pronta": false, "problema_da_chave": "OPENAI_API_KEY não está"}
+        ]});
+        let t = texto_dos_provedores(&v);
+        assert!(t.lines().next().unwrap().contains("chave pronta"));
+        assert!(t.lines().nth(1).unwrap().contains("sem chave: OPENAI_API_KEY não está"));
+        let m = texto_dos_modelos(&serde_json::json!({"provedor": "nvidia", "modelos": ["a", "b"]}));
+        assert_eq!(m, "a\nb\n(2 modelos em nvidia)");
     }
 
     #[test]

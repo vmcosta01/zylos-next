@@ -132,12 +132,71 @@ pub async fn perguntar(cliente: &reqwest::Client, p: Pedido<'_>) -> Result<Strin
 }
 
 fn erro_de_rede(e: reqwest::Error, p: &Pedido<'_>) -> ErroProvedor {
+    erro_de_rede_com(e, p.chave, p.tempo_limite)
+}
+
+fn erro_de_rede_com(e: reqwest::Error, chave: &Segredo, tempo_limite: Duration) -> ErroProvedor {
     if e.is_timeout() {
-        ErroProvedor::TempoEsgotado { segundos: p.tempo_limite.as_secs() }
+        ErroProvedor::TempoEsgotado { segundos: tempo_limite.as_secs() }
     } else {
         // `without_url`: o texto não leva o endereço; `sem_chave` por garantia.
-        ErroProvedor::Rede { motivo: sem_chave(&e.without_url().to_string(), p.chave) }
+        ErroProvedor::Rede { motivo: sem_chave(&e.without_url().to_string(), chave) }
     }
+}
+
+/// Monta o pedido de listagem de modelos: `GET {endereco}/models`, com a chave
+/// no cabeçalho de cada língua. Na Anthropic a lista é paginada; `limit=1000`
+/// traz tudo numa página.
+pub fn montar_listagem(provedor: &Provedor, chave: &Segredo) -> Result<(String, HeaderMap), ErroProvedor> {
+    let mut cab = HeaderMap::new();
+    match provedor.lingua {
+        Lingua::OpenaiChat => {
+            cab.insert(AUTHORIZATION, valor_sensivel(&format!("Bearer {}", chave.expor()))?);
+            Ok((format!("{}/models", provedor.endereco), cab))
+        }
+        Lingua::AnthropicMessages => {
+            cab.insert("x-api-key", valor_sensivel(chave.expor())?);
+            cab.insert("anthropic-version", HeaderValue::from_static(VERSAO_ANTHROPIC));
+            Ok((format!("{}/models?limit=1000", provedor.endereco), cab))
+        }
+    }
+}
+
+/// Lê os ids de modelo de `{"data": [{"id": ...}, ...]}` (formato das duas línguas),
+/// em ordem alfabética e sem repetição.
+pub fn extrair_modelos(v: &Value) -> Result<Vec<String>, ErroProvedor> {
+    let lista = v["data"].as_array().ok_or_else(|| ErroProvedor::RespostaEstranha {
+        motivo: "a lista de modelos não tem o campo data".into(),
+    })?;
+    let mut ids: Vec<String> = lista.iter().filter_map(|m| m["id"].as_str()).map(str::to_string).collect();
+    ids.sort();
+    ids.dedup();
+    Ok(ids)
+}
+
+/// Pergunta ao provedor quais modelos ele oferece.
+pub async fn listar_modelos(
+    cliente: &reqwest::Client,
+    provedor: &Provedor,
+    chave: &Segredo,
+    tempo_limite: Duration,
+) -> Result<Vec<String>, ErroProvedor> {
+    let (url, cab) = montar_listagem(provedor, chave)?;
+    let resp = cliente
+        .get(&url)
+        .headers(cab)
+        .timeout(tempo_limite)
+        .send()
+        .await
+        .map_err(|e| erro_de_rede_com(e, chave, tempo_limite))?;
+    let status = resp.status();
+    let texto = resp.text().await.map_err(|e| erro_de_rede_com(e, chave, tempo_limite))?;
+    if !status.is_success() {
+        return Err(ErroProvedor::Recusou { status: status.as_u16(), trecho: cortar(&sem_chave(&texto, chave)) });
+    }
+    let v: Value = serde_json::from_str(&texto)
+        .map_err(|_| ErroProvedor::RespostaEstranha { motivo: "a lista de modelos não é JSON".into() })?;
+    extrair_modelos(&v)
 }
 
 #[cfg(test)]
@@ -194,6 +253,29 @@ mod testes {
         let a = json!({"content": [{"type": "text", "text": "a"}, {"type": "tool_use"}, {"type": "text", "text": "b"}]});
         assert_eq!(extrair(Lingua::AnthropicMessages, &a).unwrap(), "ab");
         assert!(extrair(Lingua::OpenaiChat, &json!({})).is_err());
+    }
+
+    #[test]
+    fn listagem_das_duas_linguas() {
+        let fab = de_fabrica();
+        let chave = crate::chaves::tests_segredo("k-1");
+        let (url, cab) = montar_listagem(&fab[1], &chave).unwrap();
+        assert_eq!(url, "https://integrate.api.nvidia.com/v1/models");
+        assert_eq!(cab[AUTHORIZATION], "Bearer k-1");
+        assert!(cab[AUTHORIZATION].is_sensitive());
+        let (url, cab) = montar_listagem(&fab[2], &chave).unwrap();
+        assert_eq!(url, "https://api.anthropic.com/v1/models?limit=1000");
+        assert_eq!(cab["x-api-key"], "k-1");
+        assert!(cab["x-api-key"].is_sensitive());
+        assert_eq!(cab["anthropic-version"], VERSAO_ANTHROPIC);
+        assert!(cab.get(AUTHORIZATION).is_none());
+    }
+
+    #[test]
+    fn extrai_modelos_ordenados_sem_repeticao() {
+        let v = json!({"data": [{"id": "b"}, {"id": "a"}, {"id": "b"}, {"sem": "id"}]});
+        assert_eq!(extrair_modelos(&v).unwrap(), vec!["a", "b"]);
+        assert!(extrair_modelos(&json!({"models": []})).is_err());
     }
 
     #[test]

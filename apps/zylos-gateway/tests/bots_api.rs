@@ -22,6 +22,10 @@ async fn subir_falso() -> String {
             }),
         )
         .route(
+            "/v1/models",
+            axum::routing::get(|| async { Json(json!({"data": [{"id": "m-2"}, {"id": "m-1"}]})) }),
+        )
+        .route(
             "/recusa/chat/completions",
             post(|| async { (StatusCode::UNAUTHORIZED, format!("bad key {CHAVE}")) }),
         )
@@ -87,6 +91,38 @@ async fn perguntar(app: &Router, nome: &str, corpo: &str) -> (StatusCode, String
     let txt = String::from_utf8(bytes.to_vec()).unwrap();
     assert!(!txt.contains(CHAVE), "a chave vazou na resposta: {txt}");
     (st, tipo, serde_json::from_str(&txt).unwrap_or(json!({"cru": txt})))
+}
+
+async fn pegar(app: &Router, uri: &str) -> (StatusCode, Value) {
+    let req = Request::builder().method(Method::GET).uri(uri).body(Body::empty()).unwrap();
+    let resp = app.clone().oneshot(req).await.unwrap();
+    let st = resp.status();
+    let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
+    let txt = String::from_utf8(bytes.to_vec()).unwrap();
+    assert!(!txt.contains(CHAVE), "a chave vazou: {txt}");
+    (st, serde_json::from_str(&txt).unwrap())
+}
+
+#[tokio::test]
+async fn lista_provedores_e_modelos() {
+    let (_d, app) = roteador().await;
+    let (st, v) = pegar(&app, "/api/v1/provedores").await;
+    assert_eq!(st, StatusCode::OK);
+    let lista = v["provedores"].as_array().unwrap();
+    let achar = |n: &str| lista.iter().find(|p| p["nome"] == n).unwrap().clone();
+    assert_eq!(achar("falso")["chave_pronta"], true);
+    assert_eq!(achar("sem")["chave_pronta"], false);
+    assert!(achar("sem")["problema_da_chave"].as_str().unwrap().contains("SEM_KEY"));
+    assert_eq!(achar("anthropic")["lingua"], "anthropic_messages");
+
+    let (st, v) = pegar(&app, "/api/v1/provedores/falso/modelos").await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    assert_eq!(v["modelos"], json!(["m-1", "m-2"]));
+    let (st, v) = pegar(&app, "/api/v1/provedores/nao-ha/modelos").await;
+    assert_eq!(st, StatusCode::NOT_FOUND);
+    assert_eq!(v["type"], "https://zylos.dev/errors/provedor-inexistente");
+    let (st, _) = pegar(&app, "/api/v1/provedores/sem/modelos").await;
+    assert_eq!(st, StatusCode::FAILED_DEPENDENCY);
 }
 
 #[tokio::test]

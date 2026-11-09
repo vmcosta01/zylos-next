@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use axum::{extract::Json, http::HeaderMap, routing::post, Router};
 use serde_json::{json, Value};
-use zylos_pensar::{perguntar, Config, ErroPensar};
+use zylos_pensar::{listar_modelos, listar_provedores, perguntar, Config, ErroPensar};
 
 const CHAVE: &str = "sk-falsa-0123456789";
 
@@ -40,8 +40,21 @@ async fn lento() -> Json<Value> {
     Json(json!({}))
 }
 
+/// `/v1/models` das duas línguas: só lista se a chave certa veio no cabeçalho certo.
+async fn modelos(cab: HeaderMap, q: axum::extract::RawQuery) -> (axum::http::StatusCode, Json<Value>) {
+    let h = |n: &str| cab.get(n).and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
+    if h("x-api-key") == CHAVE && h("anthropic-version") == "2023-06-01" && q.0.as_deref() == Some("limit=1000") {
+        return (axum::http::StatusCode::OK, Json(json!({"data": [{"id": "claude-b"}, {"id": "claude-a"}], "has_more": false})));
+    }
+    if h("authorization") == format!("Bearer {CHAVE}") {
+        return (axum::http::StatusCode::OK, Json(json!({"object": "list", "data": [{"id": "gpt-z"}, {"id": "gpt-y"}]})));
+    }
+    (axum::http::StatusCode::UNAUTHORIZED, Json(json!({"erro": "cabecalho errado"})))
+}
+
 async fn subir() -> String {
     let app = Router::new()
+        .route("/v1/models", axum::routing::get(modelos))
         .route("/v1/chat/completions", post(openai))
         .route("/v1/messages", post(anthropic))
         .route("/recusa/chat/completions", post(recusa))
@@ -178,6 +191,35 @@ async fn erros_de_configuracao() {
     assert_eq!(perguntar(&c.cfg, &cl, &sem_ambiente, "ninguem", "x").await.unwrap_err(), ErroPensar::BotInexistente("ninguem".into()));
     assert_eq!(perguntar(&c.cfg, &cl, &sem_ambiente, "..", "x").await.unwrap_err(), ErroPensar::NomeInvalido);
     assert_eq!(perguntar(&c.cfg, &cl, &sem_ambiente, "vigia", "  ").await.unwrap_err(), ErroPensar::PerguntaVazia);
+}
+
+#[tokio::test]
+async fn lista_modelos_nas_duas_linguas() {
+    let c = cena().await;
+    let cl = reqwest::Client::new();
+    assert_eq!(listar_modelos(&c.cfg, &cl, &sem_ambiente, "falso-openai").await.unwrap(), vec!["gpt-y", "gpt-z"]);
+    assert_eq!(listar_modelos(&c.cfg, &cl, &sem_ambiente, "falso-anthropic").await.unwrap(), vec!["claude-a", "claude-b"]);
+    let e = listar_modelos(&c.cfg, &cl, &sem_ambiente, "nao-ha").await.unwrap_err();
+    assert!(matches!(&e, ErroPensar::ProvedorNaoExiste { provedor, .. } if provedor == "nao-ha"), "{e:?}");
+    let e = listar_modelos(&c.cfg, &cl, &sem_ambiente, "falso-sem-chave").await.unwrap_err();
+    assert!(matches!(&e, ErroPensar::ChaveFaltando { .. }), "{e:?}");
+}
+
+#[tokio::test]
+async fn lista_provedores_com_estado_da_chave_sem_valor() {
+    let c = cena().await;
+    let lista = listar_provedores(&c.cfg, &sem_ambiente).unwrap();
+    let achar = |n: &str| lista.iter().find(|p| p.nome == n).unwrap().clone();
+    assert!(achar("falso-openai").chave_pronta);
+    assert!(achar("falso-openai").problema_da_chave.is_none());
+    let sem = achar("falso-sem-chave");
+    assert!(!sem.chave_pronta);
+    assert!(sem.problema_da_chave.unwrap().contains("NAO_EXISTE_KEY"));
+    let oat = achar("falso-oat");
+    assert!(!oat.chave_pronta, "token de assinatura não conta como chave pronta");
+    assert!(lista.iter().any(|p| p.nome == "nvidia"), "as de fábrica aparecem");
+    let json = serde_json::to_string(&lista).unwrap();
+    assert!(!json.contains(CHAVE) && !json.contains("sk-ant-oat01-xyz"), "a lista nunca traz valor de chave");
 }
 
 #[test]

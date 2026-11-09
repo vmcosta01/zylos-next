@@ -18,7 +18,7 @@ use serde::Serialize;
 
 use crate::chaves::ErroChave;
 use crate::linguas::ErroProvedor;
-use crate::provedores::{Catalogo, Lingua};
+use crate::provedores::{Catalogo, Lingua, Provedor};
 
 /// Tempo-limite padrão de uma chamada ao provedor.
 pub const TEMPO_LIMITE_PADRAO: Duration = Duration::from_secs(120);
@@ -102,6 +102,8 @@ pub enum ErroPensar {
     Catalogo(String),
     #[error("o bot usa o provedor \"{provedor}\", que não existe; os que existem: {existentes}")]
     ProvedorDesconhecido { provedor: String, existentes: String },
+    #[error("o provedor \"{provedor}\" não existe; os que existem: {existentes}")]
+    ProvedorNaoExiste { provedor: String, existentes: String },
     #[error("o bot não diz o modelo e o provedor \"{0}\" não tem modelo padrão; ponha modelo = \"...\" no bot.toml")]
     SemModelo(String),
     #[error("{nome} não está no arquivo de chaves do Hermes ({arquivo}). Pode estar no auth.json ou num perfil do Hermes, que esta versão não lê.")]
@@ -116,6 +118,111 @@ pub enum ErroPensar {
     Rede(String),
     #[error("resposta inesperada do provedor: {0}")]
     RespostaEstranha(String),
+}
+
+/// Fichas de fábrica + `provedores.toml` (se existir).
+fn carregar_catalogo(cfg: &Config) -> Result<Catalogo, ErroPensar> {
+    let extra = match &cfg.provedores_extra {
+        Some(p) => match texto::ler(p, Some(256 * 1024)) {
+            Ok(t) => Some(t),
+            Err(texto::ErroTexto::Inexistente) => None,
+            Err(e) => return Err(ErroPensar::Catalogo(format!("provedores.toml: {e}"))),
+        },
+        None => None,
+    };
+    Catalogo::carregar(extra.as_deref()).map_err(ErroPensar::Catalogo)
+}
+
+/// A chave do provedor, pronta para uso (ou o motivo de não poder ser usada).
+fn chave_do_provedor(
+    cfg: &Config,
+    provedor: &Provedor,
+    ambiente: &(dyn Fn(&str) -> Option<String> + Sync),
+) -> Result<chaves::Segredo, ErroPensar> {
+    let chave = chaves::ler_chave(&cfg.arquivo_chaves, &provedor.nome_chave, &|n| ambiente(n)).map_err(|e| match e {
+        ErroChave::Faltando { nome } => {
+            ErroPensar::ChaveFaltando { nome, arquivo: cfg.arquivo_chaves.display().to_string() }
+        }
+        ErroChave::ComExpansao { nome } => ErroPensar::ChaveInvalida {
+            nome,
+            motivo: "o valor usa ${...}, e o zylos não expande variáveis".into(),
+        },
+        ErroChave::ArquivoIlegivel { motivo } => ErroPensar::ChaveInvalida {
+            nome: provedor.nome_chave.clone(),
+            motivo: format!("arquivo de chaves ilegível: {motivo}"),
+        },
+    })?;
+    if provedor.lingua == Lingua::AnthropicMessages && chave.expor().starts_with("sk-ant-oat") {
+        return Err(ErroPensar::ChaveInvalida {
+            nome: provedor.nome_chave.clone(),
+            motivo: "é um token de assinatura do Claude, não uma chave de API; assinatura fica para outra fatia".into(),
+        });
+    }
+    Ok(chave)
+}
+
+/// Um provedor como aparece na lista: a ficha + se a chave está pronta para uso.
+/// Nunca traz o valor da chave.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct InfoProvedor {
+    pub nome: String,
+    pub lingua: Lingua,
+    pub endereco: String,
+    pub nome_chave: String,
+    pub modelo_padrao: Option<String>,
+    pub chave_pronta: bool,
+    /// Por que a chave não está pronta (sem o valor), quando não está.
+    pub problema_da_chave: Option<String>,
+}
+
+/// Todos os provedores, com o estado da chave de cada um. Não chama ninguém na rede.
+pub fn listar_provedores(
+    cfg: &Config,
+    ambiente: &(dyn Fn(&str) -> Option<String> + Sync),
+) -> Result<Vec<InfoProvedor>, ErroPensar> {
+    let catalogo = carregar_catalogo(cfg)?;
+    Ok(catalogo
+        .nomes()
+        .into_iter()
+        .filter_map(|n| catalogo.achar(n))
+        .map(|p| {
+            let estado = chave_do_provedor(cfg, p, ambiente);
+            InfoProvedor {
+                nome: p.nome.clone(),
+                lingua: p.lingua,
+                endereco: p.endereco.clone(),
+                nome_chave: p.nome_chave.clone(),
+                modelo_padrao: p.modelo_padrao.clone(),
+                chave_pronta: estado.is_ok(),
+                problema_da_chave: estado.err().map(|e| e.to_string()),
+            }
+        })
+        .collect())
+}
+
+/// Modelos que o provedor `nome_provedor` oferece, perguntando a ele.
+pub async fn listar_modelos(
+    cfg: &Config,
+    cliente: &reqwest::Client,
+    ambiente: &(dyn Fn(&str) -> Option<String> + Sync),
+    nome_provedor: &str,
+) -> Result<Vec<String>, ErroPensar> {
+    let catalogo = carregar_catalogo(cfg)?;
+    let provedor = catalogo.achar(nome_provedor).ok_or_else(|| ErroPensar::ProvedorNaoExiste {
+        provedor: nome_provedor.to_string(),
+        existentes: catalogo.nomes().join(", "),
+    })?;
+    let chave = chave_do_provedor(cfg, provedor, ambiente)?;
+    linguas::listar_modelos(cliente, provedor, &chave, cfg.tempo_limite).await.map_err(erro_do_provedor)
+}
+
+fn erro_do_provedor(e: ErroProvedor) -> ErroPensar {
+    match e {
+        ErroProvedor::TempoEsgotado { segundos } => ErroPensar::TempoEsgotado(segundos),
+        ErroProvedor::Recusou { status, trecho } => ErroPensar::ProvedorRecusou { status, trecho },
+        ErroProvedor::Rede { motivo } => ErroPensar::Rede(motivo),
+        ErroProvedor::RespostaEstranha { motivo } => ErroPensar::RespostaEstranha(motivo),
+    }
 }
 
 /// Faz `pergunta` ao bot `nome_bot`.
@@ -141,15 +248,7 @@ pub async fn perguntar(
         bots::ErroBot::MalFeito(m) => ErroPensar::BotMalFeito { bot: nome_bot.to_string(), motivo: m },
     })?;
 
-    let extra = match &cfg.provedores_extra {
-        Some(p) => match texto::ler(p, Some(256 * 1024)) {
-            Ok(t) => Some(t),
-            Err(texto::ErroTexto::Inexistente) => None,
-            Err(e) => return Err(ErroPensar::Catalogo(format!("provedores.toml: {e}"))),
-        },
-        None => None,
-    };
-    let catalogo = Catalogo::carregar(extra.as_deref()).map_err(ErroPensar::Catalogo)?;
+    let catalogo = carregar_catalogo(cfg)?;
     let provedor = catalogo.achar(&bot.provedor).ok_or_else(|| ErroPensar::ProvedorDesconhecido {
         provedor: bot.provedor.clone(),
         existentes: catalogo.nomes().join(", "),
@@ -160,25 +259,7 @@ pub async fn perguntar(
         .or_else(|| provedor.modelo_padrao.clone())
         .ok_or_else(|| ErroPensar::SemModelo(provedor.nome.clone()))?;
 
-    let chave = chaves::ler_chave(&cfg.arquivo_chaves, &provedor.nome_chave, &|n| ambiente(n)).map_err(|e| match e {
-        ErroChave::Faltando { nome } => {
-            ErroPensar::ChaveFaltando { nome, arquivo: cfg.arquivo_chaves.display().to_string() }
-        }
-        ErroChave::ComExpansao { nome } => ErroPensar::ChaveInvalida {
-            nome,
-            motivo: "o valor usa ${...}, e o zylos não expande variáveis".into(),
-        },
-        ErroChave::ArquivoIlegivel { motivo } => ErroPensar::ChaveInvalida {
-            nome: provedor.nome_chave.clone(),
-            motivo: format!("arquivo de chaves ilegível: {motivo}"),
-        },
-    })?;
-    if provedor.lingua == Lingua::AnthropicMessages && chave.expor().starts_with("sk-ant-oat") {
-        return Err(ErroPensar::ChaveInvalida {
-            nome: provedor.nome_chave.clone(),
-            motivo: "é um token de assinatura do Claude, não uma chave de API; assinatura fica para outra fatia".into(),
-        });
-    }
+    let chave = chave_do_provedor(cfg, provedor, ambiente)?;
 
     let inicio = Instant::now();
     let texto = linguas::perguntar(
@@ -193,12 +274,7 @@ pub async fn perguntar(
         },
     )
     .await
-    .map_err(|e| match e {
-        ErroProvedor::TempoEsgotado { segundos } => ErroPensar::TempoEsgotado(segundos),
-        ErroProvedor::Recusou { status, trecho } => ErroPensar::ProvedorRecusou { status, trecho },
-        ErroProvedor::Rede { motivo } => ErroPensar::Rede(motivo),
-        ErroProvedor::RespostaEstranha { motivo } => ErroPensar::RespostaEstranha(motivo),
-    })?;
+    .map_err(erro_do_provedor)?;
     Ok(Resposta {
         resposta: texto,
         bot: bot.nome,
