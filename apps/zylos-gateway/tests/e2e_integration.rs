@@ -975,3 +975,66 @@ async fn e2e_33_orchestrate_soar_playbook_dispatch_via_dag() {
     assert_eq!(json["results"][0]["success"], true);
     assert!(json["results"][0]["output"]["event_id"].as_str().is_some());
 }
+
+/// Manda um DAG ao /orchestrate e devolve (corpo, ids dos results na ordem).
+async fn orchestrate(nodes: serde_json::Value) -> (serde_json::Value, Vec<String>) {
+    let app = zylos_gateway::build_router(e2e_state().await);
+    let req = Request::builder()
+        .method("POST")
+        .uri("/api/v1/orchestrate")
+        .header("content-type", "application/json")
+        .body(Body::from(serde_json::to_string(&orchestrate_request(nodes)).unwrap()))
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let ordem = json["results"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["node_id"].as_str().unwrap().to_string())
+        .collect();
+    (json, ordem)
+}
+
+#[tokio::test]
+async fn e2e_34_orchestrate_nos_fora_de_ordem_executam_na_ordem_das_dependencias() {
+    // DAG valido (a -> b -> c), enviado fora de ordem: b e c antes de a.
+    let (json, ordem) = orchestrate(serde_json::json!([
+        {"id": "b", "subsystem": "live-comm", "action": "cockpit_status", "depends_on": ["a"]},
+        {"id": "c", "subsystem": "live-comm", "action": "cockpit_status", "depends_on": ["b"]},
+        {"id": "a", "subsystem": "sandbox", "action": "wasm_check", "depends_on": []}
+    ]))
+    .await;
+    assert_eq!(json["failed"], 0, "nenhum no pode falhar por dependencia: {json}");
+    assert_eq!(json["succeeded"], 3);
+    assert_eq!(ordem, ["a", "b", "c"]);
+}
+
+#[tokio::test]
+async fn e2e_35_orchestrate_pedido_em_ordem_nao_muda_de_ordem() {
+    let (json, ordem) = orchestrate(serde_json::json!([
+        {"id": "a", "subsystem": "sandbox", "action": "wasm_check"},
+        {"id": "b", "subsystem": "live-comm", "action": "cockpit_status", "depends_on": ["a"]},
+        {"id": "c", "subsystem": "live-comm", "action": "cockpit_status"}
+    ]))
+    .await;
+    assert_eq!(json["succeeded"], 3);
+    assert_eq!(ordem, ["a", "b", "c"]);
+}
+
+#[tokio::test]
+async fn e2e_36_orchestrate_dependencia_inexistente_falha_como_antes() {
+    // DAG que nao da para ordenar: segue na ordem recebida e o no sem dependencia
+    // cumprida falha, sem impedir os outros (comportamento anterior preservado).
+    let (json, ordem) = orchestrate(serde_json::json!([
+        {"id": "x", "subsystem": "live-comm", "action": "cockpit_status", "depends_on": ["nao-existe"]},
+        {"id": "a", "subsystem": "sandbox", "action": "wasm_check"}
+    ]))
+    .await;
+    assert_eq!(ordem, ["x", "a"]);
+    assert_eq!(json["results"][0]["success"], false);
+    assert!(json["results"][0]["error"].as_str().unwrap().contains("unmet dependencies"));
+    assert_eq!(json["results"][1]["success"], true);
+}
