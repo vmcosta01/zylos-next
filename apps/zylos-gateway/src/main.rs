@@ -22,6 +22,7 @@ use zylos_soar::{
     registry::RunbookRegistry,
     router::EventRouter,
 };
+use zylos_swarm_orchestrator::SwarmOrchestrator;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -76,6 +77,12 @@ async fn main() -> anyhow::Result<()> {
     let soar_orchestrator = Arc::new(SoarOrchestrator::new(Arc::new(RwLock::new(soar_state))));
     info!("SOAR orchestrator initialized with EventBus");
 
+    // Swarm Orchestrator — task/crew scheduling (Phase 2, in-memory)
+    let swarm = SwarmOrchestrator::open(":memory:")
+        .await
+        .map_err(|e| anyhow::anyhow!("swarm init: {}", e))?;
+    info!("Swarm orchestrator initialized (in-memory)");
+
     // Readiness flag — set after all subsystems are up
     let ready = Arc::new(std::sync::atomic::AtomicBool::new(false));
 
@@ -83,6 +90,7 @@ async fn main() -> anyhow::Result<()> {
         event_bus,
         skills_state,
         soar_orchestrator,
+        swarm: Arc::new(swarm),
         ready: ready.clone(),
     };
 
