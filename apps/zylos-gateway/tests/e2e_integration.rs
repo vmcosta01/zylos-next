@@ -1024,17 +1024,89 @@ async fn e2e_35_orchestrate_pedido_em_ordem_nao_muda_de_ordem() {
     assert_eq!(ordem, ["a", "b", "c"]);
 }
 
+/// Manda o corpo inteiro ao /orchestrate e devolve (status, corpo).
+async fn orchestrate_bruto(corpo: serde_json::Value) -> (StatusCode, serde_json::Value) {
+    let app = zylos_gateway::build_router(e2e_state().await);
+    let req = Request::builder()
+        .method("POST")
+        .uri("/api/v1/orchestrate")
+        .header("content-type", "application/json")
+        .body(Body::from(serde_json::to_string(&corpo).unwrap()))
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    let status = resp.status();
+    let body = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
+    (status, serde_json::from_slice(&body).unwrap())
+}
+
+fn ids(v: &serde_json::Value) -> Vec<String> {
+    v.as_array()
+        .unwrap()
+        .iter()
+        .map(|x| x.as_str().map(String::from).unwrap_or_else(|| x["node_id"].as_str().unwrap().to_string()))
+        .collect()
+}
+
+/// b depende de a (fora de ordem) e x aponta para uma etapa que nao existe.
+fn dag_com_etapa_invalida() -> serde_json::Value {
+    serde_json::json!([
+        {"id": "b", "subsystem": "live-comm", "action": "cockpit_status", "depends_on": ["a"]},
+        {"id": "a", "subsystem": "sandbox", "action": "wasm_check"},
+        {"id": "x", "subsystem": "live-comm", "action": "cockpit_status", "depends_on": ["nao-existe"]}
+    ])
+}
+
 #[tokio::test]
-async fn e2e_36_orchestrate_dependencia_inexistente_falha_como_antes() {
-    // DAG que nao da para ordenar: segue na ordem recebida e o no sem dependencia
-    // cumprida falha, sem impedir os outros (comportamento anterior preservado).
-    let (json, ordem) = orchestrate(serde_json::json!([
-        {"id": "x", "subsystem": "live-comm", "action": "cockpit_status", "depends_on": ["nao-existe"]},
-        {"id": "a", "subsystem": "sandbox", "action": "wasm_check"}
-    ]))
+async fn e2e_36_orchestrate_etapa_invalida_recusa_e_explica_sem_executar() {
+    let (status, json) = orchestrate_bruto(serde_json::json!({"nodes": dag_com_etapa_invalida()})).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(json.get("results").is_none(), "nada pode ter rodado: {json}");
+    assert_eq!(ids(&json["executaveis"]), ["a", "b"]);
+    assert_eq!(ids(&json["fora"]), ["x"]);
+    assert!(json["fora"][0]["motivo"].as_str().unwrap().contains("nao-existe"));
+}
+
+#[tokio::test]
+async fn e2e_37_orchestrate_parte_valida_quando_pedida() {
+    let (status, json) = orchestrate_bruto(serde_json::json!({
+        "nodes": dag_com_etapa_invalida(),
+        "allow_partial": true
+    }))
     .await;
-    assert_eq!(ordem, ["x", "a"]);
-    assert_eq!(json["results"][0]["success"], false);
-    assert!(json["results"][0]["error"].as_str().unwrap().contains("unmet dependencies"));
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(ids(&json["results"]), ["a", "b", "x"]);
+    assert_eq!(json["results"][0]["success"], true);
     assert_eq!(json["results"][1]["success"], true);
+    assert_eq!(json["results"][2]["success"], false);
+    assert!(json["results"][2]["error"].as_str().unwrap().starts_with("não executado"));
+    assert_eq!(json["total_nodes"], 3);
+    assert_eq!(json["succeeded"], 2);
+    assert_eq!(json["failed"], 1);
+}
+
+#[tokio::test]
+async fn e2e_38_orchestrate_id_repetido_e_ciclo_ficam_fora_com_o_que_depende_deles() {
+    let (status, json) = orchestrate_bruto(serde_json::json!({"nodes": [
+        {"id": "d", "subsystem": "live-comm", "action": "cockpit_status"},
+        {"id": "d", "subsystem": "live-comm", "action": "cockpit_status"},
+        {"id": "e", "subsystem": "live-comm", "action": "cockpit_status", "depends_on": ["d"]},
+        {"id": "p", "subsystem": "live-comm", "action": "cockpit_status", "depends_on": ["q"]},
+        {"id": "q", "subsystem": "live-comm", "action": "cockpit_status", "depends_on": ["p"]},
+        {"id": "ok", "subsystem": "sandbox", "action": "wasm_check"}
+    ]}))
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(ids(&json["executaveis"]), ["ok"]);
+    assert_eq!(ids(&json["fora"]), ["d", "d", "e", "p", "q"]);
+}
+
+#[tokio::test]
+async fn e2e_39_orchestrate_sem_nada_executavel_tambem_recusa() {
+    let (status, json) = orchestrate_bruto(serde_json::json!({"nodes": [
+        {"id": "x", "subsystem": "live-comm", "action": "cockpit_status", "depends_on": ["x"]}
+    ]}))
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(json["executaveis"].as_array().unwrap().is_empty());
+    assert_eq!(ids(&json["fora"]), ["x"]);
 }

@@ -236,14 +236,76 @@ async fn cmd_task_submit(client: &reqwest::Client, base: &str, spec_path: &str) 
         .or_else(|_| serde_yaml::from_str(&content))
         .context("Spec must be valid JSON or YAML")?;
 
-    let resp = client
-        .post(format!("{base}/api/v1/orchestrate"))
-        .json(&payload)
-        .send()
-        .await
-        .context("Failed to submit task")?;
+    let resp = enviar_dag(client, base, &payload).await?;
+
+    // O gateway recusa (422) um DAG com etapas que não podem rodar, sem executar
+    // nada, e diz o que poderia rodar. Aqui a pessoa decide: só com "s" a parte
+    // válida é reenviada; qualquer outra resposta (ou nenhuma) não executa nada.
+    if resp.status() == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
+        let corpo: Value = resp.json().await.unwrap_or(Value::Null);
+        if let Some((resumo, ha_parte_valida)) = resumo_dag_invalido(&corpo) {
+            println!("{resumo}");
+            if ha_parte_valida {
+                print!("Executar só a parte válida? (s/N) ");
+                std::io::Write::flush(&mut std::io::stdout()).ok();
+                let mut linha = String::new();
+                std::io::stdin().read_line(&mut linha).ok();
+                if resposta_e_sim(&linha) {
+                    let resp = enviar_dag(client, base, &com_parte_valida(&payload)).await?;
+                    return handle_response(resp, "task submitted (parte válida)").await;
+                }
+            }
+            println!("Nada foi executado.");
+        } else {
+            eprintln!("Error (422 Unprocessable Entity): {corpo}");
+        }
+        std::process::exit(1);
+    }
 
     handle_response(resp, "task submitted").await
+}
+
+async fn enviar_dag(client: &reqwest::Client, base: &str, payload: &Value) -> Result<reqwest::Response> {
+    client
+        .post(format!("{base}/api/v1/orchestrate"))
+        .json(payload)
+        .send()
+        .await
+        .context("Failed to submit task")
+}
+
+/// Texto para a pessoa quando o gateway recusou o DAG por etapas inválidas, e se
+/// há alguma etapa que poderia rodar. `None` se a resposta não é esse diagnóstico.
+fn resumo_dag_invalido(corpo: &Value) -> Option<(String, bool)> {
+    let fora = corpo.get("fora")?.as_array()?;
+    let executaveis = corpo.get("executaveis")?.as_array()?;
+    let mut texto = String::from("O pedido tem etapas que não podem rodar (nada foi executado):\n");
+    for f in fora {
+        let id = f.get("node_id").and_then(Value::as_str).unwrap_or("?");
+        let motivo = f.get("motivo").and_then(Value::as_str).unwrap_or("motivo não informado");
+        texto.push_str(&format!("  - {id}: {motivo}\n"));
+    }
+    let nomes: Vec<&str> = executaveis.iter().filter_map(Value::as_str).collect();
+    if nomes.is_empty() {
+        texto.push_str("Nenhuma etapa poderia rodar.");
+    } else {
+        texto.push_str(&format!("Poderiam rodar, nesta ordem: {}", nomes.join(", ")));
+    }
+    Some((texto, !nomes.is_empty()))
+}
+
+/// Só "s"/"sim" (ou "y"/"yes") confirmam; o padrão é não.
+fn resposta_e_sim(linha: &str) -> bool {
+    matches!(linha.trim().to_lowercase().as_str(), "s" | "sim" | "y" | "yes")
+}
+
+/// O mesmo pedido, marcado para executar só a parte válida.
+fn com_parte_valida(payload: &Value) -> Value {
+    let mut p = payload.clone();
+    if let Some(obj) = p.as_object_mut() {
+        obj.insert("allow_partial".into(), Value::Bool(true));
+    }
+    p
 }
 
 async fn cmd_task_status(client: &reqwest::Client, base: &str, id: &str) -> Result<()> {
@@ -395,6 +457,51 @@ fn print_json_or_table(value: &Value, label: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn resumo_lista_o_que_fica_fora_e_o_que_poderia_rodar() {
+        let corpo = serde_json::json!({
+            "executaveis": ["a", "b"],
+            "fora": [{"node_id": "x", "motivo": "depende de etapa inexistente: nao-existe"}]
+        });
+        let (texto, ha_parte) = resumo_dag_invalido(&corpo).unwrap();
+        assert!(ha_parte);
+        assert!(texto.contains("x: depende de etapa inexistente: nao-existe"), "{texto}");
+        assert!(texto.contains("nesta ordem: a, b"), "{texto}");
+    }
+
+    #[test]
+    fn resumo_sem_nada_executavel_nao_oferece_parte_valida() {
+        let corpo = serde_json::json!({"executaveis": [], "fora": [{"node_id": "x", "motivo": "ciclo"}]});
+        let (texto, ha_parte) = resumo_dag_invalido(&corpo).unwrap();
+        assert!(!ha_parte);
+        assert!(texto.contains("Nenhuma etapa poderia rodar"));
+    }
+
+    #[test]
+    fn resposta_que_nao_e_o_diagnostico_nao_vira_resumo() {
+        assert!(resumo_dag_invalido(&serde_json::json!({"error": "outro"})).is_none());
+        assert!(resumo_dag_invalido(&Value::Null).is_none());
+    }
+
+    #[test]
+    fn so_sim_explicito_confirma() {
+        for s in ["s", "S", "sim", " Sim \n", "y", "yes"] {
+            assert!(resposta_e_sim(s), "devia confirmar: {s:?}");
+        }
+        for n in ["", "\n", "n", "nao", "não", "talvez", "ss"] {
+            assert!(!resposta_e_sim(n), "nao devia confirmar: {n:?}");
+        }
+    }
+
+    #[test]
+    fn parte_valida_marca_o_pedido_sem_mudar_o_resto() {
+        let p = serde_json::json!({"label": "x", "nodes": [1]});
+        let q = com_parte_valida(&p);
+        assert_eq!(q["allow_partial"], true);
+        assert_eq!(q["label"], "x");
+        assert_eq!(q["nodes"], p["nodes"]);
+    }
 
     #[test]
     fn cli_parses_status() {
