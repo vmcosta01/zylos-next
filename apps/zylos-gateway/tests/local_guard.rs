@@ -193,6 +193,32 @@ async fn preflight_local_recebe_cors_da_propria_origem() {
 }
 
 #[tokio::test]
+async fn bots_de_outro_site_e_recusado() {
+    let (st, _) = status(pedido(
+        Method::POST,
+        "/api/v1/bots/vigia/perguntar",
+        &[(header::ORIGIN, FORA), (header::HOST, "127.0.0.1:3000")],
+        r#"{"pergunta":"oi"}"#,
+    ))
+    .await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn bots_local_chega_ao_handler() {
+    // nome inválido: o handler responde 422 antes de tocar disco ou provedor
+    let (st, h) = status(pedido(
+        Method::POST,
+        "/api/v1/bots/Nome-Invalido/perguntar",
+        &[(header::ORIGIN, TELA), (header::HOST, "127.0.0.1:3000")],
+        r#"{"pergunta":"oi"}"#,
+    ))
+    .await;
+    assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(h.get(header::CONTENT_TYPE).unwrap(), "application/problem+json");
+}
+
+#[tokio::test]
 async fn hermes_continua_exigindo_token() {
     // a trava não substitui a senha das rotas do Hermes: sem Bearer, não é 200
     let (st, _) = status(pedido(

@@ -33,6 +33,7 @@ members = [
     "crates/zylos-a2m",
     "crates/zylos-browser-takeover",
     "crates/zylos-evidence-ledger",
+    "crates/zylos-pensar",
     "tests/zylos-e2e",
 ]
 
@@ -114,6 +115,7 @@ zylos-templates = { path = "crates/zylos-templates" }
 zylos-a2m = { path = "crates/zylos-a2m" }
 zylos-browser-takeover = { path = "crates/zylos-browser-takeover" }
 zylos-evidence-ledger = { path = "crates/zylos-evidence-ledger" }
+zylos-pensar = { path = "crates/zylos-pensar" }
 async-stream = "0.3"
 serde_urlencoded = "0.7"
 

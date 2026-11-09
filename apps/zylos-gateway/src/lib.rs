@@ -1,5 +1,6 @@
 //! zylos-gateway library — exposes AppState and build_router for integration tests.
 
+pub mod bots_api;
 pub mod config;
 pub mod hermes_api;
 pub mod local_guard;
@@ -42,6 +43,7 @@ pub fn build_router(state: AppState) -> Router {
     let soar = soar_api::create_soar_router().with_state(state.clone());
     let orchestrate = orchestrate_api::create_orchestrate_router().with_state(state.clone());
     let hermes = hermes_api::create_hermes_router(std::env::var("ZYLOS_HERMES_TOKEN").ok().filter(|t| t.len() >= 16)).with_state(state.clone());
+    let bots = bots_api::create_bots_router(zylos_pensar::Config::do_ambiente());
 
     let ready_flag = state.ready.clone();
     let root_health = Router::new()
@@ -78,7 +80,7 @@ pub fn build_router(state: AppState) -> Router {
 
     Router::new()
         .merge(root_health)
-        .nest("/api/v1", cockpit.merge(sse).merge(skills).merge(soar).merge(orchestrate).merge(hermes))
+        .nest("/api/v1", cockpit.merge(sse).merge(skills).merge(soar).merge(orchestrate).merge(hermes).merge(bots))
         .layer(tower_http::trace::TraceLayer::new_for_http())
         .layer(
             tower_http::cors::CorsLayer::new()

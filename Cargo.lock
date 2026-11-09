@@ -13696,8 +13696,10 @@ dependencies = [
  "axum 0.7.9",
  "governor 0.7.0",
  "jsonwebtoken",
+ "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
  "tokio-util",
  "toml 0.8.23",
@@ -13717,6 +13719,7 @@ dependencies = [
  "zylos-live-comm",
  "zylos-memory-sync",
  "zylos-memory-system",
+ "zylos-pensar",
  "zylos-personalities",
  "zylos-sandbox",
  "zylos-skills",
@@ -13936,6 +13939,20 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "zylos-proof",
+]
+
+[[package]]
+name = "zylos-pensar"
+version = "0.1.0"
+dependencies = [
+ "axum 0.7.9",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "toml 0.8.23",
 ]
 
 [[package]]

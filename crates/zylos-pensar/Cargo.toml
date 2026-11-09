@@ -1,0 +1,19 @@
+[package]
+name = "zylos-pensar"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "O zylos pensa sozinho: fichas de provedor, chaves do Hermes, duas linguas (OpenAI chat / Anthropic messages) e bots com personalidade."
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+toml = "0.8"
+reqwest = { version = "0.12", features = ["json"] }
+
+[dev-dependencies]
+tokio = { workspace = true }
+axum = { workspace = true }
+tempfile = { workspace = true }

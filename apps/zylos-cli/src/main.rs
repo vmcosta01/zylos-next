@@ -58,6 +58,11 @@ enum Commands {
         #[command(subcommand)]
         action: SoarAction,
     },
+    /// Perguntar a um bot (o zylos pensa sozinho)
+    Bot {
+        #[command(subcommand)]
+        action: BotAction,
+    },
     /// Stream or tail logs
     Logs {
         /// Number of lines to display
@@ -95,6 +100,16 @@ enum SoarAction {
     /// Submit a SOAR event from a JSON/YAML file
     SubmitEvent { event_path: String },
 }
+
+#[derive(Subcommand)]
+enum BotAction {
+    /// Faz uma pergunta ao bot e imprime a resposta
+    Perguntar { nome: String, pergunta: String },
+}
+
+/// O gateway espera o provedor por até 120 s; a CLI espera um pouco mais, para
+/// receber o 504 explicado em vez de cortar antes.
+const TEMPO_BOT: std::time::Duration = std::time::Duration::from_secs(130);
 
 #[derive(Subcommand)]
 enum ConfigAction {
@@ -140,10 +155,51 @@ async fn main() -> Result<()> {
             SoarAction::ListPlaybooks => cmd_soar_list_playbooks(&client, &cli.gateway_url).await?,
             SoarAction::SubmitEvent { event_path } => cmd_soar_submit_event(&client, &cli.gateway_url, &event_path).await?,
         },
+        Commands::Bot { action } => match action {
+            BotAction::Perguntar { nome, pergunta } => cmd_bot_perguntar(&cli.gateway_url, &nome, &pergunta).await?,
+        },
         Commands::Logs { tail } => cmd_logs(&client, &cli.gateway_url, tail).await?,
     }
 
     Ok(())
+}
+
+async fn cmd_bot_perguntar(base: &str, nome: &str, pergunta: &str) -> Result<()> {
+    let client = reqwest::Client::builder().timeout(TEMPO_BOT).build()?;
+    let url = format!("{}/api/v1/bots/{}/perguntar", base.trim_end_matches('/'), nome);
+    let resp = client
+        .post(&url)
+        .json(&serde_json::json!({ "pergunta": pergunta }))
+        .send()
+        .await
+        .context("não deu para falar com o gateway")?;
+    let ok = resp.status().is_success();
+    let txt = resp.text().await.context("resposta do gateway ilegível")?;
+    match texto_do_bot(ok, &txt) {
+        Ok(s) => println!("{s}"),
+        Err(s) => {
+            eprintln!("{s}");
+            std::process::exit(1);
+        }
+    }
+    Ok(())
+}
+
+/// Sucesso → o texto da resposta; erro → o `detail` do gateway (ou o texto cru).
+fn texto_do_bot(ok: bool, txt: &str) -> std::result::Result<String, String> {
+    let v: Option<Value> = serde_json::from_str(txt).ok();
+    if ok {
+        match v.as_ref().and_then(|v| v["resposta"].as_str()) {
+            Some(r) => Ok(r.to_string()),
+            None => Err(format!("resposta inesperada do gateway: {txt}")),
+        }
+    } else {
+        Err(v
+            .as_ref()
+            .and_then(|v| v["detail"].as_str())
+            .map(str::to_string)
+            .unwrap_or_else(|| txt.trim().to_string()))
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -538,6 +594,33 @@ mod tests {
     fn cli_parses_status() {
         let cli = Cli::try_parse_from(["zylos", "status"]).unwrap();
         assert!(matches!(cli.command, Commands::Status));
+    }
+
+    #[test]
+    fn cli_parses_bot_perguntar() {
+        let cli = Cli::try_parse_from(["zylos", "bot", "perguntar", "vigia", "tudo bem?"]).unwrap();
+        if let Commands::Bot { action: BotAction::Perguntar { nome, pergunta } } = cli.command {
+            assert_eq!(nome, "vigia");
+            assert_eq!(pergunta, "tudo bem?");
+        } else {
+            panic!("wrong variant");
+        }
+    }
+
+    #[test]
+    fn bot_espera_mais_que_o_gateway() {
+        assert!(TEMPO_BOT.as_secs() > 120, "a CLI não pode cortar antes do 504 do gateway");
+    }
+
+    #[test]
+    fn texto_do_bot_sucesso_e_erros() {
+        assert_eq!(texto_do_bot(true, r#"{"resposta":"olá","bot":"v"}"#), Ok("olá".to_string()));
+        assert!(texto_do_bot(true, "{}").is_err());
+        assert_eq!(
+            texto_do_bot(false, r#"{"status":424,"detail":"NVIDIA_API_KEY não está no arquivo"}"#),
+            Err("NVIDIA_API_KEY não está no arquivo".to_string())
+        );
+        assert_eq!(texto_do_bot(false, "Failed to parse the request body\n"), Err("Failed to parse the request body".to_string()));
     }
 
     #[test]
