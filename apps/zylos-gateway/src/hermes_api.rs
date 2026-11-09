@@ -316,52 +316,47 @@ fn normalize_dispatch_request(
                 final_ids.push(id);
             }
 
-            // Valida depends_on e detecta ciclos (Kahn).
-            let mut adj: std::collections::HashMap<&str, Vec<&str>> =
-                std::collections::HashMap::new();
-            let mut indeg: std::collections::HashMap<&str, usize> =
-                std::collections::HashMap::new();
-            for id in &final_ids {
-                adj.entry(id.as_str()).or_default();
-                indeg.entry(id.as_str()).or_insert(0);
-            }
+            // Valida depends_on, detecta ciclos e calcula a ordem de execução (Kahn).
+            // O execute_dag roda os nós na ordem em que os recebe, então eles saem
+            // daqui já ordenados. Entre os nós prontos vai primeiro o que veio antes
+            // no pedido: um pedido que já está em ordem não muda de ordem.
+            let indice: std::collections::HashMap<&str, usize> = final_ids
+                .iter()
+                .enumerate()
+                .map(|(i, id)| (id.as_str(), i))
+                .collect();
+            let mut dependentes: Vec<Vec<usize>> = vec![Vec::new(); nodes.len()];
+            let mut faltam: Vec<usize> = vec![0; nodes.len()];
             for (idx, n) in nodes.iter().enumerate() {
-                let target = final_ids[idx].as_str();
                 for dep in &n.depends_on {
-                    if !indeg.contains_key(dep.as_str()) {
+                    let Some(&d) = indice.get(dep.as_str()) else {
                         return Err((
                             StatusCode::UNPROCESSABLE_ENTITY,
                             "invalid-dispatch-task",
                             format!("depends_on cita id inexistente: {dep}"),
                         ));
-                    }
-                    adj.entry(dep.as_str()).or_default().push(target);
-                    *indeg.entry(target).or_insert(0) += 1;
+                    };
+                    dependentes[d].push(idx);
+                    faltam[idx] += 1;
                 }
             }
 
-            let mut queue: std::collections::VecDeque<&str> =
-                std::collections::VecDeque::new();
-            for (&id, &deg) in &indeg {
-                if deg == 0 {
-                    queue.push_back(id);
-                }
-            }
-            let mut visited = 0usize;
-            while let Some(cur) = queue.pop_front() {
-                visited += 1;
-                if let Some(neigh) = adj.get(cur) {
-                    for &next in neigh {
-                        if let Some(d) = indeg.get_mut(next) {
-                            *d -= 1;
-                            if *d == 0 {
-                                queue.push_back(next);
-                            }
-                        }
+            let mut prontos: std::collections::BinaryHeap<std::cmp::Reverse<usize>> = (0..nodes
+                .len())
+                .filter(|&i| faltam[i] == 0)
+                .map(std::cmp::Reverse)
+                .collect();
+            let mut ordem: Vec<usize> = Vec::with_capacity(nodes.len());
+            while let Some(std::cmp::Reverse(cur)) = prontos.pop() {
+                ordem.push(cur);
+                for &next in &dependentes[cur] {
+                    faltam[next] -= 1;
+                    if faltam[next] == 0 {
+                        prontos.push(std::cmp::Reverse(next));
                     }
                 }
             }
-            if visited != final_ids.len() {
+            if ordem.len() != nodes.len() {
                 return Err((
                     StatusCode::UNPROCESSABLE_ENTITY,
                     "invalid-dispatch-task",
@@ -369,15 +364,20 @@ fn normalize_dispatch_request(
                 ));
             }
 
-            let dag_nodes: Vec<crate::orchestrate_api::DagNode> = nodes
+            let mut por_indice: Vec<Option<_>> = nodes.into_iter().map(Some).collect();
+            let dag_nodes: Vec<crate::orchestrate_api::DagNode> = ordem
                 .into_iter()
-                .enumerate()
-                .map(|(i, n)| crate::orchestrate_api::DagNode {
-                    id: final_ids[i].clone(),
-                    subsystem: n.subsystem,
-                    action: n.action,
-                    payload: n.payload,
-                    depends_on: n.depends_on,
+                .map(|i| {
+                    let n = por_indice[i]
+                        .take()
+                        .expect("cada nó entra uma única vez na ordem");
+                    crate::orchestrate_api::DagNode {
+                        id: final_ids[i].clone(),
+                        subsystem: n.subsystem,
+                        action: n.action,
+                        payload: n.payload,
+                        depends_on: n.depends_on,
+                    }
                 })
                 .collect();
 
