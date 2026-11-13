@@ -371,7 +371,7 @@ impl EscalationTool {
         let id = format!(
             "esc-{}-{}",
             Utc::now().timestamp_millis(),
-            &request.from_actor
+            request.from_actor
         );
 
         let mut escalations = self.escalations.lock().unwrap();
@@ -420,6 +420,7 @@ impl EquivalenceApprovalService {
 
     /// Submit an approval request. If an equivalent one exists and is still valid,
     /// reuse it instead of creating a duplicate.
+    #[allow(clippy::too_many_arguments)]
     pub fn submit_approval(
         &self,
         actor_id: &str,
@@ -767,7 +768,7 @@ mod tests {
         // Try to override with team rule approval — must fail
         let override_result = svc.apply_tier_decision(
             &hash,
-            /// Variante TierDecision.
+            // Variante TierDecision.
             TierDecision {
                 tier: DecisionTier::TeamRule,
                 approved: true,
@@ -812,7 +813,7 @@ mod tests {
         // Team rule approve overrides default
         svc.apply_tier_decision(
             &hash,
-            /// Variante TierDecision.
+            // Variante TierDecision.
             TierDecision {
                 tier: DecisionTier::TeamRule,
                 approved: true,
@@ -942,7 +943,7 @@ mod tests {
     async fn test_continuation_absent_outside_scope() {
         // Accessing task-local without setting it first panics.
         // Verify that within a scope initialized to None, has/take return false/None.
-        /// Variante CONTINUATION CTX.
+        // Variante CONTINUATION CTX.
         CONTINUATION_CTX
             .scope(std::cell::RefCell::new(None), async {
                 assert!(!has_continuation());

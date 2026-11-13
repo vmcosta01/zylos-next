@@ -239,11 +239,12 @@ impl BenchmarkSuite {
 
     /// Relatório final consolidado
     pub fn report(&self) -> String {
-        let mut lines = Vec::new();
-        lines.push("═══════════════════════════════════════════".to_string());
-        lines.push("  ZYLOS-NEXT BENCHMARK FINAL (E.4)".to_string());
-        lines.push("═══════════════════════════════════════════".to_string());
-        lines.push(String::new());
+        let mut lines = vec![
+         "═══════════════════════════════════════════".to_string(),
+         "  ZYLOS-NEXT BENCHMARK FINAL (E.4)".to_string(),
+         "═══════════════════════════════════════════".to_string(),
+         String::new(),
+         ];
 
         let mut all_passed = true;
         for r in &self.results {

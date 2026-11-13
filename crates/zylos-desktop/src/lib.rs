@@ -22,6 +22,14 @@ pub mod gateway_embed;
 pub mod notifications;
 pub mod tray;
 pub mod workspace;
+/// Persistência de estado do cockpit entre sessões (T8.6.1).
+pub mod workspace_persistence;
+/// Estados de consciência do agente para UI (T8.6.2).
+pub mod agent_awareness;
+/// Relay server para comunicação mobile-to-desktop (T8.6.3).
+pub mod relay_server;
+/// Responsive layout utilities for cockpit UI (T8.6.4).
+pub mod mobile_responsive;
 
 // ---------------------------------------------------------------------------
 // Desktop Configuration
@@ -364,23 +372,10 @@ pub enum TrayAction {
 // GUI Module (feature-gated)
 // ---------------------------------------------------------------------------
 
-#[cfg(feature = "gui")]
-pub mod gui {
-    use super::*;
-
-    /// Initialize the Tauri application with all plugins
-    pub fn build_app(config: DesktopConfig) -> Result<tauri::AppHandle, tauri::Error> {
-        let builder = tauri::Builder::default();
-
-        // TODO: Register plugins when tauri-plugin-* crates are added
-        // .plugin(tauri_plugin_shell::init())
-        // .plugin(tauri_plugin_deep_link::init())
-        // .plugin(tauri_plugin_updater::Builder::new().build())
-
-        let _handle = builder.build(tauri::generate_context!())?;
-        Ok(_handle.handle().clone())
-    }
-}
+// NOTE: The full Tauri app initialization (with generate_context! and plugin
+// registration) lives in apps/zylos-desktop/src-tauri/src/main.rs. This
+// library crate only exposes types and helpers that compile without a
+// tauri.conf.json on disk, so CI and headless builds work.
 
 // ---------------------------------------------------------------------------
 // Tests

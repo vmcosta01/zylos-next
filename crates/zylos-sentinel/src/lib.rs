@@ -14,6 +14,8 @@
 //!
 //! Source: OpenDuet `sentinel.ts`, `health-check.ts`, `incident-rate-limiter.ts`.
 
+pub mod alert_rules;
+
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -241,7 +243,7 @@ pub fn sanitize_for_output(text: &str) -> String {
             let value_start = pos + pattern.len();
             let after = &result[value_start..];
             let end = after
-                .find(|c: char| c == '&' || c == ' ' || c == '\n' || c == '"')
+                .find(['&', ' ', '\n', '"'])
                 .unwrap_or(after.len());
             if end == 0 {
                 // No value after the key — skip past this occurrence to avoid infinite loop

@@ -1,0 +1,67 @@
+name: Deploy Preview
+
+on:
+  pull_request:
+    branches: [ "main" ]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  deployments: write
+  pull-requests: write
+
+jobs:
+  build-cockpit:
+    name: Build Cockpit WASM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Install trunk
+        uses: taiki-e/install-action@trunk
+      - name: Install wasm-opt dependencies
+        run: sudo apt-get update && sudo apt-get install -y binaryen
+      - name: Build cockpit WASM (release)
+        working-directory: apps/zylos-cockpit
+        run: trunk build --release
+      - name: Upload WASM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cockpit-preview-${{ github.event.pull_request.number }}
+          path: apps/zylos-cockpit/dist/
+          retention-days: 14
+
+  deploy-preview:
+    name: Deploy to Cloudflare Pages Preview
+    runs-on: ubuntu-latest
+    needs: [build-cockpit]
+    outputs:
+      preview-url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - name: Download WASM artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: cockpit-preview-${{ github.event.pull_request.number }}
+          path: dist/
+      - name: Deploy to Cloudflare Pages
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=zylos-cockpit-preview --branch=${{ github.head_ref }}
+      - name: Comment PR with preview URL
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = '${{ steps.deploy.outputs.url }}';
+            const body = `## 🚀 Preview Deployed\n\n| Detail | Value |\n|--------|-------|\n| **Preview URL** | ${url} |\n| **Branch** | \`${context.payload.pull_request.head.ref}\` |\n| **Commit** | \`${context.sha.substring(0, 7)}\` |\n\n_WASM size check and E2E tests are running in the CI workflow._`;
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });

@@ -507,10 +507,9 @@ impl EvalStore {
         let __conn = self.conn.lock().unwrap();
         __conn.execute(
             "INSERT OR REPLACE INTO eval_runs
-                (run_id, test_case_id, skill_name, judge_provider, overall_score,
-                 verdict, evaluated_at, total_duration_ms, report_json, tags)
-             // Variante VALUES.
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                            (run_id, test_case_id, skill_name, judge_provider, overall_score,
+                             verdict, evaluated_at, total_duration_ms, report_json, tags)
+                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             rusqlite::params![
                 report.run_id, report.test_case_id, report.skill_name,
                 report.judge_provider.to_string(), report.overall_score,
@@ -754,8 +753,8 @@ impl EvalFlywheel {
         };
 
         if let Some(ref store) = self.store {
-            if let Err(e) = store.save_report(&report) { warn!("Failed to persist eval report: {}", e); }
-        }
+                    if let Err(e) = store.save_report(&report) { warn!("Failed to persist eval report: {}", e); }
+                            }
 
         self.cache.insert(test_case_id.to_string(), report.clone());
         self.update_metrics();

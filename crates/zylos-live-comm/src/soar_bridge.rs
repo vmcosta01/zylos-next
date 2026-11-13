@@ -25,6 +25,7 @@ fn severity_label(severity: &str) -> &'static str {
 ///
 /// Accepts individual fields rather than a `ZylosSecurityEvent` struct
 /// to avoid depending on `zylos-soar` (which would create a cycle).
+#[allow(clippy::too_many_arguments)]
 pub fn publish_soar_event(
     bus: &EventBus,
     event_id: &str,

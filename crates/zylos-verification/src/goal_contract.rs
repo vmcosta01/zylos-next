@@ -233,13 +233,11 @@ impl GoalContract {
                 Criterion::ApiCheck {
                     body_pattern: Some(pattern),
                     ..
-                } => {
-                    if Regex::new(pattern).is_err() {
-                        errors.push(ContractError::InvalidRegex(format!(
-                            "criterion[{}] api body_pattern: invalid regex '{}'",
-                            i, pattern
-                        )));
-                    }
+                } if Regex::new(pattern).is_err() => {
+                    errors.push(ContractError::InvalidRegex(format!(
+                        "criterion[{}] api body_pattern: invalid regex '{}'",
+                        i, pattern
+                    )));
                 }
                 _ => {}
             }

@@ -145,15 +145,13 @@ impl Guardrail {
         }
 
         // Check 4: Truncated JSON
-        if self.config.check_json_completeness && looks_like_json(trimmed) {
-            if !is_complete_json(trimmed) {
-                let us = start.elapsed().as_micros() as u64;
-                return GuardrailResult::fail(
-                    "truncated_json",
-                    "JSON output appears truncated (unbalanced brackets)",
-                    us,
-                );
-            }
+        if self.config.check_json_completeness && looks_like_json(trimmed) && !is_complete_json(trimmed) {
+            let us = start.elapsed().as_micros() as u64;
+            return GuardrailResult::fail(
+                "truncated_json",
+                "JSON output appears truncated (unbalanced brackets)",
+                us,
+            );
         }
 
         let us = start.elapsed().as_micros() as u64;

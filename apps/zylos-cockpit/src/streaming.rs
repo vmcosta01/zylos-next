@@ -132,7 +132,7 @@ pub struct StreamConfig {
 impl Default for StreamConfig {
     fn default() -> Self {
         Self {
-            endpoint: "/api/v1/events".to_string(),
+            endpoint: "http://localhost:3000/api/v1/events".to_string(),
             max_reconnect_attempts: 10,
             base_retry_ms: 1000,
             max_retry_ms: 30000,
@@ -214,10 +214,7 @@ impl StreamContext {
         let mut attempt: u32 = 0;
 
         loop {
-            match self.state.get() {
-                StreamState::Disconnected => return,
-                _ => {}
-            }
+            if self.state.get() == StreamState::Disconnected { return }
 
             if attempt > 0 {
                 let retry_ms = self.backoff_ms(attempt);
@@ -518,10 +515,10 @@ mod tests {
         });
         // With jitter, we can only test bounds
         let b0 = ctx.backoff_ms(0);
-        assert!(b0 >= 1000 && b0 <= 1250, "attempt 0: {} not in [1000, 1250]", b0);
+        assert!((1000..=1250).contains(&b0), "attempt 0: {} not in [1000, 1250]", b0);
 
         let b3 = ctx.backoff_ms(3);
-        assert!(b3 >= 8000 && b3 <= 10000, "attempt 3: {} not in [8000, 10000]", b3);
+        assert!((8000..=10000).contains(&b3), "attempt 3: {} not in [8000, 10000]", b3);
     }
 
     #[test]

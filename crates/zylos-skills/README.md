@@ -72,6 +72,58 @@ cargo test -p zylos-skills
 
 Tests cover registry indexing, schema validation, eval flywheel metrics, export serialization, scheduler triggers, debt parsing, and glossary lookups.
 
+## Fase 8: Skill Contracts & Evolution (2026-11-11)
+
+### SkillContract Formal (T8.4.1)
+
+Estrutura formal `(P,O,A,V,F)` para contratos de skills:
+- **P** (Preconditions): predicates avaliáveis antes da execução
+- **O** (Output Schema): JSON Schema draft-07 para validação estrutural
+- **A** (Assertions): condições pós-execução verificáveis
+- **V** (Validators): referências a funções de validação registradas
+- **F** (Fitness Metrics): métricas de qualidade com baseline
+
+### SkillEvolutionGraph (T8.4.2)
+
+Grafo direcionado (`petgraph::DiGraph`) modelando relações entre skills:
+- Edge types: `Extends`, `Replaces`, `Repairs`, `DependsOn`
+- Operações: merge, retire, add_validator
+- Detecção de ciclos e consistência topológica
+
+### SkillMiner from Logs (T8.4.3)
+
+Extração automática de candidatos a skill a partir de gateway logs:
+- Regex-based pattern extraction de tool call sequences
+- Candidate generation com scoring de confiança
+- EvalFlywheel gate: score < 0.3 descartado automaticamente
+
+### TrajectoryCompiler (T8.4.4)
+
+Conversão HANDOFF markdown + playbook YAML → SkillContract automático:
+- Parser extrai preconditions de "Pré-requisitos"
+- Output schema inferido de "Deliverables"
+- Assertions geradas de "Acceptance Criteria"
+
+### SkillHierarchy 3-Tier (T8.4.5)
+
+Classificação hierárquica de skills em 3 tiers:
+- **Planning**: orquestra outras skills (ex: `incident-response`)
+- **Functional**: domínio específico (ex: `web-search`)
+- **Atomic**: operação unitária (ex: `http-get`)
+
+Filtragem por tier no `IndexRegistry` para queries segmentadas.
+
+### Hermes Integration
+
+Endpoints dedicados via bridge Hermes (`hermes_skill_evolution_api`):
+- `/api/v1/hermes/skill-evolution/contracts` — listar/validar
+- `/api/v1/hermes/skill-evolution/graph` — grafo de evolução
+- `/api/v1/hermes/skill-evolution/miner/run` — mineração de logs
+- `/api/v1/hermes/skill-evolution/trajectory/compile` — compilação HANDOFF→Contract
+- `/api/v1/hermes/skill-evolution/hierarchy` — listagem por tier
+
+Cross-reference: [HANDOFF_FASE8.md](../../docs/handoffs/HANDOFF_FASE8.md) §2.6, [POP-Skill-Contract-Validation](../../playbooks/pop-skill-contract-validation.md), [Playbook Skill Evolution Lifecycle](../../playbooks/skill-evolution-lifecycle.md)
+
 ## Related Crates
 
 - Depends on: `zylos-core`

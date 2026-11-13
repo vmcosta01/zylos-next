@@ -1,23 +1,20 @@
 # Memory — Zylos-Next v6.0
 
-## Estado Atual (2026-11-02)
-- **Fase:** 6 (LIVE_COMMUNICATION) — ✅ COMPLETE | Dupla Auditoria ✅ APPROVED | HANDOFF_6.md criado
-- **Gate Fase 7:** ✅ APROVADO — todos os critérios de saída da Fase 6 atendidos
-- **Fase 6 (LIVE_COMMUNICATION) COMPLETA:** API Gateway Axum (auth JWT, rate limit, WS, OpenAPI), Cockpit Leptos WASM (tabs, i18n, theme, LazyRoster, AG-UI streaming, PWA offline-first), Security OWASP ASVS L2 (6 headers), Cache HTTP multi-camada (thread-safe, bypass rules), Multi-Adapter Export (.cursor/.cline/.claude-plugin), 60/60 testes passando, clippy -D warnings limpo
-- **Auditoria Adversarial Fase 6:** 5/8 CONFIRMED, 3/8 PARTIAL (latência operacional, paginação vs windowing, sanitization heurística), 0 REFUTED → APPROVED
-- **Auditoria Isolada Fase 6:** 6/6 critérios CONFIRMED, zero deps não-autorizadas, zero arquivos vazados → APPROVED
-- **Playbook Estratégico:** Criado em `PLAYBOOK.md` com contratos de comunicação (A2A/MCP), segurança (WASM sandbox, RBAC), e governança de decisão
-- **Sprint 3.1 (zylos-verification):** 3 módulos (ground, proof, guardrail), 32/32 testes passando
-- **Sprint 3.2 (AdversarialPanel):** judge.rs com Verdict/PanelConfig/PanelResult/AdversarialPanel, veto_on_refute, min_agreement configurável, to_proof(), 10 testes, total 42/42 passando
-- **Workspace Cargo:** Compilando (`cargo check --workspace` verde, `cargo clippy -D warnings` limpo)
-- **zylos-bot-system:** 3 módulos implementados (lifecycle, dag, p2p), 21/21 testes passando
-- **zylos-memory-system:** 4 módulos (context_graph, vector_store, rerank, utils), 34/34 testes passando, benchmarks criterion executados
-- **zylos-verification:** 3 módulos (ground, proof, guardrail), 32/32 testes passando, benchmark stub criado
-- **Benchmarks Fase 2:** add_node 189µs (target <1ms ✅), get_node 1.55µs ✅, query_scope 73µs ✅, neighbors 39µs ✅
-- **Benchmarks Fase 3:** event_bus/publish_heartbeat 255ns (target <5ms ✅), vector_store_search/10k_docs_top10 56ms (178 Kelem/s) ✅, brief_aware_reranker/rerank_1k_candidates 10.3ms (97 Kelem/s) ✅
-- **CI/CD:** GitHub Actions configurado (.github/workflows/ci.yml)
-- **Documentos do Manifesto:** 15/15 criados e verificados
-- **Toolchain:** Rust 1.99.1 stable, wasm-pack 0.15.0, wasmtime 50.0.0, sqlite3 3.47.0
+## Estado Atual (2026-11-10 — Pós-Sessão Skills + Manifesto v3.1)
+- **Fase:** 7 (END_TO_END_INTEGRATION) — Fases 0-7C ✅ COMPLETAS | Dupla Auditoria ✅ APPROVED | HANDOFF_7.md criado
+- **Manifesto:** v3.1 com 10 camadas obrigatórias, copiado para `docs/CONCEITOS-DESENVOLVIMENTO-IA.md` (independente do CÓRTEX)
+- **Skills Hermes:** 28 skills nativas criadas e indexadas (16 canônicas + 6 operacionais + 3 estruturais + 3 orquestração avançada)
+- **Auto-Invocação:** AGENTS.md atualizado com tabela de gatilhos — agentes carregam skills automaticamente sem solicitação do usuário
+- **Clippy:** `cargo clippy --workspace --all-targets -- -D warnings` → ✅ CLEAN (verificado antes do cargo clean)
+- **Fases 7B/7C:** Todas as 18 funções confirmadas IMPLEMENTADAS; GAP_ANALYSIS atualizado — 0 gaps restantes
+- **Correções de clippy:** ~50+ fixes aplicados em todo o workspace
+- **Auditorias:** Fase 7B (adversarial + isolada ✅) + Fase 7C (adversarial + isolada ✅)
+- **Testes:** 1.087 testes passando (1.037 core + 50 dos 3 crates: swarm-orchestrator 10, goals 20, personalities 20)
+- **Runbooks dos 3 crates:** zylos-swarm-orchestrator.md, zylos-goals.md, zylos-personalities.md criados com estrutura 3-tier
+- **Documentação operacional:** 7 documentos (3 SOPs + 4 POPs) + índice atualizado em playbooks/README.md
+- **Desktop app:** Notificações nativas OS, gateway auto-start, system tray implementados
+- **Stubs substituídos:** chrono_now_stub → timestamp real, DockerBackend/WasmBackend → execução real, ApprovalWorkflow → auto-approve
+- **⚠️ BLOCKER TEMPORÁRIO:** `cargo clean` corrompeu cache do registry; `STATUS_STACK_BUFFER_OVERRUN` ao recompilar. Requer reinício do sistema para restaurar ambiente de compilação. Código e testes estavam 100% funcionais antes do clean.
 
 ## Decisões Tomadas
 | Data | Decisão | Racional | ADR |

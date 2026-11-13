@@ -1,3 +1,4 @@
+#![allow(clippy::collapsible_if)]
 //! DAGExecutor — Execução topológica de workflows via petgraph
 //!
 //! Features:
@@ -373,17 +374,12 @@ impl<T> OptionalExt<T> for std::result::Result<T, rusqlite::Error> {
 // DagExecutor
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct DagExecutorConfig {
     pub max_concurrency: Option<usize>,
     pub checkpoint_store: Option<Arc<DagCheckpointStore>>,
 }
 
-impl Default for DagExecutorConfig {
-    fn default() -> Self {
-        Self { max_concurrency: None, checkpoint_store: None }
-    }
-}
 
 pub struct DagExecutor {
     cancel_token: CancellationToken,
@@ -695,7 +691,7 @@ impl DagExecutor {
     async fn maybe_checkpoint(&self, dag_id: &DagId, states: &Arc<Mutex<HashMap<String, NodeExecutionState>>>) {
         if let Some(ref store) = self.config.checkpoint_store {
             let s = states.lock().await;
-            if let Err(e) = store.save(dag_id, &*s).await { warn!(error = %e, "Failed to save checkpoint"); }
+            if let Err(e) = store.save(dag_id, &s).await { warn!(error = %e, "Failed to save checkpoint"); }
         }
     }
 }

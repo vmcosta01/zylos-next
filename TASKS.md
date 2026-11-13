@@ -1,9 +1,12 @@
 # Task Board — Zylos-Next v6.0
 
 ## Next (Próximas Tasks Prioritárias)
-- **Fase 7C (remaining)**: Dupla Auditoria (adversarial + isolated docs) + E2E integration com SOAR gateway ✅ código completo (AG-UI types, HITL, leases, triage, equivalence, sentinel — 177 testes live-comm passando)
+- **Integração E2E**: Validar DAG petgraph ↔ resolver ↔ proof ↔ panel em cenário real com dados de produção
+- **Benchmark final**: Executar `cargo bench --workspace` e comparar com baselines em `evals/baselines/`
+- **Release notes**: Consolidar CHANGELOG com todas as fases 0-7C + skills + manifesto v3.1
+- **Tag v1.0.0**: Após validação E2E completa e benchmark aprovado
+- **Restaurar ambiente de compilação**: Reiniciar sistema para resolver `STATUS_STACK_BUFFER_OVERRUN` pós-`cargo clean`
 - **Sprint 6.2 Cockpit**: SSR/Hydration, PWA offline-first, i18n completo, streaming AG-UI integration (2.426 LOC base existe; faltam critérios de aceite de performance)
-- **Fase 7**: End-to-End Integration (integration testing, security audit final, release v1.0)
 
 ## In Progress (Máximo 3 Simultâneas)
 - (Nenhuma task em andamento)

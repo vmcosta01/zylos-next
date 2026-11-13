@@ -60,6 +60,62 @@ let stats = registry.stats().await?;
 | `Io(std::io::Error)` | Filesystem error |
 | `Internal(String)` | Catch-all logic error |
 
+## Fase 8: AI Employee Governance (2026-11-11)
+
+### EmployeeRole Enum (T8.5.1)
+
+8 roles padronizados mapeados para personality presets e routine sets:
+
+| Role | Descrição |
+|------|-----------|
+| Developer | Engenharia de software |
+| Designer | UX/UI e design visual |
+| DevOps | Infraestrutura e CI/CD |
+| QaEngineer | Testes e qualidade |
+| ProductManager | Gestão de produto |
+| SupportAgent | Suporte ao cliente |
+| ContentCreator | Criação de conteúdo |
+| SecurityAuditor | Auditoria de segurança |
+
+### RoutineCatalog (T8.5.2)
+
+Catálogo indexado de rotinas por role com validação na carga e operações CRUD.
+
+### PlanFirstGate (T8.5.3)
+
+Gate de aprovação humana obrigatória antes da execução de rotinas. Usa UUID lexicográfico como tiebreaker quando timestamps são idênticos (resolução de segundo do `chrono_now_stub`).
+
+### EmployeeRateLimiter (T8.5.4)
+
+Token bucket algorithm por employee/role com limites configuráveis e stats reporting.
+
+### GuardrailEnforcer (T8.5.5)
+
+Sistema de regras declarativas de segurança operacional:
+
+- Regras com prioridade ordenada (maior = avaliada primeiro)
+- Wildcards em rotinas (`deploy-*`) e recursos (`filesystem:/etc/*`)
+- Filtro por role específico ou todos os roles
+- 3 ações: `Allow`, `Block { reason }`, `RequireApproval { message }`
+- Decision log com ring buffer para auditoria
+- Versões sync e async para uso dentro/fora de runtime Tokio
+
+```rust
+use zylos_personalities::guardrails::{GuardrailEnforcer, GuardrailRule};
+
+let enforcer = GuardrailEnforcer::with_defaults();
+let decision = enforcer.evaluate("emp-1", &EmployeeRole::DevOps, "deploy-production", None).await;
+// → RequireApproval { message: "Production deployment requires human sign-off" }
+```
+
+### Hermes Integration
+
+Endpoints dedicados via bridge Hermes (`hermes_employee_api`, `hermes_security_api`):
+- `/api/v1/hermes/employee/*` — roles, routines, plan-gate, rate-limiter
+- `/api/v1/hermes/security/guardrails/*` — stats, rules CRUD
+
+Cross-reference: [HANDOFF_FASE8.md](../../docs/handoffs/HANDOFF_FASE8.md) §2.7, [POP-Guardrail-Rule-Update](../../playbooks/pop-guardrail-rule-update.md), [SOAR Guardrail Enforcement](../../playbooks/soar-guardrail-enforcement.md)
+
 ## Gaps
 
 - Tags stored as JSON string in SQLite column; substring matching (`LIKE %tag%`) can produce false positives on partial matches.

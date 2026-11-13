@@ -341,7 +341,7 @@ impl WasmSandbox {
             .map_err(|e| SandboxError::Instantiation(e.to_string()))?;
 
         let max_pages = config.max_memory_pages
-            .unwrap_or_else(|| (config.max_memory_bytes / 65536) as u32);
+            .unwrap_or((config.max_memory_bytes / 65536) as u32);
 
         info!(module_hash = %module_hash, max_memory_pages = max_pages, "Sandbox created");
 
@@ -556,7 +556,7 @@ impl WasmSandbox {
         let snapshot_size = snapshot.memory_data.len();
 
         if snapshot_size > current_size {
-            let pages_needed = ((snapshot_size - current_size) + 65535) / 65536;
+            let pages_needed = (snapshot_size - current_size).div_ceil(65536);
             memory.grow(&mut sandbox.store, pages_needed as u64)
                 .map_err(|e| SandboxError::Restore(
                     format!("Failed to grow memory for restore: {}", e)
@@ -568,8 +568,8 @@ impl WasmSandbox {
         mem_slice[..copy_len].copy_from_slice(&snapshot.memory_data[..copy_len]);
 
         for gv in &snapshot.globals {
-            if let Some(export) = sandbox.instance.get_export(&mut sandbox.store, &gv.name) {
-                if let Extern::Global(global) = export {
+            if let Some(Extern::Global(global)) = sandbox.instance.get_export(&mut sandbox.store, &gv.name) {
+                {
                     let ty = global.ty(&sandbox.store);
                     let val = match ty.content() {
                         wasmtime::ValType::I32 => Val::I32(gv.value as i32),

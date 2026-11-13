@@ -5,26 +5,28 @@
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use tokio::runtime::Runtime;
 use zylos_live_comm::event_bus::EventBus;
-use zylos_live_comm::event_types::{CustomEvent, ZylosEvent};
+use zylos_live_comm::event_types::{AgentStateChanged, ZylosEvent};
 
 fn bench_publish(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
-    let bus = EventBus::new(1024, None);
+ let rt = Runtime::new().unwrap();
+ let bus = EventBus::new(1024, None);
 
-    // Register one subscriber so publish doesn't take the zero-subscriber fast path
-    let _sub = rt.block_on(bus.subscribe("bench-sub", "heartbeat.#", None)).unwrap();
+ // Register one subscriber so publish doesn't take the zero-subscriber fast path
+ let _sub = rt.block_on(bus.subscribe("bench-sub", "agent.#", None)).unwrap();
 
-    let event = ZylosEvent::Custom(CustomEvent {
-        name: "heartbeat".into(),
-        payload: serde_json::json!({"ts": 0}),
-    });
+ let event = ZylosEvent::AgentStateChanged(AgentStateChanged {
+ agent_id: "bench-agent".into(),
+ previous_state: "idle".into(),
+ new_state: "working".into(),
+ reason: Some("benchmark".into()),
+ });
 
-    let mut group = c.benchmark_group("publish_heartbeat");
+    let mut group = c.benchmark_group("publish_agent_state");
     group.throughput(Throughput::Elements(1));
 
     group.bench_function("single_subscriber", |b| {
         b.iter(|| {
-            rt.block_on(bus.publish("heartbeat.ping", event.clone(), 1)).unwrap();
+            rt.block_on(bus.publish("agent.state_changed", event.clone(), 1)).unwrap();
         })
     });
 

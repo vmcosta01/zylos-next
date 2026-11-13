@@ -1,0 +1,16 @@
+[package]
+name = "zylos-egress"
+version = "0.1.0"
+edition = "2021"
+description = "Verificador de egress — detecta PII, secrets e dados sensíveis antes de enviar para destinos externos"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+regex = "1"
+tracing = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full"] }

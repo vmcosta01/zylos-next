@@ -19,18 +19,16 @@ use tracing::{debug, info_span, Instrument};
 /// Strategy applied when a subscriber's bounded channel is full.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Enumeração BackpressureStrategy.
+#[derive(Default)]
 pub enum BackpressureStrategy {
+    #[default]
     DropOldest,
     DropNewest,
     BlockProducer,
     SlowConsumerAlert,
 }
 
-impl Default for BackpressureStrategy {
-    fn default() -> Self {
-        Self::DropOldest
-    }
-}
+
 
 // ---------------------------------------------------------------------------
 // Subscriber descriptor

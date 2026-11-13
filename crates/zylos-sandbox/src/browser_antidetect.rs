@@ -221,9 +221,9 @@ impl BrowserSandbox {
         let mut patches = Vec::with_capacity(8);
 
         // 1. Override navigator.webdriver
-        patches.push(format!(
-            r#"Object.defineProperty(navigator, 'webdriver', {{ get: () => false }});"#
-        ));
+        patches.push(
+            r#"Object.defineProperty(navigator, 'webdriver', { get: () => false });"#.to_string()
+        );
 
         // 2. Patch navigator properties
         patches.push(format!(
@@ -238,23 +238,23 @@ Object.defineProperty(navigator, 'languages', {{ get: () => ['{}'] }});"#,
         ));
 
         // 3. Canvas fingerprint noise injection
-        patches.push(format!(
-            r#"(() => {{
+        patches.push(
+            r#"(() => {
   const origToDataURL = HTMLCanvasElement.prototype.toDataURL;
-  HTMLCanvasElement.prototype.toDataURL = function(type) {{
-    if (type === 'image/png' || type === undefined) {{
+  HTMLCanvasElement.prototype.toDataURL = function(type) {
+    if (type === 'image/png' || type === undefined) {
       const ctx = this.getContext('2d');
-      if (ctx) {{
+      if (ctx) {
         const style = ctx.fillStyle;
         ctx.fillStyle = 'rgba(255,255,255,0.01)';
         ctx.fillRect(0, 0, 1, 1);
         ctx.fillStyle = style;
-      }}
-    }}
+      }
+    }
     return origToDataURL.apply(this, arguments);
-  }};
-}})();"#
-        ));
+  };
+})();"#.to_string()
+        );
 
         // 4. WebGL vendor/renderer override
         patches.push(format!(
@@ -270,16 +270,16 @@ Object.defineProperty(navigator, 'languages', {{ get: () => ['{}'] }});"#,
         ));
 
         // 5. AudioContext hash stabilization
-        patches.push(format!(
-            r#"(() => {{
+        patches.push(
+            r#"(() => {
   const origCreateOscillator = AudioContext.prototype.createOscillator;
-  AudioContext.prototype.createOscillator = function() {{
+  AudioContext.prototype.createOscillator = function() {
     const osc = origCreateOscillator.call(this);
     osc._zylos_stable = true;
     return osc;
-  }};
-}})();"#
-        ));
+  };
+})();"#.to_string()
+        );
 
         // 6. ClientRects micro-variation
         patches.push(format!(

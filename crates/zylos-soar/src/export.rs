@@ -565,7 +565,7 @@ mod tests {
     use std::fs;
 
     fn sample_playbook() -> Playbook {
-        /// Variante Playbook.
+        // Variante Playbook.
         Playbook {
             name: "security-incident-response".to_string(),
             version: "1.0".to_string(),
@@ -579,7 +579,7 @@ mod tests {
                 approver: Some("security-manager".to_string()),
             },
             states: vec![
-                /// Variante PlaybookState.
+                // Variante PlaybookState.
                 PlaybookState {
                     name: "triage".to_string(),
                     auto: true,
@@ -588,12 +588,12 @@ mod tests {
                     timeout_minutes: None,
                     escalation: None,
                     next: vec![
-                        /// Variante Transition.
+                        // Variante Transition.
                         Transition {
                             condition: Some("triage.confirmed_breach == true".to_string()),
                             to: "containment".to_string(),
                         },
-                        /// Variante Transition.
+                        // Variante Transition.
                         Transition {
                             condition: Some("triage.false_positive == true".to_string()),
                             to: "closed".to_string(),
@@ -602,7 +602,7 @@ mod tests {
                     actions: vec![],
                     terminal: false,
                 },
-                /// Variante PlaybookState.
+                // Variante PlaybookState.
                 PlaybookState {
                     name: "containment".to_string(),
                     auto: false,
@@ -617,7 +617,7 @@ mod tests {
                     actions: vec![],
                     terminal: false,
                 },
-                /// Variante PlaybookState.
+                // Variante PlaybookState.
                 PlaybookState {
                     name: "eradication".to_string(),
                     auto: true,
@@ -632,7 +632,7 @@ mod tests {
                     actions: vec![],
                     terminal: false,
                 },
-                /// Variante PlaybookState.
+                // Variante PlaybookState.
                 PlaybookState {
                     name: "recovery".to_string(),
                     auto: true,
@@ -647,7 +647,7 @@ mod tests {
                     actions: vec![],
                     terminal: false,
                 },
-                /// Variante PlaybookState.
+                // Variante PlaybookState.
                 PlaybookState {
                     name: "post_incident".to_string(),
                     auto: true,
@@ -662,7 +662,7 @@ mod tests {
                     ],
                     terminal: true,
                 },
-                /// Variante PlaybookState.
+                // Variante PlaybookState.
                 PlaybookState {
                     name: "closed".to_string(),
                     auto: true,

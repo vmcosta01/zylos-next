@@ -219,6 +219,6 @@ impl ActionExecutor {
 
         builder
             .build()
-            .map_err(|e| IntegrationError::Http(e))
+            .map_err(IntegrationError::Http)
     }
 }

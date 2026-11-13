@@ -303,11 +303,11 @@ mod tests {
     use std::fs;
 
     fn sample_term(name: &str) -> GlossaryTerm {
-        /// Variante GlossaryTerm.
-        GlossaryTerm {
-            term: name.to_string(),
-            definition: format!("Definição do termo {}", name),
-            aliases: vec![format!("{}-alias", name)],
+        // Variante GlossaryTerm.
+         GlossaryTerm {
+         term: name.to_string(),
+         definition: format!("Definição do termo {}", name),
+         aliases: vec![format!("{}-alias", name)],
             tags: vec!["core".to_string()],
             see_also: vec![],
             example: Some(format!("Exemplo de uso de {}", name)),

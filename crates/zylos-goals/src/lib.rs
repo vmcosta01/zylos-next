@@ -75,6 +75,7 @@ impl std::fmt::Display for GoalStatus {
 
 impl GoalStatus {
     /// Parse a lowercase string into a [`GoalStatus`].
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Result<Self, GoalsError> {
         match s {
             "draft" => Ok(Self::Draft),
@@ -112,6 +113,7 @@ impl std::fmt::Display for Priority {
 
 impl Priority {
     /// Parse a lowercase string into a [`Priority`].
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Result<Self, GoalsError> {
         match s {
             "low" => Ok(Self::Low),
@@ -175,6 +177,7 @@ impl std::fmt::Display for MetricType {
 
 impl MetricType {
     /// Parse a lowercase string into a [`MetricType`].
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Result<Self, GoalsError> {
         match s {
             "percentage" => Ok(Self::Percentage),
@@ -211,6 +214,7 @@ impl std::fmt::Display for KrStatus {
 
 impl KrStatus {
     /// Parse a lowercase string into a [`KrStatus`].
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Result<Self, GoalsError> {
         match s {
             "not_started" => Ok(Self::NotStarted),
@@ -266,6 +270,7 @@ impl std::fmt::Display for MilestoneStatus {
 
 impl MilestoneStatus {
     /// Parse a lowercase string into a [`MilestoneStatus`].
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Result<Self, GoalsError> {
         match s {
             "pending" => Ok(Self::Pending),
@@ -332,6 +337,7 @@ impl std::fmt::Display for WatcherSourceType {
 
 impl WatcherSourceType {
     /// Parse a lowercase string into a [`WatcherSourceType`].
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Result<Self, GoalsError> {
         match s {
             "skill_execution" => Ok(Self::SkillExecution),
@@ -414,6 +420,7 @@ impl GoalStore {
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")?;
         Self::run_migrations(&conn)?;
         Ok(Self {
+            #[allow(clippy::arc_with_non_send_sync)]
             conn: Arc::new(RwLock::new(conn)),
         })
     }
@@ -424,6 +431,7 @@ impl GoalStore {
         conn.execute_batch("PRAGMA foreign_keys=ON;")?;
         Self::run_migrations(&conn)?;
         Ok(Self {
+            #[allow(clippy::arc_with_non_send_sync)]
             conn: Arc::new(RwLock::new(conn)),
         })
     }
@@ -536,7 +544,7 @@ impl GoalStore {
         conn.query_row(
             "SELECT id, title, description, owner, status, priority, created_at, updated_at, due_date, parent_goal_id, tags FROM goals WHERE id = ?1",
             params![id],
-            |row| row_to_goal(row),
+            row_to_goal,
         )
         .optional()?
         .ok_or_else(|| GoalsError::NotFound(id.to_string()))
@@ -548,12 +556,12 @@ impl GoalStore {
         let mut stmt = match parent_id {
             Some(pid) => {
                 let mut s = conn.prepare("SELECT id, title, description, owner, status, priority, created_at, updated_at, due_date, parent_goal_id, tags FROM goals WHERE parent_goal_id = ?1 ORDER BY created_at DESC")?;
-                let rows = s.query_map(params![pid], |row| row_to_goal(row))?;
+                let rows = s.query_map(params![pid], row_to_goal)?;
                 return rows.collect::<Result<Vec<_>, _>>().map_err(Into::into);
             }
             None => conn.prepare("SELECT id, title, description, owner, status, priority, created_at, updated_at, due_date, parent_goal_id, tags FROM goals ORDER BY created_at DESC")?,
         };
-        let rows = stmt.query_map([], |row| row_to_goal(row))?;
+        let rows = stmt.query_map([], row_to_goal)?;
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
 
@@ -640,7 +648,7 @@ impl GoalStore {
         let mut stmt = conn.prepare(
             "SELECT id, goal_id, title, metric_type, target_value, current_value, unit, status, created_at, updated_at FROM key_results WHERE goal_id = ?1 ORDER BY created_at",
         )?;
-        let rows = stmt.query_map(params![goal_id], |row| row_to_kr(row))?;
+        let rows = stmt.query_map(params![goal_id], row_to_kr)?;
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
 
@@ -686,7 +694,7 @@ impl GoalStore {
         let mut stmt = conn.prepare(
             "SELECT id, goal_id, title, description, due_date, completed_at, status, created_at FROM milestones WHERE goal_id = ?1 ORDER BY due_date",
         )?;
-        let rows = stmt.query_map(params![goal_id], |row| row_to_milestone(row))?;
+        let rows = stmt.query_map(params![goal_id], row_to_milestone)?;
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
 
@@ -725,7 +733,7 @@ impl GoalStore {
         let mut stmt = conn.prepare(
             "SELECT id, key_result_id, cron_expr, source_type, source_config, enabled, last_run_at, last_result, last_error, created_at FROM progress_watchers WHERE enabled = 1",
         )?;
-        let rows = stmt.query_map([], |row| row_to_watcher(row))?;
+        let rows = stmt.query_map([], row_to_watcher)?;
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
 
@@ -747,6 +755,7 @@ impl GoalStore {
 
     // -- Audit Log --
 
+    #[allow(clippy::too_many_arguments)]
     fn log_audit_sync(
         &self,
         conn: &Connection,

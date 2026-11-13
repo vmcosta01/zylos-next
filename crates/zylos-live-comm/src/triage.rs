@@ -90,12 +90,8 @@ impl TriageVerdict {
         } else if let Some(action) = s.strip_prefix("auto_handle:") {
             // Variante Some.
             Some(TriageVerdict::AutoHandle(action.to_string()))
-        } else if let Some(target) = s.strip_prefix("escalate:") {
-            // Variante Some.
-            Some(TriageVerdict::Escalate(target.to_string()))
         } else {
-            // Variante None.
-            None
+            s.strip_prefix("escalate:").map(|target| TriageVerdict::Escalate(target.to_string()))
         }
     }
 }
@@ -627,7 +623,7 @@ mod tests {
     use super::*;
 
     fn make_input(id: &str, subject: &str, sender: &str, labels: &[&str]) -> TriageInput {
-        /// Variante TriageInput.
+        // Variante TriageInput.
         TriageInput {
             id: id.into(),
             subject: subject.into(),
@@ -880,19 +876,19 @@ mod tests {
         engine.set_model(Box::new(AlwaysNeedsYou));
 
         let corpus = vec![
-            /// Variante EvalCase.
+            // Variante EvalCase.
             EvalCase {
                 input: make_input("e1", "Auto-Reply: OOO", "x@y.com", &[]),
                 expected_verdict: TriageVerdict::AutoHandle("archive".into()),
                 expected_decided_by_prefix: "rule:".into(),
             },
-            /// Variante EvalCase.
+            // Variante EvalCase.
             EvalCase {
                 input: make_input("e2", "Spam offer", "spam@evil.com", &["Spam"]),
                 expected_verdict: TriageVerdict::AutoHandle("trash".into()),
                 expected_decided_by_prefix: "rule:".into(),
             },
-            /// Variante EvalCase.
+            // Variante EvalCase.
             EvalCase {
                 input: make_input("e3", "Important question", "colleague@co.com", &[]),
                 expected_verdict: TriageVerdict::NeedsYou,

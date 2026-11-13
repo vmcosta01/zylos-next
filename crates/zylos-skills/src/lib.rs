@@ -17,7 +17,21 @@ pub mod registry;
 pub mod scheduler;
 /// Módulo schema.
 pub mod schema;
+/// Módulo contract — SkillContract formal (P,O,A,V,F) (T8.4.1).
+pub mod contract;
+/// Módulo evolution — SkillEvolutionGraph com merge/retire/add_validator (T8.4.2).
+pub mod evolution;
+/// Módulo miner — SkillMiner automático a partir de logs (T8.4.3).
+pub mod miner;
+/// Módulo trajectory — TrajectoryCompiler para HANDOFF/playbook → SkillContract (T8.4.4).
+pub mod trajectory;
+/// Módulo hierarchy — SkillHierarchy 3-tier Planning/Functional/Atomic (T8.4.5).
+pub mod hierarchy;
 
+pub use contract::{
+    Assertion, AssertionSeverity, ContractError, FitnessMetric, OutputSchema, Predicate,
+    SkillContract, ValidatorRef,
+};
 pub use debt::{DebtCategory, DebtError, DebtItem, DebtParser, DebtReport, DebtResult, DebtSeverity};
 pub use export::{ExportError, ExportFormat, ExportReport, ExportResult, ExportableSkill, SkillExporter};
 pub use scheduler::{ExecutionLog, Routine, RoutineScheduler, RoutineStatus, SchedulerError, SchedulerResult, SchedulerState, SchedulerStats, TriggerType};

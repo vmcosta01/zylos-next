@@ -29,3 +29,6 @@ pub mod app {
 pub mod app {
     // Empty during lib-only / doc / wasm builds; real components live in main.rs.
 }
+
+/// Componentes do cockpit — expostos publicamente para testes E2E e integração.
+pub mod components;

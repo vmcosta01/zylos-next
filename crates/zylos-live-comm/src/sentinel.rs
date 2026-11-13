@@ -304,7 +304,7 @@ pub fn normalize_signature(tool: &str, error: Option<&str>) -> String {
 pub fn detect_http_5xx(observations: &[Observation]) -> Vec<DetectorFinding> {
     observations
         .iter()
-        .filter(|o| o.status_code.map_or(false, |c| c >= 500))
+        .filter(|o| o.status_code.is_some_and(|c| c >= 500))
         .map(|o| DetectorFinding {
             detector: "http_5xx".into(),
             severity: Severity::Error,
@@ -354,7 +354,7 @@ pub fn detect_repeated_failures(
     let mut error_counts: HashMap<String, usize> = HashMap::new();
 
     for o in observations {
-        if o.error_message.is_some() || o.status_code.map_or(false, |c| c >= 400) {
+        if o.error_message.is_some() || o.status_code.is_some_and(|c| c >= 400) {
             let key = normalize_signature(&o.tool, o.error_message.as_deref());
             *error_counts.entry(key).or_insert(0) += 1;
         }
@@ -582,12 +582,20 @@ impl SentinelScanner {
 // Tests
 // ---------------------------------------------------------------------------
 
+impl Default for IssueStore {
+    fn default() -> Self { Self::new() }
+}
+
+impl Default for SentinelScanner {
+    fn default() -> Self { Self::new() }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn obs(tool: &str, error: Option<&str>, status: Option<u16>) -> Observation {
-        /// Variante Observation.
+        // Variante Observation.
         Observation {
             tool: tool.into(),
             error_message: error.map(Into::into),
@@ -745,7 +753,7 @@ mod tests {
             now,
         );
         store.upsert(
-            /// Variante DetectorFinding.
+            // Variante DetectorFinding.
             DetectorFinding {
                 detector: "b".into(),
                 severity: Severity::Warning,

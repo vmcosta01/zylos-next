@@ -424,7 +424,7 @@ impl ValidationCache {
         };
         let entries = self.entries.read().ok()?;
         let result = entries.get(&key).cloned();
-        if let Some(mut stats) = self.stats.write().ok() {
+        if let Ok(mut stats) = self.stats.write() {
             if result.is_some() {
                 stats.hits += 1;
             } else {
@@ -477,14 +477,14 @@ pub enum SchemaVersion {
 }
 
 impl SchemaVersion {
-    /// Função from str.
-    pub fn from_str(s: &str) -> Option<Self> {
-        match s {
-            "v1" | "1" | "draft-7" => Some(Self::V1),
-            "v2" | "2" => Some(Self::V2),
-            _ => None,
+    /// Parse a schema version string into a [`SchemaVersion`].
+        pub fn parse(s: &str) -> Option<Self> {
+            match s {
+                "v1" | "1" | "draft-7" => Some(Self::V1),
+                "v2" | "2" => Some(Self::V2),
+                _ => None,
+            }
         }
-    }
 
     /// Função as str.
     pub fn as_str(&self) -> &'static str {
@@ -851,7 +851,7 @@ impl SkillValidator {
                 if !self.known_skills.is_empty() && !self.known_skills.contains(dep) {
                     errors.push(
                         ValidationError::new(
-                            &format!("/depends_on/{}", dep),
+                            format!("/depends_on/{}", dep),
                             ValidationCode::DependencyNotFound,
                             format!("dependência '{}' não encontrada no registry", dep),
                         )
@@ -882,7 +882,7 @@ impl SkillValidator {
             if !artifact_path.exists() {
                 errors.push(
                     ValidationError::new(
-                        &format!("/artifacts/{}", artifact),
+                        format!("/artifacts/{}", artifact),
                         ValidationCode::ArtifactInaccessible,
                         format!("artefato '{}' não encontrado ou inacessível", artifact),
                     )
@@ -1127,11 +1127,11 @@ mod tests {
     }
 
     fn valid_manifest() -> SkillManifest {
-        /// Variante SkillManifest.
-        SkillManifest {
-            name: "test-skill".to_string(),
-            description: "Uma skill de teste para validação".to_string(),
-            version: "1.0.0".to_string(),
+        // Variante SkillManifest.
+         SkillManifest {
+         name: "test-skill".to_string(),
+         description: "Uma skill de teste para validação".to_string(),
+         version: "1.0.0".to_string(),
             path: "test-skill/SKILL.md".to_string(),
             category: Some("devops".to_string()),
             tags: vec!["rust".to_string(), "testing".to_string()],
@@ -1506,10 +1506,10 @@ mod tests {
 
     #[test]
     fn test_schema_version_parsing() {
-        assert_eq!(SchemaVersion::from_str("v1"), Some(SchemaVersion::V1));
-        assert_eq!(SchemaVersion::from_str("draft-7"), Some(SchemaVersion::V1));
-        assert_eq!(SchemaVersion::from_str("v2"), Some(SchemaVersion::V2));
-        assert_eq!(SchemaVersion::from_str("v99"), None);
+        assert_eq!(SchemaVersion::parse("v1"), Some(SchemaVersion::V1));
+                assert_eq!(SchemaVersion::parse("draft-7"), Some(SchemaVersion::V1));
+                assert_eq!(SchemaVersion::parse("v2"), Some(SchemaVersion::V2));
+                assert_eq!(SchemaVersion::parse("v99"), None);
     }
 
     #[test]

@@ -230,15 +230,55 @@ Full OpenAPI specification: [`docs/api/gateway-openapi.yaml`](docs/api/gateway-o
 
 ## Documentation
 
+### Project Documentation
 - [Architecture (C4 Diagrams)](docs/ARCHITECTURE.md) - Component diagrams, data flows, deployment views
 - [Deployment Guide](docs/DEPLOYMENT.md) - Docker, Kubernetes, bare metal with production checklist
 - [Contributing Guidelines](docs/CONTRIBUTING.md) - Dev setup, code standards, review process
 - [Migration from Hermes v1](docs/MIGRATION.md) - Step-by-step upgrade path with state preservation
 - [FAQ](docs/FAQ.md) - Top 20 questions about architecture, operations, and troubleshooting
 - [Benchmarks](docs/BENCHMARKS.md) - Performance comparisons and methodology
-- [Runbooks](runbooks/) - Operational guides for all phases
-- [Playbooks](playbooks/) - SOAR workflows and procedures
 - [Handoffs](docs/handoffs/) - Phase transition documents
+
+### Operational Documentation
+- [Runbooks](runbooks/) - Technical execution guides (3-tier: Senior/Pleno/Júnior) for all crates and phases
+- [Playbooks](playbooks/) - Strategic governance with RACI, gates, and escalation criteria
+- [SOPs](playbooks/sop-*.md) - Standard Operating Procedures with decision matrices
+- [POPs](playbooks/pop-*.md) - Component-specific procedures with mandatory rollback
+- [SOAR Workflows](runbooks/soar-*.md) - Automated orchestration with HITL gates and audit trails
+
+### Hermes Skills for Documentation
+Skills that enforce the 22 canonical concepts from `CONCEITOS-DESENVOLVIMENTO-IA.md`:
+
+| Skill | Concept/Layer | Purpose |
+|-------|---------------|---------|
+| `prd-author` | #1 PRD | Product Requirements with DoD + Out of Scope |
+| `architecture-author` | #2 Architecture | ARCHITECTURE.md with UML and ADRs |
+| `design-system-author` | #3 Design System | Tokens table + 6 mandatory UI states |
+| `agents-rules-author` | #4 Agent Rules | AGENTS.md/RULES.md with enforceable rules |
+| `spec-author` | #5 Spec | Granular technical specs before coding |
+| `testing-checklist-author` | #6 TDD | TESTING.md with 8-type checklist |
+| `project-memory-author` | #7 Living Docs | MEMORY.md + DECISIONS.md + TASKS.md |
+| `handoff-author` | #8 Orchestration | HANDOFF_[fase].md structured protocol |
+| `continuous-monitoring` | #11 Monitoring | Daily sentinel agents + consolidated report |
+| `access-control-author` | #13 Multi-user | RBAC matrix enforced server-side |
+| `dashboard-author` | #14 Dashboard | Live OS dashboard with real-time metrics |
+| `staged-deploy-author` | #16 Staged Deploy | LOCAL→PREVIEW→QA→PROD pipeline with gates |
+| `app-flow-author` | #18 User Journey | APP_FLOW.md with screen states |
+| `implementation-plan-author` | #19 Impl Plan | Phased plan with gates and vertical slices |
+| `acceptance-criteria-author` | #20 DoD/OoS | Testable Definition of Done + Out of Scope |
+| `project-structure-author` | #21 Structure | PROJECT_STRUCTURE.md modular scaffold |
+| `runbook-builder` | #5/#7 Docs | 3-tier runbooks with cross-linking |
+| `playbook-author` | #1/#2 Strategy | RACI + gates + tridirectional links |
+| `sop-author` | #5/#19 Procedures | 5-section SOPs with decision matrix |
+| `pop-author` | #5/#12 Operations | 7-section POPs with mandatory rollback |
+| `soar-orchestration` | #12/#22 SOAR | Event schemas, auto-triage, audit trail |
+| `aiops-observability` | #12/#22 AIOps | Metrics, alerts, anomaly detection |
+| `anti-slop-filter` | Layer 2 | Validates deliveries against 7 anti-slop principles |
+| `professional-loop` | Layer 3 | Enforces READ→...→UPDATE DOCS cycle |
+| `review-prompts` | Layer 6 | Applies 6 mandatory review templates |
+| `mordida-protocol` | CÓRTEX: TDD + LICOES | Proof by mutation with 4 diagnostics and sha256 |
+| `isolated-audit` | CÓRTEX: juiz≠gerador | Context-zero audit that tries to REFUTE |
+| `subagent-driven-dev` | CÓRTEX: single-writer | Decomposition into subagents with isolated context |
 
 ## Configuration Reference
 

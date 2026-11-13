@@ -103,7 +103,7 @@ mod tests {
     use uuid::Uuid;
 
     fn make_event(severity: Severity, category: EventCategory) -> ZylosSecurityEvent {
-        /// Variante ZylosSecurityEvent.
+        // Variante ZylosSecurityEvent.
         ZylosSecurityEvent {
             id: Uuid::new_v4(),
             source: "test".to_string(),

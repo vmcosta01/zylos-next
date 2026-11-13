@@ -95,6 +95,7 @@ fn default_skills_path() -> PathBuf {
     PathBuf::from(".")
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for GatewayConfig {
     fn default() -> Self {
         Self {

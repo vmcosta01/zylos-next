@@ -96,17 +96,17 @@ impl ApprovalWorkflow {
     /// Evaluate an approval request for the given risk level and operation.
     ///
     /// Returns [`ApprovalDecision::Approved`] when the risk level does not
-    /// require approval. Otherwise returns [`ApprovalDecision::Pending`] as a
-    /// placeholder until an external policy engine or human inbox responds.
+    /// require approval. For gated operations, checks `auto_approve_after`
+    /// timeout: if set and elapsed, auto-approves with audit note. Otherwise
+    /// returns [`ApprovalDecision::Pending`] awaiting external decision.
     ///
     /// # Arguments
     /// * `level` — risk classification of the operation.
-    /// * `_operation` — human-readable operation name (reserved for future
-    ///   policy-engine integration).
+    /// * `operation` — human-readable operation name for audit logging.
     pub fn evaluate(
         &self,
         level: RiskLevel,
-        _operation: &str,
+        operation: &str,
     ) -> ApprovalDecision {
         if !self.requires_approval(level) {
             return ApprovalDecision::Approved {
@@ -114,10 +114,86 @@ impl ApprovalWorkflow {
             };
         }
 
-        // Default: pending until external system responds.
+        // Check auto-approve timeout
+        if let Some(timeout) = self.auto_approve_after {
+            let requested_at = chrono::Utc::now();
+            // In a real system, we'd store the request timestamp and check
+            // against it on subsequent calls. For now, auto-approve immediately
+            // if timeout is zero (useful for testing and low-friction workflows).
+            if timeout.is_zero() {
+                tracing::info!(
+                    operation = %operation,
+                    risk = %level,
+                    "Auto-approved via zero-timeout policy"
+                );
+                return ApprovalDecision::Approved {
+                    reason: format!(
+                        "Auto-approved: risk='{}', operation='{}', policy=zero-timeout",
+                        level, operation
+                    ),
+                };
+            }
+
+            // Non-zero timeout: return Pending with the timeout info embedded
+            // so the caller can re-evaluate after the duration elapses.
+            tracing::info!(
+                operation = %operation,
+                risk = %level,
+                timeout_secs = timeout.as_secs(),
+                "Approval pending, awaiting external decision or timeout"
+            );
+            return ApprovalDecision::Pending { requested_at };
+        }
+
+        // No auto-approve configured: always pending
+        tracing::info!(
+            operation = %operation,
+            risk = %level,
+            "Approval pending, no auto-approve policy configured"
+        );
         ApprovalDecision::Pending {
             requested_at: chrono::Utc::now(),
         }
+    }
+
+    /// Re-evaluate a previously pending approval after time has elapsed.
+    ///
+    /// Returns [`ApprovalDecision::Approved`] if `auto_approve_after` is set
+    /// and the elapsed time since `requested_at` exceeds the timeout.
+    /// Otherwise returns the original [`ApprovalDecision::Pending`].
+    pub fn re_evaluate(
+        &self,
+        level: RiskLevel,
+        operation: &str,
+        requested_at: chrono::DateTime<chrono::Utc>,
+    ) -> ApprovalDecision {
+        if !self.requires_approval(level) {
+            return ApprovalDecision::Approved {
+                reason: format!("Risk level '{}' does not require approval", level),
+            };
+        }
+
+        if let Some(timeout) = self.auto_approve_after {
+            let elapsed = chrono::Utc::now().signed_duration_since(requested_at);
+            if elapsed.to_std().unwrap_or_default() >= timeout {
+                tracing::info!(
+                    operation = %operation,
+                    risk = %level,
+                    elapsed_secs = elapsed.num_seconds(),
+                    "Auto-approved via timeout expiry"
+                );
+                return ApprovalDecision::Approved {
+                    reason: format!(
+                        "Auto-approved after {}s timeout: risk='{}', operation='{}'",
+                        elapsed.num_seconds(),
+                        level,
+                        operation
+                    ),
+                };
+            }
+        }
+
+        ApprovalDecision::Pending { requested_at }
     }
 }
 
@@ -203,5 +279,44 @@ mod tests {
         assert_eq!(a.require_medium, b.require_medium);
         assert_eq!(a.require_low, b.require_low);
         assert_eq!(a.auto_approve_after, b.auto_approve_after);
+    }
+
+    #[test]
+     fn test_auto_approve_zero_timeout() {
+     let wf = ApprovalWorkflow {
+     auto_approve_after: Some(std::time::Duration::ZERO),
+     ..Default::default()
+     };
+     let decision = wf.evaluate(RiskLevel::High, "mount /host");
+     assert!(matches!(decision, ApprovalDecision::Approved { .. }));
+     if let ApprovalDecision::Approved { reason } = &decision {
+     assert!(reason.contains("zero-timeout"));
+     }
+     }
+
+    #[test]
+    fn test_re_evaluate_after_timeout() {
+        let wf = ApprovalWorkflow {
+            auto_approve_after: Some(std::time::Duration::from_millis(1)),
+            ..Default::default()
+        };
+        // Simulate a request made in the past
+        let requested_at = chrono::Utc::now() - chrono::Duration::seconds(10);
+        let decision = wf.re_evaluate(RiskLevel::High, "rm -rf /", requested_at);
+        assert!(matches!(decision, ApprovalDecision::Approved { .. }));
+        if let ApprovalDecision::Approved { reason } = &decision {
+            assert!(reason.contains("Auto-approved after"));
+        }
+    }
+
+    #[test]
+    fn test_re_evaluate_before_timeout_stays_pending() {
+        let wf = ApprovalWorkflow {
+            auto_approve_after: Some(std::time::Duration::from_secs(3600)),
+            ..Default::default()
+        };
+        let requested_at = chrono::Utc::now();
+        let decision = wf.re_evaluate(RiskLevel::High, "deploy prod", requested_at);
+        assert!(matches!(decision, ApprovalDecision::Pending { .. }));
     }
 }

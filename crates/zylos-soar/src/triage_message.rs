@@ -750,7 +750,7 @@ mod tests {
     #[test]
     fn test_rules_sorted_by_priority() {
         let rules = vec![
-            /// Variante TriageRule.
+            // Variante TriageRule.
             TriageRule {
                 id: "low".into(),
                 description: "".into(),
@@ -759,7 +759,7 @@ mod tests {
                 priority: 100,
                 enabled: true,
             },
-            /// Variante TriageRule.
+            // Variante TriageRule.
             TriageRule {
                 id: "high".into(),
                 description: "".into(),

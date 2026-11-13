@@ -1,7 +1,7 @@
 # Module Documentation Status Tracker — Zylos-Next
 
-**Data:** 2026-11-06 (varredura automatizada)
-**Escopo:** 39 crates + 5 apps (44 módulos totais)
+**Data:** 2026-11-11 (atualizado pós-Fase 9, Fases 1–4 completas)
+**Escopo:** 46 crates + 5 apps (51 módulos totais)
 **Critérios:** README.md, `//!` module docs, `///` inline docs em pub items, testes (`#[test]`)
 
 ## Legenda
@@ -14,12 +14,12 @@
 
 | Status | Crates | Apps | Total |
 |--------|--------|------|-------|
-| 🟢 Completo | 26 | 5 | 31 |
+| 🟢 Completo | 33 | 5 | 38 |
 | 🟡 Parcial | 13 | 0 | 13 |
 | 🔴 Mínimo | 0 | 0 | 0 |
-| **Total** | **39** | **5** | **44** |
+| **Total** | **46** | **5** | **51** |
 
-## Crates 🟢 Completo (26)
+## Crates 🟢 Completo (33)
 
 | Crate | LOC | `//!` | `///` | Pub | Tests | README |
 |-------|-----|---------|---------|-----|-------|--------|
@@ -48,6 +48,120 @@
 | zylos-ag-ui | 547 | ✅ | ✅ | ✅ | ✅ | ✅ |
 | zylos-docker | 478 | ✅ | ✅ | ✅ | ✅ | ✅ |
 | zylos-hermes-adapter | 278 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| zylos-independent-verifier | 760 | ✅ | ✅ | ✅ | 16 | ✅ |
+| zylos-approval | ~450 | ✅ | ✅ | ✅ | 12 | ✅ |
+| zylos-egress | ~320 | ✅ | ✅ | ✅ | — | ✅ |
+| zylos-audit-log | ~380 | ✅ | ✅ | ✅ | 9 | ✅ |
+| zylos-brief | ~420 | ✅ | ✅ | ✅ | — | ✅ |
+| zylos-model-config | ~350 | ✅ | ✅ | ✅ | — | ✅ |
+| zylos-computer-view | ~520 | ✅ | ✅ | ✅ | 23 | ✅ |
+| zylos-spaces | ~480 | ✅ | ✅ | ✅ | — | ✅ |
+
+## Módulos Novos Fase 8 (adicionados aos crates existentes)
+
+| Crate | Módulo Novo | Testes | README Atualizado | Hermes Endpoint |
+|-------|-------------|--------|-------------------|-----------------|
+| zylos-swarm-orchestrator | hop_count.rs, crash_simulation.rs | 71 | ✅ | — |
+| zylos-bot-system | goal_program.rs, autoloop_protocol.rs | 21 | ✅ | — |
+| zylos-memory-system | lifecycle.rs, mental_models.rs, context_room.rs, auto_improvement.rs | 41 | ✅ | via memory_api |
+| zylos-agent-shield | resource_limiter.rs, network_egress.rs, output_sanitizer.rs, capability_token.rs, host_allocator.rs | 85 | ✅ | hermes_security_api |
+| zylos-skills | contract.rs, evolution.rs, miner.rs, trajectory.rs, hierarchy.rs | 88 | ✅ | hermes_skill_evolution_api |
+| zylos-personalities | roles.rs, routine_catalog.rs, plan_first_gate.rs, rate_limiter.rs, guardrails.rs | 95 | ✅ | hermes_employee_api, hermes_security_api |
+| zylos-desktop | workspace_persistence.rs, agent_awareness.rs, relay_server.rs, mobile_responsive.rs | 83 | ✅ | hermes_desktop_api |
+| zylos-gateway | hermes_security_api.rs, hermes_desktop_api.rs, hermes_skill_evolution_api.rs, hermes_employee_api.rs | 4 | ✅ | 28 endpoints novos |
+
+## Documentação Operacional Fase 8
+
+| Documento | Tipo | Path |
+|-----------|------|------|
+| HANDOFF_FASE8.md | Handoff | docs/handoffs/HANDOFF_FASE8.md |
+| pop-guardrail-rule-update.md | POP | playbooks/pop-guardrail-rule-update.md |
+| pop-skill-contract-validation.md | POP | playbooks/pop-skill-contract-validation.md |
+| pop-relay-token-revoke.md | POP | playbooks/pop-relay-token-revoke.md |
+| skill-evolution-lifecycle.md | Playbook | playbooks/skill-evolution-lifecycle.md |
+| soar-guardrail-enforcement.md | SOAR | playbooks/soar-guardrail-enforcement.md |
+| zylos-desktop-fase8.md | Runbook | runbooks/zylos-desktop-fase8.md |
+
+## Documentação Operacional Fase 9 (Fases 1–4)
+
+| Documento | Tipo | Path |
+|-----------|------|------|
+| HANDOFF_FASE9.md | Handoff | docs/handoffs/HANDOFF_FASE9.md |
+| pb-approval-gate-setup.md | Playbook | playbooks/pb-approval-gate-setup.md |
+| pb-egress-rules-management.md | Playbook | playbooks/pb-egress-rules-management.md |
+| pb-morning-brief-config.md | Playbook | playbooks/pb-morning-brief-config.md |
+| pb-model-tier-strategy.md | Playbook | playbooks/pb-model-tier-strategy.md |
+| pb-computer-view-setup.md | Playbook | playbooks/pb-computer-view-setup.md |
+| pb-spaces-onboarding.md | Playbook | playbooks/pb-spaces-onboarding.md |
+| pop-approval-decide.md | POP | playbooks/pop-approval-decide.md |
+| pop-password-masking.md | POP | playbooks/pop-password-masking.md |
+| pop-audit-log-export.md | POP | playbooks/pop-audit-log-export.md |
+| pop-egress-false-positive.md | POP | playbooks/pop-egress-false-positive.md |
+| pop-brief-regenerate.md | POP | playbooks/pop-brief-regenerate.md |
+| pop-model-fallback.md | POP | playbooks/pop-model-fallback.md |
+| pop-computer-control-emergency.md | POP | playbooks/pop-computer-control-emergency.md |
+| pop-space-page-recovery.md | POP | playbooks/pop-space-page-recovery.md |
+| rb-zylos-approval.md | Runbook | runbooks/rb-zylos-approval.md |
+| rb-zylos-egress.md | Runbook | runbooks/rb-zylos-egress.md |
+| rb-zylos-audit-log.md | Runbook | runbooks/rb-zylos-audit-log.md |
+| rb-zylos-brief.md | Runbook | runbooks/rb-zylos-brief.md |
+| rb-zylos-model-config.md | Runbook | runbooks/rb-zylos-model-config.md |
+| rb-zylos-computer-view.md | Runbook | runbooks/rb-zylos-computer-view.md |
+| rb-zylos-spaces.md | Runbook | runbooks/rb-zylos-spaces.md |
+| soar-approval-timeout.md | SOAR | docs/soar/soar-approval-timeout.md |
+| soar-egress-block-response.md | SOAR | docs/soar/soar-egress-block-response.md |
+| soar-audit-anomaly.md | SOAR | docs/soar/soar-audit-anomaly.md |
+|| soar-computer-control-breach.md | SOAR | docs/soar/soar-computer-control-breach.md |
+
+## Componentes Cockpit (14)
+
+| Componente | Arquivo | Tab | i18n PT-BR | i18n EN-US | CSS | Gateway Endpoint |
+|------------|---------|-----|-----------|-----------|-----|-----------------|
+| TaskTriagePanel | task_triage_panel.rs | TaskTriage | Triage | Triage | ✅ | /api/v1/tasks |
+| ThreadManager | thread_manager.rs | Threads | Threads | Threads | ✅ | — (local) |
+| SubagentStatusCards | subagent_status_cards.rs | Subagents | Subagentes | Subagents | ✅ | /api/v1/hermes/bot/* |
+| FileManager | file_manager.rs | Files | Arquivos | Files | ✅ | — (local) |
+| VoicePanel | voice_panel.rs | Voice | Voz | Voice | ✅ | — (local) |
+| EmojiReactions | emoji_reactions.rs | Reactions | Reações | Reactions | ✅ | — (local) |
+| AgentAvatarsGrid | agent_avatars.rs | Avatars | Avatares | Avatars | ✅ | — (local) |
+| SkinThemesPanel | skin_themes.rs | Skins | Temas | Skins | ✅ | — (local) |
+| FleetAuditorPanel | fleet_auditor.rs | Fleet | Frota | Fleet | ✅ | /api/v1/hermes/bot/* |
+| FederationDashboard | federation_dashboard.rs | Federation | Federação | Federation | ✅ | — (placeholder) |
+| ChannelPanel | channel_panel.rs | Channels | Canais | Channels | ✅ | /api/v1/channels |
+| PhoneRelayPanel | phone_relay_panel.rs | PhoneRelay | Phone Relay | Phone Relay | ✅ | /api/v1/computer-view/sessions |
+| SkillEditorPanel | skill_editor_panel.rs | SkillEditor | Editor de Skills | Skill Editor | ✅ | /api/v1/hermes/skill-evolution/* |
+| SwarmTopologyPanel | swarm_topology_panel.rs | SwarmTopology | Topologia Swarm | Swarm Topology | ✅ | /api/v1/hermes/bot/spawn-crew |
+
+## Documentação Operacional Fase 9 (Fases 1–4)
+
+| Documento | Tipo | Path |
+|-----------|------|------|
+| HANDOFF_FASE9.md | Handoff | docs/handoffs/HANDOFF_FASE9.md |
+| pb-approval-gate-setup.md | Playbook | playbooks/pb-approval-gate-setup.md |
+| pb-egress-rules-management.md | Playbook | playbooks/pb-egress-rules-management.md |
+| pb-morning-brief-config.md | Playbook | playbooks/pb-morning-brief-config.md |
+| pb-model-tier-strategy.md | Playbook | playbooks/pb-model-tier-strategy.md |
+| pb-computer-view-setup.md | Playbook | playbooks/pb-computer-view-setup.md |
+| pb-spaces-onboarding.md | Playbook | playbooks/pb-spaces-onboarding.md |
+| pop-approval-decide.md | POP | playbooks/pop-approval-decide.md |
+| pop-password-masking.md | POP | playbooks/pop-password-masking.md |
+| pop-audit-log-export.md | POP | playbooks/pop-audit-log-export.md |
+| pop-egress-false-positive.md | POP | playbooks/pop-egress-false-positive.md |
+| pop-brief-regenerate.md | POP | playbooks/pop-brief-regenerate.md |
+| pop-model-fallback.md | POP | playbooks/pop-model-fallback.md |
+| pop-computer-control-emergency.md | POP | playbooks/pop-computer-control-emergency.md |
+| pop-space-page-recovery.md | POP | playbooks/pop-space-page-recovery.md |
+| rb-zylos-approval.md | Runbook | runbooks/rb-zylos-approval.md |
+| rb-zylos-egress.md | Runbook | runbooks/rb-zylos-egress.md |
+| rb-zylos-audit-log.md | Runbook | runbooks/rb-zylos-audit-log.md |
+| rb-zylos-brief.md | Runbook | runbooks/rb-zylos-brief.md |
+| rb-zylos-model-config.md | Runbook | runbooks/rb-zylos-model-config.md |
+| rb-zylos-computer-view.md | Runbook | runbooks/rb-zylos-computer-view.md |
+| rb-zylos-spaces.md | Runbook | runbooks/rb-zylos-spaces.md |
+| soar-approval-timeout.md | SOAR | docs/soar/soar-approval-timeout.md |
+| soar-egress-block-response.md | SOAR | docs/soar/soar-egress-block-response.md |
+| soar-audit-anomaly.md | SOAR | docs/soar/soar-audit-anomaly.md |
+| soar-computer-control-breach.md | SOAR | docs/soar/soar-computer-control-breach.md |
 
 ## Crates 🟡 Parcial (13)
 

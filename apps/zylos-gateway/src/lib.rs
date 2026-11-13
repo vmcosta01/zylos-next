@@ -1,12 +1,28 @@
 //! zylos-gateway library — exposes AppState and build_router for integration tests.
 
+pub mod auth_api;
+pub mod axiom_logging;
 pub mod bots_api;
+pub mod notification_router;
+pub mod channels_api;
+pub mod computer_view_api;
 pub mod config;
+pub mod evidence_api;
+pub mod goals_api;
 pub mod hermes_api;
+pub mod hermes_desktop_api;
+pub mod hermes_employee_api;
+pub mod hermes_security_api;
+pub mod hermes_skill_evolution_api;
 pub mod local_guard;
+pub mod memory_api;
 pub mod orchestrate_api;
+pub mod personalities_api;
+pub mod password_masking;
 pub mod phase2_integration;
+pub mod sentinel_api;
 pub mod soar_api;
+pub mod webrtc_relay;
 
 use std::sync::Arc;
 use axum::{Router, routing::get};
@@ -32,8 +48,18 @@ pub struct AppState {
     pub ready: Arc<std::sync::atomic::AtomicBool>,
 }
 
+/// Handles for API routers that require Send+Sync wrappers around non-Sync stores.
+/// Initialized in main.rs (async context) and passed to build_router.
+pub struct ApiHandles {
+    pub goals: goals_api::GoalsHandle,
+    pub memory: memory_api::MemoryHandle,
+    pub personalities: personalities_api::PersonalitiesHandle,
+    pub sentinel: sentinel_api::SentinelHandle,
+    pub evidence: evidence_api::EvidenceHandle,
+}
+
 /// Build the consolidated API gateway router
-pub fn build_router(state: AppState) -> Router {
+pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
     // Sub-routers that consume their own state internally return Router<()>
     let cockpit = create_cockpit_router(state.event_bus.clone());
     let approval_store = std::sync::Arc::new(ApprovalStore::new(ApprovalConfig::default()));
@@ -43,44 +69,116 @@ pub fn build_router(state: AppState) -> Router {
     let soar = soar_api::create_soar_router().with_state(state.clone());
     let orchestrate = orchestrate_api::create_orchestrate_router().with_state(state.clone());
     let hermes = hermes_api::create_hermes_router(std::env::var("ZYLOS_HERMES_TOKEN").ok().filter(|t| t.len() >= 16)).with_state(state.clone());
-    let bots = bots_api::create_bots_router(zylos_pensar::Config::do_ambiente());
+        let hermes_security = hermes_security_api::create_hermes_security_router().with_state(state.clone());
+        let hermes_desktop = hermes_desktop_api::create_hermes_desktop_router().with_state(state.clone());
+        let hermes_skill_evolution = hermes_skill_evolution_api::create_hermes_skill_evolution_router().with_state(state.clone());
+        let hermes_employee = hermes_employee_api::create_hermes_employee_router().with_state(state.clone());
+        let bots = bots_api::create_bots_router(zylos_pensar::Config::do_ambiente());
 
-    let ready_flag = state.ready.clone();
-    let root_health = Router::new()
-        .route(
-            "/gateway/health",
-            get(|| async {
-                axum::Json(serde_json::json!({
-                    "service": "zylos-gateway",
-                    "status": "healthy",
-                    "version": env!("CARGO_PKG_VERSION"),
-                }))
-            }),
-        )
-        .route(
-            "/gateway/ready",
-            get(move || {
-                let ready = ready_flag.clone();
-                async move {
-                    use std::sync::atomic::Ordering;
-                    if ready.load(Ordering::Relaxed) {
-                        axum::Json(serde_json::json!({"status": "ready"}))
-                    } else {
-                        axum::Json(serde_json::json!({"status": "not_ready"}))
-                    }
-                }
-            }),
-        )
-        .route(
-            "/gateway/live",
-            get(|| async {
-                axum::Json(serde_json::json!({"status": "alive"}))
-            }),
-        );
+    // Dedicated API routers with Send+Sync handles
+    let goals = goals_api::create_goals_router(handles.goals);
+    let memory = memory_api::create_memory_router(handles.memory);
+    let personalities = personalities_api::create_personalities_router(handles.personalities);
+    let sentinel = sentinel_api::create_sentinel_router(handles.sentinel);
+    let evidence = evidence_api::create_evidence_router(handles.evidence);
 
-    Router::new()
-        .merge(root_health)
-        .nest("/api/v1", cockpit.merge(sse).merge(skills).merge(soar).merge(orchestrate).merge(hermes).merge(bots))
+        // Phase 2 aggregated status endpoint (used by cockpit components: memory, tasks, personalities, sentinel, swarm, evidence, hitl)
+                let phase2_state = tokio::task::block_in_place(|| {
+                    tokio::runtime::Handle::current().block_on(phase2_integration::Phase2State::init())
+                });
+        let phase2 = match phase2_state {
+            Ok(ps) => phase2_integration::create_phase2_router(ps),
+            Err(e) => {
+                tracing::warn!(error = %e, "Phase2 subsystems failed to init; /phase2/status will be unavailable");
+                Router::new()
+            }
+        };
+
+        let ready_flag = state.ready.clone();
+            let root_health = Router::new()
+                .route(
+                    "/gateway/health",
+                    get(|| async {
+                        axum::Json(serde_json::json!({
+                            "service": "zylos-gateway",
+                            "status": "healthy",
+                            "version": env!("CARGO_PKG_VERSION"),
+                        }))
+                    }),
+                )
+                .route(
+                    "/gateway/ready",
+                    get(move || {
+                        let ready = ready_flag.clone();
+                        async move {
+                            use std::sync::atomic::Ordering;
+                            if ready.load(Ordering::Relaxed) {
+                                axum::Json(serde_json::json!({"status": "ready"}))
+                            } else {
+                                axum::Json(serde_json::json!({"status": "not_ready"}))
+                            }
+                        }
+                    }),
+                )
+                .route(
+                    "/gateway/live",
+                    get(|| async {
+                        axum::Json(serde_json::json!({"status": "alive"}))
+                    }),
+                );
+
+            // === Fase 11.4 T11.4.6: Health check endpoints padronizados ===
+             let api_health = Router::new()
+             .route(
+             "/health",
+             get(|| async {
+             axum::Json(serde_json::json!({
+             "status": "ok",
+             "service": "zylos-gateway",
+             "version": env!("CARGO_PKG_VERSION"),
+             }))
+             }),
+             )
+             .route(
+             "/cockpit/health",
+             get(|| async {
+             axum::Json(serde_json::json!({
+             "status": "ok",
+             "component": "cockpit",
+             "endpoints_available": [
+             "/api/v1/channels",
+             "/api/v1/computer-view/sessions",
+             "/api/v1/hermes/skills",
+             "/api/v1/goals",
+             "/api/v1/memory",
+             "/api/v1/personalities",
+             "/api/v1/sentinel",
+             "/api/v1/evidence",
+             "/api/v1/phase2/status"
+             ]
+             }))
+             }),
+             );
+
+    // New Fase 9 routers (channels + computer-view)
+            let channels_store = tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    let store = zylos_channels::ChannelsStore::connect("sqlite://data/channels.db")
+                        .await
+                        .expect("failed to connect channels store");
+                    store.run_migrations().await.expect("channels migrations failed");
+                    store.seed_defaults().await.expect("channels seed failed");
+                    store
+                })
+            });
+            let channels = channels_api::create_channels_router(channels_api::ChannelsHandle::from_store(channels_store));
+        let computer_view = computer_view_api::create_computer_view_router(computer_view_api::ComputerViewHandle::new());
+        let webrtc_relay = webrtc_relay::create_webrtc_relay_router(webrtc_relay::WebRtcRelayState::new());
+                let auth = auth_api::create_auth_router();
+
+                Router::new()
+                    .merge(root_health)
+                    .nest("/api/v1", api_health.merge(cockpit).merge(sse).merge(skills).merge(soar).merge(orchestrate).merge(hermes).merge(hermes_security).merge(hermes_desktop).merge(hermes_skill_evolution).merge(hermes_employee).merge(bots).merge(goals).merge(memory).merge(personalities).merge(sentinel).merge(evidence).merge(phase2).merge(channels).merge(computer_view).merge(webrtc_relay).merge(auth))
         .layer(tower_http::trace::TraceLayer::new_for_http())
         .layer(
             tower_http::cors::CorsLayer::new()

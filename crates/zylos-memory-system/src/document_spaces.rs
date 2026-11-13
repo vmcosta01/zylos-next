@@ -158,8 +158,8 @@ impl DocumentStore {
         Ok(spaces
             .values()
             .filter(|s| {
-                let scope_match = scope.map_or(true, |sc| s.scope == sc);
-                let owner_match = owner_id.map_or(true, |oid| s.owner_id == oid || s.scope == MemoryScope::Global);
+                let scope_match = scope.is_none_or(|sc| s.scope == sc);
+                let owner_match = owner_id.is_none_or(|oid| s.owner_id == oid || s.scope == MemoryScope::Global);
                 scope_match && owner_match
             })
             .cloned()
@@ -255,15 +255,15 @@ impl DocumentStore {
         let mut results: Vec<SpacePage> = pages
             .values()
             .filter(|p| {
-                let space_match = query.space_id.as_ref().map_or(true, |sid| p.space_id == *sid);
-                let author_match = query.author.as_ref().map_or(true, |a| p.created_by == *a);
+                let space_match = query.space_id.as_ref().is_none_or(|sid| p.space_id == *sid);
+                 let author_match = query.author.as_ref().is_none_or(|a| p.created_by == *a);
                 space_match && author_match
             })
             .cloned()
             .collect();
 
         // Sort by updated_at descending
-        results.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+        results.sort_by_key(|a| std::cmp::Reverse(a.updated_at));
 
         // Apply pagination
         let start = query.offset.min(results.len());

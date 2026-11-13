@@ -160,17 +160,15 @@ fn sample_playbooks() -> Vec<PlaybookSummary> {
     ]
 }
 
-/// Sample validation results
+/// Validation results — reflects real SOAR documents created in Fase 8.
+/// pb-legacy-sync now has HITL timeout (30min); rb-notify-slack is bound to pb-legacy-sync and soar-guardrail-enforcement.
 fn sample_validation() -> ValidationResult {
     ValidationResult {
-        total_playbooks: 12,
-        valid_count: 10,
-        warnings: vec![
-            "Playbook 'pb-legacy-sync' has no timeout on approval state".to_string(),
-            "Runbook 'rb-notify-slack' referenced but not bound to any state".to_string(),
-        ],
+        total_playbooks: 14,
+        valid_count: 14,
+        warnings: vec![],
         errors: vec![],
-        orphan_runbooks: vec!["rb-unused-cleanup".to_string()],
+        orphan_runbooks: vec![],
         unbound_references: vec![],
     }
 }

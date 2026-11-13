@@ -11,6 +11,7 @@ description = "AIOps health scanner with pure-function detectors, normalized sig
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde_yaml = "0.9"
 thiserror = { workspace = true }
 sha2 = "0.10"
 hex = { workspace = true }

@@ -305,11 +305,71 @@ impl Default for P2PMessenger {
     }
 }
 
-/// Stub para timestamp ISO 8601 sem dependência chrono
+/// Retorna timestamp ISO 8601 UTC atual usando std::time (sem dependência chrono).
 fn chrono_now_stub() -> String {
-    // Em produção, usar chrono::Utc::now().to_rfc3339()
-    // Por agora, retornar placeholder fixo para compilação
-    "2026-10-30T00:00:00Z".to_string()
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    // Formatação manual de RFC 3339 / ISO 8601 UTC
+    const SECS_PER_DAY: u64 = 86400;
+    const DAYS_PER_400Y: u64 = 146097;
+    const DAYS_PER_100Y: u64 = 36524;
+    const DAYS_PER_4Y: u64 = 1461;
+    const DAYS_PER_Y: u64 = 365;
+    const MONTH_DAYS: [u64; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+    let days = secs / SECS_PER_DAY;
+    let time_secs = secs % SECS_PER_DAY;
+    let hours = time_secs / 3600;
+    let minutes = (time_secs % 3600) / 60;
+    let seconds = time_secs % 60;
+
+    // Calcular data a partir de dias desde epoch (1970-01-01)
+    let mut y = 1970i64;
+    let mut d = days;
+
+    // Ciclos de 400 anos
+    let n400 = d / DAYS_PER_400Y;
+    y += (n400 * 400) as i64;
+    d %= DAYS_PER_400Y;
+
+    // Ciclos de 100 anos
+    let mut n100 = d / DAYS_PER_100Y;
+    if n100 == 4 { n100 = 3; }
+    y += (n100 * 100) as i64;
+    d -= n100 * DAYS_PER_100Y;
+
+    // Ciclos de 4 anos
+    let n4 = d / DAYS_PER_4Y;
+    y += (n4 * 4) as i64;
+    d -= n4 * DAYS_PER_4Y;
+
+    // Anos individuais
+    let mut n1 = d / DAYS_PER_Y;
+    if n1 == 4 { n1 = 3; }
+    y += n1 as i64;
+    d -= n1 * DAYS_PER_Y;
+
+    // Mês e dia
+    let is_leap = (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0);
+    let mut m = 0usize;
+     for (i, &md_base) in MONTH_DAYS.iter().enumerate() {
+     let md = if i == 1 && is_leap { 29 } else { md_base };
+     if d < md {
+     m = i;
+     break;
+     }
+     d -= md;
+     }
+    let day = d + 1;
+    let month = m + 1;
+
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        y, month, day, hours, minutes, seconds
+    )
 }
 
 #[cfg(test)]

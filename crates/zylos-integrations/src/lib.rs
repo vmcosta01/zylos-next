@@ -10,6 +10,9 @@ pub mod db;
 pub mod executor;
 pub mod composio;
 pub mod channel;
+pub mod slack;
+pub mod notion;
+pub mod linear;
 
 pub use error::{IntegrationError, Result};
 pub use channel::{ChannelAdapter, ChannelRegistry, MessageId, OutboundMessage, SendResult};

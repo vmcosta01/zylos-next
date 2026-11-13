@@ -716,7 +716,7 @@ mod tests {
             }
         }
         let h = compute_dhash_from_gray(&gray, 9, 8);
-        assert_eq!(h, u64::MAX >> (64 - 64)); // all 64 bits set
+        assert_eq!(h, u64::MAX); // all 64 bits set
     }
 
     #[test]

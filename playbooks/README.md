@@ -29,6 +29,13 @@
 | **Deploy e Release** | [`playbooks/deploy-release.md`](./deploy-release.md) | Gates de release, rollback, versionamento, feature flags | ✅ Novo |
 | **Onboarding de Devs** | [`playbooks/onboarding-devs.md`](./onboarding-devs.md) | Jornada 4 semanas, gates de competência, mentoria | ✅ Novo |
 | **Auditoria Adversarial** | [`playbooks/adversarial-audit.md`](./adversarial-audit.md) | Dupla auditoria, refutação, aprovação de artefatos críticos | ✅ Novo |
+| **SOP Triagem Incidentes** | [`playbooks/sop-incident-triage.md`](./sop-incident-triage.md) | Procedimento padrão de triagem, classificação SEV, roteamento | ✅ Novo |
+| **POP Restart Gateway** | [`playbooks/pop-gateway-restart.md`](./pop-gateway-restart.md) | Procedimento operacional de restart seguro com rollback | ✅ Novo |
+| **SOP Deploy Canary** | [`playbooks/sop-canary-deploy.md`](./sop-canary-deploy.md) | Deploy canary com promoção gradual e rollback automático | ✅ Novo |
+| **POP Docker Sandbox** | [`playbooks/pop-docker-sandbox.md`](./pop-docker-sandbox.md) | Criação, monitoramento e limpeza de containers sandbox | ✅ Novo |
+| **POP Backup/Restore DB** | [`playbooks/pop-backup-restore.md`](./pop-backup-restore.md) | Backup incremental/full e restore do SQLite WAL | ✅ Novo |
+| **POP Evidence Ledger** | [`playbooks/pop-evidence-ledger-query.md`](./pop-evidence-ledger-query.md) | Consulta, integridade e exportação de evidências | ✅ Novo |
+| **POP Sentinel Alert** | [`playbooks/pop-sentinel-alert-investigation.md`](./pop-sentinel-alert-investigation.md) | Investigação e classificação de alertas AIOps | ✅ Novo |
 
 ---
 

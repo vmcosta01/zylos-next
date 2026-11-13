@@ -712,7 +712,7 @@ mod tests {
             .await
             .unwrap();
         
-        assert!(results.len() >= 1);
+        assert!(!results.is_empty());
     }
     
     #[test]

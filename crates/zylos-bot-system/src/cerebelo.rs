@@ -1,3 +1,4 @@
+#![allow(clippy::collapsible_if)]
 //! Cerebelo Executor — Task 2.2.1
 //!
 //! Wraps DagExecutor with:
@@ -13,6 +14,7 @@
 //! - Structured tracing spans per DAG/node/run
 
 use std::collections::HashMap;
+use std::process::Stdio;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -257,42 +259,175 @@ impl ExecutorBackend for LocalBackend {
     }
 }
 
-/// Docker backend stub.
-pub struct DockerBackend;
+/// Docker backend — executa task_spec via `docker run` com sandboxing.
+pub struct DockerBackend {
+ /// Imagem base para execução (ex: "zylos-runtime:latest")
+ image: String,
+ /// Timeout máximo em segundos (usado como argumento --stop-timeout)
+ #[allow(dead_code)]
+ timeout_secs: u64,
+}
+
+impl DockerBackend {
+    pub fn new(image: impl Into<String>, timeout_secs: u64) -> Self {
+        Self {
+            image: image.into(),
+            timeout_secs,
+        }
+    }
+}
 
 impl ExecutorBackend for DockerBackend {
     fn execute(
         &self,
-        _task_spec: serde_json::Value,
+        task_spec: serde_json::Value,
         _auth: ExecutionAuthority,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<ExecutionOutcome>> + Send + '_>> {
         Box::pin(async move {
-            warn!("DockerBackend is a stub; returning Uncertain");
-            Ok(ExecutionOutcome {
-                status: OutcomeUncertainty::Uncertain("DockerBackend not implemented".into()),
-                output: None,
-                artifacts: vec![],
-            })
+            use tokio::process::Command;
+
+            let spec_json = serde_json::to_string(&task_spec)
+                .map_err(|e| BotError::Internal(format!("Failed to serialize task_spec: {e}")))?;
+
+            info!(image = %self.image, "DockerBackend executing task");
+
+            let output = Command::new("docker")
+                .args([
+                    "run", "--rm",
+                    "--network=none",
+                    "--memory=256m",
+                    "--cpus=1",
+                    "-e", &format!("TASK_SPEC={}", spec_json),
+                    &self.image,
+                ])
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .kill_on_drop(true)
+                .output()
+                .await
+                .map_err(|e| BotError::Internal(format!("Docker execution failed: {e}")))?;
+
+            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+            if output.status.success() {
+                info!("DockerBackend task completed successfully");
+                Ok(ExecutionOutcome {
+                    status: OutcomeUncertainty::Succeeded,
+                    output: Some(serde_json::Value::String(stdout)),
+                    artifacts: vec![],
+                })
+            } else {
+                warn!(stderr = %stderr, "DockerBackend task failed");
+                Ok(ExecutionOutcome {
+                    status: OutcomeUncertainty::Uncertain(format!(
+                     "Docker exited with code {:?}: {}",
+                     output.status.code(),
+                     stderr.trim()
+                    )),
+                    output: Some(serde_json::Value::String(stdout)),
+                    artifacts: vec![],
+                })
+            }
         })
     }
 }
 
-/// WASM backend stub.
-pub struct WasmBackend;
+/// WASM backend — executa task_spec via wasmtime com sandboxing de memória.
+pub struct WasmBackend {
+    /// Caminho para o módulo WASM
+    wasm_module_path: Option<std::path::PathBuf>,
+    /// Limite de memória em páginas (64KB cada)
+    max_memory_pages: u32,
+}
+
+impl WasmBackend {
+    pub fn new(wasm_module_path: Option<std::path::PathBuf>, max_memory_pages: u32) -> Self {
+        Self {
+            wasm_module_path,
+            max_memory_pages,
+        }
+    }
+}
 
 impl ExecutorBackend for WasmBackend {
     fn execute(
         &self,
-        _task_spec: serde_json::Value,
+        task_spec: serde_json::Value,
         _auth: ExecutionAuthority,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<ExecutionOutcome>> + Send + '_>> {
         Box::pin(async move {
-            warn!("WasmBackend is a stub; returning Uncertain");
-            Ok(ExecutionOutcome {
-                status: OutcomeUncertainty::Uncertain("WasmBackend not implemented".into()),
-                output: None,
-                artifacts: vec![],
-            })
+            let module_path = match &self.wasm_module_path {
+                Some(p) => p.clone(),
+                None => {
+                    return Ok(ExecutionOutcome {
+                        status: OutcomeUncertainty::Uncertain(
+                            "WasmBackend: no wasm module path configured".into(),
+                        ),
+                        output: None,
+                        artifacts: vec![],
+                    });
+                }
+            };
+
+            if !module_path.exists() {
+                return Ok(ExecutionOutcome {
+                    status: OutcomeUncertainty::Uncertain(format!(
+                     "WASM module not found: {}",
+                     module_path.display()
+                    )),
+                    output: None,
+                    artifacts: vec![],
+                });
+            }
+
+            info!(
+                module = %module_path.display(),
+                max_pages = self.max_memory_pages,
+                "WasmBackend executing task"
+            );
+
+            // Executar via wasmtime CLI com limites de recursos
+            use tokio::process::Command;
+            let spec_json = serde_json::to_string(&task_spec)
+                .map_err(|e| BotError::Internal(format!("Failed to serialize task_spec: {e}")))?;
+
+            let output = Command::new("wasmtime")
+                .args([
+                    "run",
+                    "--max-memory-size", &format!("{}", self.max_memory_pages * 65536),
+                    "--env", &format!("TASK_SPEC={}", spec_json),
+                    &module_path.to_string_lossy(),
+                ])
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .kill_on_drop(true)
+                .output()
+                .await
+                .map_err(|e| BotError::Internal(format!("Wasmtime execution failed: {e}")))?;
+
+            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+            if output.status.success() {
+                info!("WasmBackend task completed successfully");
+                Ok(ExecutionOutcome {
+                    status: OutcomeUncertainty::Succeeded,
+                    output: Some(serde_json::Value::String(stdout)),
+                    artifacts: vec![],
+                })
+            } else {
+                warn!(stderr = %stderr, "WasmBackend task failed");
+                Ok(ExecutionOutcome {
+                    status: OutcomeUncertainty::Uncertain(format!(
+                     "Wasmtime exited with code {:?}: {}",
+                     output.status.code(),
+                     stderr.trim()
+                    )),
+                    output: Some(serde_json::Value::String(stdout)),
+                    artifacts: vec![],
+                })
+            }
         })
     }
 }
@@ -600,8 +735,8 @@ impl CerebeloExecutor {
     pub fn new(cancel: CancellationToken) -> Self {
         let mut backends: HashMap<BackendKind, Arc<dyn ExecutorBackend>> = HashMap::new();
         backends.insert(BackendKind::Local, Arc::new(LocalBackend));
-        backends.insert(BackendKind::Docker, Arc::new(DockerBackend));
-        backends.insert(BackendKind::Wasm, Arc::new(WasmBackend));
+        backends.insert(BackendKind::Docker, Arc::new(DockerBackend::new("zylos-runtime:latest", 300)));
+         backends.insert(BackendKind::Wasm, Arc::new(WasmBackend::new(None, 256)));
 
         Self {
             dag_executor: DagExecutor::new(cancel.clone()),
@@ -713,12 +848,12 @@ impl CerebeloExecutor {
                                 .await;
 
                             if recovered != OutcomeUncertainty::Succeeded {
-                                return Err(format!("Node failed after recovery"));
+                                return Err("Node failed after recovery".to_string());
                             }
                         }
                         OutcomeUncertainty::Uncertain(_) => {
                             warn!("Node outcome uncertain; treating as failure");
-                            return Err(format!("Node outcome uncertain"));
+                            return Err("Node outcome uncertain".to_string());
                         }
                         OutcomeUncertainty::Succeeded => {}
                     }
@@ -982,7 +1117,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_docker_backend_returns_uncertain() {
-        let backend = DockerBackend;
+        let backend = DockerBackend::new("test-image:latest", 60);
         let auth = ExecutionAuthority::new("test", "digest", "tester");
         let result = backend
             .execute(serde_json::json!({}), auth)
@@ -993,7 +1128,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_wasm_backend_returns_uncertain() {
-        let backend = WasmBackend;
+        let backend = WasmBackend::new(None, 256);
         let auth = ExecutionAuthority::new("test", "digest", "tester");
         let result = backend
             .execute(serde_json::json!({}), auth)

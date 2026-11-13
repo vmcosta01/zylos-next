@@ -80,7 +80,7 @@ impl TypedSemanticMemory {
     /// Create a new typed memory wrapper with automatic backend routing
     pub fn new(semantic_type: SemanticType) -> Self {
         let memory_kind = MemoryKind::from(semantic_type);
-        let backend_target = crate::route_backend(memory_kind.clone());
+        let backend_target = crate::route_backend(memory_kind);
 
         Self {
             semantic_type,
@@ -110,7 +110,7 @@ impl TypedSemanticMemory {
 
     /// Get the underlying MemoryKind
     pub fn memory_kind(&self) -> MemoryKind {
-        self.memory_kind.clone()
+        self.memory_kind
     }
 
     /// Get the backend target this type routes to

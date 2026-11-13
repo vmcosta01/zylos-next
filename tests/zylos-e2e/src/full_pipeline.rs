@@ -105,7 +105,7 @@ async fn full_pipeline_event_to_cockpit_stream() {
         .collect();
 
     assert!(
-        event_types.iter().any(|t| *t == "soar.playbook_started"),
+        event_types.contains(&"soar.playbook_started"),
         "should contain SOAR playbook start event"
     );
     assert!(

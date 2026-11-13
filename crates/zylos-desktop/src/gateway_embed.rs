@@ -98,7 +98,7 @@ pub struct GatewayManager {
 #[derive(Debug)]
 enum GatewayState {
     Stopped,
-    Running(GatewayHandle),
+    Running(Box<GatewayHandle>),
 }
 
 /// Errors from gateway operations.
@@ -204,7 +204,7 @@ impl GatewayManager {
             started_at: std::time::Instant::now(),
         };
 
-        *state = GatewayState::Running(handle);
+        *state = GatewayState::Running(Box::new(handle));
         info!("Gateway started (pid={pid})");
 
         Ok(GatewayStatus {

@@ -179,6 +179,7 @@ impl A2mBus {
 
         Ok(Self {
             config,
+            #[allow(clippy::arc_with_non_send_sync)]
             db: Arc::new(RwLock::new(db)),
             subscribers: Arc::new(RwLock::new(std::collections::HashMap::new())),
         })

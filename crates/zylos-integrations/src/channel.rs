@@ -491,7 +491,7 @@ pub mod feishu {
 
         async fn list_users(&self, page: Option<u32>, page_size: Option<u32>) -> Result<Vec<UserInfo>> {
             let ps = page_size.unwrap_or(50).to_string();
-            let pt = page.map(|p| p.to_string()).unwrap_or_else(|| "".to_string());
+            let pt = page.map(|p| p.to_string()).unwrap_or_default();
 
             let mut params = vec![("page_size", ps.as_str())];
             if !pt.is_empty() {
@@ -547,7 +547,7 @@ pub mod feishu {
 
         async fn list_chats(&self, page: Option<u32>, page_size: Option<u32>) -> Result<Vec<ChatInfo>> {
             let ps = page_size.unwrap_or(50).to_string();
-            let pt = page.map(|p| p.to_string()).unwrap_or_else(|| "".to_string());
+            let pt = page.map(|p| p.to_string()).unwrap_or_default();
 
             let mut params = vec![("page_size", ps.as_str())];
             if !pt.is_empty() {

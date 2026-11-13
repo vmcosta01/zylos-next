@@ -16,6 +16,7 @@ pub struct RosterFilter {
     pub tenant: Option<String>,
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for RosterFilter {
     fn default() -> Self {
         Self {
@@ -59,7 +60,7 @@ fn group_by_tenant(agents: &[AgentInfo]) -> HashMap<String, Vec<AgentInfo>> {
             .id
             .split('/')
             .next()
-            .filter(|s| s.contains('-') && *s != &agent.id)
+            .filter(|s| s.contains('-') && **s != *agent.id.as_str())
             .unwrap_or("default")
             .to_string();
         groups.entry(tenant).or_default().push(agent.clone());
@@ -95,7 +96,7 @@ pub fn LazyRoster(
                         .id
                         .split('/')
                         .next()
-                        .filter(|s| s.contains('-') && *s != &a.id)
+                        .filter(|s| s.contains('-') && **s != *a.id.as_str())
                         .unwrap_or("default");
                     if agent_tenant != tenant {
                         return false;

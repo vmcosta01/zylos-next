@@ -1,0 +1,20 @@
+[package]
+name = "zylos-audit-log"
+version = "0.1.0"
+edition = "2021"
+description = "Action audit trail para Zylos Cockpit v2 — registra todas as ações externas com hash de argumentos"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { workspace = true, features = ["serde"] }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+sha2 = "0.10"
+hex = "0.4"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full"] }

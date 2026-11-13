@@ -85,6 +85,76 @@ let json = serde_json::to_string(&req)?;
 |---------|--------|
 | `gui` | Habilita dependências Tauri e `gui::build_app()`. Sem ela, apenas tipos de config e protocolo IPC compilam (CI headless). |
 
+## Fase 8: Desktop UX & Mobile Relay (2026-11-11)
+
+### WorkspacePersistence (T8.6.1)
+
+Persistência de estado do cockpit entre sessões via arquivo JSON local (`~/.zylos/workspace-state.json`).
+
+- Save automático com debounce (300ms) após última mudança
+- Load síncrono na inicialização; tolerante a corrupção (fallback para defaults)
+- Multi-tab: cada aba tem namespace próprio de estado
+- Schema versioning para migração futura
+
+```rust
+use zylos_desktop::workspace_persistence::WorkspacePersistence;
+
+let wp = WorkspacePersistence::default_path();
+let state = wp.load().await; // Carrega ou retorna default
+wp.update_and_save(|s| { s.layout.theme = "dark".into(); }).await;
+```
+
+### AgentAwarenessState (T8.6.2)
+
+Enum de estados visuais de agentes para UI em tempo real.
+
+| Estado | Ícone | Cor CSS | Requer Atenção? |
+|--------|-------|---------|-----------------|
+| Idle | 💤 | `--color-muted` | Não |
+| Thinking | 🤔 | `--color-warning` | Não |
+| Executing | ⚡ | `--color-accent` | Não |
+| WaitingApproval | ✋ | `--color-info` | **Sim** |
+| Error | ❌ | `--color-error` | **Sim** |
+| Completed | ✅ | `--color-success` | Não |
+
+Inclui `AgentAwarenessTracker` com histórico ring buffer e estatísticas por estado.
+
+### RelayServer (T8.6.3)
+
+HTTP/WebSocket relay para comunicação mobile-to-desktop sobre LAN.
+
+- Token-based auth com TTL configurável (default 24h)
+- Rate limiting por IP (60 req/min default)
+- CORS headers para clientes browser mobile
+- Purge automático de tokens expirados
+
+```bash
+# Pair dispositivo
+curl -X POST http://localhost:9877/api/v1/relay/pair \
+  -d '{"device_name": "iPhone 15"}'
+```
+
+### MobileResponsive (T8.6.4)
+
+Breakpoint definitions e CSS responsivo para cockpit WASM.
+
+| Breakpoint | Largura | Layout |
+|------------|---------|--------|
+| Mobile | < 640px | Single column, sidebar hidden |
+| Tablet | 640–1023px | 2-column adaptive |
+| Desktop | ≥ 1024px | Full sidebar + multi-panel |
+
+Gera CSS custom properties e media queries automaticamente. Suporta safe area insets para dispositivos com notch.
+
+### Hermes Integration
+
+Endpoints dedicados via bridge Hermes (`hermes_desktop_api`):
+- `/api/v1/hermes/desktop/workspace/*` — state, save, reset
+- `/api/v1/hermes/desktop/awareness/*` — states, attention, update
+- `/api/v1/hermes/desktop/relay/*` — devices, pair, revoke
+
+Cross-reference: [HANDOFF_FASE8.md](../../docs/handoffs/HANDOFF_FASE8.md) §2.8, [Runbook zylos-desktop-fase8](../../runbooks/zylos-desktop-fase8.md)
+
 ## Gaps
 
 - `gui::build_app` não registra plugins Tauri (TODO no código)

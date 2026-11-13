@@ -267,7 +267,7 @@ impl OutcomeTracker {
     /// Check if an operation requires human confirmation.
     pub fn needs_human_confirmation(&self, operation_id: &str) -> bool {
         self.states.get(operation_id)
-            .map_or(false, |s| s.outcome.requires_human_confirmation())
+            .is_some_and(|s| s.outcome.requires_human_confirmation())
     }
 
     /// Get the audit log (most recent first).

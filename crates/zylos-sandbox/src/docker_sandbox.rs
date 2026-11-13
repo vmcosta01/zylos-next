@@ -51,17 +51,12 @@ pub enum DockerError {
 }
 
 /// When to pull container images
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ImagePullPolicy {
     Always,
+    #[default]
     IfNotPresent,
     Never,
-}
-
-impl Default for ImagePullPolicy {
-    fn default() -> Self {
-        Self::IfNotPresent
-    }
 }
 
 /// Network mode for container isolation

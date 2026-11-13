@@ -231,6 +231,7 @@ enum DispatchTaskRequest {
 
 /// Valida e normaliza o pedido de dispatch-task, retornando os DagNodes prontos
 /// para o `execute_dag` e metadados derivados (label, rollback).
+#[allow(clippy::type_complexity)]
 fn normalize_dispatch_request(
     req: DispatchTaskRequest,
 ) -> Result<(String, String, bool, Vec<crate::orchestrate_api::DagNode>), (StatusCode, &'static str, String)>

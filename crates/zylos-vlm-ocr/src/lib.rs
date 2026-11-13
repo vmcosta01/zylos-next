@@ -29,7 +29,7 @@ mod tests {
 
     #[test]
     fn test_benchmark_constants() {
-        assert!(BENCHMARK_ELO_TARGET > MIN_PRODUCTION_ELO);
+        const { assert!(BENCHMARK_ELO_TARGET > MIN_PRODUCTION_ELO) };
         assert_eq!(BENCHMARK_ELO_TARGET, 1124.7);
         assert_eq!(MIN_PRODUCTION_ELO, 1100.0);
     }

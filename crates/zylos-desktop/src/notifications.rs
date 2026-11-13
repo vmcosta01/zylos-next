@@ -114,6 +114,9 @@ pub struct NotificationManager {
     max_history: usize,
     /// Whether notifications are enabled
     enabled: Arc<RwLock<bool>>,
+    /// Optional Tauri app handle for native notifications (only with `gui` feature)
+    #[cfg(feature = "gui")]
+    app_handle: Arc<RwLock<Option<tauri::AppHandle>>>,
 }
 
 impl NotificationManager {
@@ -122,7 +125,15 @@ impl NotificationManager {
             history: Arc::new(RwLock::new(Vec::new())),
             max_history: 100,
             enabled: Arc::new(RwLock::new(true)),
+            #[cfg(feature = "gui")]
+            app_handle: Arc::new(RwLock::new(None)),
         }
+    }
+
+    /// Set the Tauri app handle for native OS notifications.
+    #[cfg(feature = "gui")]
+    pub async fn set_app_handle(&self, handle: tauri::AppHandle) {
+        *self.app_handle.write().await = Some(handle);
     }
 
     /// Enable or disable notifications.
@@ -154,16 +165,29 @@ impl NotificationManager {
         }
 
         info!(
-            "Notification sent: [{}] {} (urgency={:?})",
-            notification.id, notification.title, notification.urgency
+         "Notification sent: [{}] {} (urgency={:?})",
+         notification.id, notification.title, notification.urgency
         );
 
-        // In production, this would call Tauri's notification plugin:
-        // tauri_plugin_notification::NotificationExt::notification_ext(app)
-        //     .builder()
-        //     .title(&notification.title)
-        //     .body(&notification.body)
-        //     .show();
+        // Send native OS notification via Tauri plugin (gui feature only)
+        #[cfg(feature = "gui")]
+        if let Some(handle) = self.app_handle.read().await.as_ref() {
+            use tauri_plugin_notification::NotificationExt;
+            let body_text = if let Some(ref label) = notification.action_label {
+                format!("{}\n\n[{}]", notification.body, label)
+            } else {
+                notification.body.clone()
+            };
+
+            if let Err(e) = handle.notification()
+                .builder()
+                .title(&notification.title)
+                .body(&body_text)
+                .show()
+            {
+                warn!("Failed to send native notification: {e}");
+            }
+        }
 
         Some(id)
     }

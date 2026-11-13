@@ -212,8 +212,6 @@ impl ContradictionDetector {
 
         let resolution = if (wa - wb).abs() < 0.01 {
             Resolution::ManualReview
-        } else if wa > wb {
-            Resolution::KeepHigherConfidence
         } else {
             Resolution::KeepHigherConfidence
         };

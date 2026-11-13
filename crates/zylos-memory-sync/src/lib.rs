@@ -200,44 +200,20 @@ impl MemoryStore {
     }
 
     async fn run_migrations(&self) -> Result<(), MemorySyncError> {
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS memory_entries (
-                id TEXT PRIMARY KEY,
-                namespace TEXT NOT NULL,
-                key TEXT NOT NULL,
-                content TEXT NOT NULL,
-                content_type TEXT NOT NULL DEFAULT 'text/plain',
-                version INTEGER NOT NULL DEFAULT 1,
-                updated_at TEXT NOT NULL,
-                source_harness TEXT NOT NULL,
-                tags TEXT NOT NULL DEFAULT '[]',
-                ttl_seconds INTEGER,
-                created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-            );
-            CREATE INDEX IF NOT EXISTS idx_memory_ns_key ON memory_entries(namespace, key);
-            CREATE INDEX IF NOT EXISTS idx_memory_tags ON memory_entries(tags);
-            CREATE INDEX IF NOT EXISTS idx_memory_updated ON memory_entries(updated_at);
-
-            CREATE TABLE IF NOT EXISTS sync_ops (
-                op_id TEXT PRIMARY KEY,
-                entry_id TEXT NOT NULL,
-                op_type TEXT NOT NULL,
-                timestamp TEXT NOT NULL,
-                source_harness TEXT NOT NULL,
-                applied INTEGER NOT NULL DEFAULT 0
-            );
-            CREATE INDEX IF NOT EXISTS idx_sync_applied ON sync_ops(applied, timestamp);
-
-            CREATE TABLE IF NOT EXISTS sync_cursors (
-                harness_id TEXT PRIMARY KEY,
-                last_synced_op TEXT,
-                last_synced_at TEXT NOT NULL
-            );
-            "#,
-        )
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("CREATE TABLE IF NOT EXISTS memory_entries (id TEXT PRIMARY KEY, namespace TEXT NOT NULL, key TEXT NOT NULL, content TEXT NOT NULL, content_type TEXT NOT NULL DEFAULT 'text/plain', version INTEGER NOT NULL DEFAULT 1, updated_at TEXT NOT NULL, source_harness TEXT NOT NULL, tags TEXT NOT NULL DEFAULT '[]', ttl_seconds INTEGER, created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')))")
+            .execute(&self.pool).await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_memory_ns_key ON memory_entries(namespace, key)")
+            .execute(&self.pool).await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_memory_tags ON memory_entries(tags)")
+            .execute(&self.pool).await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_memory_updated ON memory_entries(updated_at)")
+            .execute(&self.pool).await?;
+        sqlx::query("CREATE TABLE IF NOT EXISTS sync_ops (op_id TEXT PRIMARY KEY, entry_id TEXT NOT NULL, op_type TEXT NOT NULL, timestamp TEXT NOT NULL, source_harness TEXT NOT NULL, applied INTEGER NOT NULL DEFAULT 0)")
+            .execute(&self.pool).await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_sync_applied ON sync_ops(applied, timestamp)")
+            .execute(&self.pool).await?;
+        sqlx::query("CREATE TABLE IF NOT EXISTS sync_cursors (harness_id TEXT PRIMARY KEY, last_synced_op TEXT, last_synced_at TEXT NOT NULL)")
+            .execute(&self.pool).await?;
         Ok(())
     }
 

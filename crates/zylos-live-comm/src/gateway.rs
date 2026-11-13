@@ -97,6 +97,7 @@ pub enum RbacLevel {
 
 impl RbacLevel {
     /// Função from str.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "owner" => Self::Owner,
@@ -277,17 +278,20 @@ impl MultiTierRateLimiter {
     }
 
     /// Função check global.
+    #[allow(clippy::result_unit_err)]
     pub fn check_global(&self) -> Result<(), ()> {
         self.global.check().map_err(|_| ())
     }
 
     /// Função check tenant.
+    #[allow(clippy::result_unit_err)]
     pub fn check_tenant(&self, tenant_id: &str) -> Result<(), ()> {
         let key = tenant_id.to_string();
         self.per_tenant.check_key(&key).map_err(|_| ())
     }
 
     /// Função check user.
+    #[allow(clippy::result_unit_err)]
     pub fn check_user(&self, user_id: &str) -> Result<(), ()> {
         let key = user_id.to_string();
         self.per_user.check_key(&key).map_err(|_| ())
@@ -492,6 +496,7 @@ pub struct HealthResponse {
 #[derive(Clone)]
 /// Estrutura ReadinessChecker.
 pub struct ReadinessChecker {
+    #[allow(clippy::type_complexity)]
     checks: Arc<Vec<(&'static str, Arc<dyn Fn() -> futures::future::BoxFuture<'static, bool> + Send + Sync>)>>,
 }
 

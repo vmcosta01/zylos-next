@@ -1,7 +1,7 @@
 # zylos-cockpit
 
-**Fase:** 2.1 + ADR-042 - Dashboard Web (Leptos WASM)
-**Status:** ✅ Implementado (2264 LOC, 11 arquivos, 32 testes)
+**Fase:** 2.1 + ADR-042 + Fase 9 (Fases 1–4) - Dashboard Web (Leptos WASM)
+**Status:** ✅ Implementado (5000+ LOC, 25+ componentes, 32 testes cockpit + 144 testes crates)
 
 ## Descricao
 
@@ -64,6 +64,26 @@ cargo run --features ssr
 | `benchmarks` | 289 | In-browser perf metrics |
 | `i18n` | 160 | Translation registry |
 
+## Componentes Novos — Fase 9 (Fases 1–4)
+
+| Componente | Arquivo | Descrição |
+|------------|---------|-----------|
+| TaskTriagePanel | `task_triage_panel.rs` | InboxSurface-inspired 4-section triage |
+| ThreadManager | `thread_manager.rs` | Thread rename/reorder/create/delete |
+| SubagentStatusCards | `subagent_status_cards.rs` | Grid de status de subagentes |
+| FileManager | `file_manager.rs` | File browser com folder tabs |
+| VoicePanel | `voice_panel.rs` | Voice interaction com waveform |
+| EmojiReactions | `emoji_reactions.rs` | Message reaction system |
+| AgentAvatarsGrid | `agent_avatars.rs` | 21-color division-based avatars |
+| SkinThemesPanel | `skin_themes.rs` | 7 temas visuais |
+| FleetAuditorPanel | `fleet_auditor.rs` | Bot cost/efficacy metrics |
+| FederationDashboard | `federation_dashboard.rs` | HLC, VectorClock, conflict resolution |
+
+## Design System v2
+
+Tokens CSS em `design-tokens.css` (669 linhas) + specs em `docs/DESIGN_SYSTEM.md`.
+Paleta contextual dark-first com light theme via `[data-theme="light"]`.
+
 ## Integracao com Gateway
 
 O cockpit consome:
@@ -71,6 +91,11 @@ O cockpit consome:
 - `GET /api/v1/ws` (WebSocket)
 - `GET /api/v1/phase2/status` (subsystems)
 - `POST /api/v1/approval/resolve` (HITL)
+- `GET /api/v1/hermes/security/*` (guardrails, egress, sanitizer)
+- `GET /api/v1/hermes/desktop/*` (workspace, awareness, relay)
+- `GET /api/v1/hermes/skill-evolution/*` (contracts, graph, miner)
+- `GET /api/v1/hermes/employee/*` (roles, routines, plan-gate)
+- `GET /api/v1/approvals/*`, `/egress/*`, `/audit/*`, `/brief/*`, `/models/*`, `/computer-view/*`, `/spaces/*`
 
 ## Dependencias
 

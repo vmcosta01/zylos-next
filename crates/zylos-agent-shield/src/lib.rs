@@ -6,6 +6,16 @@
 //! Provides a middleware-style API that can be inserted into any agent
 //! communication pipeline to detect and redact sensitive data before it
 //! leaves the system, and to log all security-relevant events.
+//!
+//! ## Resource Limiting (T8.3.1 + T8.3.2)
+//! O módulo `resource_limiter` fornece controle de CPU/memória/PIDs por agente
+//! via cgroups v2 (Linux), Docker (cross-platform) ou noop (testes).
+
+pub mod resource_limiter;
+pub mod network_egress;
+pub mod output_sanitizer;
+pub mod capability_token;
+pub mod host_allocator;
 
 use chrono::{DateTime, Utc};
 use regex::Regex;
@@ -317,7 +327,7 @@ impl AgentShield {
         }
 
         // Sort by start position descending so we can replace without offset drift
-        findings.sort_by(|a, b| b.start.cmp(&a.start));
+        findings.sort_by_key(|a| std::cmp::Reverse(a.start));
 
         let redacted_text = apply_redaction(text, &findings, &self.config.redaction_strategy);
 
@@ -635,25 +645,14 @@ fn compute_fingerprint(text: &str) -> String {
 // ---------------------------------------------------------------------------
 
 async fn run_audit_migrations(pool: &SqlitePool) -> Result<(), ShieldError> {
-    sqlx::query(
-        r#"
-        CREATE TABLE IF NOT EXISTS shield_audit (
-            id TEXT PRIMARY KEY,
-            timestamp TEXT NOT NULL,
-            event_type TEXT NOT NULL,
-            actor TEXT NOT NULL,
-            target TEXT NOT NULL,
-            details TEXT NOT NULL,
-            severity TEXT NOT NULL,
-            fingerprint TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_shield_audit_ts ON shield_audit(timestamp);
-        CREATE INDEX IF NOT EXISTS idx_shield_audit_severity ON shield_audit(severity);
-        CREATE INDEX IF NOT EXISTS idx_shield_audit_event ON shield_audit(event_type);
-        "#,
-    )
-    .execute(pool)
-    .await?;
+    sqlx::query("CREATE TABLE IF NOT EXISTS shield_audit (id TEXT PRIMARY KEY, timestamp TEXT NOT NULL, event_type TEXT NOT NULL, actor TEXT NOT NULL, target TEXT NOT NULL, details TEXT NOT NULL, severity TEXT NOT NULL, fingerprint TEXT NOT NULL)")
+        .execute(pool).await?;
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_shield_audit_ts ON shield_audit(timestamp)")
+        .execute(pool).await?;
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_shield_audit_severity ON shield_audit(severity)")
+        .execute(pool).await?;
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_shield_audit_event ON shield_audit(event_type)")
+        .execute(pool).await?;
     Ok(())
 }
 
@@ -770,8 +769,10 @@ mod tests {
 
     #[test]
     fn test_hash_redaction_strategy() {
-        let mut config = ShieldConfig::default();
-        config.redaction_strategy = RedactionStrategy::Hash;
+        let config = ShieldConfig {
+            redaction_strategy: RedactionStrategy::Hash,
+            ..Default::default()
+        };
         let patterns = compile_patterns(&config).unwrap();
         let shield = AgentShield {
             config: Arc::new(config),
@@ -834,32 +835,36 @@ mod tests {
     }
 
     #[test]
-    fn test_remove_redaction_strategy() {
-        let mut config = ShieldConfig::default();
-        config.redaction_strategy = RedactionStrategy::Remove;
-        let patterns = compile_patterns(&config).unwrap();
-        let shield = AgentShield {
-            config: Arc::new(config),
-            patterns: Arc::new(patterns),
-            pool: None,
-        };
-        let result = shield.scan("Email me at user@example.com please", "test");
-        assert!(!result.redacted_text.contains("user@example.com"));
-        assert!(!result.redacted_text.contains("[REDACTED"));
-    }
+     fn test_remove_redaction_strategy() {
+     let config = ShieldConfig {
+     redaction_strategy: RedactionStrategy::Remove,
+     ..Default::default()
+     };
+     let patterns = compile_patterns(&config).unwrap();
+     let shield = AgentShield {
+     config: Arc::new(config),
+     patterns: Arc::new(patterns),
+     pool: None,
+     };
+     let result = shield.scan("Email me at user@example.com please", "test");
+     assert!(!result.redacted_text.contains("user@example.com"));
+     assert!(!result.redacted_text.contains("[REDACTED"));
+     }
 
-    #[test]
-    fn test_fixed_redaction_strategy() {
-        let mut config = ShieldConfig::default();
-        config.redaction_strategy = RedactionStrategy::Fixed("***".into());
-        let patterns = compile_patterns(&config).unwrap();
-        let shield = AgentShield {
-            config: Arc::new(config),
-            patterns: Arc::new(patterns),
-            pool: None,
-        };
-        let result = shield.scan("Contact: user@example.com", "test");
-        assert!(result.redacted_text.contains("***"));
+     #[test]
+     fn test_fixed_redaction_strategy() {
+     let config = ShieldConfig {
+     redaction_strategy: RedactionStrategy::Fixed("***".into()),
+     ..Default::default()
+     };
+     let patterns = compile_patterns(&config).unwrap();
+     let shield = AgentShield {
+     config: Arc::new(config),
+     patterns: Arc::new(patterns),
+     pool: None,
+     };
+     let result = shield.scan("Contact: user@example.com", "test");
+     assert!(result.redacted_text.contains("***"));
         assert!(!result.redacted_text.contains("user@example.com"));
     }
 

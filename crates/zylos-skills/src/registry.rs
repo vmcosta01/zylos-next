@@ -699,7 +699,7 @@ impl SkillRegistry {
             .iter()
             .map(|(name, e)| (name, e.usage.use_count))
             .collect();
-        by_usage.sort_by(|a, b| b.1.cmp(&a.1));
+        by_usage.sort_by_key(|a| std::cmp::Reverse(a.1));
         let most_used: Vec<(String, u64)> = by_usage
             .into_iter()
             .take(top_n)
@@ -821,11 +821,11 @@ mod tests {
     use std::fs;
 
     fn make_entry(name: &str) -> SkillEntry {
-        /// Variante SkillEntry.
-        SkillEntry {
-            name: name.to_string(),
-            description: format!("{} skill", name),
-            version: "1.0.0".to_string(),
+        // Variante SkillEntry.
+         SkillEntry {
+         name: name.to_string(),
+         description: format!("{} skill", name),
+         version: "1.0.0".to_string(),
             path: format!("{}.md", name),
             category: None,
             tags: vec![],

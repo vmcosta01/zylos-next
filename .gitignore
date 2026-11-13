@@ -28,3 +28,19 @@ pkg/
 gateway.log
 trunk.log
 .gateway.pid
+
+# Build artifacts
+**/dist/
+**/node_modules/
+**/*.log
+nul
+gateway.*.log
+
+# Tauri
+**/gen/
+
+# Trunk/LTO temp files
+**/+
+**/z
+**/LTO
+**/strip.log

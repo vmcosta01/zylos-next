@@ -187,14 +187,14 @@ impl GroundedRouter {
             let kh: usize = tokens.iter().filter(|t| cap.keywords.iter().any(|k| k.to_lowercase().contains(t.as_str()))).count();
             if kh > 0 {
                 let sc = kh as f64 / tokens.len().max(1) as f64;
-                if best.as_ref().map_or(true, |(_,ps,_)| sc > *ps) {
+                if best.as_ref().is_none_or(|(_,ps,_)| sc > *ps) {
                     best = Some((cap.id.clone(), sc, MatchType::ExactKeyword));
                 }
             }
             if !tokens.is_empty() && !cap.embedding.is_empty() {
                 let qe = Self::pseudo_embedding(query);
                 let ss = 1.0 - Self::cosine_distance(&qe, &cap.embedding);
-                if ss > 0.3 && best.as_ref().map_or(true, |(_,ps,_)| ss > *ps) {
+                if ss > 0.3 && best.as_ref().is_none_or(|(_,ps,_)| ss > *ps) {
                     best = Some((cap.id.clone(), ss, MatchType::Semantic));
                 }
             }

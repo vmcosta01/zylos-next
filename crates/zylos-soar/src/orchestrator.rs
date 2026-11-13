@@ -109,6 +109,7 @@ impl SoarOrchestrator {
     }
 
     /// Process a single event: route → execute playbooks → record audit → publish to AG-UI.
+    #[allow(clippy::needless_borrows_for_generic_args)]
     pub async fn process_event(&self, event: ZylosSecurityEvent) -> Result<PipelineResult> {
         let state = self.state.read().await;
 

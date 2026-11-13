@@ -6,6 +6,20 @@
 //! functional divisions (Engineering, Research, Operations, Creative, Security).
 //! Each personality includes behavioral traits, communication style, expertise
 //! domains, and collaboration preferences that shape how agents interact.
+//!
+//! ## Employee Roles (T8.5.1)
+//! O módulo `roles` define 8 papéis de negócio padronizados para AI Employees,
+//! cada um mapeado para um personality preset e conjunto de rotinas padrão.
+
+pub mod roles;
+/// Módulo routine_catalog — Catálogo indexado de rotinas por employee role (T8.5.2).
+pub mod routine_catalog;
+/// Módulo plan_first_gate — Gate de aprovação humana antes de execução (T8.5.3).
+pub mod plan_first_gate;
+/// Módulo rate_limiter — EmployeeRateLimiter com token bucket por role/employee (T8.5.4).
+pub mod rate_limiter;
+/// Módulo guardrails — GuardrailEnforcer com regras declarativas por role/recurso (T8.5.5).
+pub mod guardrails;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -57,6 +71,13 @@ impl std::fmt::Display for Division {
             Self::Support => write!(f, "support"),
             Self::Custom => write!(f, "custom"),
         }
+    }
+}
+
+impl Division {
+    /// Alias para `from_str` — evita warning clippy `should_implement_trait`.
+    pub fn parse(s: &str) -> Result<Self, String> {
+        <Self as FromStr>::from_str(s)
     }
 }
 
@@ -329,32 +350,14 @@ impl PersonalityRegistry {
     }
 
     async fn run_migrations(&self) -> Result<(), PersonalityError> {
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS personality_profiles (
-                id TEXT PRIMARY KEY,
-                slug TEXT NOT NULL UNIQUE,
-                display_name TEXT NOT NULL,
-                division TEXT NOT NULL,
-                description TEXT NOT NULL DEFAULT '',
-                system_prompt_fragment TEXT NOT NULL DEFAULT '',
-                communication_style TEXT NOT NULL DEFAULT '{}',
-                behavioral_traits TEXT NOT NULL DEFAULT '[]',
-                expertise_domains TEXT NOT NULL DEFAULT '[]',
-                collaboration TEXT NOT NULL DEFAULT '{}',
-                tags TEXT NOT NULL DEFAULT '[]',
-                active INTEGER NOT NULL DEFAULT 1,
-                version INTEGER NOT NULL DEFAULT 1,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_personality_division ON personality_profiles(division);
-            CREATE INDEX IF NOT EXISTS idx_personality_slug ON personality_profiles(slug);
-            CREATE INDEX IF NOT EXISTS idx_personality_active ON personality_profiles(active);
-            "#,
-        )
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("CREATE TABLE IF NOT EXISTS personality_profiles (id TEXT PRIMARY KEY, slug TEXT NOT NULL UNIQUE, display_name TEXT NOT NULL, division TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', system_prompt_fragment TEXT NOT NULL DEFAULT '', communication_style TEXT NOT NULL DEFAULT '{}', behavioral_traits TEXT NOT NULL DEFAULT '[]', expertise_domains TEXT NOT NULL DEFAULT '[]', collaboration TEXT NOT NULL DEFAULT '{}', tags TEXT NOT NULL DEFAULT '[]', active INTEGER NOT NULL DEFAULT 1, version INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)")
+            .execute(&self.pool).await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_personality_division ON personality_profiles(division)")
+            .execute(&self.pool).await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_personality_slug ON personality_profiles(slug)")
+            .execute(&self.pool).await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_personality_active ON personality_profiles(active)")
+            .execute(&self.pool).await?;
         Ok(())
     }
 
@@ -627,7 +630,7 @@ fn row_to_profile(row: &sqlx::sqlite::SqliteRow) -> PersonalityProfile {
         id: row.get("id"),
         slug: row.get("slug"),
         display_name: row.get("display_name"),
-        division: Division::from_str(&division_str).unwrap_or(Division::Custom),
+        division: division_str.parse().unwrap_or(Division::Custom),
         description: row.get("description"),
         system_prompt_fragment: row.get("system_prompt_fragment"),
         communication_style: serde_json::from_str(&comm_str).unwrap_or_default(),
@@ -778,7 +781,7 @@ mod tests {
             Division::Custom,
         ] {
             let s = div.to_string();
-            let parsed = Division::from_str(&s).unwrap();
+            let parsed = Division::parse(&s).unwrap();
             assert_eq!(div, parsed);
         }
     }
@@ -871,11 +874,11 @@ mod tests {
 
     #[test]
     fn test_division_from_str_aliases() {
-        assert_eq!(Division::from_str("eng").unwrap(), Division::Engineering);
-        assert_eq!(Division::from_str("ops").unwrap(), Division::Operations);
-        assert_eq!(Division::from_str("sec").unwrap(), Division::Security);
-        assert_eq!(Division::from_str("mgmt").unwrap(), Division::Management);
-        assert!(Division::from_str("nonexistent").is_err());
+        assert_eq!(Division::parse("eng").unwrap(), Division::Engineering);
+        assert_eq!(Division::parse("ops").unwrap(), Division::Operations);
+        assert_eq!(Division::parse("sec").unwrap(), Division::Security);
+        assert_eq!(Division::parse("mgmt").unwrap(), Division::Management);
+        assert!(Division::parse("nonexistent").is_err());
     }
 
     #[test]

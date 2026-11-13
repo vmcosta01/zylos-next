@@ -34,7 +34,7 @@ pub struct ApprovalDigest(pub String);
 
 impl fmt::Display for ApprovalDigest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", &self.0)
+        write!(f, "{}", self.0)
     }
 }
 

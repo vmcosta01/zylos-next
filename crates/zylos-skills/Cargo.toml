@@ -20,3 +20,6 @@ sha2.workspace = true
 hex.workspace = true
 strsim.workspace = true
 semver = "1"
+petgraph = { workspace = true }
+regex = "1"
+serde_yaml = "0.9"

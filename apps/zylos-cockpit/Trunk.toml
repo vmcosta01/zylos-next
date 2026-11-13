@@ -2,6 +2,14 @@
 target = "index.html"
 dist = "dist"
 
+[[hooks]]
+stage = "pre_build"
+command = "rustup"
+command_arguments = ["target", "add", "wasm32-unknown-unknown"]
+
+[tools]
+wasm_opt_args = ["--enable-bulk-memory-opt", "--enable-nontrapping-float-to-int"]
+
 [[copy]]
 from = "sw.js"
 to = "sw.js"

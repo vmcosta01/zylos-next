@@ -149,7 +149,7 @@ pub fn aggregate_votes(config: &PanelConfig, votos: &[JudgeVote]) -> PanelDecisi
     let aprovados = filtrados.iter().filter(|v| v.aprovado).count();
     let refutacoes = filtrados.iter().filter(|v| !v.aprovado && v.refutacao_aterrada.is_some()).count();
     let lentes_cobertas: Vec<LenteCanonica> = filtrados.iter().map(|v| v.lente.clone()).collect();
-    let aprovado = if refutacoes > 0 { false } else if falso_sucesso { false } else { aprovados > 0 };
+    let aprovado = refutacoes == 0 && !falso_sucesso && aprovados > 0;
     let confianca = vote_confidence(total, aprovados, refutacoes);
     PanelDecision {
         aprovado, confianca, votos_totais: total, votos_aprovados: aprovados,

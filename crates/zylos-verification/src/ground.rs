@@ -12,9 +12,10 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// Certainty level of a verified claim.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Default)]
 pub enum Ground {
     /// Accepted on trust — LLM output, user assertion, unverified source.
+    #[default]
     Crido = 0,
     /// Directly observed — tool output, file content, measurement, screenshot.
     Observado = 1,
@@ -71,11 +72,7 @@ impl fmt::Display for Ground {
     }
 }
 
-impl Default for Ground {
-    fn default() -> Self {
-        Ground::Crido
-    }
-}
+
 
 #[cfg(test)]
 mod tests {

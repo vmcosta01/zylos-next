@@ -9,7 +9,12 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen_futures::spawn_local;
 
 use crate::benchmarks::BenchmarkPanel;
-use crate::components::{AgentInfo, AgentStatus, LazyRoster, SoarDashboard, ThemeToggle, provide_theme};
+use crate::components::{
+ AgentAwarenessPanel, AgentInfo, AgentStatus, ChatPanel, EmployeeGovernancePanel,
+ EvidenceLedgerPanel, GoalsPanel, HitlApprovalPanel, LazyRoster, MemoryTimeline,
+ PersonalitiesPanel, SecurityPanel, SentinelPanel, SkillEvolutionPanel, SoarDashboard,
+ SwarmDagPanel, SwarmTopologyPanel, SkillEditorPanel, TaskTriagePanel, ThreadManager, SubagentStatusCards, FileManager, VoicePanel, EmojiReactions, AgentAvatarsGrid, SkinThemesPanel, FleetAuditorPanel, FederationDashboard, TasksDag, ChannelPanel, PhoneRelayPanel, ThemeToggle, provide_theme,
+ };
 use crate::i18n::{provide_i18n, use_i18n, Locale};
 use crate::streaming::{provide_stream, LiveEventFeed, StreamConfig};
 
@@ -38,10 +43,35 @@ pub enum Tab {
     Agents,
     Tasks,
     Memory,
+    Goals,
+    Personalities,
+    SwarmDag,
+    Sentinel,
+    EvidenceLedger,
+    HitlApproval,
     Skills,
-    Logs,
-    Soar,
-}
+        Logs,
+        Soar,
+        Security,
+        Awareness,
+        SkillEvolution,
+        EmployeeGovernance,
+                TaskTriage,
+                                    Threads,
+                                     Subagents,
+                                     Files,
+                                      Voice,
+                                       Reactions,
+                                        Avatars,
+                                        Skins,
+                                         Fleet,
+                                          Federation,
+                                          Chat,
+                                                                                                                              Channels,
+                                                                                                                                                                                                                                                            PhoneRelay,
+                                                                                                                                                                                                                                                            SwarmTopology,
+                                                                                                                                                                                                                                                                                                                                                                                          SkillEditor,
+                                                                                                                                                                                                                                                                                                                                                                                        }
 
 impl Tab {
     pub fn css_class(&self) -> &'static str {
@@ -49,10 +79,35 @@ impl Tab {
             Tab::Agents => "tab-agents",
             Tab::Tasks => "tab-tasks",
             Tab::Memory => "tab-memory",
+            Tab::Goals => "tab-goals",
+            Tab::Personalities => "tab-personalities",
+            Tab::SwarmDag => "tab-swarm-dag",
+            Tab::Sentinel => "tab-sentinel",
+            Tab::EvidenceLedger => "tab-evidence-ledger",
+            Tab::HitlApproval => "tab-hitl",
             Tab::Skills => "tab-skills",
-            Tab::Logs => "tab-logs",
-            Tab::Soar => "tab-soar",
-        }
+                        Tab::Logs => "tab-logs",
+                        Tab::Soar => "tab-soar",
+                        Tab::Security => "tab-security",
+                        Tab::Awareness => "tab-awareness",
+                        Tab::SkillEvolution => "tab-skill-evolution",
+                        Tab::EmployeeGovernance => "tab-employee-governance",
+ Tab::TaskTriage => "tab-task-triage",
+  Tab::Threads => "tab-threads",
+  Tab::Subagents => "tab-subagents",
+   Tab::Files => "tab-files",
+    Tab::Voice => "tab-voice",
+     Tab::Reactions => "tab-reactions",
+     Tab::Avatars => "tab-avatars",
+      Tab::Skins => "tab-skins",
+       Tab::Fleet => "tab-fleet",
+        Tab::Federation => "tab-federation",
+        Tab::Chat => "tab-chat",
+                Tab::Channels => "tab-channels",
+                                                Tab::PhoneRelay => "tab-phone-relay",
+                                                Tab::SwarmTopology => "tab-swarm-topology",
+                                                 Tab::SkillEditor => "tab-skill-editor",
+                                                                                                }
     }
 
     pub fn i18n_key(&self) -> &'static str {
@@ -60,10 +115,35 @@ impl Tab {
             Tab::Agents => "tab.agents",
             Tab::Tasks => "tab.tasks",
             Tab::Memory => "tab.memory",
+            Tab::Goals => "tab.goals",
+            Tab::Personalities => "tab.personalities",
+            Tab::SwarmDag => "tab.swarm_dag",
+            Tab::Sentinel => "tab.sentinel",
+            Tab::EvidenceLedger => "tab.evidence_ledger",
+            Tab::HitlApproval => "tab.hitl_approval",
             Tab::Skills => "tab.skills",
-            Tab::Logs => "tab.logs",
-            Tab::Soar => "tab.soar",
-        }
+                        Tab::Logs => "tab.logs",
+                        Tab::Soar => "tab.soar",
+                        Tab::Security => "tab.security",
+                        Tab::Awareness => "tab.awareness",
+                        Tab::SkillEvolution => "tab.skill_evolution",
+                        Tab::EmployeeGovernance => "tab.employee_governance",
+ Tab::TaskTriage => "tab.task_triage",
+  Tab::Threads => "tab.threads",
+  Tab::Subagents => "tab.subagents",
+   Tab::Files => "tab.files",
+    Tab::Voice => "tab.voice",
+     Tab::Reactions => "tab.reactions",
+     Tab::Avatars => "tab.avatars",
+      Tab::Skins => "tab.skins",
+            Tab::Fleet => "tab.fleet",
+            Tab::Federation => "tab.federation",
+            Tab::Chat => "tab.chat",
+             Tab::Channels => "tab.channels",
+                                        Tab::PhoneRelay => "tab.phone_relay",
+                                        Tab::SwarmTopology => "tab.swarm_topology",
+                                         Tab::SkillEditor => "tab.skill_editor",
+                                                                                }
     }
 }
 
@@ -130,13 +210,38 @@ pub fn App() -> impl IntoView {
             </header>
 
             <nav class="cockpit-tabs">
-                <TabButton tab=Tab::Agents active_tab=active_tab set_active_tab=set_active_tab />
-                <TabButton tab=Tab::Tasks active_tab=active_tab set_active_tab=set_active_tab />
-                <TabButton tab=Tab::Memory active_tab=active_tab set_active_tab=set_active_tab />
-                <TabButton tab=Tab::Skills active_tab=active_tab set_active_tab=set_active_tab />
-                <TabButton tab=Tab::Logs active_tab=active_tab set_active_tab=set_active_tab />
-                <TabButton tab=Tab::Soar active_tab=active_tab set_active_tab=set_active_tab />
-            </nav>
+                            <TabButton tab=Tab::Agents active_tab=active_tab set_active_tab=set_active_tab />
+                            <TabButton tab=Tab::Tasks active_tab=active_tab set_active_tab=set_active_tab />
+                            <TabButton tab=Tab::Memory active_tab=active_tab set_active_tab=set_active_tab />
+                            <TabButton tab=Tab::Goals active_tab=active_tab set_active_tab=set_active_tab />
+                            <TabButton tab=Tab::Personalities active_tab=active_tab set_active_tab=set_active_tab />
+                            <TabButton tab=Tab::SwarmDag active_tab=active_tab set_active_tab=set_active_tab />
+                            <TabButton tab=Tab::Sentinel active_tab=active_tab set_active_tab=set_active_tab />
+                            <TabButton tab=Tab::EvidenceLedger active_tab=active_tab set_active_tab=set_active_tab />
+                            <TabButton tab=Tab::HitlApproval active_tab=active_tab set_active_tab=set_active_tab />
+                            <TabButton tab=Tab::Skills active_tab=active_tab set_active_tab=set_active_tab />
+                            <TabButton tab=Tab::Logs active_tab=active_tab set_active_tab=set_active_tab />
+                            <TabButton tab=Tab::Soar active_tab=active_tab set_active_tab=set_active_tab />
+                                                        <TabButton tab=Tab::Security active_tab=active_tab set_active_tab=set_active_tab />
+                                                        <TabButton tab=Tab::Awareness active_tab=active_tab set_active_tab=set_active_tab />
+                                                        <TabButton tab=Tab::SkillEvolution active_tab=active_tab set_active_tab=set_active_tab />
+                                                        <TabButton tab=Tab::EmployeeGovernance active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                <TabButton tab=Tab::TaskTriage active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                <TabButton tab=Tab::Threads active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                <TabButton tab=Tab::Subagents active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                 <TabButton tab=Tab::Files active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                  <TabButton tab=Tab::Voice active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                   <TabButton tab=Tab::Reactions active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                   <TabButton tab=Tab::Avatars active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                    <TabButton tab=Tab::Skins active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                     <TabButton tab=Tab::Fleet active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                      <TabButton tab=Tab::Federation active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                      <TabButton tab=Tab::Chat active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                                                                                                                                            <TabButton tab=Tab::Channels active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                                                                                                                                                                                                                                                                                                                            <TabButton tab=Tab::PhoneRelay active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        <TabButton tab=Tab::SwarmTopology active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                <TabButton tab=Tab::SkillEditor active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               </nav>
 
             <main class="cockpit-main">
                 {move || match &*state.read() {
@@ -294,16 +399,42 @@ fn TabContent(tab: Tab) -> impl IntoView {
         }
         Tab::Tasks => view! {
             <div class="tab-panel tab-panel-tasks">
-                <div class="placeholder-panel">
-                    <p>"Task DAG visualization — coming in Sprint 6.2.2"</p>
-                </div>
+                <TasksDag />
             </div>
         }.into_any(),
         Tab::Memory => view! {
             <div class="tab-panel tab-panel-memory">
-                <div class="placeholder-panel">
-                    <p>"Memory timeline — coming in Sprint 6.2.3"</p>
-                </div>
+                <MemoryTimeline />
+            </div>
+        }.into_any(),
+        Tab::Goals => view! {
+            <div class="tab-panel tab-panel-goals">
+                <GoalsPanel />
+            </div>
+        }.into_any(),
+        Tab::Personalities => view! {
+            <div class="tab-panel tab-panel-personalities">
+                <PersonalitiesPanel />
+            </div>
+        }.into_any(),
+        Tab::SwarmDag => view! {
+            <div class="tab-panel tab-panel-swarm-dag">
+                <SwarmDagPanel />
+            </div>
+        }.into_any(),
+        Tab::Sentinel => view! {
+            <div class="tab-panel tab-panel-sentinel">
+                <SentinelPanel />
+            </div>
+        }.into_any(),
+        Tab::EvidenceLedger => view! {
+            <div class="tab-panel tab-panel-evidence-ledger">
+                <EvidenceLedgerPanel />
+            </div>
+        }.into_any(),
+        Tab::HitlApproval => view! {
+            <div class="tab-panel tab-panel-hitl">
+                <HitlApprovalPanel />
             </div>
         }.into_any(),
         Tab::Skills => view! {
@@ -317,12 +448,107 @@ fn TabContent(tab: Tab) -> impl IntoView {
             </div>
         }.into_any(),
         Tab::Soar => view! {
-            <div class="tab-panel tab-panel-soar">
-                <SoarDashboard />
-            </div>
-        }.into_any(),
-    }
-}
+                    <div class="tab-panel tab-panel-soar">
+                        <SoarDashboard />
+                    </div>
+                }.into_any(),
+                Tab::Security => view! {
+                    <div class="tab-panel tab-panel-security">
+                        <SecurityPanel />
+                    </div>
+                }.into_any(),
+                Tab::Awareness => view! {
+                    <div class="tab-panel tab-panel-awareness">
+                        <AgentAwarenessPanel />
+                    </div>
+                }.into_any(),
+                Tab::SkillEvolution => view! {
+                    <div class="tab-panel tab-panel-skill-evolution">
+                        <SkillEvolutionPanel />
+                    </div>
+                }.into_any(),
+                Tab::EmployeeGovernance => view! {
+                                 <div class="tab-panel tab-panel-employee-governance">
+                                 <EmployeeGovernancePanel />
+                                 </div>
+                                 }.into_any(),
+                                 Tab::TaskTriage => view! {
+                                                                 <div class="tab-panel tab-panel-task-triage">
+                                                                 <TaskTriagePanel />
+                                                                 </div>
+                                                                 }.into_any(),
+                                                                 Tab::Threads => view! {
+                                                                 <div class="tab-panel tab-panel-threads">
+                                                                 <ThreadManager />
+                                                                 </div>
+                                                                 }.into_any(),
+                                                                 Tab::Subagents => view! {
+                                                                  <div class="tab-panel tab-panel-subagents">
+                                                                  <SubagentStatusCards />
+                                                                  </div>
+                                                                  }.into_any(),
+                                                                  Tab::Files => view! {
+                                                                   <div class="tab-panel tab-panel-files">
+                                                                   <FileManager />
+                                                                   </div>
+                                                                   }.into_any(),
+                                                                   Tab::Voice => view! {
+                                                                    <div class="tab-panel tab-panel-voice">
+                                                                    <VoicePanel />
+                                                                    </div>
+                                                                    }.into_any(),
+                                                                    Tab::Reactions => view! {
+                                                                    <div class="tab-panel tab-panel-reactions">
+                                                                    <EmojiReactions _message_id="demo-msg-1" />
+                                                                    </div>
+                                                                    }.into_any(),
+                                                                    Tab::Avatars => view! {
+                                                                     <div class="tab-panel tab-panel-avatars">
+                                                                     <AgentAvatarsGrid />
+                                                                     </div>
+                                                                     }.into_any(),
+                                                                     Tab::Skins => view! {
+                                                                      <div class="tab-panel tab-panel-skins">
+                                                                      <SkinThemesPanel />
+                                                                      </div>
+                                                                      }.into_any(),
+                                                                      Tab::Fleet => view! {
+                                                                       <div class="tab-panel tab-panel-fleet">
+                                                                       <FleetAuditorPanel />
+                                                                       </div>
+                                                                       }.into_any(),
+                                                                       Tab::Federation => view! {
+                                                                       <div class="tab-panel tab-panel-federation">
+                                                                       <FederationDashboard />
+                                                                       </div>
+                                                                       }.into_any(),
+                                                                       Tab::Chat => view! {
+                                                                                        <div class="tab-panel tab-panel-chat h-full">
+                                                                                        <ChatPanel />
+                                                                                        </div>
+                                                                                        }.into_any(),
+                                                                                        Tab::Channels => view! {
+                                                                                                                                                                                 <div class="tab-panel tab-panel-channels h-full">
+                                                                                                                                                                                 <ChannelPanel />
+                                                                                                                                                                                 </div>
+                                                                                                                                                                                 }.into_any(),
+                                                                                                                                                                                 Tab::PhoneRelay => view! {
+                                                                                                                                                                                                                                                                                                                                                                   <div class="tab-panel tab-panel-phone-relay">
+                                                                                                                                                                                                                                                                                                                                                                   <PhoneRelayPanel />
+                                                                                                                                                                                                                                                                                                                                                                   </div>
+                                                                                                                                                                                                                                                                                                                                                                   }.into_any(),
+                                                                                                                                                                                                                                                                                                                                                                   Tab::SwarmTopology => view! {
+                                                                                                                                                                                                                                                                                                                                                                    <div class="tab-panel tab-panel-swarm-topology">
+                                                                                                                                                                                                                                                                                                                                                                    <SwarmTopologyPanel />
+                                                                                                                                                                                                                                                                                                                                                                    </div>
+                                                                                                                                                                                                                                                                                                                                                                    }.into_any(),
+                                                                                                                                                                                                                                                                                                                                                                    Tab::SkillEditor => view! {
+                                                                                                                                                                                                                                                                                                                                                                    <div class="tab-panel tab-panel-skill-editor">
+                                                                                                                                                                                                                                                                                                                                                                    <SkillEditorPanel />
+                                                                                                                                                                                                                                                                                                                                                                    </div>
+                                                                                                                                                                                                                                                                                                                                                                    }.into_any(),
+                                                                                                                                                                                                                                                                                                                                                                    }
+                                                                       }
 
 async fn fetch_health() -> Result<HealthResponse, String> {
     use wasm_bindgen::JsCast;
@@ -331,7 +557,7 @@ async fn fetch_health() -> Result<HealthResponse, String> {
     let opts = RequestInit::new();
     opts.set_method("GET");
 
-    let request = Request::new_with_str_and_init("/api/v1/health", &opts)
+    let request = Request::new_with_str_and_init("http://localhost:3000/api/v1/health", &opts)
         .map_err(|e| format!("{:?}", e))?;
 
     let window = web_sys::window().ok_or("no window")?;

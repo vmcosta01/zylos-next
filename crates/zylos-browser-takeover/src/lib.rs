@@ -86,7 +86,7 @@ impl TakeoverStatus {
     ///
     /// Accepts the snake_case representations produced by [`Display`](std::fmt::Display)
     /// and serde serialization (`pending_approval`, `active`, etc.).
-    pub fn from_str(s: &str) -> Result<Self, TakeoverError> {
+    pub fn parse(s: &str) -> Result<Self, TakeoverError> {
         match s {
             "pending_approval" => Ok(Self::PendingApproval),
             "active" => Ok(Self::Active),
@@ -124,7 +124,7 @@ impl Initiator {
     /// Parses an initiator string into an [`Initiator`] variant.
     ///
     /// Accepts `agent`, `human`, or `system`.
-    pub fn from_str(s: &str) -> Result<Self, TakeoverError> {
+    pub fn parse(s: &str) -> Result<Self, TakeoverError> {
         match s {
             "agent" => Ok(Self::Agent),
             "human" => Ok(Self::Human),
@@ -229,11 +229,11 @@ pub enum TakeoverError {
     #[error("Invalid initiator: {0}")]
     InvalidInitiator(String),
     /// WebSocket transport error.
-    #[error("WebSocket error: {0}")]
-    WebSocket(#[from] tokio_tungstenite::tungstenite::Error),
-    /// File-system or I/O error.
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
+         #[error("WebSocket error: {0}")]
+         WebSocket(Box<tokio_tungstenite::tungstenite::Error>),
+         /// File-system or I/O error.
+         #[error("IO error: {0}")]
+         Io(#[from] std::io::Error),
     /// JSON serialization/deserialization error.
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
@@ -602,7 +602,7 @@ fn sync_get_session(conn: &Connection, id: &str) -> Result<TakeoverSession, Take
     conn.query_row(
         "SELECT id, agent_id, browser_target_url, cdp_ws_url, status, initiated_by, approved_by, reason, started_at, ended_at, message_count FROM takeover_sessions WHERE id = ?1",
         params![id],
-        |row| row_to_session(row),
+        row_to_session,
     )
     .optional()?
     .ok_or_else(|| TakeoverError::NotFound(id.to_string()))
@@ -612,7 +612,7 @@ fn sync_list_by_status(conn: &Connection, status: TakeoverStatus) -> Result<Vec<
     let mut stmt = conn.prepare(
         "SELECT id, agent_id, browser_target_url, cdp_ws_url, status, initiated_by, approved_by, reason, started_at, ended_at, message_count FROM takeover_sessions WHERE status = ?1 ORDER BY started_at DESC",
     )?;
-    let rows = stmt.query_map(params![status.to_string()], |row| row_to_session(row))?;
+    let rows = stmt.query_map(params![status.to_string()], row_to_session)?;
     rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
 }
 
@@ -640,7 +640,7 @@ fn sync_get_messages(conn: &Connection, session_id: &str, limit: usize) -> Resul
     let mut stmt = conn.prepare(
         "SELECT id, session_id, direction, method, payload_size, timestamp, payload FROM takeover_messages WHERE session_id = ?1 ORDER BY timestamp ASC LIMIT ?2",
     )?;
-    let rows = stmt.query_map(params![session_id, limit as i64], |row| row_to_message(row))?;
+    let rows = stmt.query_map(params![session_id, limit as i64], row_to_message)?;
     rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
 }
 
@@ -718,7 +718,8 @@ impl CdpProxy {
     ) -> Result<(), TakeoverError> {
         use tokio_tungstenite::connect_async;
 
-        let (upstream_ws, _) = connect_async(upstream_url).await?;
+        let (upstream_ws, _) = connect_async(upstream_url).await
+            .map_err(|e| TakeoverError::WebSocket(Box::new(e)))?;
         let (mut client_sink, mut client_stream) = client_ws.split();
         let (mut upstream_sink, mut upstream_stream) = upstream_ws.split();
 
@@ -844,8 +845,8 @@ fn row_to_session(row: &rusqlite::Row) -> Result<TakeoverSession, rusqlite::Erro
         agent_id: row.get(1)?,
         browser_target_url: row.get(2)?,
         cdp_ws_url: row.get(3)?,
-        status: TakeoverStatus::from_str(&row.get::<_, String>(4)?).unwrap_or(TakeoverStatus::Terminated),
-        initiated_by: Initiator::from_str(&row.get::<_, String>(5)?).unwrap_or(Initiator::System),
+        status: TakeoverStatus::parse(&row.get::<_, String>(4)?).unwrap_or(TakeoverStatus::Terminated),
+        initiated_by: Initiator::parse(&row.get::<_, String>(5)?).unwrap_or(Initiator::System),
         approved_by: row.get(6)?,
         reason: row.get(7)?,
         started_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(8)?)

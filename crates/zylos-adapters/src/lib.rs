@@ -75,7 +75,7 @@ impl Framework {
     ///
     /// # Errors
     /// Returns [`AdapterError::UnknownFramework`] if the string does not match any known framework.
-    pub fn from_str(s: &str) -> Result<Self, AdapterError> {
+    pub fn parse(s: &str) -> Result<Self, AdapterError> {
         match s {
             "adk" => Ok(Self::Adk),
             "claude_sdk" => Ok(Self::ClaudeSdk),
@@ -1074,23 +1074,23 @@ mod tests {
             Framework::LlamaIndex,
         ] {
             let s = fw.to_string();
-            let parsed = Framework::from_str(&s).unwrap();
+            let parsed = Framework::parse(&s).unwrap();
             assert_eq!(parsed, fw);
         }
     }
 
     #[test]
     fn test_framework_from_str_known_values() {
-        assert_eq!(Framework::from_str("adk").unwrap(), Framework::Adk);
-        assert_eq!(Framework::from_str("claude_sdk").unwrap(), Framework::ClaudeSdk);
-        assert_eq!(Framework::from_str("crewai").unwrap(), Framework::CrewAi);
-        assert_eq!(Framework::from_str("langgraph").unwrap(), Framework::LangGraph);
-        assert_eq!(Framework::from_str("llamaindex").unwrap(), Framework::LlamaIndex);
+        assert_eq!(Framework::parse("adk").unwrap(), Framework::Adk);
+        assert_eq!(Framework::parse("claude_sdk").unwrap(), Framework::ClaudeSdk);
+        assert_eq!(Framework::parse("crewai").unwrap(), Framework::CrewAi);
+        assert_eq!(Framework::parse("langgraph").unwrap(), Framework::LangGraph);
+        assert_eq!(Framework::parse("llamaindex").unwrap(), Framework::LlamaIndex);
     }
 
     #[test]
     fn test_framework_from_str_unknown() {
-        let err = Framework::from_str("nonexistent").unwrap_err();
+        let err = Framework::parse("nonexistent").unwrap_err();
         assert!(matches!(err, AdapterError::UnknownFramework(ref s) if s == "nonexistent"));
     }
 

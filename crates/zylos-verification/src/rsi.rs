@@ -349,7 +349,7 @@ impl Experiment {
             return Err(RsiError::BlindLiftTooEarly);
         }
         let analyze_rec = self.phases.get(&RsiPhase::Analyze);
-        let gate_ok = analyze_rec.map_or(false, |r| r.gate_passed);
+        let gate_ok = analyze_rec.is_some_and(|r| r.gate_passed);
         if !gate_ok {
             return Err(RsiError::BlindLiftTooEarly);
         }
@@ -364,7 +364,7 @@ impl Experiment {
     /// Check whether the actual sample size meets the guardrail minimum.
     pub fn is_underpowered(&self) -> bool {
         self.actual_sample_size
-            .map_or(true, |n| n < self.guardrails.min_sample_size)
+         .is_none_or(|n| n < self.guardrails.min_sample_size)
     }
 
     /// Apply Bonferroni or Holm correction to a raw p-value given the number

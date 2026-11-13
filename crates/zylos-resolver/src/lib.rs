@@ -71,6 +71,7 @@ impl BfsFrontier {
         if self.visited.insert(id.clone()) { self.queue.push_back(id); }
     }
     /// Dequeue the next node ID, or `None` if empty.
+    #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> Option<String> { self.queue.pop_front() }
     /// Returns `true` when there are no pending nodes.
     pub fn is_empty(&self) -> bool { self.queue.is_empty() }

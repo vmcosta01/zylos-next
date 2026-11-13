@@ -578,22 +578,22 @@ fn clean_code() {
     #[test]
     fn test_generate_report_with_items() {
         let items = vec![
-            /// Variante DebtItem.
-            DebtItem {
-                description: "Fix A".to_string(),
-                severity: DebtSeverity::High,
-                category: DebtCategory::Performance,
+            // Variante DebtItem.
+                        DebtItem {
+                            description: "Fix A".to_string(),
+                            severity: DebtSeverity::High,
+                            category: DebtCategory::Performance,
                 file: "a.rs".to_string(),
                 line: 10,
                 context: "".to_string(),
                 tags: vec![],
                 ticket: None,
             },
-            /// Variante DebtItem.
-            DebtItem {
-                description: "Fix B".to_string(),
-                severity: DebtSeverity::Low,
-                category: DebtCategory::Documentation,
+            // Variante DebtItem.
+                        DebtItem {
+                            description: "Fix B".to_string(),
+                            severity: DebtSeverity::Low,
+                            category: DebtCategory::Documentation,
                 file: "b.rs".to_string(),
                 line: 20,
                 context: "".to_string(),

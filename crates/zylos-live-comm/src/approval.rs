@@ -363,7 +363,7 @@ fn mask_secrets(text: &str, secret_fields: &[String]) -> String {
                 let value_start = after_field + 1;
                 let remaining = &result[value_start..];
                 let value_end = remaining
-                    .find(|c: char| c == ' ' || c == '&' || c == '\n' || c == '"' || c == ',')
+                    .find([' ', '&', '\n', '"', ','])
                     .unwrap_or(remaining.len());
 
                 if value_end > 0 {

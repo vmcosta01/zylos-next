@@ -211,8 +211,8 @@ impl TestRatchet {
         pub fn is_sensitive(&self, path: &str) -> bool {
         let lower = path.to_lowercase();
         self.sensitive_patterns.iter().any(|p| {
-            if p.starts_with("*") {
-                lower.ends_with(&p[1..])
+            if let Some(stripped) = p.strip_prefix("*") {
+                            lower.ends_with(stripped)
             } else {
                 lower.contains(p.as_str())
             }

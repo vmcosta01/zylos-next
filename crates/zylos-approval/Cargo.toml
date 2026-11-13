@@ -1,0 +1,18 @@
+[package]
+name = "zylos-approval"
+version = "0.1.0"
+edition = "2021"
+description = "Approval gates HITL para Zylos Cockpit v2"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { workspace = true, features = ["serde"] }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full"] }

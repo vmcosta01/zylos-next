@@ -11,7 +11,7 @@ use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use zylos_gateway::config::GatewayConfig;
-use zylos_gateway::{AppState, build_router};
+use zylos_gateway::{AppState, ApiHandles, build_router};
 use zylos_live_comm::EventBus;
 use zylos_live_comm::skills_api::SkillsApiState;
 use zylos_skills::{EvalFlywheel, SkillRegistry, SkillValidator};
@@ -25,20 +25,46 @@ use zylos_soar::{
     yaml_runbook::YamlRunbook,
 };
 use zylos_swarm_orchestrator::SwarmOrchestrator;
+use zylos_goals::GoalStore;
+use zylos_memory_sync::MemoryStore;
+use zylos_personalities::PersonalityRegistry;
+use zylos_agent_shield::{AgentShield, ShieldConfig};
+use zylos_browser_takeover::TakeoverStore;
+use zylos_evidence_ledger::EvidenceLedger;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info,tower_http=debug".into()),
-        )
-        .with(tracing_subscriber::fmt::layer().json())
-        .init();
+            .with(
+                tracing_subscriber::EnvFilter::try_from_default_env()
+                    .unwrap_or_else(|_| "info,tower_http=debug".into()),
+            )
+            .with(tracing_subscriber::fmt::layer().json())
+            .init();
+
+        // === Fase 11.4 T11.4.4: Sentry error tracking ===
+        let _sentry_guard = std::env::var("SENTRY_DSN")
+            .ok()
+            .filter(|dsn| !dsn.is_empty())
+            .map(|dsn| {
+                sentry::init((
+                    dsn,
+                    sentry::ClientOptions {
+                        release: sentry::release_name!(),
+                        traces_sample_rate: 0.1,
+                        ..Default::default()
+                    },
+                ))
+            });
+        if _sentry_guard.is_some() {
+            info!("Sentry initialized for error tracking");
+        } else {
+            info!("Sentry disabled (SENTRY_DSN not set)");
+        }
 
     // --- Task 7.1.1: Configuration via TOML + env vars ---
     let config_path = std::env::var("ZYLOS_CONFIG")
-        .map(|p| std::path::PathBuf::from(p))
+        .map(std::path::PathBuf::from)
         .ok();
     let cfg = GatewayConfig::load(config_path.as_deref())?;
 
@@ -101,23 +127,58 @@ async fn main() -> anyhow::Result<()> {
         info!("SOAR orchestrator initialized with EventBus and auto-loaded runbooks/playbooks");
 
     // Swarm Orchestrator — task/crew scheduling (Phase 2, in-memory)
-    let swarm = SwarmOrchestrator::open(":memory:")
-        .await
-        .map_err(|e| anyhow::anyhow!("swarm init: {}", e))?;
-    info!("Swarm orchestrator initialized (in-memory)");
+            let swarm = SwarmOrchestrator::open(":memory:")
+                .await
+                .map_err(|e| anyhow::anyhow!("swarm init: {}", e))?;
+            info!("Swarm orchestrator initialized (in-memory)");
 
-    // Readiness flag — set after all subsystems are up
-    let ready = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        // --- Initialize dedicated API stores (async, Send+Sync wrappers) ---
+        let goals_store = GoalStore::open(std::path::Path::new(":memory:"))
+                            .map_err(|e| anyhow::anyhow!("goals init: {}", e))?;
+                info!("Goals store initialized (in-memory)");
 
-    let state = AppState {
-        event_bus,
-        skills_state,
-        soar_orchestrator,
-        swarm: Arc::new(swarm),
-        ready: ready.clone(),
-    };
+                let memory_store = MemoryStore::open(":memory:")
+                    .await
+                    .map_err(|e| anyhow::anyhow!("memory init: {}", e))?;
+                info!("Memory store initialized (in-memory)");
 
-    let app = build_router(state);
+                let personalities_registry = PersonalityRegistry::open(":memory:")
+                    .await
+                    .map_err(|e| anyhow::anyhow!("personalities init: {}", e))?;
+                info!("Personalities registry initialized (in-memory)");
+
+                let shield = AgentShield::new(ShieldConfig::default(), Some(":memory:"))
+                    .await
+                    .map_err(|e| anyhow::anyhow!("shield init: {}", e))?;
+                let takeover_store = TakeoverStore::in_memory()
+                    .map_err(|e| anyhow::anyhow!("takeover store init: {}", e))?;
+                info!("Sentinel subsystems initialized (in-memory)");
+
+                let evidence_ledger = EvidenceLedger::open(":memory:")
+                    .await
+                    .map_err(|e| anyhow::anyhow!("evidence ledger init: {}", e))?;
+        info!("Evidence ledger initialized (in-memory)");
+
+        let api_handles = ApiHandles {
+            goals: Arc::new(zylos_gateway::goals_api::GoalsHandleInner { store: goals_store }),
+            memory: Arc::new(zylos_gateway::memory_api::MemoryHandleInner { store: memory_store }),
+            personalities: Arc::new(zylos_gateway::personalities_api::PersonalitiesHandleInner { registry: personalities_registry }),
+            sentinel: Arc::new(zylos_gateway::sentinel_api::SentinelHandleInner { shield, takeover: takeover_store }),
+            evidence: Arc::new(zylos_gateway::evidence_api::EvidenceHandleInner { ledger: evidence_ledger }),
+        };
+
+            // Readiness flag — set after all subsystems are up
+                let ready = Arc::new(std::sync::atomic::AtomicBool::new(false));
+
+                let state = AppState {
+                    event_bus,
+                    skills_state,
+                    soar_orchestrator,
+                    swarm: Arc::new(swarm),
+                    ready: ready.clone(),
+                };
+
+        let app = build_router(state, api_handles);
 
     // --- Graceful shutdown via CancellationToken ---
     let shutdown_token = CancellationToken::new();

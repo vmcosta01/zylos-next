@@ -27,9 +27,13 @@ features = ["tray-icon"]
 version = "2"
 optional = true
 
+[dependencies.tauri-plugin-notification]
+version = "2"
+optional = true
+
 [features]
 default = []
-gui = ["dep:tauri", "dep:tauri-plugin-shell"]
+gui = ["dep:tauri", "dep:tauri-plugin-shell", "dep:tauri-plugin-notification"]
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

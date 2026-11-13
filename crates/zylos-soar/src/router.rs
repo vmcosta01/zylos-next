@@ -150,18 +150,12 @@ fn parse_literal(raw: &str) -> Value {
 }
 
 fn get_nested_value<'a>(value: &'a Value, path: &str) -> Option<&'a Value> {
-    let mut current = value;
-    for key in path.split('.') {
-        match current.get(key) {
-            // Variante Some.
-            Some(v) => current = v,
-            // Variante None.
-            None => return None,
-        }
-    }
-    // Variante Some.
-    Some(current)
-}
+ let mut current = value;
+ for key in path.split('.') {
+ current = current.get(key)?;
+ }
+ Some(current)
+ }
 
 impl Default for EventRouter {
     fn default() -> Self {
@@ -176,7 +170,7 @@ mod tests {
     use chrono::Utc;
 
     fn make_event(category: EventCategory, severity: Severity) -> ZylosSecurityEvent {
-        /// Variante ZylosSecurityEvent.
+        // Variante ZylosSecurityEvent.
         ZylosSecurityEvent {
             id: Uuid::new_v4(),
             received_at: Utc::now(),

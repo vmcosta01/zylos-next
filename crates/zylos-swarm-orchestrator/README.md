@@ -100,6 +100,50 @@ Use `transition_task()` for manual transitions or the convenience methods `compl
 | `Io(std::io::Error)` | Underlying filesystem or I/O error |
 | `Internal(String)` | Unclassified internal orchestrator error |
 
+## Fase 8: Orchestration Safety (2026-11-11)
+
+### HopCountCircuitBreaker (T8.1.1)
+
+Guard RAII com `AtomicU8` que previne loops infinitos em cadeias de delegação entre agentes. Integrado diretamente no `SwarmOrchestrator::schedule()` e `release_agent_slot()`.
+
+```rust
+use zylos_swarm_orchestrator::hop_count::{HopCountGuard, CircuitOpen};
+
+let guard = HopCountGuard::open(max_hops)?; // AtomicU8 increment
+// ... executar tarefa ...
+// Guard decrementa automaticamente ao ser dropado
+```
+
+- **CircuitOpen error**: retornado quando hop count excede limite configurado
+- **RAII semantics**: decremento garantido mesmo em panic/early return
+- **Thread-safe**: `AtomicU8` com ordering `Relaxed` para performance
+
+### Crash Simulation Tests (T8.1.5)
+
+5 cenários de recuperação de falhas em `tests/crash_simulation.rs`:
+
+| Cenário | Descrição |
+|---------|-----------|
+| Spawn failure | Agente falha ao iniciar; scheduler redistribui |
+| Channel close | Canal de comunicação fechado inesperadamente |
+| Timeout | Tarefa excede deadline; retry automático |
+| Panic recovery | Agent thread panics; orchestrator continua |
+| Concurrent stress | 50 tarefas simultâneas com falhas aleatórias |
+
+```bash
+cargo test -p zylos-swarm-orchestrator crash_simulation
+```
+
+### Hermes Integration
+
+Endpoints dedicados via bridge Hermes (`hermes_security_api`, `hermes_desktop_api`, etc.):
+- `/api/v1/hermes/security/*` — guardrails, capability tokens, egress, sanitizer
+- `/api/v1/hermes/desktop/*` — workspace, awareness, relay
+- `/api/v1/hermes/skill-evolution/*` — contracts, graph, miner, trajectory
+- `/api/v1/hermes/employee/*` — roles, routines, plan-gate, rate-limiter
+
+Cross-reference: [HANDOFF_FASE8.md](../../docs/handoffs/HANDOFF_FASE8.md) §2.1
+
 ## Gaps
 
 - **No async message passing** between agents — only task assignment is supported, not inter-agent communication.

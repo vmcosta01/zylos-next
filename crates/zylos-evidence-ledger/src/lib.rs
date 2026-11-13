@@ -313,33 +313,18 @@ impl EvidenceLedger {
     }
 
     async fn run_migrations(&self) -> Result<(), LedgerError> {
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS ledger_entries (
-                id TEXT PRIMARY KEY,
-                sequence INTEGER NOT NULL UNIQUE,
-                evidence_type TEXT NOT NULL,
-                actor TEXT NOT NULL,
-                description TEXT NOT NULL DEFAULT '',
-                payload TEXT NOT NULL,
-                payload_hash TEXT NOT NULL,
-                previous_hash TEXT NOT NULL,
-                entry_hash TEXT NOT NULL,
-                signature TEXT NOT NULL,
-                signer_public_key TEXT NOT NULL,
-                timestamp TEXT NOT NULL,
-                tags TEXT NOT NULL DEFAULT '[]'
-            );
-            CREATE INDEX IF NOT EXISTS idx_ledger_sequence ON ledger_entries(sequence);
-            CREATE INDEX IF NOT EXISTS idx_ledger_type ON ledger_entries(evidence_type);
-            CREATE INDEX IF NOT EXISTS idx_ledger_actor ON ledger_entries(actor);
-            CREATE INDEX IF NOT EXISTS idx_ledger_timestamp ON ledger_entries(timestamp);
-            "#,
-        )
-        .execute(&self.pool)
-        .await?;
-        Ok(())
-    }
+            sqlx::query("CREATE TABLE IF NOT EXISTS ledger_entries (id TEXT PRIMARY KEY, sequence INTEGER NOT NULL UNIQUE, evidence_type TEXT NOT NULL, actor TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', payload TEXT NOT NULL, payload_hash TEXT NOT NULL, previous_hash TEXT NOT NULL, entry_hash TEXT NOT NULL, signature TEXT NOT NULL, signer_public_key TEXT NOT NULL, timestamp TEXT NOT NULL, tags TEXT NOT NULL DEFAULT '[]')")
+                .execute(&self.pool).await?;
+            sqlx::query("CREATE INDEX IF NOT EXISTS idx_ledger_sequence ON ledger_entries(sequence)")
+                .execute(&self.pool).await?;
+            sqlx::query("CREATE INDEX IF NOT EXISTS idx_ledger_type ON ledger_entries(evidence_type)")
+                .execute(&self.pool).await?;
+            sqlx::query("CREATE INDEX IF NOT EXISTS idx_ledger_actor ON ledger_entries(actor)")
+                .execute(&self.pool).await?;
+            sqlx::query("CREATE INDEX IF NOT EXISTS idx_ledger_timestamp ON ledger_entries(timestamp)")
+                .execute(&self.pool).await?;
+            Ok(())
+        }
 
     /// Appends a new signed entry to the ledger.
     pub async fn append(
@@ -694,8 +679,8 @@ fn build_merkle_proof_path(hashes: &[String], leaf_index: usize) -> Vec<MerklePa
 
     while current_level.len() > 1 {
         let mut next_level = Vec::new();
-        let sibling_idx = if idx % 2 == 0 { idx + 1 } else { idx - 1 };
-        let direction = if idx % 2 == 0 {
+        let sibling_idx = if idx.is_multiple_of(2) { idx + 1 } else { idx - 1 };
+         let direction = if idx.is_multiple_of(2) {
             Direction::Right
         } else {
             Direction::Left

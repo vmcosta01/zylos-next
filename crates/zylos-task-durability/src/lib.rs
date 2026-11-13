@@ -683,7 +683,7 @@ impl TaskDurabilityEngine {
         ).optional()?.ok_or_else(|| TaskDurabilityError::NotFound(task_id.into()))?;
 
         let current = TaskStatus::try_from(current_status)
-            .map_err(|e| TaskDurabilityError::NotFound(e))?;
+            .map_err(TaskDurabilityError::NotFound)?;
 
         let (target, require_no_lease) = match action {
             ControlAction::Pause => (TaskStatus::Paused, false),

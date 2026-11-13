@@ -226,7 +226,7 @@ impl BrowserProfileStore {
 
         Ok(profiles.values()
             .filter(|p| {
-                p.last_used_at.map_or(true, |last| last < cutoff)
+                p.last_used_at.is_none_or(|last| last < cutoff)
             })
             .cloned()
             .collect())

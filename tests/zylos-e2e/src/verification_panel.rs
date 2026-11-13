@@ -28,7 +28,7 @@ async fn verification_panel_rejects_weak_output() {
     // Weak output should be rejected by at least one judge
     assert_eq!(result["verdict"], "rejected", "weak output should be rejected");
     assert!(
-        result["dissenting_judges"].as_array().map_or(false, |a| !a.is_empty()),
+        result["dissenting_judges"].as_array().is_some_and(|a| !a.is_empty()),
         "at least one judge should dissent on weak output"
     );
 }

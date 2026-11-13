@@ -206,7 +206,7 @@ mod tests {
             tags: vec![],
         });
 
-        /// Variante SkillsApiState.
+        // Variante SkillsApiState.
         SkillsApiState {
             registry: Arc::new(RwLock::new(registry)),
             validator: Arc::new(SkillValidator::default_schema().unwrap()),

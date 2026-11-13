@@ -14,6 +14,8 @@ pub mod p2p_network;
 pub mod workflow_dsl;
 pub mod cerebelo;
 pub mod kanban_bridge;
+pub mod goal_program;
+pub mod autoloop_protocol;
 
 pub use error::BotError;
 pub use lifecycle::{AgentHandle, AgentId, AgentState, LifecycleManager};

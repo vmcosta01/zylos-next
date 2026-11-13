@@ -1,3 +1,4 @@
+#![allow(clippy::len_without_is_empty)]
 //! Server-side event filtering engine with compiled expression cache.
 //!
 //! Supports a CEL-like expression subset:
@@ -60,7 +61,7 @@ impl CompiledFilter {
             FilterKind::Or(filters) => filters.iter().any(|f| f.matches(envelope)),
             FilterKind::Not(inner) => !inner.matches(envelope),
             FilterKind::FieldEq(path, expected) => {
-                resolve_field(envelope, path).map_or(false, |v| v == *expected)
+                resolve_field(envelope, path).is_some_and(|v| v == *expected)
             }
         }
     }
@@ -72,7 +73,7 @@ impl CompiledFilter {
 }
 
 /// Resolve a dotted field path on an EventEnvelope to a string value.
-fn resolve_field<'a>(envelope: &'a EventEnvelope, path: &str) -> Option<String> {
+fn resolve_field(envelope: &EventEnvelope, path: &str) -> Option<String> {
     match path {
         "topic" => Some(envelope.topic.clone()),
         "id" => Some(envelope.id.clone()),

@@ -309,18 +309,39 @@ fn main() {
     }));
 
     tauri::Builder::default()
-        .manage(state)
+        .plugin(tauri_plugin_notification::init())
+        .manage(state.clone())
         .setup(move |app| {
+            let handle = app.handle().clone();
+            
             // Auto-start embedded gateway
-            let _handle = app.handle().clone();
+            let gateway_state = state.clone();
             tauri::async_runtime::spawn(async move {
-                // Gateway start would happen here in production
-                tracing::info!("Zylos Desktop Shell started");
+                let s = gateway_state.lock().await;
+                match s.gateway.start().await {
+                    Ok(status) => {
+                        tracing::info!("Embedded gateway started: pid={:?}, running={}", status.pid, status.running);
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to start embedded gateway: {e}");
+                    }
+                }
             });
 
-            // Set up system tray (Tauri v2 uses menu builder API)
-            // Tray setup deferred until tauri-plugin-tray is fully configured
-            tracing::info!("System tray initialized");
+            // Set up notification manager with app handle
+            let notif_state = state.clone();
+            tauri::async_runtime::spawn(async move {
+                let s = notif_state.lock().await;
+                s.notifications.set_app_handle(handle.clone()).await;
+            });
+
+            // Set up system tray
+            let tray_state = state.clone();
+            tauri::async_runtime::spawn(async move {
+                let s = tray_state.lock().await;
+                s.tray.set_status(zylos_desktop::tray::TrayStatus::Healthy).await;
+                tracing::info!("System tray initialized");
+            });
 
             Ok(())
         })
