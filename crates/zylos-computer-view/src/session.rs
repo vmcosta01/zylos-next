@@ -79,7 +79,11 @@ impl ComputerSessionManager {
     }
 
     /// Atualiza estado da sessão
-    pub fn update_state(&self, session_id: &str, new_state: SessionState) -> Result<ComputerSession, String> {
+    pub fn update_state(
+        &self,
+        session_id: &str,
+        new_state: SessionState,
+    ) -> Result<ComputerSession, String> {
         if let Some(mut entry) = self.sessions.get_mut(session_id) {
             let session = entry.value_mut();
             session.state = new_state.as_str().to_string();
@@ -91,14 +95,21 @@ impl ComputerSessionManager {
     }
 
     /// Usuário assume controle do desktop
-    pub fn take_control(&self, session_id: &str, req: TakeControlRequest) -> Result<ComputerSession, String> {
+    pub fn take_control(
+        &self,
+        session_id: &str,
+        req: TakeControlRequest,
+    ) -> Result<ComputerSession, String> {
         if let Some(mut entry) = self.sessions.get_mut(session_id) {
             let session = entry.value_mut();
 
             // Verificar se sessão está ativa
             let current_state = SessionState::parse(&session.state);
             if !matches!(current_state, Some(s) if s.is_active()) {
-                return Err(format!("Session {} is not active (state: {})", session_id, session.state));
+                return Err(format!(
+                    "Session {} is not active (state: {})",
+                    session_id, session.state
+                ));
             }
 
             // Verificar se já tem lease ativo e não expirado
@@ -137,7 +148,11 @@ impl ComputerSessionManager {
     }
 
     /// Usuário devolve controle ao agente
-    pub fn release_control(&self, session_id: &str, user_id: &str) -> Result<ComputerSession, String> {
+    pub fn release_control(
+        &self,
+        session_id: &str,
+        user_id: &str,
+    ) -> Result<ComputerSession, String> {
         if let Some(mut entry) = self.sessions.get_mut(session_id) {
             let session = entry.value_mut();
 
@@ -150,7 +165,10 @@ impl ComputerSessionManager {
                     ));
                 }
             } else {
-                return Err(format!("Session {} has no active control lease", session_id));
+                return Err(format!(
+                    "Session {} has no active control lease",
+                    session_id
+                ));
             }
 
             session.control_lease = None;
@@ -199,32 +217,36 @@ impl ComputerSessionManager {
     }
 
     /// Expira leases de controle automaticamente
-     pub fn expire_leases(&self) -> usize {
-     let mut expired_count = 0;
-     for mut entry in self.sessions.iter_mut() {
-     let session = entry.value_mut();
-     // Clonar dados do lease antes de mutar para evitar borrow conflict
-     if let Some(lease) = session.control_lease.clone() {
-     if lease.is_expired() {
-     session.control_lease = None;
-     session.state = SessionState::Active.as_str().to_string();
-     session.updated_at = chrono::Utc::now().to_rfc3339();
-     expired_count += 1;
+    pub fn expire_leases(&self) -> usize {
+        let mut expired_count = 0;
+        for mut entry in self.sessions.iter_mut() {
+            let session = entry.value_mut();
+            // Clonar dados do lease antes de mutar para evitar borrow conflict
+            if let Some(lease) = session.control_lease.clone() {
+                if lease.is_expired() {
+                    session.control_lease = None;
+                    session.state = SessionState::Active.as_str().to_string();
+                    session.updated_at = chrono::Utc::now().to_rfc3339();
+                    expired_count += 1;
 
-     tracing::info!(
-     session_id = %session.id,
-     user_id = %lease.user_id,
-     "Control lease expired automatically"
-     );
-     }
-     }
-     }
-     expired_count
-     }
+                    tracing::info!(
+                    session_id = %session.id,
+                    user_id = %lease.user_id,
+                    "Control lease expired automatically"
+                    );
+                }
+            }
+        }
+        expired_count
+    }
 
     /// Gera screenshot placeholder (fallback quando VNC indisponível)
-    pub fn generate_placeholder_screenshot(&self, session_id: &str) -> Result<ScreenshotData, String> {
-        let _session = self.get_session(session_id)
+    pub fn generate_placeholder_screenshot(
+        &self,
+        session_id: &str,
+    ) -> Result<ScreenshotData, String> {
+        let _session = self
+            .get_session(session_id)
             .ok_or_else(|| format!("Session not found: {}", session_id))?;
 
         // Placeholder 1x1 pixel PNG transparente em base64
@@ -441,17 +463,17 @@ mod tests {
     fn test_cleanup_stale_sessions() {
         let mgr = ComputerSessionManager::default();
         let s1 = mgr.create_session(sample_create_request());
-         let s2 = mgr.create_session(sample_create_request());
-         let s3 = mgr.create_session(sample_create_request());
+        let s2 = mgr.create_session(sample_create_request());
+        let s3 = mgr.create_session(sample_create_request());
 
-         mgr.update_state(&s1.id, SessionState::Terminated).unwrap();
-         mgr.update_state(&s2.id, SessionState::Error).unwrap();
-         // s3 fica ativa
+        mgr.update_state(&s1.id, SessionState::Terminated).unwrap();
+        mgr.update_state(&s2.id, SessionState::Error).unwrap();
+        // s3 fica ativa
 
-         let removed = mgr.cleanup_stale_sessions();
-         assert_eq!(removed, 2);
-         assert_eq!(mgr.total_count(), 1);
-         assert!(mgr.get_session(&s3.id).is_some());
+        let removed = mgr.cleanup_stale_sessions();
+        assert_eq!(removed, 2);
+        assert_eq!(mgr.total_count(), 1);
+        assert!(mgr.get_session(&s3.id).is_some());
     }
 
     #[test]

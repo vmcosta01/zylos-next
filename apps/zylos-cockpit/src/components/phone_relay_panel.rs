@@ -51,9 +51,9 @@ impl DeviceStatus {
 
     pub fn indicator(&self) -> &'static str {
         match self {
-            Self::Online => "\u{1f7e2}",   // 🟢
-            Self::Offline => "\u{1f534}",  // 🔴
-            Self::Pairing => "\u{1f7e1}",  // 🟡
+            Self::Online => "\u{1f7e2}",  // 🟢
+            Self::Offline => "\u{1f534}", // 🔴
+            Self::Pairing => "\u{1f7e1}", // 🟡
         }
     }
 }
@@ -153,42 +153,58 @@ pub fn PhoneRelayPanel() -> impl IntoView {
     let quality_metrics = RwSignal::new(QualityMetrics::default());
 
     // Carregar dispositivos do gateway (fallback para mock)
-     Effect::new(move |_| {
-     let devs_signal = devices;
-     spawn_local(async move {
-     match fetch_json::<serde_json::Value>("http://localhost:3000/api/v1/computer-view/sessions").await {
-     Ok(val) => {
-     if let Some(arr) = val.get("sessions").and_then(|v| v.as_array()) {
-     // Mapeia sessões do gateway para PairedDevice
-     let mapped: Vec<PairedDevice> = arr.iter().filter_map(|s| {
-     let id = s.get("id")?.as_str()?.to_string();
-     let bot_id = s.get("bot_id")?.as_str().unwrap_or("unknown").to_string();
-     let state = s.get("state")?.as_str().unwrap_or("connecting");
-     let status = match state {
-     "active" | "user_control" => DeviceStatus::Online,
-     "terminated" | "error" => DeviceStatus::Offline,
-     _ => DeviceStatus::Pairing,
-     };
-     Some(PairedDevice {
-     id,
-     name: bot_id,
-     platform: Platform::Android,
-     paired_at: s.get("created_at").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-     last_seen: s.get("updated_at").and_then(|v| v.as_str()).unwrap_or("agora").to_string(),
-     status,
-     })
-     }).collect();
-     if !mapped.is_empty() {
-     devs_signal.set(mapped);
-     }
-     }
-     }
-     Err(_) => {
-     // Fallback: mantém dados mock
-     }
-     }
-     });
-     });
+    Effect::new(move |_| {
+        let devs_signal = devices;
+        spawn_local(async move {
+            match fetch_json::<serde_json::Value>(
+                "http://localhost:3000/api/v1/computer-view/sessions",
+            )
+            .await
+            {
+                Ok(val) => {
+                    if let Some(arr) = val.get("sessions").and_then(|v| v.as_array()) {
+                        // Mapeia sessões do gateway para PairedDevice
+                        let mapped: Vec<PairedDevice> = arr
+                            .iter()
+                            .filter_map(|s| {
+                                let id = s.get("id")?.as_str()?.to_string();
+                                let bot_id =
+                                    s.get("bot_id")?.as_str().unwrap_or("unknown").to_string();
+                                let state = s.get("state")?.as_str().unwrap_or("connecting");
+                                let status = match state {
+                                    "active" | "user_control" => DeviceStatus::Online,
+                                    "terminated" | "error" => DeviceStatus::Offline,
+                                    _ => DeviceStatus::Pairing,
+                                };
+                                Some(PairedDevice {
+                                    id,
+                                    name: bot_id,
+                                    platform: Platform::Android,
+                                    paired_at: s
+                                        .get("created_at")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("")
+                                        .to_string(),
+                                    last_seen: s
+                                        .get("updated_at")
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("agora")
+                                        .to_string(),
+                                    status,
+                                })
+                            })
+                            .collect();
+                        if !mapped.is_empty() {
+                            devs_signal.set(mapped);
+                        }
+                    }
+                }
+                Err(_) => {
+                    // Fallback: mantém dados mock
+                }
+            }
+        });
+    });
 
     view! {
         <div class="phone-relay-panel">

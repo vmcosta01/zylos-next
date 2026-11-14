@@ -23,9 +23,18 @@ async fn soar_playbook_dispatch_on_event() {
         "enabled": true
     });
 
-    let reg_resp = gw.client.post(&reg_url).json(&playbook)
-        .send().await.expect("register playbook");
-    assert!(reg_resp.status().is_success(), "playbook registration failed: {}", reg_resp.status());
+    let reg_resp = gw
+        .client
+        .post(&reg_url)
+        .json(&playbook)
+        .send()
+        .await
+        .expect("register playbook");
+    assert!(
+        reg_resp.status().is_success(),
+        "playbook registration failed: {}",
+        reg_resp.status()
+    );
 
     // Emit a matching event
     let event_url = format!("{}/api/v1/soar/events", gw.base_url());
@@ -37,24 +46,48 @@ async fn soar_playbook_dispatch_on_event() {
         "payload": {"description": "Suspicious outbound connection detected"}
     });
 
-    let event_resp = gw.client.post(&event_url).json(&event)
-        .send().await.expect("emit event");
-    assert!(event_resp.status().is_success(), "event emission failed: {}", event_resp.status());
+    let event_resp = gw
+        .client
+        .post(&event_url)
+        .json(&event)
+        .send()
+        .await
+        .expect("emit event");
+    assert!(
+        event_resp.status().is_success(),
+        "event emission failed: {}",
+        event_resp.status()
+    );
 
     // Allow async dispatch to process
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
     // Check that the playbook was dispatched
-    let runs_url = format!("{}/api/v1/soar/runs?playbook=e2e-incident-response", gw.base_url());
-    let runs: serde_json::Value = gw.client.get(&runs_url)
-        .send().await.expect("list runs")
-        .json().await.expect("parse runs");
+    let runs_url = format!(
+        "{}/api/v1/soar/runs?playbook=e2e-incident-response",
+        gw.base_url()
+    );
+    let runs: serde_json::Value = gw
+        .client
+        .get(&runs_url)
+        .send()
+        .await
+        .expect("list runs")
+        .json()
+        .await
+        .expect("parse runs");
 
     let run_list = runs.as_array().expect("runs should be array");
-    assert!(!run_list.is_empty(), "at least one playbook run should be triggered");
+    assert!(
+        !run_list.is_empty(),
+        "at least one playbook run should be triggered"
+    );
 
     let latest_run = &run_list[0];
-    assert_eq!(latest_run["status"], "completed", "playbook run should complete");
+    assert_eq!(
+        latest_run["status"], "completed",
+        "playbook run should complete"
+    );
     assert_eq!(
         latest_run["steps_executed"].as_u64(),
         Some(3),

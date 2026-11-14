@@ -9,25 +9,20 @@ use std::sync::LazyLock;
 
 // === Patterns built-in (compilados uma vez) ===
 
-static EMAIL_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}").unwrap()
-});
+static EMAIL_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}").unwrap());
 
-static PHONE_BR_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?:\+55\s?)?(?:\(?\d{2}\)?\s?)?\d{4,5}[-\s]?\d{4}").unwrap()
-});
+static PHONE_BR_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?:\+55\s?)?(?:\(?\d{2}\)?\s?)?\d{4,5}[-\s]?\d{4}").unwrap());
 
-static CPF_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\d{3}\.\d{3}\.\d{3}-\d{2}").unwrap()
-});
+static CPF_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\d{3}\.\d{3}\.\d{3}-\d{2}").unwrap());
 
-static CNPJ_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}").unwrap()
-});
+static CNPJ_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}").unwrap());
 
-static CREDIT_CARD_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\b(?:\d[ -]*?){13,16}\b").unwrap()
-});
+static CREDIT_CARD_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\b(?:\d[ -]*?){13,16}\b").unwrap());
 
 static SECRET_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
     vec![
@@ -41,9 +36,17 @@ static SECRET_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
 
 static HEALTH_KEYWORDS: LazyLock<Vec<&str>> = LazyLock::new(|| {
     vec![
-        "diagnóstico", "prescrição", "medicamento",
-        "doença", "tratamento", "hospital", "cirurgia",
-        "exame de sangue", "pressão arterial", "glicose", "colesterol",
+        "diagnóstico",
+        "prescrição",
+        "medicamento",
+        "doença",
+        "tratamento",
+        "hospital",
+        "cirurgia",
+        "exame de sangue",
+        "pressão arterial",
+        "glicose",
+        "colesterol",
     ]
 });
 
@@ -57,10 +60,7 @@ impl EgressChecker {
     pub fn new() -> Self {
         Self {
             custom_rules: vec![],
-            blocked_categories: vec![
-                SensitiveCategory::Secret,
-                SensitiveCategory::CreditCard,
-            ],
+            blocked_categories: vec![SensitiveCategory::Secret, SensitiveCategory::CreditCard],
         }
     }
 
@@ -203,9 +203,7 @@ impl EgressChecker {
 
         // Ordenar por posição e deduplicar overlaps
         findings.sort_by_key(|f| f.start);
-        findings.dedup_by(|a, b| {
-            a.start == b.start && a.end == b.end && a.category == b.category
-        });
+        findings.dedup_by(|a, b| a.start == b.start && a.end == b.end && a.category == b.category);
 
         // Gerar texto redigido
         let redacted_text = if !findings.is_empty() {
@@ -295,7 +293,11 @@ fn luhn_check(number: &str) -> bool {
         .map(|(i, &d)| {
             if i % 2 == 1 {
                 let doubled = d * 2;
-                if doubled > 9 { doubled - 9 } else { doubled }
+                if doubled > 9 {
+                    doubled - 9
+                } else {
+                    doubled
+                }
             } else {
                 d
             }
@@ -323,7 +325,11 @@ fn validate_cpf(cpf: &str) -> bool {
             .map(|(i, &d)| d * (pos + 1 - i) as u32)
             .sum();
         let remainder = sum % 11;
-        if remainder < 2 { 0 } else { 11 - remainder }
+        if remainder < 2 {
+            0
+        } else {
+            11 - remainder
+        }
     };
 
     digits[9] == calc_digit(9) && digits[10] == calc_digit(10)
@@ -341,12 +347,20 @@ fn validate_cnpj(cnpj: &str) -> bool {
     }
     // Validação completa dos dígitos verificadores do CNPJ
     let weights_1: [u32; 12] = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-    let sum1: u32 = digits[..12].iter().zip(weights_1.iter()).map(|(&d, &w)| d * w).sum();
+    let sum1: u32 = digits[..12]
+        .iter()
+        .zip(weights_1.iter())
+        .map(|(&d, &w)| d * w)
+        .sum();
     let rem1 = sum1 % 11;
     let d1 = if rem1 < 2 { 0 } else { 11 - rem1 };
 
     let weights_2: [u32; 13] = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-    let sum2: u32 = digits[..13].iter().zip(weights_2.iter()).map(|(&d, &w)| d * w).sum();
+    let sum2: u32 = digits[..13]
+        .iter()
+        .zip(weights_2.iter())
+        .map(|(&d, &w)| d * w)
+        .sum();
     let rem2 = sum2 % 11;
     let d2 = if rem2 < 2 { 0 } else { 11 - rem2 };
 
@@ -372,7 +386,9 @@ mod tests {
         let checker = EgressChecker::new();
         // CPF válido: 529.982.247-25
         let result = checker.check("Meu CPF é 529.982.247-25");
-        let cpf_findings: Vec<_> = result.findings.iter()
+        let cpf_findings: Vec<_> = result
+            .findings
+            .iter()
             .filter(|f| f.rule_name == "cpf_builtin")
             .collect();
         assert_eq!(cpf_findings.len(), 1);
@@ -384,7 +400,9 @@ mod tests {
         let checker = EgressChecker::new();
         // CPF inválido (dígitos verificadores errados): 123.456.789-00
         let result = checker.check("CPF: 123.456.789-00");
-        let cpf_findings: Vec<_> = result.findings.iter()
+        let cpf_findings: Vec<_> = result
+            .findings
+            .iter()
             .filter(|f| f.rule_name == "cpf_builtin")
             .collect();
         assert_eq!(cpf_findings.len(), 0);
@@ -394,7 +412,9 @@ mod tests {
     fn test_reject_all_same_digits_cpf() {
         let checker = EgressChecker::new();
         let result = checker.check("CPF: 111.111.111-11");
-        let cpf_findings: Vec<_> = result.findings.iter()
+        let cpf_findings: Vec<_> = result
+            .findings
+            .iter()
             .filter(|f| f.rule_name == "cpf_builtin")
             .collect();
         assert_eq!(cpf_findings.len(), 0);
@@ -405,7 +425,9 @@ mod tests {
         let checker = EgressChecker::new();
         // CNPJ válido: 11.222.333/0001-81
         let result = checker.check("CNPJ da empresa: 11.222.333/0001-81");
-        let cnpj_findings: Vec<_> = result.findings.iter()
+        let cnpj_findings: Vec<_> = result
+            .findings
+            .iter()
             .filter(|f| f.rule_name == "cnpj_builtin")
             .collect();
         assert_eq!(cnpj_findings.len(), 1);
@@ -417,7 +439,9 @@ mod tests {
         // Visa válido (Luhn passes): 4111 1111 1111 1111
         let result = checker.check("Cartão: 4111 1111 1111 1111");
         assert!(!result.passed); // Credit card é bloqueante por padrão
-        let cc_findings: Vec<_> = result.findings.iter()
+        let cc_findings: Vec<_> = result
+            .findings
+            .iter()
             .filter(|f| f.category == "credit_card")
             .collect();
         assert_eq!(cc_findings.len(), 1);
@@ -429,7 +453,9 @@ mod tests {
         let checker = EgressChecker::new();
         // Número longo que NÃO passa Luhn
         let result = checker.check("Número: 1234 5678 9012 3456");
-        let cc_findings: Vec<_> = result.findings.iter()
+        let cc_findings: Vec<_> = result
+            .findings
+            .iter()
             .filter(|f| f.category == "credit_card")
             .collect();
         assert_eq!(cc_findings.len(), 0);
@@ -440,7 +466,9 @@ mod tests {
         let checker = EgressChecker::new();
         let result = checker.check("Use api_key = 'sk-abc123def456ghi789jkl012mno345pqr'");
         assert!(!result.passed); // Secret é bloqueante por padrão
-        let secret_findings: Vec<_> = result.findings.iter()
+        let secret_findings: Vec<_> = result
+            .findings
+            .iter()
             .filter(|f| f.category == "secret")
             .collect();
         assert!(!secret_findings.is_empty());
@@ -450,7 +478,9 @@ mod tests {
     fn test_detect_github_pat() {
         let checker = EgressChecker::new();
         let result = checker.check("Token: ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij");
-        let secret_findings: Vec<_> = result.findings.iter()
+        let secret_findings: Vec<_> = result
+            .findings
+            .iter()
             .filter(|f| f.category == "secret")
             .collect();
         assert!(!secret_findings.is_empty());
@@ -460,7 +490,9 @@ mod tests {
     fn test_health_keywords_low_confidence() {
         let checker = EgressChecker::new();
         let result = checker.check("O paciente precisa de tratamento hospitalar");
-        let health_findings: Vec<_> = result.findings.iter()
+        let health_findings: Vec<_> = result
+            .findings
+            .iter()
             .filter(|f| f.category == "health_data")
             .collect();
         assert!(!health_findings.is_empty());
@@ -501,7 +533,9 @@ mod tests {
         };
         let checker = EgressChecker::new().with_custom_rules(vec![rule]);
         let result = checker.check("Referência: INT-123456");
-        let custom_findings: Vec<_> = result.findings.iter()
+        let custom_findings: Vec<_> = result
+            .findings
+            .iter()
             .filter(|f| f.rule_name == "internal_id")
             .collect();
         assert_eq!(custom_findings.len(), 1);
@@ -520,7 +554,9 @@ mod tests {
         };
         let checker = EgressChecker::new().with_custom_rules(vec![rule]);
         let result = checker.check("Referência: INT-123456");
-        let custom_findings: Vec<_> = result.findings.iter()
+        let custom_findings: Vec<_> = result
+            .findings
+            .iter()
             .filter(|f| f.rule_name == "internal_id")
             .collect();
         assert_eq!(custom_findings.len(), 0);
@@ -528,8 +564,7 @@ mod tests {
 
     #[test]
     fn test_blocked_categories_configurable() {
-        let checker = EgressChecker::new()
-            .with_blocked_categories(vec![SensitiveCategory::Email]);
+        let checker = EgressChecker::new().with_blocked_categories(vec![SensitiveCategory::Email]);
         let result = checker.check("Envie para teste@exemplo.com");
         assert!(!result.passed); // Email agora é bloqueante
         assert!(result.blocked_categories.contains(&"email".to_string()));

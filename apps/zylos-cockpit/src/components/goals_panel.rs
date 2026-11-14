@@ -136,7 +136,11 @@ async fn fetch_goals_stats() -> Result<GoalsStats, String> {
         return Err(format!("HTTP {}", response.status()));
     }
 
-    let text_js = response.text().map_err(|e| format!("{:?}", e))?.await.map_err(|e| format!("{:?}", e))?;
+    let text_js = response
+        .text()
+        .map_err(|e| format!("{:?}", e))?
+        .await
+        .map_err(|e| format!("{:?}", e))?;
     let text: String = text_js.as_string().ok_or("response text is not a string")?;
 
     let v: serde_json::Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
@@ -144,7 +148,13 @@ async fn fetch_goals_stats() -> Result<GoalsStats, String> {
     Ok(GoalsStats {
         total_goals: v.get("total_goals").and_then(|v| v.as_u64()).unwrap_or(0),
         active_goals: v.get("active_goals").and_then(|v| v.as_u64()).unwrap_or(0),
-        completed_goals: v.get("completed_goals").and_then(|v| v.as_u64()).unwrap_or(0),
-        avg_kr_progress_pct: v.get("avg_kr_progress_pct").and_then(|v| v.as_f64()).unwrap_or(0.0),
+        completed_goals: v
+            .get("completed_goals")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0),
+        avg_kr_progress_pct: v
+            .get("avg_kr_progress_pct")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0),
     })
 }

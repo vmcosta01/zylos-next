@@ -150,12 +150,7 @@ impl GuardrailRule {
     }
 
     /// Verifica se esta regra match uma dada combinação de role + rotina + recurso.
-    pub fn matches(
-        &self,
-        role: &EmployeeRole,
-        routine_name: &str,
-        resource: Option<&str>,
-    ) -> bool {
+    pub fn matches(&self, role: &EmployeeRole, routine_name: &str, resource: Option<&str>) -> bool {
         if !self.enabled {
             return false;
         }
@@ -249,73 +244,70 @@ impl GuardrailEnforcer {
     }
 
     /// Cria um enforcer com regras default de segurança.
-     pub fn with_defaults() -> Self {
-     let enforcer = Self::new();
-     let default_rules = vec![
-     // Bloquear operações financeiras sem aprovação
-     GuardrailRule::require_approval(
-     "financial-approval",
-     "financial-*",
-     "Financial operations require explicit human approval",
-     )
-     .with_priority(100)
-     .with_description("All financial transactions need approval"),
+    pub fn with_defaults() -> Self {
+        let enforcer = Self::new();
+        let default_rules = vec![
+            // Bloquear operações financeiras sem aprovação
+            GuardrailRule::require_approval(
+                "financial-approval",
+                "financial-*",
+                "Financial operations require explicit human approval",
+            )
+            .with_priority(100)
+            .with_description("All financial transactions need approval"),
+            // Bloquear deploy em produção sem aprovação
+            GuardrailRule::require_approval(
+                "prod-deploy-approval",
+                "deploy-production",
+                "Production deployment requires human sign-off",
+            )
+            .with_priority(90)
+            .with_description("No auto-deploy to production"),
+            // Bloquear exclusão de dados
+            GuardrailRule::require_approval(
+                "data-deletion-approval",
+                "delete-*",
+                "Data deletion requires confirmation",
+            )
+            .with_priority(80)
+            .with_description("Prevent accidental data loss"),
+            // SupportAgent não pode acessar filesystem sensível
+            GuardrailRule::block(
+                "support-no-sensitive-fs",
+                "*",
+                "Support agents cannot access sensitive filesystem paths",
+            )
+            .for_roles(vec![EmployeeRole::SupportAgent])
+            .for_resource("filesystem:/etc/*")
+            .with_priority(70),
+            // ContentCreator não pode executar shell commands
+            GuardrailRule::block(
+                "writer-no-shell",
+                "*",
+                "Content creators cannot execute shell commands directly",
+            )
+            .for_roles(vec![EmployeeRole::ContentCreator])
+            .for_resource("exec:shell:*")
+            .with_priority(70),
+            // Rate limit enforcement (sempre ativo)
+            GuardrailRule::allow("default-allow", "*")
+                .with_priority(-1000)
+                .with_description("Default allow when no other rule matches"),
+        ];
 
-     // Bloquear deploy em produção sem aprovação
-     GuardrailRule::require_approval(
-     "prod-deploy-approval",
-     "deploy-production",
-     "Production deployment requires human sign-off",
-     )
-     .with_priority(90)
-     .with_description("No auto-deploy to production"),
-
-     // Bloquear exclusão de dados
-     GuardrailRule::require_approval(
-     "data-deletion-approval",
-     "delete-*",
-     "Data deletion requires confirmation",
-     )
-     .with_priority(80)
-     .with_description("Prevent accidental data loss"),
-
-     // SupportAgent não pode acessar filesystem sensível
-     GuardrailRule::block(
-     "support-no-sensitive-fs",
-     "*",
-     "Support agents cannot access sensitive filesystem paths",
-     )
-     .for_roles(vec![EmployeeRole::SupportAgent])
-     .for_resource("filesystem:/etc/*")
-     .with_priority(70),
-
-     // ContentCreator não pode executar shell commands
-     GuardrailRule::block(
-     "writer-no-shell",
-     "*",
-     "Content creators cannot execute shell commands directly",
-     )
-     .for_roles(vec![EmployeeRole::ContentCreator])
-     .for_resource("exec:shell:*")
-     .with_priority(70),
-
-     // Rate limit enforcement (sempre ativo)
-     GuardrailRule::allow("default-allow", "*")
-     .with_priority(-1000)
-     .with_description("Default allow when no other rule matches"),
-     ];
-
-     // Registrar regras default via versão síncrona (seguro fora de runtime async)
-     for rule in default_rules {
-     let _ = enforcer.add_rule_sync(rule);
-     }
-     enforcer
-     }
+        // Registrar regras default via versão síncrona (seguro fora de runtime async)
+        for rule in default_rules {
+            let _ = enforcer.add_rule_sync(rule);
+        }
+        enforcer
+    }
 
     /// Adiciona uma regra ao enforcer (async-safe).
     pub async fn add_rule(&self, rule: GuardrailRule) -> Result<(), GuardrailError> {
         if rule.name.is_empty() {
-            return Err(GuardrailError::InvalidRule("Rule name cannot be empty".into()));
+            return Err(GuardrailError::InvalidRule(
+                "Rule name cannot be empty".into(),
+            ));
         }
 
         let mut rules = self.rules.write().await;
@@ -335,7 +327,9 @@ impl GuardrailEnforcer {
     /// Versão síncrona de add_rule para uso fora de runtime Tokio.
     pub fn add_rule_sync(&self, rule: GuardrailRule) -> Result<(), GuardrailError> {
         if rule.name.is_empty() {
-            return Err(GuardrailError::InvalidRule("Rule name cannot be empty".into()));
+            return Err(GuardrailError::InvalidRule(
+                "Rule name cannot be empty".into(),
+            ));
         }
 
         let mut rules = self.rules.blocking_write();
@@ -441,14 +435,14 @@ impl GuardrailEnforcer {
     }
 
     /// Retorna o número de regras registradas (async).
-     pub async fn rule_count(&self) -> usize {
-     self.rules.read().await.len()
-     }
+    pub async fn rule_count(&self) -> usize {
+        self.rules.read().await.len()
+    }
 
-     /// Retorna o número de regras registradas (sync, para uso fora de runtime Tokio).
-     pub fn rule_count_sync(&self) -> usize {
-     self.rules.blocking_read().len()
-     }
+    /// Retorna o número de regras registradas (sync, para uso fora de runtime Tokio).
+    pub fn rule_count_sync(&self) -> usize {
+        self.rules.blocking_read().len()
+    }
 
     /// Retorna estatísticas do enforcer.
     pub async fn stats(&self) -> EnforcerStats {
@@ -555,8 +549,8 @@ mod tests {
 
     #[test]
     fn test_guardrail_rule_matches_role_filter() {
-        let rule = GuardrailRule::block("test", "*", "blocked")
-            .for_roles(vec![EmployeeRole::Developer]);
+        let rule =
+            GuardrailRule::block("test", "*", "blocked").for_roles(vec![EmployeeRole::Developer]);
 
         assert!(rule.matches(&EmployeeRole::Developer, "any-routine", None));
         assert!(!rule.matches(&EmployeeRole::Designer, "any-routine", None));
@@ -579,8 +573,7 @@ mod tests {
 
     #[test]
     fn test_guardrail_rule_matches_resource_pattern() {
-        let rule = GuardrailRule::block("test", "*", "blocked")
-            .for_resource("filesystem:/etc/*");
+        let rule = GuardrailRule::block("test", "*", "blocked").for_resource("filesystem:/etc/*");
 
         assert!(rule.matches(
             &EmployeeRole::DevOps,
@@ -603,16 +596,16 @@ mod tests {
     }
 
     #[tokio::test]
-     async fn test_evaluate_blocks_matching_rule() {
-     let enforcer = GuardrailEnforcer::new();
-     enforcer
-     .add_rule(GuardrailRule::block(
-     "no-delete",
-     "delete-*",
-     "Deletion not allowed",
-     ))
-     .await
-     .unwrap();
+    async fn test_evaluate_blocks_matching_rule() {
+        let enforcer = GuardrailEnforcer::new();
+        enforcer
+            .add_rule(GuardrailRule::block(
+                "no-delete",
+                "delete-*",
+                "Deletion not allowed",
+            ))
+            .await
+            .unwrap();
 
         let decision = enforcer
             .evaluate("emp-1", &EmployeeRole::Developer, "delete-data", None)
@@ -701,14 +694,18 @@ mod tests {
             .await
             .unwrap();
 
-        let result = enforcer.add_rule(GuardrailRule::block("dup", "*", "second")).await;
+        let result = enforcer
+            .add_rule(GuardrailRule::block("dup", "*", "second"))
+            .await;
         assert!(matches!(result, Err(GuardrailError::DuplicateRule(_))));
     }
 
     #[tokio::test]
     async fn test_invalid_rule_empty_name() {
         let enforcer = GuardrailEnforcer::new();
-        let result = enforcer.add_rule(GuardrailRule::block("", "*", "reason")).await;
+        let result = enforcer
+            .add_rule(GuardrailRule::block("", "*", "reason"))
+            .await;
         assert!(matches!(result, Err(GuardrailError::InvalidRule(_))));
     }
 
@@ -797,35 +794,35 @@ mod tests {
     }
 
     // with_defaults usa add_rule_sync internamente — testar fora de runtime Tokio.
-     #[test]
-     fn test_with_defaults_outside_runtime() {
-     let enforcer = GuardrailEnforcer::with_defaults();
-     assert!(enforcer.rule_count_sync() > 0);
+    #[test]
+    fn test_with_defaults_outside_runtime() {
+        let enforcer = GuardrailEnforcer::with_defaults();
+        assert!(enforcer.rule_count_sync() > 0);
 
-     // Financial operations should require approval
-     let d = enforcer.evaluate_sync("e1", &EmployeeRole::Developer, "financial-transfer", None);
-     assert!(matches!(d.action, GuardrailAction::RequireApproval { .. }));
+        // Financial operations should require approval
+        let d = enforcer.evaluate_sync("e1", &EmployeeRole::Developer, "financial-transfer", None);
+        assert!(matches!(d.action, GuardrailAction::RequireApproval { .. }));
 
-     // Production deploy should require approval
-     let d = enforcer.evaluate_sync("e1", &EmployeeRole::DevOps, "deploy-production", None);
-     assert!(matches!(d.action, GuardrailAction::RequireApproval { .. }));
+        // Production deploy should require approval
+        let d = enforcer.evaluate_sync("e1", &EmployeeRole::DevOps, "deploy-production", None);
+        assert!(matches!(d.action, GuardrailAction::RequireApproval { .. }));
 
-     // Normal operation should be allowed
-     let d = enforcer.evaluate_sync("e1", &EmployeeRole::Developer, "run-tests", None);
-     assert_eq!(d.action, GuardrailAction::Allow);
-     }
+        // Normal operation should be allowed
+        let d = enforcer.evaluate_sync("e1", &EmployeeRole::Developer, "run-tests", None);
+        assert_eq!(d.action, GuardrailAction::Allow);
+    }
 
     #[tokio::test]
-     async fn test_role_specific_guardrail() {
-     let enforcer = GuardrailEnforcer::new();
-     enforcer
-     .add_rule(
-     GuardrailRule::block("designer-no-shell", "*", "Designers cannot use shell")
-     .for_roles(vec![EmployeeRole::Designer])
-     .for_resource("exec:shell:*"),
-     )
-     .await
-     .unwrap();
+    async fn test_role_specific_guardrail() {
+        let enforcer = GuardrailEnforcer::new();
+        enforcer
+            .add_rule(
+                GuardrailRule::block("designer-no-shell", "*", "Designers cannot use shell")
+                    .for_roles(vec![EmployeeRole::Designer])
+                    .for_resource("exec:shell:*"),
+            )
+            .await
+            .unwrap();
 
         // Designer blocked from shell
         let d = enforcer
@@ -851,18 +848,17 @@ mod tests {
     }
 
     // evaluate_sync usa blocking_read internamente — não pode rodar dentro de #[tokio::test].
-     // Testado via thread dedicada fora do runtime Tokio.
-     #[test]
-     fn test_evaluate_sync_outside_runtime() {
-     let enforcer = GuardrailEnforcer::new();
-     enforcer
-     .add_rule_sync(GuardrailRule::block("sync-test", "sync-*", "blocked"))
-     .unwrap();
+    // Testado via thread dedicada fora do runtime Tokio.
+    #[test]
+    fn test_evaluate_sync_outside_runtime() {
+        let enforcer = GuardrailEnforcer::new();
+        enforcer
+            .add_rule_sync(GuardrailRule::block("sync-test", "sync-*", "blocked"))
+            .unwrap();
 
-     let decision =
-     enforcer.evaluate_sync("e1", &EmployeeRole::Developer, "sync-routine", None);
-     assert!(matches!(decision.action, GuardrailAction::Block { .. }));
-     }
+        let decision = enforcer.evaluate_sync("e1", &EmployeeRole::Developer, "sync-routine", None);
+        assert!(matches!(decision.action, GuardrailAction::Block { .. }));
+    }
 
     #[test]
     fn test_guardrail_action_display() {

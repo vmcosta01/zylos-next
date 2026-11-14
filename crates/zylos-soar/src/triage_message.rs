@@ -416,9 +416,7 @@ fn matches_pattern(pattern: &RulePattern, input: &str) -> bool {
             input.to_lowercase().contains(&substring.to_lowercase())
         }
         RulePattern::Regex(re_str) => input.contains(re_str.as_str()),
-        RulePattern::SenderDomain(domain) => {
-            input.to_lowercase().contains(&domain.to_lowercase())
-        }
+        RulePattern::SenderDomain(domain) => input.to_lowercase().contains(&domain.to_lowercase()),
         RulePattern::HeaderMatch { key, value } => {
             let lower_input = input.to_lowercase();
             let lower_key = key.to_lowercase();
@@ -455,7 +453,10 @@ mod tests {
     use super::*;
 
     fn test_engine() -> MessageTriageEngine {
-        MessageTriageEngine::new(TriageConfig::default(), MessageTriageEngine::default_rules())
+        MessageTriageEngine::new(
+            TriageConfig::default(),
+            MessageTriageEngine::default_rules(),
+        )
     }
 
     #[test]

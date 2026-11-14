@@ -3,9 +3,9 @@
 //! Provides agent state queries, stream management, and system health
 //! endpoints consumed by the Cockpit dashboard.
 
-use axum::{Json, Router, routing::get};
-use serde::Serialize;
 use crate::event_bus::EventBus;
+use axum::{routing::get, Json, Router};
+use serde::Serialize;
 
 /// System health response for cockpit dashboard
 #[derive(Serialize, serde::Deserialize)]
@@ -57,7 +57,9 @@ mod tests {
         let response = app.oneshot(request).await.unwrap();
         assert_eq!(response.status(), 200);
 
-        let body = axum::body::to_bytes(response.into_body(), 1024).await.unwrap();
+        let body = axum::body::to_bytes(response.into_body(), 1024)
+            .await
+            .unwrap();
         let health: HealthResponse = serde_json::from_slice(&body).unwrap();
         assert_eq!(health.status, "healthy");
     }

@@ -26,11 +26,7 @@ pub async fn ws_handler(
     ws.on_upgrade(move |socket| handle_socket(socket, bus, params))
 }
 
-async fn handle_socket(
-    socket: axum::extract::ws::WebSocket,
-    bus: EventBus,
-    params: FilterParams,
-) {
+async fn handle_socket(socket: axum::extract::ws::WebSocket, bus: EventBus, params: FilterParams) {
     let (mut sender, mut receiver) = socket.split();
 
     // Parse filter types
@@ -42,7 +38,16 @@ async fn handle_socket(
 
     // Spawn event forwarding task
     let forward_task = tokio::spawn(async move {
-        let mut stream: std::pin::Pin<Box<dyn Stream<Item = Result<crate::event_types::EventEnvelope, tokio_stream::wrappers::errors::BroadcastStreamRecvError>> + Send>> = if allowed_types.is_empty() {
+        let mut stream: std::pin::Pin<
+            Box<
+                dyn Stream<
+                        Item = Result<
+                            crate::event_types::EventEnvelope,
+                            tokio_stream::wrappers::errors::BroadcastStreamRecvError,
+                        >,
+                    > + Send,
+            >,
+        > = if allowed_types.is_empty() {
             Box::pin(bus.subscribe_legacy())
         } else {
             let types = allowed_types.clone();
@@ -109,15 +114,16 @@ mod tests {
             .route("/ws", axum::routing::get(ws_handler))
             .with_state((bus, approval_store));
 
-        let request = Request::builder()
-            .uri("/ws")
-            .body(Body::empty())
-            .unwrap();
+        let request = Request::builder().uri("/ws").body(Body::empty()).unwrap();
 
         let response = app.oneshot(request).await.unwrap();
         // 426 = Upgrade Required (route exists but missing WS headers)
         // 400 = Bad Request (also indicates route matched)
         // Anything other than 404 proves the route is registered
-        assert_ne!(response.status(), 404, "WebSocket route /ws should be registered");
+        assert_ne!(
+            response.status(),
+            404,
+            "WebSocket route /ws should be registered"
+        );
     }
 }

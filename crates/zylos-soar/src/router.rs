@@ -150,12 +150,12 @@ fn parse_literal(raw: &str) -> Value {
 }
 
 fn get_nested_value<'a>(value: &'a Value, path: &str) -> Option<&'a Value> {
- let mut current = value;
- for key in path.split('.') {
- current = current.get(key)?;
- }
- Some(current)
- }
+    let mut current = value;
+    for key in path.split('.') {
+        current = current.get(key)?;
+    }
+    Some(current)
+}
 
 impl Default for EventRouter {
     fn default() -> Self {

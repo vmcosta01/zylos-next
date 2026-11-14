@@ -19,16 +19,16 @@ pub enum SoarError {
     PlaybookParse(String),
 
     #[error("runbook execution failed: {0}")]
-        // Variante RunbookExecution.
-        RunbookExecution(String),
+    // Variante RunbookExecution.
+    RunbookExecution(String),
 
-        #[error("configuration error: {0}")]
-        // Variante Config.
-        Config(String),
+    #[error("configuration error: {0}")]
+    // Variante Config.
+    Config(String),
 
-        #[error("execution error: {0}")]
-        // Variante Execution.
-        Execution(String),
+    #[error("execution error: {0}")]
+    // Variante Execution.
+    Execution(String),
 
     #[error("audit trail error: {0}")]
     // Variante Audit.

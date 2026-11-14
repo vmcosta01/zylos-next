@@ -102,9 +102,7 @@ impl Guardrail {
 
         // Check 1: Empty or near-empty output claimed as success
         let trimmed = output.trim();
-        if trimmed.len() < self.config.min_content_length
-            && is_success_claim(claimed_status)
-        {
+        if trimmed.len() < self.config.min_content_length && is_success_claim(claimed_status) {
             let us = start.elapsed().as_micros() as u64;
             return GuardrailResult::fail(
                 "empty_output",
@@ -145,7 +143,10 @@ impl Guardrail {
         }
 
         // Check 4: Truncated JSON
-        if self.config.check_json_completeness && looks_like_json(trimmed) && !is_complete_json(trimmed) {
+        if self.config.check_json_completeness
+            && looks_like_json(trimmed)
+            && !is_complete_json(trimmed)
+        {
             let us = start.elapsed().as_micros() as u64;
             return GuardrailResult::fail(
                 "truncated_json",
@@ -216,23 +217,43 @@ fn is_success_claim(status: &str) -> bool {
 }
 
 const PLACEHOLDERS: &[&str] = &[
-    "todo", "fixme", "hack", "xxx", "implement me", "placeholder",
-    "insert here", "replace with", "coming soon", "not implemented",
-    "stub", "noop", "tbd",
+    "todo",
+    "fixme",
+    "hack",
+    "xxx",
+    "implement me",
+    "placeholder",
+    "insert here",
+    "replace with",
+    "coming soon",
+    "not implemented",
+    "stub",
+    "noop",
+    "tbd",
 ];
 
 fn count_placeholders(text: &str) -> usize {
     let lower = text.to_lowercase();
-    PLACEHOLDERS.iter()
-        .filter(|p| lower.contains(*p))
-        .count()
+    PLACEHOLDERS.iter().filter(|p| lower.contains(*p)).count()
 }
 
 const ERROR_SIGNALS: &[&str] = &[
-    "error:", "panic:", "fatal:", "traceback", "exception",
-    "failed to", "cannot", "could not", "unable to",
-    "segfault", "sigsegv", "sigabrt", "stack overflow",
-    "permission denied", "access denied", "connection refused",
+    "error:",
+    "panic:",
+    "fatal:",
+    "traceback",
+    "exception",
+    "failed to",
+    "cannot",
+    "could not",
+    "unable to",
+    "segfault",
+    "sigsegv",
+    "sigabrt",
+    "stack overflow",
+    "permission denied",
+    "access denied",
+    "connection refused",
 ];
 
 fn contains_error_signal(text: &str) -> bool {
@@ -289,7 +310,10 @@ mod tests {
     #[test]
     fn test_pass_valid_output() {
         let g = Guardrail::new();
-        let result = g.check("File written successfully with 42 lines of code.", "success");
+        let result = g.check(
+            "File written successfully with 42 lines of code.",
+            "success",
+        );
         assert!(result.passed);
         assert!(result.duration_us < 1000); // well under 1ms
     }
@@ -369,7 +393,11 @@ mod tests {
         // Run multiple checks to get a sense of timing
         for _ in 0..100 {
             let result = g.check("Normal agent output with sufficient content.", "success");
-            assert!(result.duration_us < 1000, "Check took {}µs, expected <1000µs", result.duration_us);
+            assert!(
+                result.duration_us < 1000,
+                "Check took {}µs, expected <1000µs",
+                result.duration_us
+            );
         }
     }
 

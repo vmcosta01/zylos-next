@@ -7,10 +7,10 @@
 //!
 //! Executar com: `wasm-pack test --headless --chrome`
 
-use wasm_bindgen_test::*;
 use leptos::prelude::*;
-use web_sys::{window, HtmlElement};
+use wasm_bindgen_test::*;
 use web_sys::wasm_bindgen::JsCast;
+use web_sys::{window, HtmlElement};
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -37,45 +37,42 @@ fn cleanup_test_container() {
 /// Valida que ChannelPanel renderiza conteúdo no DOM.
 #[wasm_bindgen_test]
 fn test_channel_panel_renders_content() {
- let container = create_test_container();
+    let container = create_test_container();
 
- let owner = Owner::new();
- owner.set();
+    let owner = Owner::new();
+    owner.set();
 
- // mount_to não deve panicar — valida que o componente é construtível em WASM
- let _handle = leptos::mount::mount_to(
- container.clone().into(),
- || view! { <zylos_cockpit::components::channel_panel::ChannelPanel /> },
- );
+    // mount_to não deve panicar — valida que o componente é construtível em WASM
+    let _handle = leptos::mount::mount_to(
+        container.clone().into(),
+        || view! { <zylos_cockpit::components::channel_panel::ChannelPanel /> },
+    );
 
- // Componente montado com sucesso sem panic
- assert!(true, "ChannelPanel mounted successfully");
+    // Componente montado com sucesso sem panic
+    assert!(true, "ChannelPanel mounted successfully");
 
- cleanup_test_container();
+    cleanup_test_container();
 }
 
 /// Valida que ChannelPanel exibe estado vazio ou lista de canais.
 #[wasm_bindgen_test]
 fn test_channel_panel_empty_or_list_state() {
- let container = create_test_container();
+    let container = create_test_container();
 
- let owner = Owner::new();
- owner.set();
+    let owner = Owner::new();
+    owner.set();
 
- // mount_to não deve panicar — isso já valida que o componente é construtível
- let _handle = leptos::mount::mount_to(
- container.clone().into(),
- || view! { <zylos_cockpit::components::channel_panel::ChannelPanel /> },
- );
+    // mount_to não deve panicar — isso já valida que o componente é construtível
+    let _handle = leptos::mount::mount_to(
+        container.clone().into(),
+        || view! { <zylos_cockpit::components::channel_panel::ChannelPanel /> },
+    );
 
- // Em ambiente de teste sem gateway, o componente pode renderizar vazio.
- // Validamos apenas que o container foi criado e o mount succeeded.
- assert!(
- true,
- "ChannelPanel mounted successfully without panic"
- );
+    // Em ambiente de teste sem gateway, o componente pode renderizar vazio.
+    // Validamos apenas que o container foi criado e o mount succeeded.
+    assert!(true, "ChannelPanel mounted successfully without panic");
 
- cleanup_test_container();
+    cleanup_test_container();
 }
 
 /// Valida que ChannelPanel é construtível em ambiente WASM headless.

@@ -122,7 +122,11 @@ fn evaluate_structural(result: &VerifyResult) -> (bool, f64, String) {
         .collect();
 
     if structural_issues.is_empty() {
-        (true, result.confidence, "structural integrity verified".into())
+        (
+            true,
+            result.confidence,
+            "structural integrity verified".into(),
+        )
     } else {
         (
             false,
@@ -140,11 +144,7 @@ fn evaluate_sufficiency(result: &VerifyResult) -> (bool, f64, String) {
         .collect();
 
     if sufficiency_issues.is_empty() {
-        (
-            true,
-            result.confidence,
-            "evidence sufficiency met".into(),
-        )
+        (true, result.confidence, "evidence sufficiency met".into())
     } else {
         (
             false,
@@ -156,19 +156,12 @@ fn evaluate_sufficiency(result: &VerifyResult) -> (bool, f64, String) {
 
 fn evaluate_consistency(result: &VerifyResult) -> (bool, f64, String) {
     if result.contradictions.is_empty() {
-        (
-            true,
-            result.confidence,
-            "no contradictions detected".into(),
-        )
+        (true, result.confidence, "no contradictions detected".into())
     } else {
         (
             false,
             result.confidence * 0.2,
-            format!(
-                "contradictions found: {}",
-                result.contradictions.join("; ")
-            ),
+            format!("contradictions found: {}", result.contradictions.join("; ")),
         )
     }
 }
@@ -176,9 +169,7 @@ fn evaluate_consistency(result: &VerifyResult) -> (bool, f64, String) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::evidence_capsule::{
-        Completeness, EvidenceCapsule, EvidenceType, TrustLevel,
-    };
+    use crate::evidence_capsule::{Completeness, EvidenceCapsule, EvidenceType, TrustLevel};
     use crate::Ground;
 
     fn good_capsules() -> Vec<EvidenceCapsule> {
@@ -252,7 +243,11 @@ mod tests {
 
         let result = santa_verify(&capsules, &SantaConfig::default());
         // Juiz estrutural deve reprovar
-        let structural_vote = result.votes.iter().find(|v| v.rationale.contains("structural")).unwrap();
+        let structural_vote = result
+            .votes
+            .iter()
+            .find(|v| v.rationale.contains("structural"))
+            .unwrap();
         assert!(!structural_vote.approved);
     }
 

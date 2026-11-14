@@ -12,9 +12,9 @@
 //!
 //! Source: OpenDuet `approvals/service.ts`, `escalation.ts`
 
+use blake3;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use blake3;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
@@ -44,9 +44,7 @@ pub fn stable(value: &serde_json::Value) -> serde_json::Value {
             }
             serde_json::Value::Object(cleaned)
         }
-        serde_json::Value::Array(arr) => {
-            serde_json::Value::Array(arr.iter().map(stable).collect())
-        }
+        serde_json::Value::Array(arr) => serde_json::Value::Array(arr.iter().map(stable).collect()),
         other => other.clone(),
     }
 }
@@ -150,7 +148,10 @@ impl RefusalReason {
     pub fn message(&self) -> String {
         match self {
             RefusalReason::DeclinedByPerson(who) => {
-                format!("DECLINED_BY_PERSON: {} explicitly declined this action.", who)
+                format!(
+                    "DECLINED_BY_PERSON: {} explicitly declined this action.",
+                    who
+                )
             }
             RefusalReason::AlreadyWaiting => {
                 "ALREADY_WAITING: An identical approval request is already pending. \
@@ -304,7 +305,9 @@ pub async fn with_continuation<F, R>(ctx: ContinuationContext, f: F) -> R
 where
     F: std::future::Future<Output = R>,
 {
-    CONTINUATION_CTX.scope(std::cell::RefCell::new(Some(ctx)), f).await
+    CONTINUATION_CTX
+        .scope(std::cell::RefCell::new(Some(ctx)), f)
+        .await
 }
 
 // ---------------------------------------------------------------------------
@@ -381,8 +384,7 @@ impl EscalationTool {
         EscalationResult {
             success: true,
             escalation_id: id,
-            message: "Escalation submitted successfully. A human reviewer will be notified."
-                .into(),
+            message: "Escalation submitted successfully. A human reviewer will be notified.".into(),
         }
     }
 
@@ -432,7 +434,8 @@ impl EquivalenceApprovalService {
         args: &serde_json::Value,
         ttl_seconds: u64,
     ) -> SubmitResult {
-        let hash = compute_equivalence_hash(actor_id, bot_id, tool_ref, effect, scope, target, args);
+        let hash =
+            compute_equivalence_hash(actor_id, bot_id, tool_ref, effect, scope, target, args);
 
         let mut records = self.records.lock().unwrap();
 
@@ -505,7 +508,9 @@ impl EquivalenceApprovalService {
         if record.is_resolved() {
             // If resolved by safety, give a specific error mentioning safety.
             if record.final_tier == DecisionTier::Safety {
-                return Err("cannot override a safety-tier decision; safety rules are absolute".into());
+                return Err(
+                    "cannot override a safety-tier decision; safety rules are absolute".into(),
+                );
             }
             return Err(format!("approval '{}' is already resolved", hash));
         }
@@ -522,10 +527,16 @@ impl EquivalenceApprovalService {
             if !decision.approved {
                 let reason = match decision.tier {
                     DecisionTier::TeamRule => RefusalReason::TeamPolicyBlock(
-                        decision.rule_id.clone().unwrap_or_else(|| "team-policy".into()),
+                        decision
+                            .rule_id
+                            .clone()
+                            .unwrap_or_else(|| "team-policy".into()),
                     ),
                     _ => RefusalReason::DeclinedByPerson(
-                        decision.rule_id.clone().unwrap_or_else(|| "reviewer".into()),
+                        decision
+                            .rule_id
+                            .clone()
+                            .unwrap_or_else(|| "reviewer".into()),
                     ),
                 };
                 record.state = ApprovalState::Declined(reason);
@@ -553,10 +564,14 @@ impl EquivalenceApprovalService {
 
     /// Get the refusal message for a declined approval.
     pub fn get_refusal_message(&self, hash: &str) -> Option<String> {
-        self.records.lock().unwrap().get(hash).and_then(|r| match &r.state {
-            ApprovalState::Declined(reason) => Some(reason.message()),
-            _ => None,
-        })
+        self.records
+            .lock()
+            .unwrap()
+            .get(hash)
+            .and_then(|r| match &r.state {
+                ApprovalState::Declined(reason) => Some(reason.message()),
+                _ => None,
+            })
     }
 
     /// Access the escalation tool (always available).
@@ -664,8 +679,12 @@ mod tests {
         let target = json!({"server": "prod-1"});
         let args = json!({"command": "restart", "snapshot_id": "snap-1"});
 
-        let h1 = compute_equivalence_hash("alice", "bot-1", "ssh.exec", "write", "prod", &target, &args);
-        let h2 = compute_equivalence_hash("alice", "bot-1", "ssh.exec", "write", "prod", &target, &args);
+        let h1 = compute_equivalence_hash(
+            "alice", "bot-1", "ssh.exec", "write", "prod", &target, &args,
+        );
+        let h2 = compute_equivalence_hash(
+            "alice", "bot-1", "ssh.exec", "write", "prod", &target, &args,
+        );
 
         assert_eq!(h1, h2);
         assert_eq!(h1.len(), 64); // SHA-256 hex
@@ -677,8 +696,12 @@ mod tests {
         let args1 = json!({"command": "restart", "snapshot_id": "snap-1", "tool_call_id": "tc-a"});
         let args2 = json!({"command": "restart", "snapshot_id": "snap-2", "tool_call_id": "tc-b"});
 
-        let h1 = compute_equivalence_hash("alice", "bot-1", "ssh.exec", "write", "prod", &target, &args1);
-        let h2 = compute_equivalence_hash("alice", "bot-1", "ssh.exec", "write", "prod", &target, &args2);
+        let h1 = compute_equivalence_hash(
+            "alice", "bot-1", "ssh.exec", "write", "prod", &target, &args1,
+        );
+        let h2 = compute_equivalence_hash(
+            "alice", "bot-1", "ssh.exec", "write", "prod", &target, &args2,
+        );
 
         assert_eq!(h1, h2, "volatile fields should not affect hash");
     }
@@ -688,8 +711,12 @@ mod tests {
         let target = json!({"server": "prod-1"});
         let args = json!({"command": "restart"});
 
-        let h1 = compute_equivalence_hash("alice", "bot-1", "ssh.exec", "write", "prod", &target, &args);
-        let h2 = compute_equivalence_hash("alice", "bot-1", "ssh.exec", "write", "staging", &target, &args);
+        let h1 = compute_equivalence_hash(
+            "alice", "bot-1", "ssh.exec", "write", "prod", &target, &args,
+        );
+        let h2 = compute_equivalence_hash(
+            "alice", "bot-1", "ssh.exec", "write", "staging", &target, &args,
+        );
 
         assert_ne!(h1, h2, "different scope should produce different hash");
     }
@@ -700,7 +727,9 @@ mod tests {
         let target = json!({"db": "main"});
         let args = json!({"query": "SELECT 1"});
 
-        let r1 = svc.submit_approval("alice", "bot-1", "db.query", "read", "prod", &target, &args, 3600);
+        let r1 = svc.submit_approval(
+            "alice", "bot-1", "db.query", "read", "prod", &target, &args, 3600,
+        );
         let hash = match &r1 {
             SubmitResult::NewPending(h) => h.clone(),
             _ => panic!("expected NewPending"),
@@ -720,7 +749,9 @@ mod tests {
         .unwrap();
 
         // Retry same action
-        let r2 = svc.submit_approval("alice", "bot-1", "db.query", "read", "prod", &target, &args, 3600);
+        let r2 = svc.submit_approval(
+            "alice", "bot-1", "db.query", "read", "prod", &target, &args, 3600,
+        );
         assert_eq!(r2, SubmitResult::ReusedApproved(hash));
     }
 
@@ -730,13 +761,17 @@ mod tests {
         let target = json!({"file": "/tmp/x"});
         let args = json!({"mode": "w"});
 
-        let r1 = svc.submit_approval("bob", "bot-2", "fs.write", "write", "local", &target, &args, 3600);
+        let r1 = svc.submit_approval(
+            "bob", "bot-2", "fs.write", "write", "local", &target, &args, 3600,
+        );
         let hash = match &r1 {
             SubmitResult::NewPending(h) => h.clone(),
             _ => panic!("expected NewPending"),
         };
 
-        let r2 = svc.submit_approval("bob", "bot-2", "fs.write", "write", "local", &target, &args, 3600);
+        let r2 = svc.submit_approval(
+            "bob", "bot-2", "fs.write", "write", "local", &target, &args, 3600,
+        );
         assert_eq!(r2, SubmitResult::ReusedPending(hash));
     }
 
@@ -746,7 +781,9 @@ mod tests {
         let target = json!({"path": "/etc/shadow"});
         let args = json!({"content": "hacked"});
 
-        let r = svc.submit_approval("eve", "bot-3", "fs.write", "write", "system", &target, &args, 3600);
+        let r = svc.submit_approval(
+            "eve", "bot-3", "fs.write", "write", "system", &target, &args, 3600,
+        );
         let hash = match &r {
             SubmitResult::NewPending(h) => h.clone(),
             _ => panic!("expected NewPending"),
@@ -782,7 +819,10 @@ mod tests {
 
         // Verify state is still declined
         let record = svc.get_approval(&hash).unwrap();
-        assert!(matches!(record.state, ApprovalState::Declined(RefusalReason::SafetyBlock(_))));
+        assert!(matches!(
+            record.state,
+            ApprovalState::Declined(RefusalReason::SafetyBlock(_))
+        ));
     }
 
     #[test]
@@ -791,7 +831,16 @@ mod tests {
         let target = json!({"service": "api"});
         let args = json!({"action": "restart"});
 
-        let r = svc.submit_approval("carol", "bot-4", "svc.restart", "write", "prod", &target, &args, 3600);
+        let r = svc.submit_approval(
+            "carol",
+            "bot-4",
+            "svc.restart",
+            "write",
+            "prod",
+            &target,
+            &args,
+            3600,
+        );
         let hash = match &r {
             SubmitResult::NewPending(h) => h.clone(),
             _ => panic!("expected NewPending"),
@@ -832,10 +881,16 @@ mod tests {
     #[test]
     fn test_refusal_messages_distinct() {
         let messages: Vec<(RefusalReason, &str)> = vec![
-            (RefusalReason::DeclinedByPerson("alice".into()), "DECLINED_BY_PERSON"),
+            (
+                RefusalReason::DeclinedByPerson("alice".into()),
+                "DECLINED_BY_PERSON",
+            ),
             (RefusalReason::AlreadyWaiting, "ALREADY_WAITING"),
             (RefusalReason::SafetyBlock("rule-1".into()), "SAFETY_BLOCK"),
-            (RefusalReason::TeamPolicyBlock("policy-x".into()), "TEAM_POLICY_BLOCK"),
+            (
+                RefusalReason::TeamPolicyBlock("policy-x".into()),
+                "TEAM_POLICY_BLOCK",
+            ),
             (RefusalReason::RateLimited, "RATE_LIMITED"),
             (RefusalReason::NotAuthorized, "NOT_AUTHORIZED"),
             (RefusalReason::Expired, "EXPIRED"),
@@ -844,7 +899,11 @@ mod tests {
         let mut seen_codes = std::collections::HashSet::new();
         for (reason, expected_code) in &messages {
             assert_eq!(reason.code(), *expected_code);
-            assert!(seen_codes.insert(reason.code()), "duplicate code: {}", reason.code());
+            assert!(
+                seen_codes.insert(reason.code()),
+                "duplicate code: {}",
+                reason.code()
+            );
             let msg = reason.message();
             assert!(!msg.is_empty());
             assert!(msg.contains(expected_code));
@@ -857,7 +916,9 @@ mod tests {
         let target = json!({"x": 1});
         let args = json!({"y": 2});
 
-        let r = svc.submit_approval("dave", "bot-5", "test.op", "read", "test", &target, &args, 3600);
+        let r = svc.submit_approval(
+            "dave", "bot-5", "test.op", "read", "test", &target, &args, 3600,
+        );
         let hash = match &r {
             SubmitResult::NewPending(h) => h.clone(),
             _ => panic!("expected NewPending"),

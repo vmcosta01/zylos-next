@@ -3,13 +3,11 @@
 //! Provides AG-UI streaming bridge and mobile-optimized tool access
 //! via Model Context Protocol (MCP). Part of Fase 3 (LIVE_COMM_SYSTEM).
 
-pub mod mcp_server;
 pub mod error;
+pub mod mcp_server;
 
-pub use mcp_server::{
-    MobileMcpServer, AuthConfig, AttachmentStore, RateLimiter,
-    JsonRpcRequest, JsonRpcResponse, McpErrorBody,
-    McpToolDef, McpResourceDef, McpPromptDef, McpPromptArgument,
-    ServerCapabilities,
-};
 pub use error::MobileError;
+pub use mcp_server::{
+    AttachmentStore, AuthConfig, JsonRpcRequest, JsonRpcResponse, McpErrorBody, McpPromptArgument,
+    McpPromptDef, McpResourceDef, McpToolDef, MobileMcpServer, RateLimiter, ServerCapabilities,
+};

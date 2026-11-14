@@ -70,10 +70,7 @@ fn group_by_tenant(agents: &[AgentInfo]) -> HashMap<String, Vec<AgentInfo>> {
 
 /// LazyRoster component — virtualized, searchable, filterable agent list
 #[component]
-pub fn LazyRoster(
-    agents: Vec<AgentInfo>,
-    #[prop(optional)] max_visible: usize,
-) -> impl IntoView {
+pub fn LazyRoster(agents: Vec<AgentInfo>, #[prop(optional)] max_visible: usize) -> impl IntoView {
     let max_visible = if max_visible == 0 { 20 } else { max_visible };
     let (filter, set_filter) = signal(RosterFilter::default());
     let (visible_count, set_visible_count) = signal(max_visible);
@@ -92,12 +89,11 @@ pub fn LazyRoster(
                 }
                 // Tenant filter
                 if let Some(ref tenant) = f.tenant {
-                    let agent_tenant = a
-                        .id
-                        .split('/')
-                        .next()
-                        .filter(|s| s.contains('-') && **s != *a.id.as_str())
-                        .unwrap_or("default");
+                    let agent_tenant =
+                        a.id.split('/')
+                            .next()
+                            .filter(|s| s.contains('-') && **s != *a.id.as_str())
+                            .unwrap_or("default");
                     if agent_tenant != tenant {
                         return false;
                     }
@@ -132,7 +128,10 @@ pub fn LazyRoster(
 
     let on_search_input = move |ev: web_sys::Event| {
         use wasm_bindgen::JsCast;
-        if let Some(input) = ev.target().and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok()) {
+        if let Some(input) = ev
+            .target()
+            .and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok())
+        {
             let value = input.value();
             set_filter.update(|f| f.search = value);
             set_visible_count.set(max_visible); // Reset pagination on search

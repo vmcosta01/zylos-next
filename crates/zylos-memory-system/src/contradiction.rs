@@ -315,11 +315,7 @@ mod tests {
         node
     }
 
-    fn make_node_with_embedding(
-        claim_key: &str,
-        value: bool,
-        embedding: Vec<f32>,
-    ) -> ContextNode {
+    fn make_node_with_embedding(claim_key: &str, value: bool, embedding: Vec<f32>) -> ContextNode {
         let content = json!({
             "claim_key": claim_key,
             "value": value,

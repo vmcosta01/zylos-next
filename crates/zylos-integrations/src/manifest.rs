@@ -79,8 +79,8 @@ impl SpecRegistry {
             }
 
             let content = std::fs::read_to_string(&path)?;
-            let spec: IntegrationSpec = serde_yaml::from_str(&content)
-                .map_err(IntegrationError::YamlParse)?;
+            let spec: IntegrationSpec =
+                serde_yaml::from_str(&content).map_err(IntegrationError::YamlParse)?;
 
             specs.insert(spec.slug.clone(), spec);
         }

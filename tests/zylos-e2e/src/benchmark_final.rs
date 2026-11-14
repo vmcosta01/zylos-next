@@ -43,7 +43,9 @@ pub struct BenchmarkSuite {
 
 impl BenchmarkSuite {
     pub fn new() -> Self {
-        Self { results: Vec::new() }
+        Self {
+            results: Vec::new(),
+        }
     }
 
     /// E.4.1 — Event routing throughput (meta: >10k events/s)
@@ -169,7 +171,8 @@ impl BenchmarkSuite {
             p95: latencies[(latencies.len() as f64 * 0.95) as usize],
             p99: latencies[(latencies.len() as f64 * 0.99) as usize],
             throughput_per_sec: iterations as f64 / total.as_secs_f64(),
-            passed: latencies[(latencies.len() as f64 * 0.99) as usize] < Duration::from_millis(100),
+            passed: latencies[(latencies.len() as f64 * 0.99) as usize]
+                < Duration::from_millis(100),
             threshold: Duration::from_millis(100),
         };
         self.results.push(result.clone());
@@ -240,11 +243,11 @@ impl BenchmarkSuite {
     /// Relatório final consolidado
     pub fn report(&self) -> String {
         let mut lines = vec![
-         "═══════════════════════════════════════════".to_string(),
-         "  ZYLOS-NEXT BENCHMARK FINAL (E.4)".to_string(),
-         "═══════════════════════════════════════════".to_string(),
-         String::new(),
-         ];
+            "═══════════════════════════════════════════".to_string(),
+            "  ZYLOS-NEXT BENCHMARK FINAL (E.4)".to_string(),
+            "═══════════════════════════════════════════".to_string(),
+            String::new(),
+        ];
 
         let mut all_passed = true;
         for r in &self.results {
@@ -259,7 +262,11 @@ impl BenchmarkSuite {
             "RESULTADO GLOBAL: {}/{} benchmarks aprovados → {}",
             self.results.iter().filter(|r| r.passed).count(),
             self.results.len(),
-            if all_passed { "✅ ALL PASS" } else { "❌ SOME FAILED" }
+            if all_passed {
+                "✅ ALL PASS"
+            } else {
+                "❌ SOME FAILED"
+            }
         ));
         lines.push("═══════════════════════════════════════════".to_string());
 
@@ -298,7 +305,10 @@ fn render_roster_500_sim() -> String {
     let mut html = String::with_capacity(500 * 80);
     html.push_str("<div class=\"roster\">");
     for i in 0..500 {
-        html.push_str(&format!("<div class=\"agent\" id=\"a-{}\">Agent {}</div>", i, i));
+        html.push_str(&format!(
+            "<div class=\"agent\" id=\"a-{}\">Agent {}</div>",
+            i, i
+        ));
     }
     html.push_str("</div>");
     html
@@ -341,8 +351,11 @@ mod tests {
         let mut suite = BenchmarkSuite::new();
         let result = suite.bench_event_routing().await;
 
-        assert!(result.throughput_per_sec > 10_000.0,
-            "Event routing should exceed 10k/s, got {:.0}", result.throughput_per_sec);
+        assert!(
+            result.throughput_per_sec > 10_000.0,
+            "Event routing should exceed 10k/s, got {:.0}",
+            result.throughput_per_sec
+        );
     }
 
     #[tokio::test]
@@ -350,7 +363,10 @@ mod tests {
         let mut suite = BenchmarkSuite::new();
         let result = suite.bench_dag_resolution().await;
 
-        assert!(result.p99 < Duration::from_millis(10),
-            "DAG p99 should be <10ms, got {:?}", result.p99);
+        assert!(
+            result.p99 < Duration::from_millis(10),
+            "DAG p99 should be <10ms, got {:?}",
+            result.p99
+        );
     }
 }

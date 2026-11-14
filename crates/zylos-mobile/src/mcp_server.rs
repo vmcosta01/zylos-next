@@ -78,7 +78,11 @@ impl JsonRpcResponse {
             jsonrpc: "2.0".into(),
             id,
             result: None,
-            error: Some(McpErrorBody { code, message, data: None }),
+            error: Some(McpErrorBody {
+                code,
+                message,
+                data: None,
+            }),
         }
     }
 }
@@ -174,7 +178,8 @@ impl Default for AuthConfig {
 impl AuthConfig {
     /// Validate an authorization header value. Returns client_id on success.
     pub fn validate(&self, auth_header: Option<&str>) -> Result<String, MobileError> {
-        let header = auth_header.ok_or_else(|| MobileError::Auth("missing Authorization header".into()))?;
+        let header =
+            auth_header.ok_or_else(|| MobileError::Auth("missing Authorization header".into()))?;
 
         // Try Bearer JWT first
         if let Some(token) = header.strip_prefix("Bearer ") {
@@ -304,10 +309,17 @@ impl AttachmentStore {
     }
 
     /// Store bytes and return a resource URI.
-    pub async fn store(&self, _filename: &str, data: &[u8], mime_type: &str) -> Result<String, MobileError> {
+    pub async fn store(
+        &self,
+        _filename: &str,
+        data: &[u8],
+        mime_type: &str,
+    ) -> Result<String, MobileError> {
         tokio::fs::create_dir_all(&self.base_dir)
             .await
-            .map_err(|e| MobileError::Attachment(format!("failed to create attachment dir: {}", e)))?;
+            .map_err(|e| {
+                MobileError::Attachment(format!("failed to create attachment dir: {}", e))
+            })?;
 
         let id = Uuid::new_v4().to_string();
         let ext = mime_guess::get_mime_extensions_str(mime_type)
@@ -344,15 +356,19 @@ impl AttachmentStore {
             .ok_or_else(|| MobileError::Attachment(format!("invalid attachment URI: {}", uri)))?;
 
         let entries = self.entries.read().await;
-        let entry = entries
-            .get(id)
-            .ok_or_else(|| MobileError::ResourceNotFound(format!("attachment not found: {}", uri)))?;
+        let entry = entries.get(id).ok_or_else(|| {
+            MobileError::ResourceNotFound(format!("attachment not found: {}", uri))
+        })?;
 
         if entry.created_at.elapsed() > self.ttl {
             return Err(MobileError::Attachment("attachment expired".into()));
         }
 
-        Ok((entry.path.clone(), entry.mime_type.clone(), entry.size_bytes))
+        Ok((
+            entry.path.clone(),
+            entry.mime_type.clone(),
+            entry.size_bytes,
+        ))
     }
 
     /// Remove expired attachments.
@@ -416,50 +432,62 @@ impl MobileMcpServer {
     fn register_tools() -> HashMap<String, McpToolDef> {
         let mut m = HashMap::new();
 
-        m.insert("list_agents".into(), McpToolDef {
-            name: "list_agents".into(),
-            description: "List all available agents in the system".into(),
-            input_schema: serde_json::json!({"type": "object", "properties": {}}),
-        });
+        m.insert(
+            "list_agents".into(),
+            McpToolDef {
+                name: "list_agents".into(),
+                description: "List all available agents in the system".into(),
+                input_schema: serde_json::json!({"type": "object", "properties": {}}),
+            },
+        );
 
-        m.insert("send_message".into(), McpToolDef {
-            name: "send_message".into(),
-            description: "Send a text message to a specific agent".into(),
-            input_schema: serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "agent_id": {"type": "string", "description": "Target agent identifier"},
-                    "content": {"type": "string", "description": "Message body"}
-                },
-                "required": ["agent_id", "content"]
-            }),
-        });
+        m.insert(
+            "send_message".into(),
+            McpToolDef {
+                name: "send_message".into(),
+                description: "Send a text message to a specific agent".into(),
+                input_schema: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "agent_id": {"type": "string", "description": "Target agent identifier"},
+                        "content": {"type": "string", "description": "Message body"}
+                    },
+                    "required": ["agent_id", "content"]
+                }),
+            },
+        );
 
-        m.insert("get_task_status".into(), McpToolDef {
-            name: "get_task_status".into(),
-            description: "Get the current status of a task by ID".into(),
-            input_schema: serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "task_id": {"type": "string", "description": "Task identifier"}
-                },
-                "required": ["task_id"]
-            }),
-        });
+        m.insert(
+            "get_task_status".into(),
+            McpToolDef {
+                name: "get_task_status".into(),
+                description: "Get the current status of a task by ID".into(),
+                input_schema: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "task_id": {"type": "string", "description": "Task identifier"}
+                    },
+                    "required": ["task_id"]
+                }),
+            },
+        );
 
-        m.insert("approve_action".into(), McpToolDef {
-            name: "approve_action".into(),
-            description: "Approve or reject a pending HITL action".into(),
-            input_schema: serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "action_id": {"type": "string"},
-                    "approved": {"type": "boolean"},
-                    "comment": {"type": "string"}
-                },
-                "required": ["action_id", "approved"]
-            }),
-        });
+        m.insert(
+            "approve_action".into(),
+            McpToolDef {
+                name: "approve_action".into(),
+                description: "Approve or reject a pending HITL action".into(),
+                input_schema: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "action_id": {"type": "string"},
+                        "approved": {"type": "boolean"},
+                        "comment": {"type": "string"}
+                    },
+                    "required": ["action_id", "approved"]
+                }),
+            },
+        );
 
         m.insert("stream_events".into(), McpToolDef {
             name: "stream_events".into(),
@@ -494,33 +522,45 @@ impl MobileMcpServer {
     fn register_resources() -> HashMap<String, McpResourceDef> {
         let mut m = HashMap::new();
 
-        m.insert("agent_roster".into(), McpResourceDef {
-            uri: "resource://agent-roster".into(),
-            name: "Agent Roster".into(),
-            description: "Current roster of active agents with status".into(),
-            mime_type: Some("application/json".into()),
-        });
+        m.insert(
+            "agent_roster".into(),
+            McpResourceDef {
+                uri: "resource://agent-roster".into(),
+                name: "Agent Roster".into(),
+                description: "Current roster of active agents with status".into(),
+                mime_type: Some("application/json".into()),
+            },
+        );
 
-        m.insert("task_board".into(), McpResourceDef {
-            uri: "resource://task-board".into(),
-            name: "Task Board".into(),
-            description: "Kanban-style task board with all active tasks".into(),
-            mime_type: Some("application/json".into()),
-        });
+        m.insert(
+            "task_board".into(),
+            McpResourceDef {
+                uri: "resource://task-board".into(),
+                name: "Task Board".into(),
+                description: "Kanban-style task board with all active tasks".into(),
+                mime_type: Some("application/json".into()),
+            },
+        );
 
-        m.insert("memory_search".into(), McpResourceDef {
-            uri: "resource://memory-search".into(),
-            name: "Memory Search".into(),
-            description: "Search across agent memories and knowledge base".into(),
-            mime_type: Some("application/json".into()),
-        });
+        m.insert(
+            "memory_search".into(),
+            McpResourceDef {
+                uri: "resource://memory-search".into(),
+                name: "Memory Search".into(),
+                description: "Search across agent memories and knowledge base".into(),
+                mime_type: Some("application/json".into()),
+            },
+        );
 
-        m.insert("skill_catalog".into(), McpResourceDef {
-            uri: "resource://skill-catalog".into(),
-            name: "Skill Catalog".into(),
-            description: "Catalog of available skills and their descriptions".into(),
-            mime_type: Some("application/json".into()),
-        });
+        m.insert(
+            "skill_catalog".into(),
+            McpResourceDef {
+                uri: "resource://skill-catalog".into(),
+                name: "Skill Catalog".into(),
+                description: "Catalog of available skills and their descriptions".into(),
+                mime_type: Some("application/json".into()),
+            },
+        );
 
         m
     }
@@ -530,32 +570,65 @@ impl MobileMcpServer {
     fn register_prompts() -> HashMap<String, McpPromptDef> {
         let mut m = HashMap::new();
 
-        m.insert("triage_request".into(), McpPromptDef {
-            name: "triage_request".into(),
-            description: "Triage an incoming request and suggest routing".into(),
-            arguments: vec![
-                McpPromptArgument { name: "request_text".into(), description: "The incoming request".into(), required: true },
-                McpPromptArgument { name: "priority".into(), description: "Suggested priority level".into(), required: false },
-            ],
-        });
+        m.insert(
+            "triage_request".into(),
+            McpPromptDef {
+                name: "triage_request".into(),
+                description: "Triage an incoming request and suggest routing".into(),
+                arguments: vec![
+                    McpPromptArgument {
+                        name: "request_text".into(),
+                        description: "The incoming request".into(),
+                        required: true,
+                    },
+                    McpPromptArgument {
+                        name: "priority".into(),
+                        description: "Suggested priority level".into(),
+                        required: false,
+                    },
+                ],
+            },
+        );
 
-        m.insert("summarize_thread".into(), McpPromptDef {
-            name: "summarize_thread".into(),
-            description: "Summarize a conversation thread into key points".into(),
-            arguments: vec![
-                McpPromptArgument { name: "thread_id".into(), description: "Thread to summarize".into(), required: true },
-                McpPromptArgument { name: "max_length".into(), description: "Maximum summary length".into(), required: false },
-            ],
-        });
+        m.insert(
+            "summarize_thread".into(),
+            McpPromptDef {
+                name: "summarize_thread".into(),
+                description: "Summarize a conversation thread into key points".into(),
+                arguments: vec![
+                    McpPromptArgument {
+                        name: "thread_id".into(),
+                        description: "Thread to summarize".into(),
+                        required: true,
+                    },
+                    McpPromptArgument {
+                        name: "max_length".into(),
+                        description: "Maximum summary length".into(),
+                        required: false,
+                    },
+                ],
+            },
+        );
 
-        m.insert("draft_response".into(), McpPromptDef {
-            name: "draft_response".into(),
-            description: "Draft a response to a user message".into(),
-            arguments: vec![
-                McpPromptArgument { name: "message".into(), description: "Original message".into(), required: true },
-                McpPromptArgument { name: "tone".into(), description: "Desired tone (formal, casual, empathetic)".into(), required: false },
-            ],
-        });
+        m.insert(
+            "draft_response".into(),
+            McpPromptDef {
+                name: "draft_response".into(),
+                description: "Draft a response to a user message".into(),
+                arguments: vec![
+                    McpPromptArgument {
+                        name: "message".into(),
+                        description: "Original message".into(),
+                        required: true,
+                    },
+                    McpPromptArgument {
+                        name: "tone".into(),
+                        description: "Desired tone (formal, casual, empathetic)".into(),
+                        required: false,
+                    },
+                ],
+            },
+        );
 
         m
     }
@@ -563,14 +636,22 @@ impl MobileMcpServer {
     // -- Request Handling ---------------------------------------------------
 
     /// Handle a raw JSON-RPC request string (stdio transport).
-    pub async fn handle_raw(&self, raw: &str, auth_header: Option<&str>) -> Result<String, MobileError> {
+    pub async fn handle_raw(
+        &self,
+        raw: &str,
+        auth_header: Option<&str>,
+    ) -> Result<String, MobileError> {
         let req: JsonRpcRequest = serde_json::from_str(raw)?;
         let resp = self.dispatch(req, auth_header).await;
         serde_json::to_string(&resp).map_err(Into::into)
     }
 
     /// Dispatch a parsed JSON-RPC request to the appropriate handler.
-    pub async fn dispatch(&self, req: JsonRpcRequest, auth_header: Option<&str>) -> JsonRpcResponse {
+    pub async fn dispatch(
+        &self,
+        req: JsonRpcRequest,
+        auth_header: Option<&str>,
+    ) -> JsonRpcResponse {
         // Authenticate
         let client_id = match self.auth.validate(auth_header) {
             Ok(id) => id,
@@ -612,14 +693,17 @@ impl MobileMcpServer {
             })),
         };
 
-        JsonRpcResponse::ok(id, serde_json::json!({
-            "protocolVersion": "2024-11-05",
-            "capabilities": caps,
-            "serverInfo": {
-                "name": "zylos-mobile-mcp",
-                "version": env!("CARGO_PKG_VERSION")
-            }
-        }))
+        JsonRpcResponse::ok(
+            id,
+            serde_json::json!({
+                "protocolVersion": "2024-11-05",
+                "capabilities": caps,
+                "serverInfo": {
+                    "name": "zylos-mobile-mcp",
+                    "version": env!("CARGO_PKG_VERSION")
+                }
+            }),
+        )
     }
 
     // -- Tools --------------------------------------------------------------
@@ -629,15 +713,25 @@ impl MobileMcpServer {
         JsonRpcResponse::ok(id, serde_json::json!({ "tools": tools }))
     }
 
-    async fn handle_tools_call(&self, id: Option<serde_json::Value>, params: serde_json::Value) -> JsonRpcResponse {
+    async fn handle_tools_call(
+        &self,
+        id: Option<serde_json::Value>,
+        params: serde_json::Value,
+    ) -> JsonRpcResponse {
         let name = params.get("name").and_then(|v| v.as_str()).unwrap_or("");
-        let arguments = params.get("arguments").cloned().unwrap_or(serde_json::json!({}));
+        let arguments = params
+            .get("arguments")
+            .cloned()
+            .unwrap_or(serde_json::json!({}));
 
         match self.execute_tool(name, arguments).await {
-            Ok(result) => JsonRpcResponse::ok(id, serde_json::json!({
-                "content": [{"type": "text", "text": serde_json::to_string_pretty(&result).unwrap_or_default()}],
-                "isError": false
-            })),
+            Ok(result) => JsonRpcResponse::ok(
+                id,
+                serde_json::json!({
+                    "content": [{"type": "text", "text": serde_json::to_string_pretty(&result).unwrap_or_default()}],
+                    "isError": false
+                }),
+            ),
             Err(e) => {
                 let body: McpErrorBody = e.into();
                 JsonRpcResponse::err(id, body.code, body.message)
@@ -645,22 +739,26 @@ impl MobileMcpServer {
         }
     }
 
-    async fn execute_tool(&self, name: &str, args: serde_json::Value) -> Result<serde_json::Value, MobileError> {
+    async fn execute_tool(
+        &self,
+        name: &str,
+        args: serde_json::Value,
+    ) -> Result<serde_json::Value, MobileError> {
         match name {
-            "list_agents" => {
-                Ok(serde_json::json!({
-                    "agents": [
-                        {"id": "orchestrator", "status": "active", "role": "coordinator"},
-                        {"id": "researcher", "status": "idle", "role": "research"},
-                        {"id": "coder", "status": "active", "role": "development"}
-                    ]
-                }))
-            }
+            "list_agents" => Ok(serde_json::json!({
+                "agents": [
+                    {"id": "orchestrator", "status": "active", "role": "coordinator"},
+                    {"id": "researcher", "status": "idle", "role": "research"},
+                    {"id": "coder", "status": "active", "role": "development"}
+                ]
+            })),
             "send_message" => {
-                let agent_id = args.get("agent_id")
+                let agent_id = args
+                    .get("agent_id")
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| MobileError::InvalidRequest("missing agent_id".into()))?;
-                let content = args.get("content")
+                let content = args
+                    .get("content")
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| MobileError::InvalidRequest("missing content".into()))?;
 
@@ -676,7 +774,8 @@ impl MobileMcpServer {
                 Ok(serde_json::json!({"sent": true, "agent_id": agent_id, "message_id": msg_id}))
             }
             "get_task_status" => {
-                let task_id = args.get("task_id")
+                let task_id = args
+                    .get("task_id")
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| MobileError::InvalidRequest("missing task_id".into()))?;
                 Ok(serde_json::json!({
@@ -687,10 +786,12 @@ impl MobileMcpServer {
                 }))
             }
             "approve_action" => {
-                let action_id = args.get("action_id")
+                let action_id = args
+                    .get("action_id")
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| MobileError::InvalidRequest("missing action_id".into()))?;
-                let approved = args.get("approved")
+                let approved = args
+                    .get("approved")
                     .and_then(|v| v.as_bool())
                     .ok_or_else(|| MobileError::InvalidRequest("missing approved".into()))?;
                 Ok(serde_json::json!({
@@ -699,20 +800,21 @@ impl MobileMcpServer {
                     "timestamp": Utc::now().to_rfc3339()
                 }))
             }
-            "stream_events" => {
-                Ok(serde_json::json!({
-                    "subscribed": true,
-                    "note": "Use SSE endpoint /events/stream for real-time delivery"
-                }))
-            }
+            "stream_events" => Ok(serde_json::json!({
+                "subscribed": true,
+                "note": "Use SSE endpoint /events/stream for real-time delivery"
+            })),
             "upload_attachment" => {
-                let filename = args.get("filename")
+                let filename = args
+                    .get("filename")
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| MobileError::InvalidRequest("missing filename".into()))?;
-                let data_b64 = args.get("data_base64")
+                let data_b64 = args
+                    .get("data_base64")
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| MobileError::InvalidRequest("missing data_base64".into()))?;
-                let mime_type = args.get("mime_type")
+                let mime_type = args
+                    .get("mime_type")
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| MobileError::InvalidRequest("missing mime_type".into()))?;
 
@@ -737,13 +839,19 @@ impl MobileMcpServer {
         JsonRpcResponse::ok(id, serde_json::json!({ "resources": resources }))
     }
 
-    async fn handle_resources_read(&self, id: Option<serde_json::Value>, params: serde_json::Value) -> JsonRpcResponse {
+    async fn handle_resources_read(
+        &self,
+        id: Option<serde_json::Value>,
+        params: serde_json::Value,
+    ) -> JsonRpcResponse {
         let uri = params.get("uri").and_then(|v| v.as_str()).unwrap_or("");
 
         // Lookup by URI field value, since the HashMap key is the short name (e.g. "agent_roster")
         let resource = match self.resources.values().find(|r| r.uri == uri) {
             Some(r) => r,
-            None => return JsonRpcResponse::err(id, -32004, format!("resource not found: {}", uri)),
+            None => {
+                return JsonRpcResponse::err(id, -32004, format!("resource not found: {}", uri))
+            }
         };
 
         // Generate stub content for each resource type
@@ -771,13 +879,16 @@ impl MobileMcpServer {
         };
 
         let text = serde_json::to_string_pretty(&content).unwrap_or_default();
-        JsonRpcResponse::ok(id, serde_json::json!({
-            "contents": [{
-                "uri": resource.uri,
-                "mimeType": resource.mime_type,
-                "text": text
-            }]
-        }))
+        JsonRpcResponse::ok(
+            id,
+            serde_json::json!({
+                "contents": [{
+                    "uri": resource.uri,
+                    "mimeType": resource.mime_type,
+                    "text": text
+                }]
+            }),
+        )
     }
 
     // -- Prompts ------------------------------------------------------------
@@ -787,9 +898,16 @@ impl MobileMcpServer {
         JsonRpcResponse::ok(id, serde_json::json!({ "prompts": prompts }))
     }
 
-    fn handle_prompts_get(&self, id: Option<serde_json::Value>, params: serde_json::Value) -> JsonRpcResponse {
+    fn handle_prompts_get(
+        &self,
+        id: Option<serde_json::Value>,
+        params: serde_json::Value,
+    ) -> JsonRpcResponse {
         let name = params.get("name").and_then(|v| v.as_str()).unwrap_or("");
-        let arguments = params.get("arguments").cloned().unwrap_or(serde_json::json!({}));
+        let arguments = params
+            .get("arguments")
+            .cloned()
+            .unwrap_or(serde_json::json!({}));
 
         let prompt = match self.prompts.get(name) {
             Some(p) => p,
@@ -799,22 +917,34 @@ impl MobileMcpServer {
         // Build messages from template
         let messages = match name {
             "triage_request" => {
-                let text = arguments.get("request_text").and_then(|v| v.as_str()).unwrap_or("");
+                let text = arguments
+                    .get("request_text")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
                 vec![serde_json::json!({
                     "role": "user",
                     "content": {"type": "text", "text": format!("Please triage the following request:\n\n{}", text)}
                 })]
             }
             "summarize_thread" => {
-                let thread_id = arguments.get("thread_id").and_then(|v| v.as_str()).unwrap_or("");
+                let thread_id = arguments
+                    .get("thread_id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
                 vec![serde_json::json!({
                     "role": "user",
                     "content": {"type": "text", "text": format!("Summarize thread {} into key points.", thread_id)}
                 })]
             }
             "draft_response" => {
-                let message = arguments.get("message").and_then(|v| v.as_str()).unwrap_or("");
-                let tone = arguments.get("tone").and_then(|v| v.as_str()).unwrap_or("professional");
+                let message = arguments
+                    .get("message")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let tone = arguments
+                    .get("tone")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("professional");
                 vec![serde_json::json!({
                     "role": "user",
                     "content": {"type": "text", "text": format!("Draft a {} response to:\n\n{}", tone, message)}
@@ -823,10 +953,13 @@ impl MobileMcpServer {
             _ => vec![],
         };
 
-        JsonRpcResponse::ok(id, serde_json::json!({
-            "description": prompt.description,
-            "messages": messages
-        }))
+        JsonRpcResponse::ok(
+            id,
+            serde_json::json!({
+                "description": prompt.description,
+                "messages": messages
+            }),
+        )
     }
 
     // -- SSE Streaming ------------------------------------------------------
@@ -837,7 +970,8 @@ impl MobileMcpServer {
     pub fn sse_event_stream(
         &self,
         last_event_id: Option<u64>,
-    ) -> std::pin::Pin<Box<dyn futures::Stream<Item = Result<String, MobileError>> + Send + '_>> {
+    ) -> std::pin::Pin<Box<dyn futures::Stream<Item = Result<String, MobileError>> + Send + '_>>
+    {
         let bus = self.event_bus.clone();
         let start_seq = last_event_id.unwrap_or(0);
 
@@ -1022,22 +1156,30 @@ mod tests {
         let mut rx = bus.subscribe("test-sub", "**", None).await.unwrap();
         let server = MobileMcpServer::with_config(
             bus,
-            AuthConfig { api_key: Some("k".into()), jwt_secret: None },
-            100, 60, 3600,
+            AuthConfig {
+                api_key: Some("k".into()),
+                jwt_secret: None,
+            },
+            100,
+            60,
+            3600,
         );
 
-        let req = make_request("tools/call", serde_json::json!({
-            "name": "send_message",
-            "arguments": {"agent_id": "a1", "content": "hi"}
-        }));
+        let req = make_request(
+            "tools/call",
+            serde_json::json!({
+                "name": "send_message",
+                "arguments": {"agent_id": "a1", "content": "hi"}
+            }),
+        );
         let resp = server.dispatch(req, Some("ApiKey k")).await;
         assert!(resp.error.is_none());
 
         // Verify event published via new EventBus API (with timeout to avoid hang)
-        let envelope = tokio::time::timeout(
-            std::time::Duration::from_secs(5),
-            rx.recv(),
-        ).await.expect("timed out waiting for event").unwrap();
+        let envelope = tokio::time::timeout(std::time::Duration::from_secs(5), rx.recv())
+            .await
+            .expect("timed out waiting for event")
+            .unwrap();
         assert!(matches!(envelope.payload, ZylosEvent::Custom(_)));
     }
 
@@ -1064,7 +1206,10 @@ mod tests {
         let bus = EventBus::new(64, None);
         let server = MobileMcpServer::with_config(
             bus,
-            AuthConfig { api_key: Some("k".into()), jwt_secret: None },
+            AuthConfig {
+                api_key: Some("k".into()),
+                jwt_secret: None,
+            },
             2, // Only 2 requests allowed
             60,
             3600,
@@ -1085,9 +1230,12 @@ mod tests {
     #[tokio::test]
     async fn test_resource_read_agent_roster() {
         let server = make_server();
-        let req = make_request("resources/read", serde_json::json!({
-            "uri": "resource://agent-roster"
-        }));
+        let req = make_request(
+            "resources/read",
+            serde_json::json!({
+                "uri": "resource://agent-roster"
+            }),
+        );
         let resp = server.dispatch(req, Some("ApiKey test-key")).await;
         assert!(resp.error.is_none());
         let result = resp.result.unwrap();
@@ -1098,16 +1246,22 @@ mod tests {
     #[tokio::test]
     async fn test_prompt_get_triage() {
         let server = make_server();
-        let req = make_request("prompts/get", serde_json::json!({
-            "name": "triage_request",
-            "arguments": {"request_text": "Fix the login bug"}
-        }));
+        let req = make_request(
+            "prompts/get",
+            serde_json::json!({
+                "name": "triage_request",
+                "arguments": {"request_text": "Fix the login bug"}
+            }),
+        );
         let resp = server.dispatch(req, Some("ApiKey test-key")).await;
         assert!(resp.error.is_none());
         let result = resp.result.unwrap();
         let messages = result["messages"].as_array().unwrap();
         assert_eq!(messages.len(), 1);
-        assert!(messages[0]["content"]["text"].as_str().unwrap().contains("login bug"));
+        assert!(messages[0]["content"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("login bug"));
     }
 
     #[tokio::test]
@@ -1116,18 +1270,24 @@ mod tests {
         let data = b"hello world";
         let b64 = "aGVsbG8gd29ybGQ="; // base64 of "hello world"
 
-        let req = make_request("tools/call", serde_json::json!({
-            "name": "upload_attachment",
-            "arguments": {
-                "filename": "test.txt",
-                "data_base64": b64,
-                "mime_type": "text/plain"
-            }
-        }));
+        let req = make_request(
+            "tools/call",
+            serde_json::json!({
+                "name": "upload_attachment",
+                "arguments": {
+                    "filename": "test.txt",
+                    "data_base64": b64,
+                    "mime_type": "text/plain"
+                }
+            }),
+        );
         let resp = server.dispatch(req, Some("ApiKey test-key")).await;
         assert!(resp.error.is_none(), "upload failed: {:?}", resp.error);
 
-        let result_text = resp.result.unwrap()["content"][0]["text"].as_str().unwrap().to_string();
+        let result_text = resp.result.unwrap()["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .to_string();
         let result: serde_json::Value = serde_json::from_str(&result_text).unwrap();
         let uri = result["uri"].as_str().unwrap();
         assert!(uri.starts_with("attachment://"));
@@ -1151,10 +1311,10 @@ mod tests {
         });
         let _ = bus.publish("test.heartbeat", event, 1).await;
 
-        let envelope = tokio::time::timeout(
-            std::time::Duration::from_secs(5),
-            rx.recv(),
-        ).await.expect("timed out waiting for SSE event").unwrap();
+        let envelope = tokio::time::timeout(std::time::Duration::from_secs(5), rx.recv())
+            .await
+            .expect("timed out waiting for SSE event")
+            .unwrap();
         assert!(matches!(envelope.payload, ZylosEvent::Custom(_)));
     }
 
@@ -1179,16 +1339,16 @@ mod tests {
         assert!(r2.is_ok(), "publish e2 failed: {:?}", r2);
 
         // Skip first event (simulating last_event_id=1)
-        let _first = tokio::time::timeout(
-            std::time::Duration::from_secs(5),
-            rx.recv(),
-        ).await.expect("timed out").unwrap();
+        let _first = tokio::time::timeout(std::time::Duration::from_secs(5), rx.recv())
+            .await
+            .expect("timed out")
+            .unwrap();
 
         // Second event should arrive
-        let second = tokio::time::timeout(
-            std::time::Duration::from_secs(5),
-            rx.recv(),
-        ).await.expect("timed out").unwrap();
+        let second = tokio::time::timeout(std::time::Duration::from_secs(5), rx.recv())
+            .await
+            .expect("timed out")
+            .unwrap();
         if let ZylosEvent::Custom(c) = &second.payload {
             assert_eq!(c.payload["seq"], 2);
         } else {
@@ -1209,7 +1369,10 @@ mod tests {
     async fn test_handle_raw_stdio_roundtrip() {
         let server = make_server();
         let raw = r#"{"jsonrpc":"2.0","id":1,"method":"ping","params":{}}"#;
-        let result = server.handle_raw(raw, Some("ApiKey test-key")).await.unwrap();
+        let result = server
+            .handle_raw(raw, Some("ApiKey test-key"))
+            .await
+            .unwrap();
         let resp: JsonRpcResponse = serde_json::from_str(&result).unwrap();
         assert_eq!(resp.result.unwrap()["pong"], true);
     }
@@ -1230,7 +1393,10 @@ mod tests {
 
     #[test]
     fn test_json_rpc_response_ok_serialization() {
-        let resp = JsonRpcResponse::ok(Some(serde_json::json!(42)), serde_json::json!({"status": "ok"}));
+        let resp = JsonRpcResponse::ok(
+            Some(serde_json::json!(42)),
+            serde_json::json!({"status": "ok"}),
+        );
         let serialized = serde_json::to_value(&resp).unwrap();
         assert_eq!(serialized["jsonrpc"], "2.0");
         assert_eq!(serialized["id"], 42);
@@ -1266,7 +1432,13 @@ mod tests {
         let cases: Vec<(MobileError, i32)> = vec![
             (MobileError::InvalidRequest("x".into()), -32600),
             (MobileError::Auth("x".into()), -32001),
-            (MobileError::RateLimit { client_id: "c".into(), retry_after_secs: 5 }, -32002),
+            (
+                MobileError::RateLimit {
+                    client_id: "c".into(),
+                    retry_after_secs: 5,
+                },
+                -32002,
+            ),
             (MobileError::Attachment("x".into()), -32003),
             (MobileError::ResourceNotFound("x".into()), -32004),
             (MobileError::Timeout("x".into()), -32005),
@@ -1334,10 +1506,13 @@ mod tests {
     #[tokio::test]
     async fn test_tool_call_unknown_tool_returns_error() {
         let server = make_server();
-        let req = make_request("tools/call", serde_json::json!({
-            "name": "nonexistent_tool",
-            "arguments": {}
-        }));
+        let req = make_request(
+            "tools/call",
+            serde_json::json!({
+                "name": "nonexistent_tool",
+                "arguments": {}
+            }),
+        );
         let resp = server.dispatch(req, Some("ApiKey test-key")).await;
         assert!(resp.error.is_some());
         // Should be a protocol-level error for unknown tool
@@ -1347,9 +1522,12 @@ mod tests {
     #[tokio::test]
     async fn test_resource_read_unknown_uri_returns_error() {
         let server = make_server();
-        let req = make_request("resources/read", serde_json::json!({
-            "uri": "resource://does-not-exist"
-        }));
+        let req = make_request(
+            "resources/read",
+            serde_json::json!({
+                "uri": "resource://does-not-exist"
+            }),
+        );
         let resp = server.dispatch(req, Some("ApiKey test-key")).await;
         assert!(resp.error.is_some());
         assert_eq!(resp.error.unwrap().code, -32004);
@@ -1358,10 +1536,13 @@ mod tests {
     #[tokio::test]
     async fn test_prompts_get_unknown_returns_error() {
         let server = make_server();
-        let req = make_request("prompts/get", serde_json::json!({
-            "name": "nonexistent_prompt",
-            "arguments": {}
-        }));
+        let req = make_request(
+            "prompts/get",
+            serde_json::json!({
+                "name": "nonexistent_prompt",
+                "arguments": {}
+            }),
+        );
         let resp = server.dispatch(req, Some("ApiKey test-key")).await;
         assert!(resp.error.is_some());
         assert_eq!(resp.error.unwrap().code, -32004);
@@ -1370,7 +1551,9 @@ mod tests {
     #[tokio::test]
     async fn test_handle_raw_invalid_json_returns_error() {
         let server = make_server();
-        let result = server.handle_raw("not valid json{{{", Some("ApiKey test-key")).await;
+        let result = server
+            .handle_raw("not valid json{{{", Some("ApiKey test-key"))
+            .await;
         // handle_raw may return Err(MobileError) for unparseable input, or an
         // Ok JSON-RPC error response — either way the caller gets an error signal.
         match &result {
@@ -1382,8 +1565,11 @@ mod tests {
                 // Verify it's a serialization-related error
                 let msg = format!("{}", e);
                 assert!(
-                    msg.contains("Serialization") || msg.contains("serialization") || msg.contains("JSON"),
-                    "unexpected error variant for invalid JSON: {}", msg
+                    msg.contains("Serialization")
+                        || msg.contains("serialization")
+                        || msg.contains("JSON"),
+                    "unexpected error variant for invalid JSON: {}",
+                    msg
                 );
             }
         }

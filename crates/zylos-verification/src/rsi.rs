@@ -274,7 +274,10 @@ impl Experiment {
         if self.status == ExperimentStatus::Completed {
             return Err(RsiError::AlreadyCompleted);
         }
-        let next = self.current_phase.next().ok_or(RsiError::AlreadyCompleted)?;
+        let next = self
+            .current_phase
+            .next()
+            .ok_or(RsiError::AlreadyCompleted)?;
 
         // Gate check on current phase.
         let current_record = self
@@ -364,7 +367,7 @@ impl Experiment {
     /// Check whether the actual sample size meets the guardrail minimum.
     pub fn is_underpowered(&self) -> bool {
         self.actual_sample_size
-         .is_none_or(|n| n < self.guardrails.min_sample_size)
+            .is_none_or(|n| n < self.guardrails.min_sample_size)
     }
 
     /// Apply Bonferroni or Holm correction to a raw p-value given the number
@@ -425,10 +428,7 @@ impl Experiment {
     /// random-effects model. Returns the pooled effect estimate and its
     /// standard error. This is a stub; production use should integrate a
     /// proper meta-analysis library.
-    pub fn meta_analyze_random_effects(
-        effects: &[f64],
-        variances: &[f64],
-    ) -> Option<(f64, f64)> {
+    pub fn meta_analyze_random_effects(effects: &[f64], variances: &[f64]) -> Option<(f64, f64)> {
         if effects.len() != variances.len() || effects.is_empty() {
             return None;
         }

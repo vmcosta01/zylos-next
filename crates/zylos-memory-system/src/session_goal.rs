@@ -72,7 +72,11 @@ pub struct SessionGoal {
 
 impl SessionGoal {
     /// Create a new active session goal
-    pub fn new(id: impl Into<String>, criteria: Vec<Criterion>, evidence_required: Vec<String>) -> Self {
+    pub fn new(
+        id: impl Into<String>,
+        criteria: Vec<Criterion>,
+        evidence_required: Vec<String>,
+    ) -> Self {
         Self {
             id: id.into(),
             criteria,
@@ -104,7 +108,11 @@ impl SessionGoal {
 
     /// Mark a specific criterion as satisfied by its index, attaching evidence.
     /// Returns Err if the index is out of bounds.
-    pub fn mark_evidence(&mut self, index: usize, evidence: impl Into<String>) -> Result<(), String> {
+    pub fn mark_evidence(
+        &mut self,
+        index: usize,
+        evidence: impl Into<String>,
+    ) -> Result<(), String> {
         if index >= self.criteria.len() {
             return Err(format!(
                 "Criterion index {} out of bounds (have {})",
@@ -118,7 +126,11 @@ impl SessionGoal {
 
     /// Mark a criterion as satisfied by matching its description substring.
     /// Returns true if a matching criterion was found and updated.
-    pub fn mark_evidence_by_description(&mut self, description_contains: &str, evidence: impl Into<String>) -> bool {
+    pub fn mark_evidence_by_description(
+        &mut self,
+        description_contains: &str,
+        evidence: impl Into<String>,
+    ) -> bool {
         for criterion in &mut self.criteria {
             if criterion.description.contains(description_contains) && !criterion.satisfied {
                 criterion.satisfy(evidence);
@@ -157,7 +169,10 @@ mod tests {
     fn test_new_goal_is_active_and_incomplete() {
         let goal = SessionGoal::new(
             "goal-1",
-            vec![Criterion::new("deploy succeeds"), Criterion::new("tests pass")],
+            vec![
+                Criterion::new("deploy succeeds"),
+                Criterion::new("tests pass"),
+            ],
             vec!["ci_log".to_string()],
         );
         assert_eq!(goal.status, GoalStatus::Active);
@@ -195,7 +210,10 @@ mod tests {
     fn test_mark_evidence_by_description() {
         let mut goal = SessionGoal::new(
             "goal-4",
-            vec![Criterion::new("build docker image"), Criterion::new("push to registry")],
+            vec![
+                Criterion::new("build docker image"),
+                Criterion::new("push to registry"),
+            ],
             vec![],
         );
         assert!(goal.mark_evidence_by_description("docker", "sha256:abc123"));

@@ -8,8 +8,8 @@ use super::{ChannelAdapter, ChannelError, InboundMessage, MessageContent, Outbou
 use async_trait::async_trait;
 use bytes::Bytes;
 use hmac::{Hmac, Mac};
-use sha2::Sha256;
 use serde::Deserialize;
+use sha2::Sha256;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -122,7 +122,13 @@ impl FeishuAdapter {
     /// Verify Feishu webhook signature using HMAC-SHA256
     fn verify_signature(&self, timestamp: &str, nonce: &str, body: &[u8], signature: &str) -> bool {
         if let Some(ref key) = self.config.encrypt_key {
-            let data = format!("{}{}{}{}", timestamp, nonce, key, String::from_utf8_lossy(body));
+            let data = format!(
+                "{}{}{}{}",
+                timestamp,
+                nonce,
+                key,
+                String::from_utf8_lossy(body)
+            );
             let mut mac = Hmac::<Sha256>::new_from_slice(key.as_bytes())
                 .expect("HMAC can take key of any size");
             mac.update(data.as_bytes());
@@ -190,10 +196,7 @@ impl FeishuAdapter {
 
         let content = match msg_type {
             "text" => MessageContent::Text {
-                body: content_value["text"]
-                    .as_str()
-                    .unwrap_or("")
-                    .to_string(),
+                body: content_value["text"].as_str().unwrap_or("").to_string(),
             },
             "image" => MessageContent::Image {
                 url: content_value["image_key"]
@@ -203,10 +206,7 @@ impl FeishuAdapter {
                 caption: None,
             },
             "file" => MessageContent::File {
-                url: content_value["file_key"]
-                    .as_str()
-                    .unwrap_or("")
-                    .to_string(),
+                url: content_value["file_key"].as_str().unwrap_or("").to_string(),
                 filename: content_value["file_name"]
                     .as_str()
                     .unwrap_or("unknown")
@@ -229,10 +229,7 @@ impl FeishuAdapter {
         Ok(InboundMessage {
             channel_type: "feishu".to_string(),
             external_user_id: sender.as_str().unwrap_or("").to_string(),
-            message_id: msg["message_id"]
-                .as_str()
-                .unwrap_or("")
-                .to_string(),
+            message_id: msg["message_id"].as_str().unwrap_or("").to_string(),
             content,
             timestamp: create_time,
             metadata: serde_json::json!({
@@ -357,18 +354,13 @@ impl ChannelAdapter for FeishuAdapter {
         let token = self.get_access_token().await?;
 
         let (msg_type, content) = match &message.content {
-            MessageContent::Text { body } => (
-                "text",
-                serde_json::json!({"text": body}).to_string(),
-            ),
-            MessageContent::Image { url, .. } => (
-                "image",
-                serde_json::json!({"image_key": url}).to_string(),
-            ),
-            MessageContent::InteractiveCard { card_json } => (
-                "interactive",
-                card_json.clone(),
-            ),
+            MessageContent::Text { body } => {
+                ("text", serde_json::json!({"text": body}).to_string())
+            }
+            MessageContent::Image { url, .. } => {
+                ("image", serde_json::json!({"image_key": url}).to_string())
+            }
+            MessageContent::InteractiveCard { card_json } => ("interactive", card_json.clone()),
             _ => {
                 return Err(ChannelError::InvalidMessage(
                     "unsupported message type for Feishu".into(),

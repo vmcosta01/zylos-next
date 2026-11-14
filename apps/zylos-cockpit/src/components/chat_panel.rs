@@ -73,9 +73,21 @@ pub struct BotEntry {
 
 fn default_bots() -> Vec<BotEntry> {
     vec![
-        BotEntry { name: "default".into(), display_name: "Assistente Zylos".into(), provider: "openai".into() },
-        BotEntry { name: "dev-agent".into(), display_name: "Dev Agent".into(), provider: "anthropic".into() },
-        BotEntry { name: "researcher".into(), display_name: "Pesquisador".into(), provider: "google".into() },
+        BotEntry {
+            name: "default".into(),
+            display_name: "Assistente Zylos".into(),
+            provider: "openai".into(),
+        },
+        BotEntry {
+            name: "dev-agent".into(),
+            display_name: "Dev Agent".into(),
+            provider: "anthropic".into(),
+        },
+        BotEntry {
+            name: "researcher".into(),
+            display_name: "Pesquisador".into(),
+            provider: "google".into(),
+        },
     ]
 }
 

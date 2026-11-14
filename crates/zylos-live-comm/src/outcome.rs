@@ -264,8 +264,8 @@ impl OutcomeRetryPolicy {
     /// OutcomeUnknown ALWAYS requires human confirmation.
     pub fn should_auto_retry(outcome: &Outcome) -> bool {
         match outcome {
-            Outcome::Succeeded => false, // No retry needed
-            Outcome::Failed => true,     // Deterministic failure, safe to retry
+            Outcome::Succeeded => false,      // No retry needed
+            Outcome::Failed => true,          // Deterministic failure, safe to retry
             Outcome::OutcomeUnknown => false, // NEVER auto-retry unknown outcomes
         }
     }
@@ -318,7 +318,10 @@ mod tests {
 
     #[test]
     fn test_network_error_classifies_as_outcome_unknown() {
-        assert_eq!(OutcomeClassifier::from_network_error(), Outcome::OutcomeUnknown);
+        assert_eq!(
+            OutcomeClassifier::from_network_error(),
+            Outcome::OutcomeUnknown
+        );
     }
 
     #[test]
@@ -327,7 +330,10 @@ mod tests {
         let err: Result<i32, String> = Err("connection reset".into());
 
         assert_eq!(OutcomeClassifier::from_result(&ok), Outcome::Succeeded);
-        assert_eq!(OutcomeClassifier::from_result(&err), Outcome::OutcomeUnknown);
+        assert_eq!(
+            OutcomeClassifier::from_result(&err),
+            Outcome::OutcomeUnknown
+        );
     }
 
     #[test]
@@ -339,7 +345,9 @@ mod tests {
 
     #[test]
     fn test_outcome_unknown_never_auto_retries() {
-        assert!(!OutcomeRetryPolicy::should_auto_retry(&Outcome::OutcomeUnknown));
+        assert!(!OutcomeRetryPolicy::should_auto_retry(
+            &Outcome::OutcomeUnknown
+        ));
         assert!(OutcomeRetryPolicy::should_auto_retry(&Outcome::Failed));
         assert!(!OutcomeRetryPolicy::should_auto_retry(&Outcome::Succeeded));
     }
@@ -364,7 +372,13 @@ mod tests {
     fn test_audit_log_records_transitions() {
         let log = OutcomeAuditLog::new(100);
 
-        log.record("op-1", None, &Outcome::OutcomeUnknown, "5xx from API", "worker-1");
+        log.record(
+            "op-1",
+            None,
+            &Outcome::OutcomeUnknown,
+            "5xx from API",
+            "worker-1",
+        );
         log.record(
             "op-1",
             Some(&Outcome::OutcomeUnknown),
@@ -380,7 +394,10 @@ mod tests {
         assert_eq!(entries[0].new_outcome, "outcome_unknown");
         assert_eq!(entries[0].previous_outcome, None);
         assert_eq!(entries[1].new_outcome, "succeeded");
-        assert_eq!(entries[1].previous_outcome, Some("outcome_unknown".to_string()));
+        assert_eq!(
+            entries[1].previous_outcome,
+            Some("outcome_unknown".to_string())
+        );
         assert_eq!(entries[1].actor, "admin");
     }
 

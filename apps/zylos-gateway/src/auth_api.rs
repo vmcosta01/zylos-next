@@ -1,6 +1,6 @@
 //! Auth API — endpoints de login, register e token management.
 
-use axum::{Json, Router, routing::post};
+use axum::{routing::post, Json, Router};
 use serde::{Deserialize, Serialize};
 use zylos_auth::tokens::CreateTokenRequest;
 use zylos_auth::{TokenConfig, TokenService};
@@ -23,8 +23,8 @@ pub struct LoginResponse {
 
 /// Cria router com endpoints de autenticação.
 pub fn create_auth_router() -> Router {
-    let token_service = TokenService::new(TokenConfig::default())
-        .expect("failed to create token service");
+    let token_service =
+        TokenService::new(TokenConfig::default()).expect("failed to create token service");
 
     Router::new()
         .route("/auth/login", post(login_handler))

@@ -300,7 +300,11 @@ impl CompressionPipeline {
     }
 
     /// Stage 4 — decide GC disposition based on decay scores.
-    pub fn schedule_gc(scores: &[DecayScore], evict_threshold: f64, compress_threshold: f64) -> Vec<GcAction> {
+    pub fn schedule_gc(
+        scores: &[DecayScore],
+        evict_threshold: f64,
+        compress_threshold: f64,
+    ) -> Vec<GcAction> {
         scores
             .iter()
             .enumerate()
@@ -416,11 +420,26 @@ mod tests {
 
     #[test]
     fn route_backend_mapping() {
-        assert_eq!(route_backend(MemoryKind::Working), BackendTarget::ContextWindow);
-        assert_eq!(route_backend(MemoryKind::Episodic), BackendTarget::SqliteContextGraph);
-        assert_eq!(route_backend(MemoryKind::Semantic), BackendTarget::VectorStore);
-        assert_eq!(route_backend(MemoryKind::Procedural), BackendTarget::SkillFiles);
-        assert_eq!(route_backend(MemoryKind::Meta), BackendTarget::ReasoningBank);
+        assert_eq!(
+            route_backend(MemoryKind::Working),
+            BackendTarget::ContextWindow
+        );
+        assert_eq!(
+            route_backend(MemoryKind::Episodic),
+            BackendTarget::SqliteContextGraph
+        );
+        assert_eq!(
+            route_backend(MemoryKind::Semantic),
+            BackendTarget::VectorStore
+        );
+        assert_eq!(
+            route_backend(MemoryKind::Procedural),
+            BackendTarget::SkillFiles
+        );
+        assert_eq!(
+            route_backend(MemoryKind::Meta),
+            BackendTarget::ReasoningBank
+        );
     }
 
     #[test]
@@ -454,14 +473,12 @@ mod tests {
 
     #[test]
     fn compression_link_entities_matches_facts() {
-        let facts = vec![
-            ExtractedFact {
-                subject: "alice".into(),
-                predicate: "knows".into(),
-                object: "bob".into(),
-                confidence: 0.9,
-            },
-        ];
+        let facts = vec![ExtractedFact {
+            subject: "alice".into(),
+            predicate: "knows".into(),
+            object: "bob".into(),
+            confidence: 0.9,
+        }];
         let links = CompressionPipeline::link_entities(&facts);
         assert_eq!(links.len(), 1);
         assert_eq!(links[0].mention, "alice");
@@ -480,9 +497,21 @@ mod tests {
     #[test]
     fn compression_schedule_gc_thresholds() {
         let scores = vec![
-            DecayScore { entry_id: "low".into(), score: 0.1, reason: "r".into() },
-            DecayScore { entry_id: "mid".into(), score: 0.5, reason: "r".into() },
-            DecayScore { entry_id: "high".into(), score: 0.9, reason: "r".into() },
+            DecayScore {
+                entry_id: "low".into(),
+                score: 0.1,
+                reason: "r".into(),
+            },
+            DecayScore {
+                entry_id: "mid".into(),
+                score: 0.5,
+                reason: "r".into(),
+            },
+            DecayScore {
+                entry_id: "high".into(),
+                score: 0.9,
+                reason: "r".into(),
+            },
         ];
         let actions = CompressionPipeline::schedule_gc(&scores, 0.2, 0.6);
         assert_eq!(actions[0].action, GcDisposition::Evict);

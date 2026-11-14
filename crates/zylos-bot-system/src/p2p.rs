@@ -2,14 +2,14 @@
 //!
 //! Implementa a Task 1.1.3 da Fase 1: P2P messaging com tópicos,
 //! delivery guarantee (ack/nack), dead letter queue e schema validation.
-use std::sync::Arc;
-use std::time::Duration;
+use crate::error::{BotError, Result};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::{broadcast, Mutex};
 use tracing::{debug, error, warn};
 use uuid::Uuid;
-use crate::error::{BotError, Result};
 
 /// Identificador único de mensagem
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -142,17 +142,14 @@ impl P2PMessenger {
     /// Se o tópico não existir, ele é criado automaticamente.
     pub fn subscribe(&self, topic: impl Into<Topic>) -> broadcast::Receiver<Message> {
         let topic = topic.into();
-        let mut entry = self
-            .topics
-            .entry(topic.clone())
-            .or_insert_with(|| {
-                let (tx, _) = broadcast::channel(self.default_channel_capacity);
-                debug!(topic = %topic, "Topic created");
-                TopicState {
-                    tx,
-                    subscriber_count: 0,
-                }
-            });
+        let mut entry = self.topics.entry(topic.clone()).or_insert_with(|| {
+            let (tx, _) = broadcast::channel(self.default_channel_capacity);
+            debug!(topic = %topic, "Topic created");
+            TopicState {
+                tx,
+                subscriber_count: 0,
+            }
+        });
 
         entry.subscriber_count += 1;
         entry.tx.subscribe()
@@ -214,11 +211,7 @@ impl P2PMessenger {
     /// Publica e aguarda confirmação de pelo menos um subscriber
     ///
     /// Timeout em milissegundos. Retorna erro se nenhum subscriber receber dentro do prazo.
-    pub async fn publish_with_ack(
-        &self,
-        msg: Message,
-        timeout_ms: u64,
-    ) -> Result<usize> {
+    pub async fn publish_with_ack(&self, msg: Message, timeout_ms: u64) -> Result<usize> {
         let topic = msg.topic.clone();
         let has_subscribers = self
             .topics
@@ -232,11 +225,8 @@ impl P2PMessenger {
             let start = tokio::time::Instant::now();
             loop {
                 if start.elapsed() >= deadline {
-                    self.add_dead_letter(
-                        msg,
-                        format!("No subscribers within {}ms", timeout_ms),
-                    )
-                    .await;
+                    self.add_dead_letter(msg, format!("No subscribers within {}ms", timeout_ms))
+                        .await;
                     return Err(BotError::Internal(format!(
                         "publish_with_ack: no subscribers on '{}' within {}ms",
                         topic, timeout_ms
@@ -337,7 +327,9 @@ fn chrono_now_stub() -> String {
 
     // Ciclos de 100 anos
     let mut n100 = d / DAYS_PER_100Y;
-    if n100 == 4 { n100 = 3; }
+    if n100 == 4 {
+        n100 = 3;
+    }
     y += (n100 * 100) as i64;
     d -= n100 * DAYS_PER_100Y;
 
@@ -348,21 +340,23 @@ fn chrono_now_stub() -> String {
 
     // Anos individuais
     let mut n1 = d / DAYS_PER_Y;
-    if n1 == 4 { n1 = 3; }
+    if n1 == 4 {
+        n1 = 3;
+    }
     y += n1 as i64;
     d -= n1 * DAYS_PER_Y;
 
     // Mês e dia
     let is_leap = (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0);
     let mut m = 0usize;
-     for (i, &md_base) in MONTH_DAYS.iter().enumerate() {
-     let md = if i == 1 && is_leap { 29 } else { md_base };
-     if d < md {
-     m = i;
-     break;
-     }
-     d -= md;
-     }
+    for (i, &md_base) in MONTH_DAYS.iter().enumerate() {
+        let md = if i == 1 && is_leap { 29 } else { md_base };
+        if d < md {
+            m = i;
+            break;
+        }
+        d -= md;
+    }
     let day = d + 1;
     let month = m + 1;
 
@@ -383,7 +377,10 @@ mod tests {
         let mut rx = messenger.subscribe("test-topic");
 
         let msg = Message::new("test-topic", "agent-a", serde_json::json!({"data": 42}));
-        let delivered = messenger.publish(msg).await.expect("publish should succeed");
+        let delivered = messenger
+            .publish(msg)
+            .await
+            .expect("publish should succeed");
 
         assert_eq!(delivered, 1);
 
@@ -397,7 +394,10 @@ mod tests {
         let messenger = P2PMessenger::new(64, 100);
 
         let msg = Message::new("empty-topic", "agent-b", serde_json::json!({"x": 1}));
-        let delivered = messenger.publish(msg).await.expect("publish should succeed");
+        let delivered = messenger
+            .publish(msg)
+            .await
+            .expect("publish should succeed");
 
         assert_eq!(delivered, 0);
 
@@ -418,7 +418,10 @@ mod tests {
         let mut rx2 = messenger.subscribe("multi-topic");
 
         let msg = Message::new("multi-topic", "sender", serde_json::json!({"v": "hello"}));
-        let delivered = messenger.publish(msg).await.expect("publish should succeed");
+        let delivered = messenger
+            .publish(msg)
+            .await
+            .expect("publish should succeed");
 
         assert_eq!(delivered, 2);
 
@@ -469,7 +472,7 @@ mod tests {
 
         let dlq = messenger.get_dead_letters().await;
         assert_eq!(dlq.len(), 3); // Apenas as 3 mais recentes
-        // As primeiras 2 devem ter sido descartadas
+                                  // As primeiras 2 devem ter sido descartadas
         assert_eq!(dlq[0].message.payload["i"], 2);
         assert_eq!(dlq[1].message.payload["i"], 3);
         assert_eq!(dlq[2].message.payload["i"], 4);
@@ -493,8 +496,7 @@ mod tests {
         let messenger = P2PMessenger::new(64, 100);
         let _rx = messenger.subscribe("ttl-topic");
 
-        let msg = Message::new("ttl-topic", "agent", serde_json::json!({}))
-            .with_ttl(0);
+        let msg = Message::new("ttl-topic", "agent", serde_json::json!({})).with_ttl(0);
         let delivered = messenger.publish(msg).await.unwrap();
 
         assert_eq!(delivered, 0);

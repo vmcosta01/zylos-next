@@ -214,10 +214,16 @@ impl fmt::Display for RefusalReason {
             }
             Self::AlreadyWaiting => write!(f, "ALREADY_WAITING: approval request already pending"),
             Self::WithdrawnApprovalsOff => {
-                write!(f, "WITHDRAWN_APPROVALS_OFF: approvals disabled for this context")
+                write!(
+                    f,
+                    "WITHDRAWN_APPROVALS_OFF: approvals disabled for this context"
+                )
             }
             Self::WithdrawnRuleAllows => {
-                write!(f, "WITHDRAWN_RULE_ALLOWS: new allow-rule covers this action")
+                write!(
+                    f,
+                    "WITHDRAWN_RULE_ALLOWS: new allow-rule covers this action"
+                )
             }
             Self::HandledByPerson { person } => {
                 write!(f, "HANDLED_BY_PERSON: {person} already handled this")
@@ -226,10 +232,7 @@ impl fmt::Display for RefusalReason {
                 write!(f, "STEP_STILL_RUNNING: previous step still executing")
             }
             Self::OutcomeUnknownInStep => {
-                write!(
-                    f,
-                    "OUTCOME_UNKNOWN_IN_STEP: prior step outcome uncertain"
-                )
+                write!(f, "OUTCOME_UNKNOWN_IN_STEP: prior step outcome uncertain")
             }
         }
     }
@@ -423,8 +426,12 @@ mod tests {
         let target2 = serde_json::json!({"file": "/tmp/a.txt", "snapshot_id": "snap-2"});
         let args = serde_json::json!({"mode": "write"});
 
-        let d1 = compute_approval_digest("actor1", "bot1", "fs.write", "write", "local", &target1, &args);
-        let d2 = compute_approval_digest("actor1", "bot1", "fs.write", "write", "local", &target2, &args);
+        let d1 = compute_approval_digest(
+            "actor1", "bot1", "fs.write", "write", "local", &target1, &args,
+        );
+        let d2 = compute_approval_digest(
+            "actor1", "bot1", "fs.write", "write", "local", &target2, &args,
+        );
 
         assert_eq!(d1, d2, "Different snapshot_id should not change digest");
     }
@@ -434,8 +441,11 @@ mod tests {
         let target = serde_json::json!({"file": "/tmp/a.txt"});
         let args = serde_json::json!({"mode": "write"});
 
-        let d1 = compute_approval_digest("actor1", "bot1", "fs.write", "write", "local", &target, &args);
-        let d2 = compute_approval_digest("actor1", "bot1", "fs.read", "read", "local", &target, &args);
+        let d1 = compute_approval_digest(
+            "actor1", "bot1", "fs.write", "write", "local", &target, &args,
+        );
+        let d2 =
+            compute_approval_digest("actor1", "bot1", "fs.read", "read", "local", &target, &args);
 
         assert_ne!(d1, d2);
     }
@@ -498,24 +508,28 @@ mod tests {
     fn test_decide_action_first_match_wins() {
         struct SafetyDeny;
         impl PolicyTierEvaluator for SafetyDeny {
-            fn tier(&self) -> PolicyTier { PolicyTier::Safety }
+            fn tier(&self) -> PolicyTier {
+                PolicyTier::Safety
+            }
             fn evaluate(&self, _: &ApprovalDigest, _: &ApprovalContext) -> TierDecision {
-                TierDecision::Deny(RefusalReason::DeclinedByPerson { person: "admin".into() })
+                TierDecision::Deny(RefusalReason::DeclinedByPerson {
+                    person: "admin".into(),
+                })
             }
         }
 
         struct PersonalAllow;
         impl PolicyTierEvaluator for PersonalAllow {
-            fn tier(&self) -> PolicyTier { PolicyTier::PersonalRule }
+            fn tier(&self) -> PolicyTier {
+                PolicyTier::PersonalRule
+            }
             fn evaluate(&self, _: &ApprovalDigest, _: &ApprovalContext) -> TierDecision {
                 TierDecision::Allow
             }
         }
 
-        let evaluators: Vec<Box<dyn PolicyTierEvaluator>> = vec![
-            Box::new(PersonalAllow),
-            Box::new(SafetyDeny),
-        ];
+        let evaluators: Vec<Box<dyn PolicyTierEvaluator>> =
+            vec![Box::new(PersonalAllow), Box::new(SafetyDeny)];
 
         let ctx = ApprovalContext {
             actor_id: "a".into(),
@@ -535,7 +549,9 @@ mod tests {
     fn test_decide_action_defer_to_next() {
         struct AlwaysDefer;
         impl PolicyTierEvaluator for AlwaysDefer {
-            fn tier(&self) -> PolicyTier { PolicyTier::Safety }
+            fn tier(&self) -> PolicyTier {
+                PolicyTier::Safety
+            }
             fn evaluate(&self, _: &ApprovalDigest, _: &ApprovalContext) -> TierDecision {
                 TierDecision::Defer
             }
@@ -543,16 +559,16 @@ mod tests {
 
         struct AutoAllow;
         impl PolicyTierEvaluator for AutoAllow {
-            fn tier(&self) -> PolicyTier { PolicyTier::AutoReview }
+            fn tier(&self) -> PolicyTier {
+                PolicyTier::AutoReview
+            }
             fn evaluate(&self, _: &ApprovalDigest, _: &ApprovalContext) -> TierDecision {
                 TierDecision::Allow
             }
         }
 
-        let evaluators: Vec<Box<dyn PolicyTierEvaluator>> = vec![
-            Box::new(AlwaysDefer),
-            Box::new(AutoAllow),
-        ];
+        let evaluators: Vec<Box<dyn PolicyTierEvaluator>> =
+            vec![Box::new(AlwaysDefer), Box::new(AutoAllow)];
 
         let ctx = ApprovalContext {
             actor_id: "a".into(),
@@ -632,21 +648,21 @@ mod tests {
 
     #[test]
     fn test_carry_on_none_when_nothing_decided() {
-        let mut calls = vec![
-            StepCall {
-                call_id: "c1".into(),
-                digest: ApprovalDigest("d1".into()),
-                decided_at: chrono::Utc::now(),
-                decided: false,
-            },
-        ];
+        let mut calls = vec![StepCall {
+            call_id: "c1".into(),
+            digest: ApprovalDigest("d1".into()),
+            decided_at: chrono::Utc::now(),
+            decided: false,
+        }];
 
         assert_eq!(carry_on(&mut calls), None);
     }
 
     #[test]
     fn test_refusal_reason_display() {
-        let r = RefusalReason::DeclinedByPerson { person: "alice".into() };
+        let r = RefusalReason::DeclinedByPerson {
+            person: "alice".into(),
+        };
         assert!(format!("{}", r).contains("DECLINED_BY_PERSON"));
         assert!(format!("{}", r).contains("alice"));
 
@@ -668,9 +684,7 @@ mod tests {
             owner: "agent-1".into(),
         };
 
-        let result = with_authority(auth.clone(), || async {
-            current_authority()
-        }).await;
+        let result = with_authority(auth.clone(), || async { current_authority() }).await;
 
         assert!(result.is_some());
         assert_eq!(result.unwrap().approval_id, "appr-1");
@@ -678,23 +692,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_no_authority_outside_scope() {
-        let result = EXECUTION_AUTHORITY.scope(None, async {
-            current_authority()
-        }).await;
+        let result = EXECUTION_AUTHORITY
+            .scope(None, async { current_authority() })
+            .await;
         assert!(result.is_none());
     }
 
     #[tokio::test]
     async fn test_validation_probe_active() {
-        let result = with_validation_probe(|| async {
-            is_approval_recheck()
-        }).await;
+        let result = with_validation_probe(|| async { is_approval_recheck() }).await;
         assert!(result);
 
         // Outside scope should be false
-        let outside = VALIDATION_PROBE_ACTIVE.scope(false, async {
-            is_approval_recheck()
-        }).await;
+        let outside = VALIDATION_PROBE_ACTIVE
+            .scope(false, async { is_approval_recheck() })
+            .await;
         assert!(!outside);
     }
 }

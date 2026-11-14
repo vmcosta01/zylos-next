@@ -56,7 +56,9 @@ pub fn LoginForm() -> impl IntoView {
                     if let Ok(auth) = r.json::<AuthResponse>().await {
                         token.set(Some(auth.access_token.clone()));
                         // Persist token for subsequent API calls
-                        if let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
+                        if let Some(storage) =
+                            web_sys::window().and_then(|w| w.local_storage().ok().flatten())
+                        {
                             let _ = storage.set_item("access_token", &auth.access_token);
                             let _ = storage.set_item("tenant_id", &tid);
                         }
@@ -159,7 +161,11 @@ pub fn PresenceIndicator(doc_id: String) -> impl IntoView {
                 {
                     if resp.ok() {
                         if let Ok(list) = resp.json::<Vec<(u64, String, String, String)>>().await {
-                            users.set(list.into_iter().map(|(_, uid, name, color)| (uid, name, color)).collect());
+                            users.set(
+                                list.into_iter()
+                                    .map(|(_, uid, name, color)| (uid, name, color))
+                                    .collect(),
+                            );
                         }
                     }
                 }

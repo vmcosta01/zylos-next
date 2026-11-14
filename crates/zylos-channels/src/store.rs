@@ -1,6 +1,6 @@
 //! ChannelsStore — persistência SQLite via sqlx para canais e mensagens.
 
-use crate::models::{ChannelMessage, ChannelMember, ChannelResponse, ChannelWithCount};
+use crate::models::{ChannelMember, ChannelMessage, ChannelResponse, ChannelWithCount};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
 use std::str::FromStr;
 use thiserror::Error;
@@ -63,15 +63,9 @@ impl ChannelsStore {
             for stmt in sql.split(';') {
                 let stmt = stmt.trim();
                 if !stmt.is_empty() {
-                    sqlx::query(stmt)
-                        .execute(&self.pool)
-                        .await
-                        .map_err(|e| {
-                            ChannelsError::Migration(format!(
-                                "migration {} statement failed: {}",
-                                i, e
-                            ))
-                        })?;
+                    sqlx::query(stmt).execute(&self.pool).await.map_err(|e| {
+                        ChannelsError::Migration(format!("migration {} statement failed: {}", i, e))
+                    })?;
                 }
             }
         }
@@ -82,8 +76,18 @@ impl ChannelsStore {
     pub async fn seed_defaults(&self) -> Result<()> {
         let defaults = vec![
             ("ch-geral", "geral", "Discussões gerais da equipe", false),
-            ("ch-engenharia", "engenharia", "Tópicos técnicos e arquitetura", false),
-            ("ch-segurança", "segurança", "Alertas e auditorias de segurança", true),
+            (
+                "ch-engenharia",
+                "engenharia",
+                "Tópicos técnicos e arquitetura",
+                false,
+            ),
+            (
+                "ch-segurança",
+                "segurança",
+                "Alertas e auditorias de segurança",
+                true,
+            ),
             ("ch-anúncios", "anúncios", "Comunicados oficiais", false),
         ];
         let now = chrono::Utc::now().to_rfc3339();
@@ -239,18 +243,20 @@ impl ChannelsStore {
         }
 
         let now = chrono::Utc::now().to_rfc3339();
-        sqlx::query("INSERT INTO channel_members (channel_id, user_id, joined_at) VALUES (?, ?, ?)")
-            .bind(channel_id)
-            .bind(user_id)
-            .bind(&now)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| match e {
-                sqlx::Error::Database(ref db) if db.message().contains("UNIQUE") => {
-                    ChannelsError::MemberAlreadyExists
-                }
-                other => ChannelsError::Sqlx(other),
-            })?;
+        sqlx::query(
+            "INSERT INTO channel_members (channel_id, user_id, joined_at) VALUES (?, ?, ?)",
+        )
+        .bind(channel_id)
+        .bind(user_id)
+        .bind(&now)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| match e {
+            sqlx::Error::Database(ref db) if db.message().contains("UNIQUE") => {
+                ChannelsError::MemberAlreadyExists
+            }
+            other => ChannelsError::Sqlx(other),
+        })?;
 
         Ok(ChannelMember {
             channel_id: channel_id.to_string(),
@@ -397,10 +403,7 @@ mod tests {
             .send_message("ch-geral", "Alice", "msg1")
             .await
             .unwrap();
-        store
-            .send_message("ch-geral", "Bob", "msg2")
-            .await
-            .unwrap();
+        store.send_message("ch-geral", "Bob", "msg2").await.unwrap();
         let msgs = store.list_messages("ch-geral").await.unwrap();
         assert_eq!(msgs.len(), 2);
     }

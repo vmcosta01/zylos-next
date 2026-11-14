@@ -141,9 +141,9 @@ impl RelayState {
     /// Validate a bearer token. Returns the device token if valid.
     pub async fn validate_token(&self, token: &str) -> Result<DeviceToken, RelayError> {
         let tokens = self.tokens.read().await;
-        let device_token = tokens.get(token).ok_or_else(|| {
-            RelayError::Auth("Unknown token".into())
-        })?;
+        let device_token = tokens
+            .get(token)
+            .ok_or_else(|| RelayError::Auth("Unknown token".into()))?;
 
         if device_token.is_expired(unix_now()) {
             return Err(RelayError::Auth("Token expired".into()));

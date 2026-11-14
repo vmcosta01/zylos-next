@@ -21,8 +21,13 @@ async fn sandbox_wasm_resource_limits() {
         "wasm_bytes_base64": null  // Will use built-in test module
     });
 
-    let resp = gw.client.post(&exec_url).json(&exec_req)
-        .send().await.expect("execute wasm");
+    let resp = gw
+        .client
+        .post(&exec_url)
+        .json(&exec_req)
+        .send()
+        .await
+        .expect("execute wasm");
 
     let result: serde_json::Value = resp.json().await.expect("parse wasm result");
 

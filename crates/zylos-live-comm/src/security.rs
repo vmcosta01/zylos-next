@@ -106,10 +106,7 @@ pub async fn security_headers_middleware(request: Request, next: Next) -> Respon
     );
 
     // X-Frame-Options: prevent clickjacking
-    headers.insert(
-        header::X_FRAME_OPTIONS,
-        HeaderValue::from_static("DENY"),
-    );
+    headers.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
 
     // Referrer-Policy: limit referrer leakage
     headers.insert(
@@ -264,7 +261,10 @@ mod tests {
 
     #[test]
     fn test_sanitize_input_preserves_newlines() {
-        assert_eq!(sanitize_input("line1\nline2\r\nline3"), "line1\nline2\r\nline3");
+        assert_eq!(
+            sanitize_input("line1\nline2\r\nline3"),
+            "line1\nline2\r\nline3"
+        );
     }
 
     #[test]

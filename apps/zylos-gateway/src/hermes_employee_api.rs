@@ -9,13 +9,13 @@
 //! Todos os endpoints publicam eventos no EventBus para visibilidade no cockpit.
 
 use axum::{
-    Json, Router,
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::{get, post},
+    Json, Router,
 };
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use zylos_live_comm::hermes_bridge::{HermesBridge, HermesEnvelope};
 
 use crate::AppState;
@@ -77,7 +77,10 @@ async fn get_routine_catalog(State(state): State<AppState>) -> Response {
 // Plan-First Gate
 // ---------------------------------------------------------------------------
 
-async fn post_plan_first_gate_submit(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
+async fn post_plan_first_gate_submit(
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> Response {
     publish_event(&state, "plan-submitted", body.clone());
     ok_json(json!({
         "status": "accepted",
@@ -108,8 +111,14 @@ pub fn create_hermes_employee_router() -> Router<AppState> {
     Router::new()
         .route("/hermes/employee/roles", get(get_employee_roles))
         .route("/hermes/employee/routines", get(get_routine_catalog))
-        .route("/hermes/employee/plan-gate/submit", post(post_plan_first_gate_submit))
-        .route("/hermes/employee/rate-limiter/stats", get(get_rate_limiter_stats))
+        .route(
+            "/hermes/employee/plan-gate/submit",
+            post(post_plan_first_gate_submit),
+        )
+        .route(
+            "/hermes/employee/rate-limiter/stats",
+            get(get_rate_limiter_stats),
+        )
 }
 
 #[cfg(test)]

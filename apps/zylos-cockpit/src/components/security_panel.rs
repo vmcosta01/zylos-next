@@ -21,17 +21,17 @@ pub struct SecurityState {
 }
 
 async fn fetch_json(url: &str) -> Result<serde_json::Value, String> {
- let full_url = format!("http://localhost:3000{}", url);
- let resp = gloo_net::http::Request::get(&full_url)
- .send()
- .await
- .map_err(|e| format!("fetch error: {e}"))?;
- if !resp.ok() {
- return Err(format!("HTTP {}", resp.status()));
- }
- resp.json::<serde_json::Value>()
- .await
- .map_err(|e| format!("json parse: {e}"))
+    let full_url = format!("http://localhost:3000{}", url);
+    let resp = gloo_net::http::Request::get(&full_url)
+        .send()
+        .await
+        .map_err(|e| format!("fetch error: {e}"))?;
+    if !resp.ok() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    resp.json::<serde_json::Value>()
+        .await
+        .map_err(|e| format!("json parse: {e}"))
 }
 
 /// Componente SecurityPanel para o cockpit.
@@ -51,25 +51,45 @@ pub fn SecurityPanel() -> impl IntoView {
             // Guardrails stats
             match fetch_json("/api/v1/hermes/security/guardrails/stats").await {
                 Ok(json) => {
-                    s.guardrails_active = json.get("active_rules").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
-                    s.guardrails_blocked = json.get("blocked_count").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+                    s.guardrails_active = json
+                        .get("active_rules")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0) as usize;
+                    s.guardrails_blocked = json
+                        .get("blocked_count")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0) as usize;
                 }
-                Err(e) => { error_msg.set(Some(format!("Guardrails: {e}"))); }
+                Err(e) => {
+                    error_msg.set(Some(format!("Guardrails: {e}")));
+                }
             }
 
             // Capability tokens
             if let Ok(json) = fetch_json("/api/v1/hermes/security/capability-tokens").await {
-                s.capability_tokens_active = json.get("tokens").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+                s.capability_tokens_active = json
+                    .get("tokens")
+                    .and_then(|v| v.as_array())
+                    .map(|a| a.len())
+                    .unwrap_or(0);
             }
 
             // Egress rules
             if let Ok(json) = fetch_json("/api/v1/hermes/security/egress/rules").await {
-                s.egress_rules_count = json.get("rules").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+                s.egress_rules_count = json
+                    .get("rules")
+                    .and_then(|v| v.as_array())
+                    .map(|a| a.len())
+                    .unwrap_or(0);
             }
 
             // Sanitizer rules
             if let Ok(json) = fetch_json("/api/v1/hermes/security/sanitizer/rules").await {
-                s.sanitizer_rules_count = json.get("rules").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+                s.sanitizer_rules_count = json
+                    .get("rules")
+                    .and_then(|v| v.as_array())
+                    .map(|a| a.len())
+                    .unwrap_or(0);
             }
 
             state.set(s);

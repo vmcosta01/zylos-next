@@ -66,10 +66,7 @@ pub async fn multi_tenant_middleware(mut request: Request, next: Next) -> Respon
         .get::<crate::auth::Claims>()
         .map(|c| c.sub.clone());
 
-    let ctx = TenantContext {
-        tenant_id,
-        user_id,
-    };
+    let ctx = TenantContext { tenant_id, user_id };
     request.extensions_mut().insert(ctx);
     next.run(request).await
 }
@@ -127,21 +124,53 @@ pub struct PermissionEntry {
 /// Default permission matrix
 pub static PERMISSION_MATRIX: &[PermissionEntry] = &[
     // Variante PermissionEntry.
-    PermissionEntry { path_prefix: "/health", method: "GET", min_level: RbacLevel::Viewer },
+    PermissionEntry {
+        path_prefix: "/health",
+        method: "GET",
+        min_level: RbacLevel::Viewer,
+    },
     // Variante PermissionEntry.
-    PermissionEntry { path_prefix: "/events", method: "GET", min_level: RbacLevel::Viewer },
+    PermissionEntry {
+        path_prefix: "/events",
+        method: "GET",
+        min_level: RbacLevel::Viewer,
+    },
     // Variante PermissionEntry.
-    PermissionEntry { path_prefix: "/ws", method: "GET", min_level: RbacLevel::Viewer },
+    PermissionEntry {
+        path_prefix: "/ws",
+        method: "GET",
+        min_level: RbacLevel::Viewer,
+    },
     // Variante PermissionEntry.
-    PermissionEntry { path_prefix: "/api/v1/skills", method: "GET", min_level: RbacLevel::Viewer },
+    PermissionEntry {
+        path_prefix: "/api/v1/skills",
+        method: "GET",
+        min_level: RbacLevel::Viewer,
+    },
     // Variante PermissionEntry.
-    PermissionEntry { path_prefix: "/api/v1/skills", method: "POST", min_level: RbacLevel::Developer },
+    PermissionEntry {
+        path_prefix: "/api/v1/skills",
+        method: "POST",
+        min_level: RbacLevel::Developer,
+    },
     // Variante PermissionEntry.
-    PermissionEntry { path_prefix: "/api/v1/skills", method: "DELETE", min_level: RbacLevel::Admin },
+    PermissionEntry {
+        path_prefix: "/api/v1/skills",
+        method: "DELETE",
+        min_level: RbacLevel::Admin,
+    },
     // Variante PermissionEntry.
-    PermissionEntry { path_prefix: "/api/v1/admin", method: "*", min_level: RbacLevel::Admin },
+    PermissionEntry {
+        path_prefix: "/api/v1/admin",
+        method: "*",
+        min_level: RbacLevel::Admin,
+    },
     // Variante PermissionEntry.
-    PermissionEntry { path_prefix: "/api/v1/config", method: "*", min_level: RbacLevel::Owner },
+    PermissionEntry {
+        path_prefix: "/api/v1/config",
+        method: "*",
+        min_level: RbacLevel::Owner,
+    },
 ];
 
 /// LRU-cached RBAC resolution with TTL
@@ -210,10 +239,7 @@ pub async fn rbac_middleware(
 ) -> Response {
     let claims = request.extensions().get::<crate::auth::Claims>().cloned();
 
-    let role_str = claims
-        .as_ref()
-        .map(|c| c.role.as_str())
-        .unwrap_or("viewer");
+    let role_str = claims.as_ref().map(|c| c.role.as_str()).unwrap_or("viewer");
 
     let cache_key = format!("{}:{}", role_str, request.uri().path());
 
@@ -258,8 +284,10 @@ pub async fn rbac_middleware(
 /// Estrutura MultiTierRateLimiter.
 pub struct MultiTierRateLimiter {
     global: Arc<RateLimiter<governor::state::NotKeyed, InMemoryState, DefaultClock>>,
-    per_tenant: Arc<RateLimiter<String, governor::state::keyed::DashMapStateStore<String>, DefaultClock>>,
-    per_user: Arc<RateLimiter<String, governor::state::keyed::DashMapStateStore<String>, DefaultClock>>,
+    per_tenant:
+        Arc<RateLimiter<String, governor::state::keyed::DashMapStateStore<String>, DefaultClock>>,
+    per_user:
+        Arc<RateLimiter<String, governor::state::keyed::DashMapStateStore<String>, DefaultClock>>,
 }
 
 impl MultiTierRateLimiter {
@@ -364,10 +392,8 @@ fn rate_limit_response(tier: &str) -> Response {
         "retry_after_secs": 1
     });
     let mut resp = (StatusCode::TOO_MANY_REQUESTS, Json(body)).into_response();
-    resp.headers_mut().insert(
-        header::RETRY_AFTER,
-        HeaderValue::from_static("1"),
-    );
+    resp.headers_mut()
+        .insert(header::RETRY_AFTER, HeaderValue::from_static("1"));
     resp
 }
 
@@ -388,7 +414,9 @@ pub async fn correlation_id_middleware(mut request: Request, next: Next) -> Resp
         .unwrap_or_else(|| Uuid::new_v4().to_string());
 
     // Insert into extensions for downstream use
-    request.extensions_mut().insert(CorrelationId(correlation_id.clone()));
+    request
+        .extensions_mut()
+        .insert(CorrelationId(correlation_id.clone()));
 
     let span = tracing::span!(
         Level::INFO,
@@ -407,7 +435,8 @@ pub async fn correlation_id_middleware(mut request: Request, next: Next) -> Resp
     let mut response = response;
     response.headers_mut().insert(
         X_CORRELATION_ID.clone(),
-        HeaderValue::from_str(&correlation_id).unwrap_or_else(|_| HeaderValue::from_static("unknown")),
+        HeaderValue::from_str(&correlation_id)
+            .unwrap_or_else(|_| HeaderValue::from_static("unknown")),
     );
 
     response
@@ -497,7 +526,12 @@ pub struct HealthResponse {
 /// Estrutura ReadinessChecker.
 pub struct ReadinessChecker {
     #[allow(clippy::type_complexity)]
-    checks: Arc<Vec<(&'static str, Arc<dyn Fn() -> futures::future::BoxFuture<'static, bool> + Send + Sync>)>>,
+    checks: Arc<
+        Vec<(
+            &'static str,
+            Arc<dyn Fn() -> futures::future::BoxFuture<'static, bool> + Send + Sync>,
+        )>,
+    >,
 }
 
 impl ReadinessChecker {
@@ -510,7 +544,11 @@ impl ReadinessChecker {
     }
 
     /// Função with check.
-    pub fn with_check(mut self, name: &'static str, check: impl Fn() -> futures::future::BoxFuture<'static, bool> + Send + Sync + 'static) -> Self {
+    pub fn with_check(
+        mut self,
+        name: &'static str,
+        check: impl Fn() -> futures::future::BoxFuture<'static, bool> + Send + Sync + 'static,
+    ) -> Self {
         let checks = Arc::get_mut(&mut self.checks).expect("exclusive access");
         checks.push((name, Arc::new(check)));
         self
@@ -589,10 +627,9 @@ impl GracefulShutdown {
     pub fn install_signal_handler(&self) {
         let token = self.token.clone();
         tokio::spawn(async move {
-            let mut sigterm = tokio::signal::unix::signal(
-                tokio::signal::unix::SignalKind::terminate(),
-            )
-            .expect("failed to install SIGTERM handler");
+            let mut sigterm =
+                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                    .expect("failed to install SIGTERM handler");
             sigterm.recv().await;
             info!("SIGTERM received");
             token.cancel();
@@ -705,7 +742,10 @@ pub struct GatewayState {
 }
 
 /// Build the complete gateway router with all middleware layers
-pub fn build_gateway(config: GatewayConfig, bus: crate::event_bus::EventBus) -> (Router, GracefulShutdown) {
+pub fn build_gateway(
+    config: GatewayConfig,
+    bus: crate::event_bus::EventBus,
+) -> (Router, GracefulShutdown) {
     let shutdown = GracefulShutdown::new(config.drain_timeout_secs);
     shutdown.install_signal_handler();
 
@@ -736,9 +776,7 @@ pub fn build_gateway(config: GatewayConfig, bus: crate::event_bus::EventBus) -> 
         .with_state(state.clone());
 
     // Merge both routers — both now have () state after with_state resolution
-    let api_routes: Router<()> = Router::new()
-        .merge(sse_ws_router)
-        .merge(gateway_routes);
+    let api_routes: Router<()> = Router::new().merge(sse_ws_router).merge(gateway_routes);
 
     // Full middleware stack (order matters: outermost first)
     let app = api_routes
@@ -753,7 +791,9 @@ pub fn build_gateway(config: GatewayConfig, bus: crate::event_bus::EventBus) -> 
             rbac_middleware,
         ))
         .layer(build_trace_layer())
-        .layer(axum::middleware::from_fn(crate::security::security_headers_middleware));
+        .layer(axum::middleware::from_fn(
+            crate::security::security_headers_middleware,
+        ));
 
     (app, shutdown)
 }

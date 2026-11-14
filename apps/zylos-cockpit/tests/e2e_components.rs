@@ -103,12 +103,12 @@ fn test_skill_def_serialization_roundtrip() {
 /// Valida serialização/deserialização de TopologyNode.
 #[wasm_bindgen_test]
 fn test_topology_node_serialization_roundtrip() {
-    use zylos_cockpit::components::swarm_topology_panel::{NodeType, NodeStatus, TopologyNode};
-     let node = TopologyNode {
-     id: "node-1".to_string(),
-     label: "Agent Alpha".to_string(),
-     node_type: NodeType::Agent,
-     status: NodeStatus::Online,
+    use zylos_cockpit::components::swarm_topology_panel::{NodeStatus, NodeType, TopologyNode};
+    let node = TopologyNode {
+        id: "node-1".to_string(),
+        label: "Agent Alpha".to_string(),
+        node_type: NodeType::Agent,
+        status: NodeStatus::Online,
         x: 100.0,
         y: 200.0,
     };

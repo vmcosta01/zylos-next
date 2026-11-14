@@ -4,13 +4,7 @@
 //! dispatches them across memory, skills, soar, verification, sandbox,
 //! and live-comm subsystems.
 
-use axum::{
-    Json, Router,
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    routing::post,
-};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::post, Json, Router};
 use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 
@@ -84,7 +78,10 @@ pub struct OrchestrateResponse {
 // Subsystem dispatchers (lightweight integration shims)
 // ---------------------------------------------------------------------------
 
-async fn dispatch_memory(action: &str, payload: &serde_json::Value) -> Result<serde_json::Value, String> {
+async fn dispatch_memory(
+    action: &str,
+    payload: &serde_json::Value,
+) -> Result<serde_json::Value, String> {
     match action {
         "consolidate" => {
             // Exercise MemoryAgent consolidation path via in-memory graph
@@ -92,7 +89,10 @@ async fn dispatch_memory(action: &str, payload: &serde_json::Value) -> Result<se
             let graph = ContextGraph::in_memory().map_err(|e| e.to_string())?;
             let config = MemoryAgentConfig::default();
             let agent = MemoryAgent::new(std::sync::Arc::new(graph), config);
-            let report = agent.run_consolidation_cycle().await.map_err(|e| e.to_string())?;
+            let report = agent
+                .run_consolidation_cycle()
+                .await
+                .map_err(|e| e.to_string())?;
             Ok(serde_json::json!({
                 "contradictions_found": report.contradictions_found,
                 "memories_decayed": report.memories_decayed,
@@ -107,7 +107,8 @@ async fn dispatch_memory(action: &str, payload: &serde_json::Value) -> Result<se
                 Some(arr) => {
                     let mut out = Vec::new();
                     for item in arr {
-                        let node: ContextNode = serde_json::from_value(item.clone()).map_err(|e| e.to_string())?;
+                        let node: ContextNode =
+                            serde_json::from_value(item.clone()).map_err(|e| e.to_string())?;
                         out.push(node);
                     }
                     out
@@ -127,7 +128,11 @@ async fn dispatch_memory(action: &str, payload: &serde_json::Value) -> Result<se
     }
 }
 
-async fn dispatch_skills(action: &str, _payload: &serde_json::Value, state: &AppState) -> Result<serde_json::Value, String> {
+async fn dispatch_skills(
+    action: &str,
+    _payload: &serde_json::Value,
+    state: &AppState,
+) -> Result<serde_json::Value, String> {
     match action {
         "list" => {
             let registry = state.skills_state.registry.read().await;
@@ -145,10 +150,13 @@ async fn dispatch_skills(action: &str, _payload: &serde_json::Value, state: &App
     }
 }
 
-async fn dispatch_verification(action: &str, payload: &serde_json::Value) -> Result<serde_json::Value, String> {
+async fn dispatch_verification(
+    action: &str,
+    payload: &serde_json::Value,
+) -> Result<serde_json::Value, String> {
     match action {
         "panel_deliberate" => {
-            use zylos_verification::{AdversarialPanel, PanelConfig, Verdict, Ground};
+            use zylos_verification::{AdversarialPanel, Ground, PanelConfig, Verdict};
             let config = PanelConfig::default();
             let mut panel = AdversarialPanel::new(config);
             panel.begin();
@@ -156,14 +164,23 @@ async fn dispatch_verification(action: &str, payload: &serde_json::Value) -> Res
             // Extract verdicts from payload or use defaults
             if let Some(verdicts) = payload.get("verdicts").and_then(|v| v.as_array()) {
                 for v in verdicts {
-                    let judge_id = v.get("judge_id").and_then(|j| j.as_str()).unwrap_or("judge-0");
-                    let ground_str = v.get("ground").and_then(|g| g.as_str()).unwrap_or("confirmed");
+                    let judge_id = v
+                        .get("judge_id")
+                        .and_then(|j| j.as_str())
+                        .unwrap_or("judge-0");
+                    let ground_str = v
+                        .get("ground")
+                        .and_then(|g| g.as_str())
+                        .unwrap_or("confirmed");
                     let ground = match ground_str {
                         "observed" => Ground::Observado,
                         "refuted" => Ground::Crido,
                         _ => Ground::Confirmado,
                     };
-                    let rationale = v.get("rationale").and_then(|r| r.as_str()).unwrap_or("auto");
+                    let rationale = v
+                        .get("rationale")
+                        .and_then(|r| r.as_str())
+                        .unwrap_or("auto");
                     panel.add_verdict(Verdict {
                         judge_id: judge_id.to_string(),
                         valid: true,
@@ -182,8 +199,11 @@ async fn dispatch_verification(action: &str, payload: &serde_json::Value) -> Res
             }))
         }
         "proof_validate" => {
-            use zylos_verification::{Proof, Ground};
-            let claim = payload.get("claim").and_then(|c| c.as_str()).unwrap_or("test-claim");
+            use zylos_verification::{Ground, Proof};
+            let claim = payload
+                .get("claim")
+                .and_then(|c| c.as_str())
+                .unwrap_or("test-claim");
             let proof = Proof::new(claim, Ground::Confirmado);
             Ok(serde_json::json!({
                 "valid": true,
@@ -195,7 +215,10 @@ async fn dispatch_verification(action: &str, payload: &serde_json::Value) -> Res
     }
 }
 
-async fn dispatch_sandbox(action: &str, _payload: &serde_json::Value) -> Result<serde_json::Value, String> {
+async fn dispatch_sandbox(
+    action: &str,
+    _payload: &serde_json::Value,
+) -> Result<serde_json::Value, String> {
     match action {
         "wasm_check" => {
             // Verify WASM sandbox type availability without executing untrusted code
@@ -208,12 +231,22 @@ async fn dispatch_sandbox(action: &str, _payload: &serde_json::Value) -> Result<
     }
 }
 
-async fn dispatch_soar(action: &str, payload: &serde_json::Value, state: &AppState) -> Result<serde_json::Value, String> {
+async fn dispatch_soar(
+    action: &str,
+    payload: &serde_json::Value,
+    state: &AppState,
+) -> Result<serde_json::Value, String> {
     match action {
         "playbook_dispatch" => {
             use zylos_soar::ZylosSecurityEvent;
-            let source = payload.get("source").and_then(|s| s.as_str()).unwrap_or("orchestrator");
-            let title = payload.get("title").and_then(|t| t.as_str()).unwrap_or("orchestrated-event");
+            let source = payload
+                .get("source")
+                .and_then(|s| s.as_str())
+                .unwrap_or("orchestrator");
+            let title = payload
+                .get("title")
+                .and_then(|t| t.as_str())
+                .unwrap_or("orchestrated-event");
             let event = ZylosSecurityEvent::new(
                 source,
                 zylos_soar::Severity::Medium,
@@ -223,7 +256,11 @@ async fn dispatch_soar(action: &str, payload: &serde_json::Value, state: &AppSta
                 vec![],
                 serde_json::json!({}),
             );
-            let result = state.soar_orchestrator.process_event(event).await.map_err(|e| e.to_string())?;
+            let result = state
+                .soar_orchestrator
+                .process_event(event)
+                .await
+                .map_err(|e| e.to_string())?;
             Ok(serde_json::json!({
                 "event_id": result.event_id.to_string(),
                 "playbooks_dispatched": result.dispatched_playbooks.len(),
@@ -235,12 +272,10 @@ async fn dispatch_soar(action: &str, payload: &serde_json::Value, state: &AppSta
 
 async fn dispatch_live_comm(action: &str, state: &AppState) -> Result<serde_json::Value, String> {
     match action {
-        "cockpit_status" => {
-            Ok(serde_json::json!({
-                "event_bus_receivers": state.event_bus.receiver_count(),
-                "streaming": true,
-            }))
-        }
+        "cockpit_status" => Ok(serde_json::json!({
+            "event_bus_receivers": state.event_bus.receiver_count(),
+            "streaming": true,
+        })),
         _ => Err(format!("unknown live-comm action: {}", action)),
     }
 }
@@ -273,12 +308,14 @@ pub struct Diagnostico {
 /// não muda de ordem).
 pub fn diagnosticar(nodes: &[DagNode]) -> Diagnostico {
     let n = nodes.len();
-    let mut contagem: std::collections::HashMap<&str, usize> = std::collections::HashMap::with_capacity(n);
+    let mut contagem: std::collections::HashMap<&str, usize> =
+        std::collections::HashMap::with_capacity(n);
     for no in nodes {
         *contagem.entry(no.id.as_str()).or_insert(0) += 1;
     }
     let mut motivo: Vec<Option<String>> = vec![None; n];
-    let mut indice: std::collections::HashMap<&str, usize> = std::collections::HashMap::with_capacity(n);
+    let mut indice: std::collections::HashMap<&str, usize> =
+        std::collections::HashMap::with_capacity(n);
     for (i, no) in nodes.iter().enumerate() {
         if contagem[no.id.as_str()] > 1 {
             motivo[i] = Some(format!("id repetido: {}", no.id));
@@ -328,9 +365,9 @@ pub fn diagnosticar(nodes: &[DagNode]) -> Diagnostico {
     let fora = (0..n)
         .filter(|&i| !rodou[i])
         .map(|i| {
-            let m = motivo[i]
-                .take()
-                .unwrap_or_else(|| "em ciclo de dependências ou depende de etapa que não vai rodar".into());
+            let m = motivo[i].take().unwrap_or_else(|| {
+                "em ciclo de dependências ou depende de etapa que não vai rodar".into()
+            });
             (i, m)
         })
         .collect();
@@ -352,8 +389,7 @@ pub async fn execute_dag(
     // O pedido pode listar os nós fora de ordem: executa na ordem das dependências.
     // DAG que não dá para ordenar (id repetido, dependência inexistente, ciclo)
     // segue na ordem recebida, e o nó sem dependência cumprida falha como antes.
-    let ordem: Vec<usize> =
-        ordem_de_execucao(nodes).unwrap_or_else(|| (0..nodes.len()).collect());
+    let ordem: Vec<usize> = ordem_de_execucao(nodes).unwrap_or_else(|| (0..nodes.len()).collect());
     executar(state, nodes, &ordem, &[], rollback_on_failure).await
 }
 
@@ -382,7 +418,10 @@ async fn executar(
 
     for node in ordem.iter().map(|&i| &nodes[i]) {
         // Check dependencies satisfied
-        let deps_met = node.depends_on.iter().all(|dep| completed_ids.contains(dep));
+        let deps_met = node
+            .depends_on
+            .iter()
+            .all(|dep| completed_ids.contains(dep));
         if !deps_met {
             let nr = NodeResult {
                 node_id: node.id.clone(),
@@ -482,11 +521,18 @@ async fn post_orchestrate(
     if !diag.fora.is_empty() && !request.allow_partial {
         // Nada roda: devolve o que ficaria fora e o que poderia rodar, para quem
         // pediu decidir se reenvia com allow_partial.
-        let executaveis: Vec<&str> = diag.ordem.iter().map(|&i| request.nodes[i].id.as_str()).collect();
+        let executaveis: Vec<&str> = diag
+            .ordem
+            .iter()
+            .map(|&i| request.nodes[i].id.as_str())
+            .collect();
         let fora: Vec<EtapaFora> = diag
             .fora
             .iter()
-            .map(|(i, m)| EtapaFora { node_id: request.nodes[*i].id.clone(), motivo: m.clone() })
+            .map(|(i, m)| EtapaFora {
+                node_id: request.nodes[*i].id.clone(),
+                motivo: m.clone(),
+            })
             .collect();
         let body = serde_json::json!({
             "type": "https://zylos.dev/errors/dag-com-etapas-invalidas",
@@ -516,15 +562,17 @@ async fn post_orchestrate(
     response.dag_label = request.label;
 
     if response.failed > 0 {
-        error!(failed = response.failed, "Orchestration completed with failures");
+        error!(
+            failed = response.failed,
+            "Orchestration completed with failures"
+        );
     }
     (StatusCode::OK, Json(response)).into_response()
 }
 
 /// Build the orchestration router.
 pub fn create_orchestrate_router() -> Router<AppState> {
-    Router::new()
-        .route("/orchestrate", post(post_orchestrate))
+    Router::new().route("/orchestrate", post(post_orchestrate))
 }
 
 #[cfg(test)]
@@ -542,12 +590,21 @@ mod tests {
     }
 
     fn fora_ids(nodes: &[DagNode]) -> Vec<String> {
-        diagnosticar(nodes).fora.iter().map(|(i, _)| nodes[*i].id.clone()).collect()
+        diagnosticar(nodes)
+            .fora
+            .iter()
+            .map(|(i, _)| nodes[*i].id.clone())
+            .collect()
     }
 
     #[test]
     fn diagnostico_separa_valido_de_invalido() {
-        let nodes = [no("b", &["a"]), no("a", &[]), no("x", &["nada"]), no("y", &["x"])];
+        let nodes = [
+            no("b", &["a"]),
+            no("a", &[]),
+            no("x", &["nada"]),
+            no("y", &["x"]),
+        ];
         let d = diagnosticar(&nodes);
         assert_eq!(d.ordem, vec![1, 0]);
         assert_eq!(fora_ids(&nodes), ["x", "y"]);
@@ -562,7 +619,11 @@ mod tests {
         assert_eq!(d.ordem, vec![3]);
         assert_eq!(fora_ids(&nodes), ["d", "d", "e"]);
         assert!(d.fora[0].1.contains("id repetido"));
-        assert!(d.fora[2].1.contains("depende de id repetido: d"), "{}", d.fora[2].1);
+        assert!(
+            d.fora[2].1.contains("depende de id repetido: d"),
+            "{}",
+            d.fora[2].1
+        );
     }
 
     #[test]
@@ -588,8 +649,16 @@ mod tests {
     #[test]
     fn dag_que_nao_da_para_ordenar_devolve_none() {
         assert_eq!(ordem_de_execucao(&[no("a", &["a"])]), None, "auto-ciclo");
-        assert_eq!(ordem_de_execucao(&[no("a", &["b"]), no("b", &["a"])]), None, "ciclo");
+        assert_eq!(
+            ordem_de_execucao(&[no("a", &["b"]), no("b", &["a"])]),
+            None,
+            "ciclo"
+        );
         assert_eq!(ordem_de_execucao(&[no("a", &["x"])]), None, "inexistente");
-        assert_eq!(ordem_de_execucao(&[no("a", &[]), no("a", &[])]), None, "id repetido");
+        assert_eq!(
+            ordem_de_execucao(&[no("a", &[]), no("a", &[])]),
+            None,
+            "id repetido"
+        );
     }
 }

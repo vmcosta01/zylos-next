@@ -1,5 +1,5 @@
-use serde::{Serialize, Deserialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 /// AG-UI event types per spec v0.1
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, utoipa::ToSchema)]
@@ -7,19 +7,11 @@ use chrono::{DateTime, Utc};
 /// Enumeração AgUiEvent.
 pub enum AgUiEvent {
     /// Start of a text message stream
-    TextMessageStart {
-        message_id: String,
-        role: String,
-    },
+    TextMessageStart { message_id: String, role: String },
     /// Delta content for an ongoing text message
-    TextMessageContent {
-        message_id: String,
-        delta: String,
-    },
+    TextMessageContent { message_id: String, delta: String },
     /// End of a text message stream
-    TextMessageEnd {
-        message_id: String,
-    },
+    TextMessageEnd { message_id: String },
     /// Start of a tool call
     ToolCallStart {
         tool_call_id: String,
@@ -38,14 +30,9 @@ pub enum AgUiEvent {
         sequence: u64,
     },
     /// Error event
-    Error {
-        code: String,
-        message: String,
-    },
+    Error { code: String, message: String },
     /// Heartbeat to keep connection alive
-    Heartbeat {
-        timestamp: DateTime<Utc>,
-    },
+    Heartbeat { timestamp: DateTime<Utc> },
     /// Signals the start of an agent run
     RunStarted {
         run_id: String,
@@ -61,9 +48,7 @@ pub enum AgUiEvent {
         output: Option<serde_json::Value>,
     },
     /// Signals the end of a tool call stream (complement to ToolCallStart/Result)
-    ToolCallEnd {
-        tool_call_id: String,
-    },
+    ToolCallEnd { tool_call_id: String },
     /// Application-defined custom event for extensibility
     CustomEvent {
         name: String,
@@ -150,14 +135,15 @@ impl AgUiEvent {
 
     /// Função state snapshot.
     pub fn state_snapshot(state: serde_json::Value) -> Self {
-        Self::StateSnapshot {
-            state,
-            sequence: 0,
-        }
+        Self::StateSnapshot { state, sequence: 0 }
     }
 
     /// Função tool call start.
-    pub fn tool_call_start(tool_call_id: &str, tool_name: &str, arguments: serde_json::Value) -> Self {
+    pub fn tool_call_start(
+        tool_call_id: &str,
+        tool_name: &str,
+        arguments: serde_json::Value,
+    ) -> Self {
         Self::ToolCallStart {
             tool_call_id: tool_call_id.to_string(),
             tool_name: tool_name.to_string(),
@@ -175,7 +161,12 @@ impl AgUiEvent {
     }
 
     /// Função run started.
-    pub fn run_started(run_id: &str, thread_id: &str, parent_run_id: Option<String>, input: Option<serde_json::Value>) -> Self {
+    pub fn run_started(
+        run_id: &str,
+        thread_id: &str,
+        parent_run_id: Option<String>,
+        input: Option<serde_json::Value>,
+    ) -> Self {
         Self::RunStarted {
             run_id: run_id.to_string(),
             thread_id: thread_id.to_string(),
@@ -185,7 +176,12 @@ impl AgUiEvent {
     }
 
     /// Função run finished.
-    pub fn run_finished(run_id: &str, thread_id: &str, status: RunStatus, output: Option<serde_json::Value>) -> Self {
+    pub fn run_finished(
+        run_id: &str,
+        thread_id: &str,
+        status: RunStatus,
+        output: Option<serde_json::Value>,
+    ) -> Self {
         Self::RunFinished {
             run_id: run_id.to_string(),
             thread_id: thread_id.to_string(),
@@ -337,7 +333,10 @@ mod tests {
 
     #[test]
     fn test_custom_event_roundtrip() {
-        let event = AgUiEvent::custom_event("metrics.update", serde_json::json!({"cpu": 45.2, "mem_mb": 128}));
+        let event = AgUiEvent::custom_event(
+            "metrics.update",
+            serde_json::json!({"cpu": 45.2, "mem_mb": 128}),
+        );
         let json = serde_json::to_string(&event).unwrap();
         let deserialized: AgUiEvent = serde_json::from_str(&json).unwrap();
         assert_eq!(event, deserialized);
@@ -345,7 +344,12 @@ mod tests {
 
     #[test]
     fn test_run_status_variants() {
-        for status in [RunStatus::Completed, RunStatus::Failed, RunStatus::Cancelled, RunStatus::TimedOut] {
+        for status in [
+            RunStatus::Completed,
+            RunStatus::Failed,
+            RunStatus::Cancelled,
+            RunStatus::TimedOut,
+        ] {
             let event = AgUiEvent::run_finished("r", "t", status.clone(), None);
             let json = serde_json::to_string(&event).unwrap();
             let deserialized: AgUiEvent = serde_json::from_str(&json).unwrap();

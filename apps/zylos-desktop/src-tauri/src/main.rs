@@ -12,11 +12,8 @@ use tokio::sync::Mutex;
 
 // Re-use types from the zylos-desktop crate
 use zylos_desktop::{
-    gateway_embed::GatewayManager,
-    notifications::NotificationManager,
-    tray::TrayManager,
-    workspace::WorkspaceManager,
-    DesktopConfig, IpcResponse, SkillSummary, PlaybookSummary,
+    gateway_embed::GatewayManager, notifications::NotificationManager, tray::TrayManager,
+    workspace::WorkspaceManager, DesktopConfig, IpcResponse, PlaybookSummary, SkillSummary,
 };
 
 /// Shared application state accessible from all IPC commands.
@@ -51,7 +48,9 @@ async fn get_status(state: State<'_, Arc<Mutex<AppState>>>) -> Result<IpcRespons
         match s.http.get(&url).send().await {
             Ok(resp) if resp.status().is_success() => {
                 #[derive(serde::Deserialize)]
-                struct CountResp { count: usize }
+                struct CountResp {
+                    count: usize,
+                }
                 resp.json::<CountResp>().await.map(|r| r.count).unwrap_or(0)
             }
             _ => 0,
@@ -85,11 +84,17 @@ async fn send_prompt(
     match s.http.post(&url).json(&body).send().await {
         Ok(resp) if resp.status().is_success() => {
             #[derive(serde::Deserialize)]
-            struct PromptResp { run_id: String }
-            let parsed = resp.json::<PromptResp>().await
+            struct PromptResp {
+                run_id: String,
+            }
+            let parsed = resp
+                .json::<PromptResp>()
+                .await
                 .map_err(|e| format!("Failed to parse prompt response: {e}"))?;
             tracing::info!("Prompt dispatched: run_id={}", parsed.run_id);
-            Ok(IpcResponse::PromptAck { run_id: parsed.run_id })
+            Ok(IpcResponse::PromptAck {
+                run_id: parsed.run_id,
+            })
         }
         Ok(resp) => {
             let status = resp.status();
@@ -107,7 +112,9 @@ async fn list_skills(state: State<'_, Arc<Mutex<AppState>>>) -> Result<IpcRespon
 
     match s.http.get(&url).send().await {
         Ok(resp) if resp.status().is_success() => {
-            let skills: Vec<SkillSummary> = resp.json().await
+            let skills: Vec<SkillSummary> = resp
+                .json()
+                .await
                 .map_err(|e| format!("Failed to parse skills: {e}"))?;
             Ok(IpcResponse::Skills { skills })
         }
@@ -127,7 +134,9 @@ async fn list_playbooks(state: State<'_, Arc<Mutex<AppState>>>) -> Result<IpcRes
 
     match s.http.get(&url).send().await {
         Ok(resp) if resp.status().is_success() => {
-            let playbooks: Vec<PlaybookSummary> = resp.json().await
+            let playbooks: Vec<PlaybookSummary> = resp
+                .json()
+                .await
                 .map_err(|e| format!("Failed to parse playbooks: {e}"))?;
             Ok(IpcResponse::Playbooks { playbooks })
         }
@@ -154,7 +163,9 @@ async fn execute_action(
 
     match s.http.post(&url).json(&params).send().await {
         Ok(resp) if resp.status().is_success() => {
-            let result: serde_json::Value = resp.json().await
+            let result: serde_json::Value = resp
+                .json()
+                .await
                 .map_err(|e| format!("Failed to parse action result: {e}"))?;
             Ok(IpcResponse::ActionResult {
                 success: true,
@@ -207,7 +218,9 @@ async fn check_update(state: State<'_, Arc<Mutex<AppState>>>) -> Result<IpcRespo
                 #[serde(default)]
                 changelog: String,
             }
-            let update = resp.json::<UpdateResp>().await
+            let update = resp
+                .json::<UpdateResp>()
+                .await
                 .map_err(|e| format!("Failed to parse update response: {e}"))?;
             if update.available {
                 Ok(IpcResponse::UpdateAvailable {
@@ -226,12 +239,13 @@ async fn check_update(state: State<'_, Arc<Mutex<AppState>>>) -> Result<IpcRespo
     }
 }
 
-
 #[tauri::command]
 async fn is_first_run(state: State<'_, Arc<Mutex<AppState>>>) -> Result<bool, String> {
     let s = state.lock().await;
     // App-level config lives next to the Agents root (~/Zylos/)
-    let config_dir = s.workspace.agents_root()
+    let config_dir = s
+        .workspace
+        .agents_root()
         .parent()
         .unwrap_or_else(|| std::path::Path::new("."))
         .to_path_buf();
@@ -252,13 +266,18 @@ async fn complete_onboarding(
     }
 
     // Persist config to default location
-    let config_dir = s.workspace.agents_root().parent()
+    let config_dir = s
+        .workspace
+        .agents_root()
+        .parent()
         .unwrap_or_else(|| std::path::Path::new("."))
         .to_path_buf();
     std::fs::create_dir_all(&config_dir)
         .map_err(|e| format!("Failed to create config dir: {e}"))?;
     let config_path = config_dir.join("desktop-config.json");
-    s.config.save(&config_path).map_err(|e| format!("Failed to save config: {e}"))?;
+    s.config
+        .save(&config_path)
+        .map_err(|e| format!("Failed to save config: {e}"))?;
 
     // Create onboarding marker
     let marker = config_dir.join(".onboarding_complete");
@@ -313,14 +332,18 @@ fn main() {
         .manage(state.clone())
         .setup(move |app| {
             let handle = app.handle().clone();
-            
+
             // Auto-start embedded gateway
             let gateway_state = state.clone();
             tauri::async_runtime::spawn(async move {
                 let s = gateway_state.lock().await;
                 match s.gateway.start().await {
                     Ok(status) => {
-                        tracing::info!("Embedded gateway started: pid={:?}, running={}", status.pid, status.running);
+                        tracing::info!(
+                            "Embedded gateway started: pid={:?}, running={}",
+                            status.pid,
+                            status.running
+                        );
                     }
                     Err(e) => {
                         tracing::error!("Failed to start embedded gateway: {e}");
@@ -339,7 +362,9 @@ fn main() {
             let tray_state = state.clone();
             tauri::async_runtime::spawn(async move {
                 let s = tray_state.lock().await;
-                s.tray.set_status(zylos_desktop::tray::TrayStatus::Healthy).await;
+                s.tray
+                    .set_status(zylos_desktop::tray::TrayStatus::Healthy)
+                    .await;
                 tracing::info!("System tray initialized");
             });
 

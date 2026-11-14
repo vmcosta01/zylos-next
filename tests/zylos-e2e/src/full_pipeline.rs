@@ -19,8 +19,12 @@ async fn full_pipeline_event_to_cockpit_stream() {
         ],
         "enabled": true
     });
-    gw.client.post(&playbook_url).json(&playbook)
-        .send().await.expect("register playbook");
+    gw.client
+        .post(&playbook_url)
+        .json(&playbook)
+        .send()
+        .await
+        .expect("register playbook");
 
     // 2. Pre-register the DAG that step 2 will invoke
     let orch_url = format!("{}/api/v1/orchestrate/register", gw.base_url());
@@ -36,14 +40,22 @@ async fn full_pipeline_event_to_cockpit_stream() {
             {"from": "test", "to": "deploy"}
         ]
     });
-    gw.client.post(&orch_url).json(&dag)
-        .send().await.expect("register dag");
+    gw.client
+        .post(&orch_url)
+        .json(&dag)
+        .send()
+        .await
+        .expect("register dag");
 
     // 3. Connect SSE stream BEFORE emitting the event
     let stream_url = format!("{}/api/v1/stream/events", gw.base_url());
-    let stream_resp = gw.client.get(&stream_url)
+    let stream_resp = gw
+        .client
+        .get(&stream_url)
         .header("Accept", "text/event-stream")
-        .send().await.expect("connect SSE");
+        .send()
+        .await
+        .expect("connect SSE");
     assert!(stream_resp.status().is_success(), "SSE connection failed");
 
     // 4. Emit the triggering event
@@ -53,24 +65,39 @@ async fn full_pipeline_event_to_cockpit_stream() {
         "version": "v2.4.0",
         "requester": "ci-pipeline"
     });
-    gw.client.post(&event_url).json(&event)
-        .send().await.expect("emit event");
+    gw.client
+        .post(&event_url)
+        .json(&event)
+        .send()
+        .await
+        .expect("emit event");
 
     // 5. Auto-approve the HITL request (simulating human approval)
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
     let pending_url = format!("{}/api/v1/hitl/pending-approvals", gw.base_url());
-    let pending: serde_json::Value = gw.client.get(&pending_url)
-        .send().await.expect("list pending")
-        .json().await.expect("parse pending");
+    let pending: serde_json::Value = gw
+        .client
+        .get(&pending_url)
+        .send()
+        .await
+        .expect("list pending")
+        .json()
+        .await
+        .expect("parse pending");
 
     if let Some(arr) = pending.as_array() {
         if let Some(approval) = arr.first() {
             let id = approval["approval_id"].as_str().unwrap_or("");
             let approve_url = format!("{}/api/v1/hitl/approve/{}", gw.base_url(), id);
-            gw.client.post(&approve_url).json(&json!({
-                "decision": "approved",
-                "approver": "e2e-auto-approver"
-            })).send().await.expect("auto-approve");
+            gw.client
+                .post(&approve_url)
+                .json(&json!({
+                    "decision": "approved",
+                    "approver": "e2e-auto-approver"
+                }))
+                .send()
+                .await
+                .expect("auto-approve");
         }
     }
 
@@ -97,19 +124,22 @@ async fn full_pipeline_event_to_cockpit_stream() {
     }
 
     // 7. Verify the full pipeline produced streaming events
-    assert!(!events.is_empty(), "full pipeline should produce SSE events");
+    assert!(
+        !events.is_empty(),
+        "full pipeline should produce SSE events"
+    );
 
     // Should contain events from multiple subsystems
-    let event_types: Vec<&str> = events.iter()
-        .filter_map(|e| e["type"].as_str())
-        .collect();
+    let event_types: Vec<&str> = events.iter().filter_map(|e| e["type"].as_str()).collect();
 
     assert!(
         event_types.contains(&"soar.playbook_started"),
         "should contain SOAR playbook start event"
     );
     assert!(
-        event_types.iter().any(|t| *t == "hitl.approval_requested" || *t == "hitl.approved"),
+        event_types
+            .iter()
+            .any(|t| *t == "hitl.approval_requested" || *t == "hitl.approved"),
         "should contain HITL event"
     );
     assert!(

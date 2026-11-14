@@ -109,7 +109,9 @@ pub fn ws_stream_endpoint() {}
 
 /// Generate the OpenAPI JSON specification
 pub fn generate_openapi_json() -> String {
-    ApiDoc::openapi().to_pretty_json().expect("valid OpenAPI JSON")
+    ApiDoc::openapi()
+        .to_pretty_json()
+        .expect("valid OpenAPI JSON")
 }
 
 /// Generate the OpenAPI YAML specification
@@ -124,7 +126,10 @@ mod tests {
     #[test]
     fn test_generate_openapi_json() {
         let json = generate_openapi_json();
-        assert!(json.contains("\"title\": \"Zylos Live Communication API\"") || json.contains("\"title\":\"Zylos Live Communication API\""));
+        assert!(
+            json.contains("\"title\": \"Zylos Live Communication API\"")
+                || json.contains("\"title\":\"Zylos Live Communication API\"")
+        );
         assert!(json.contains("/events"));
         assert!(json.contains("/ws"));
         assert!(json.contains("bearer_auth"));

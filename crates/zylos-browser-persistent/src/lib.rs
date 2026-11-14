@@ -274,12 +274,11 @@ impl BrowserSessionManager {
         tags: &[String],
     ) -> Result<BrowserSession, BrowserError> {
         // Enforce max sessions per agent
-        let count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM browser_sessions WHERE agent_id = ?",
-        )
-        .bind(agent_id)
-        .fetch_one(&self.pool)
-        .await?;
+        let count: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM browser_sessions WHERE agent_id = ?")
+                .bind(agent_id)
+                .fetch_one(&self.pool)
+                .await?;
 
         if count.0 as usize >= self.config.max_sessions_per_agent {
             // Evict oldest session
@@ -296,7 +295,11 @@ impl BrowserSessionManager {
         }
 
         let session_id = Uuid::new_v4().to_string();
-        let profile_dir = self.config.profiles_base_dir.join(agent_id).join(&session_id);
+        let profile_dir = self
+            .config
+            .profiles_base_dir
+            .join(agent_id)
+            .join(&session_id);
         tokio::fs::create_dir_all(&profile_dir).await.map_err(|e| {
             BrowserError::ProfileCreation(format!("{}: {}", profile_dir.display(), e))
         })?;
@@ -385,7 +388,10 @@ impl BrowserSessionManager {
                 value: r.1,
                 domain: r.2,
                 path: r.3,
-                expires: r.4.and_then(|s| DateTime::parse_from_rfc3339(&s).ok()).map(|d| d.with_timezone(&Utc)),
+                expires: r
+                    .4
+                    .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+                    .map(|d| d.with_timezone(&Utc)),
                 secure: r.5,
                 http_only: r.6,
                 same_site: r.7,
@@ -492,12 +498,11 @@ impl BrowserSessionManager {
     /// does not exist.
     pub async fn destroy_session(&self, session_id: &str) -> Result<(), BrowserError> {
         // Get profile dir before deleting
-        let row: Option<(String,)> = sqlx::query_as(
-            "SELECT profile_dir FROM browser_sessions WHERE session_id = ?",
-        )
-        .bind(session_id)
-        .fetch_optional(&self.pool)
-        .await?;
+        let row: Option<(String,)> =
+            sqlx::query_as("SELECT profile_dir FROM browser_sessions WHERE session_id = ?")
+                .bind(session_id)
+                .fetch_optional(&self.pool)
+                .await?;
 
         // Delete from DB (cascades to cookies and storage)
         sqlx::query("DELETE FROM browser_sessions WHERE session_id = ?")
@@ -584,10 +589,7 @@ mod tests {
         assert!(session.profile_dir.exists());
 
         // Retrieve same session
-        let session2 = mgr
-            .get_or_create_session("agent-test", &[])
-            .await
-            .unwrap();
+        let session2 = mgr.get_or_create_session("agent-test", &[]).await.unwrap();
         assert_eq!(session.session_id, session2.session_id);
     }
 
@@ -617,7 +619,9 @@ mod tests {
             same_site: "strict".into(),
         }];
 
-        mgr.store_cookies(&session.session_id, &cookies).await.unwrap();
+        mgr.store_cookies(&session.session_id, &cookies)
+            .await
+            .unwrap();
         let retrieved = mgr.get_cookies(&session.session_id).await.unwrap();
         assert_eq!(retrieved.len(), 1);
         assert_eq!(retrieved[0].name, "session_id");
@@ -773,25 +777,16 @@ mod tests {
         let mgr = BrowserSessionManager::new(pool, config).await.unwrap();
 
         // Create first session
-        let s1 = mgr
-            .get_or_create_session("agent-evict", &[])
-            .await
-            .unwrap();
+        let s1 = mgr.get_or_create_session("agent-evict", &[]).await.unwrap();
 
         // Force a second session by destroying and re-creating
         mgr.destroy_session(&s1.session_id).await.unwrap();
-        let s2 = mgr
-            .get_or_create_session("agent-evict", &[])
-            .await
-            .unwrap();
+        let s2 = mgr.get_or_create_session("agent-evict", &[]).await.unwrap();
         assert_ne!(s1.session_id, s2.session_id);
 
         // Force a third session — should evict s2 (oldest after s1 was destroyed)
         mgr.destroy_session(&s2.session_id).await.unwrap();
-        let s3 = mgr
-            .get_or_create_session("agent-evict", &[])
-            .await
-            .unwrap();
+        let s3 = mgr.get_or_create_session("agent-evict", &[]).await.unwrap();
 
         let sessions = mgr.list_sessions("agent-evict").await.unwrap();
         assert_eq!(sessions.len(), 1);

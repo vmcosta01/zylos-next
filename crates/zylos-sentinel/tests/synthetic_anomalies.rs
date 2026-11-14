@@ -73,10 +73,7 @@ const COMPREHENSIVE_RULES: &str = r##"
 "##;
 
 fn make_metrics(pairs: &[(&str, f64)]) -> HashMap<String, f64> {
-    pairs
-        .iter()
-        .map(|(k, v)| (k.to_string(), *v))
-        .collect()
+    pairs.iter().map(|(k, v)| (k.to_string(), *v)).collect()
 }
 
 #[test]

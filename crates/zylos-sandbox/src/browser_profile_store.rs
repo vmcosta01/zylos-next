@@ -106,17 +106,28 @@ impl BrowserProfileStore {
     ) -> Result<PersistedProfile, ProfileStoreError> {
         // Check if profile already exists for this owner+name
         {
-            let profiles = self.profiles.read().map_err(|_| ProfileStoreError::LockPoisoned)?;
-            if let Some(existing) = profiles.values().find(|p| p.name == name && p.owner_id == owner_id) {
+            let profiles = self
+                .profiles
+                .read()
+                .map_err(|_| ProfileStoreError::LockPoisoned)?;
+            if let Some(existing) = profiles
+                .values()
+                .find(|p| p.name == name && p.owner_id == owner_id)
+            {
                 return Ok(existing.clone());
             }
         }
 
         // Enforce max profiles limit
         {
-            let profiles = self.profiles.read().map_err(|_| ProfileStoreError::LockPoisoned)?;
+            let profiles = self
+                .profiles
+                .read()
+                .map_err(|_| ProfileStoreError::LockPoisoned)?;
             if self.config.max_profiles > 0 && profiles.len() >= self.config.max_profiles {
-                return Err(ProfileStoreError::MaxProfilesReached(self.config.max_profiles));
+                return Err(ProfileStoreError::MaxProfilesReached(
+                    self.config.max_profiles,
+                ));
             }
         }
 
@@ -148,13 +159,19 @@ impl BrowserProfileStore {
 
         // Store in memory
         {
-            let mut profiles = self.profiles.write().map_err(|_| ProfileStoreError::LockPoisoned)?;
+            let mut profiles = self
+                .profiles
+                .write()
+                .map_err(|_| ProfileStoreError::LockPoisoned)?;
             profiles.insert(id.clone(), profile.clone());
         }
 
         // Update owner index
         {
-            let mut index = self.owner_index.write().map_err(|_| ProfileStoreError::LockPoisoned)?;
+            let mut index = self
+                .owner_index
+                .write()
+                .map_err(|_| ProfileStoreError::LockPoisoned)?;
             index.entry(owner_id).or_default().push(id);
         }
 
@@ -163,8 +180,12 @@ impl BrowserProfileStore {
 
     /// Record that a profile was used in a session.
     pub fn record_session(&self, profile_id: &str) -> Result<(), ProfileStoreError> {
-        let mut profiles = self.profiles.write().map_err(|_| ProfileStoreError::LockPoisoned)?;
-        let profile = profiles.get_mut(profile_id)
+        let mut profiles = self
+            .profiles
+            .write()
+            .map_err(|_| ProfileStoreError::LockPoisoned)?;
+        let profile = profiles
+            .get_mut(profile_id)
             .ok_or_else(|| ProfileStoreError::NotFound(profile_id.to_string()))?;
 
         profile.last_used_at = Some(Utc::now());
@@ -173,9 +194,17 @@ impl BrowserProfileStore {
     }
 
     /// Update the cookie database hash after a session ends.
-    pub fn update_cookie_hash(&self, profile_id: &str, hash: String) -> Result<(), ProfileStoreError> {
-        let mut profiles = self.profiles.write().map_err(|_| ProfileStoreError::LockPoisoned)?;
-        let profile = profiles.get_mut(profile_id)
+    pub fn update_cookie_hash(
+        &self,
+        profile_id: &str,
+        hash: String,
+    ) -> Result<(), ProfileStoreError> {
+        let mut profiles = self
+            .profiles
+            .write()
+            .map_err(|_| ProfileStoreError::LockPoisoned)?;
+        let profile = profiles
+            .get_mut(profile_id)
             .ok_or_else(|| ProfileStoreError::NotFound(profile_id.to_string()))?;
 
         profile.cookie_db_hash = Some(hash);
@@ -183,29 +212,60 @@ impl BrowserProfileStore {
     }
 
     /// Get a profile by ID.
-    pub fn get_profile(&self, profile_id: &str) -> Result<Option<PersistedProfile>, ProfileStoreError> {
-        let profiles = self.profiles.read().map_err(|_| ProfileStoreError::LockPoisoned)?;
+    pub fn get_profile(
+        &self,
+        profile_id: &str,
+    ) -> Result<Option<PersistedProfile>, ProfileStoreError> {
+        let profiles = self
+            .profiles
+            .read()
+            .map_err(|_| ProfileStoreError::LockPoisoned)?;
         Ok(profiles.get(profile_id).cloned())
     }
 
     /// List all profiles for a given owner.
-    pub fn list_profiles_for_owner(&self, owner_id: &str) -> Result<Vec<PersistedProfile>, ProfileStoreError> {
-        let index = self.owner_index.read().map_err(|_| ProfileStoreError::LockPoisoned)?;
-        let profiles = self.profiles.read().map_err(|_| ProfileStoreError::LockPoisoned)?;
+    pub fn list_profiles_for_owner(
+        &self,
+        owner_id: &str,
+    ) -> Result<Vec<PersistedProfile>, ProfileStoreError> {
+        let index = self
+            .owner_index
+            .read()
+            .map_err(|_| ProfileStoreError::LockPoisoned)?;
+        let profiles = self
+            .profiles
+            .read()
+            .map_err(|_| ProfileStoreError::LockPoisoned)?;
 
         let ids = index.get(owner_id).cloned().unwrap_or_default();
-        Ok(ids.iter().filter_map(|id| profiles.get(id).cloned()).collect())
+        Ok(ids
+            .iter()
+            .filter_map(|id| profiles.get(id).cloned())
+            .collect())
     }
 
     /// List all profiles matching a tag.
-    pub fn list_profiles_by_tag(&self, tag: &str) -> Result<Vec<PersistedProfile>, ProfileStoreError> {
-        let profiles = self.profiles.read().map_err(|_| ProfileStoreError::LockPoisoned)?;
-        Ok(profiles.values().filter(|p| p.tags.contains(&tag.to_string())).cloned().collect())
+    pub fn list_profiles_by_tag(
+        &self,
+        tag: &str,
+    ) -> Result<Vec<PersistedProfile>, ProfileStoreError> {
+        let profiles = self
+            .profiles
+            .read()
+            .map_err(|_| ProfileStoreError::LockPoisoned)?;
+        Ok(profiles
+            .values()
+            .filter(|p| p.tags.contains(&tag.to_string()))
+            .cloned()
+            .collect())
     }
 
     /// Delete a profile and its data directory reference.
     pub fn delete_profile(&self, profile_id: &str) -> Result<bool, ProfileStoreError> {
-        let mut profiles = self.profiles.write().map_err(|_| ProfileStoreError::LockPoisoned)?;
+        let mut profiles = self
+            .profiles
+            .write()
+            .map_err(|_| ProfileStoreError::LockPoisoned)?;
         if let Some(profile) = profiles.remove(profile_id) {
             // Remove from owner index
             if let Ok(mut index) = self.owner_index.write() {
@@ -221,21 +281,27 @@ impl BrowserProfileStore {
 
     /// Find stale profiles (not used within `stale_after_days`).
     pub fn find_stale_profiles(&self) -> Result<Vec<PersistedProfile>, ProfileStoreError> {
-        let profiles = self.profiles.read().map_err(|_| ProfileStoreError::LockPoisoned)?;
+        let profiles = self
+            .profiles
+            .read()
+            .map_err(|_| ProfileStoreError::LockPoisoned)?;
         let cutoff = Utc::now() - chrono::Duration::days(self.config.stale_after_days as i64);
 
-        Ok(profiles.values()
-            .filter(|p| {
-                p.last_used_at.is_none_or(|last| last < cutoff)
-            })
+        Ok(profiles
+            .values()
+            .filter(|p| p.last_used_at.is_none_or(|last| last < cutoff))
             .cloned()
             .collect())
     }
 
     /// Get the filesystem path where a profile's Chromium data lives.
     pub fn profile_data_path(&self, profile_id: &str) -> Result<PathBuf, ProfileStoreError> {
-        let profiles = self.profiles.read().map_err(|_| ProfileStoreError::LockPoisoned)?;
-        let profile = profiles.get(profile_id)
+        let profiles = self
+            .profiles
+            .read()
+            .map_err(|_| ProfileStoreError::LockPoisoned)?;
+        let profile = profiles
+            .get(profile_id)
             .ok_or_else(|| ProfileStoreError::NotFound(profile_id.to_string()))?;
         Ok(profile.data_dir.clone())
     }
@@ -252,8 +318,8 @@ impl BrowserProfileStore {
             return Ok(String::new());
         }
 
-        let content = std::fs::read(&cookie_db)
-            .map_err(|e| ProfileStoreError::Io(e.to_string()))?;
+        let content =
+            std::fs::read(&cookie_db).map_err(|e| ProfileStoreError::Io(e.to_string()))?;
 
         let mut hasher = Sha256::new();
         hasher.update(&content);
@@ -277,7 +343,13 @@ pub enum ProfileStoreError {
 /// Sanitize a name for use as a filesystem directory component.
 fn sanitize_name(name: &str) -> String {
     name.chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect::<String>()
         .trim_matches('_')
         .to_lowercase()
@@ -302,12 +374,14 @@ mod tests {
     #[test]
     fn create_and_retrieve_profile() {
         let (store, _tmp) = test_store();
-        let profile = store.get_or_create_profile(
-            "researcher".into(),
-            "agent-1".into(),
-            42,
-            vec!["research".into()],
-        ).unwrap();
+        let profile = store
+            .get_or_create_profile(
+                "researcher".into(),
+                "agent-1".into(),
+                42,
+                vec!["research".into()],
+            )
+            .unwrap();
 
         assert_eq!(profile.name, "researcher");
         assert_eq!(profile.owner_id, "agent-1");
@@ -315,27 +389,30 @@ mod tests {
         assert_eq!(profile.session_count, 0);
 
         // Retrieve same profile again — should return existing
-        let same = store.get_or_create_profile(
-            "researcher".into(),
-            "agent-1".into(),
-            42,
-            vec![],
-        ).unwrap();
+        let same = store
+            .get_or_create_profile("researcher".into(), "agent-1".into(), 42, vec![])
+            .unwrap();
         assert_eq!(same.id, profile.id);
     }
 
     #[test]
     fn different_owners_get_separate_profiles() {
         let (store, _tmp) = test_store();
-        let p1 = store.get_or_create_profile("main".into(), "agent-1".into(), 42, vec![]).unwrap();
-        let p2 = store.get_or_create_profile("main".into(), "agent-2".into(), 42, vec![]).unwrap();
+        let p1 = store
+            .get_or_create_profile("main".into(), "agent-1".into(), 42, vec![])
+            .unwrap();
+        let p2 = store
+            .get_or_create_profile("main".into(), "agent-2".into(), 42, vec![])
+            .unwrap();
         assert_ne!(p1.id, p2.id);
     }
 
     #[test]
     fn record_session_updates_metadata() {
         let (store, _tmp) = test_store();
-        let profile = store.get_or_create_profile("test".into(), "a1".into(), 1, vec![]).unwrap();
+        let profile = store
+            .get_or_create_profile("test".into(), "a1".into(), 1, vec![])
+            .unwrap();
 
         store.record_session(&profile.id).unwrap();
         store.record_session(&profile.id).unwrap();
@@ -355,8 +432,12 @@ mod tests {
         };
         let store = BrowserProfileStore::new(config);
 
-        store.get_or_create_profile("a".into(), "o".into(), 1, vec![]).unwrap();
-        store.get_or_create_profile("b".into(), "o".into(), 2, vec![]).unwrap();
+        store
+            .get_or_create_profile("a".into(), "o".into(), 1, vec![])
+            .unwrap();
+        store
+            .get_or_create_profile("b".into(), "o".into(), 2, vec![])
+            .unwrap();
         let result = store.get_or_create_profile("c".into(), "o".into(), 3, vec![]);
         assert!(result.is_err());
     }
@@ -364,9 +445,15 @@ mod tests {
     #[test]
     fn list_by_owner() {
         let (store, _tmp) = test_store();
-        store.get_or_create_profile("a".into(), "team-x".into(), 1, vec![]).unwrap();
-        store.get_or_create_profile("b".into(), "team-x".into(), 2, vec![]).unwrap();
-        store.get_or_create_profile("c".into(), "team-y".into(), 3, vec![]).unwrap();
+        store
+            .get_or_create_profile("a".into(), "team-x".into(), 1, vec![])
+            .unwrap();
+        store
+            .get_or_create_profile("b".into(), "team-x".into(), 2, vec![])
+            .unwrap();
+        store
+            .get_or_create_profile("c".into(), "team-y".into(), 3, vec![])
+            .unwrap();
 
         let team_x = store.list_profiles_for_owner("team-x").unwrap();
         assert_eq!(team_x.len(), 2);
@@ -378,9 +465,15 @@ mod tests {
     #[test]
     fn list_by_tag() {
         let (store, _tmp) = test_store();
-        store.get_or_create_profile("a".into(), "o".into(), 1, vec!["web".into()]).unwrap();
-        store.get_or_create_profile("b".into(), "o".into(), 2, vec!["api".into()]).unwrap();
-        store.get_or_create_profile("c".into(), "o".into(), 3, vec!["web".into(), "api".into()]).unwrap();
+        store
+            .get_or_create_profile("a".into(), "o".into(), 1, vec!["web".into()])
+            .unwrap();
+        store
+            .get_or_create_profile("b".into(), "o".into(), 2, vec!["api".into()])
+            .unwrap();
+        store
+            .get_or_create_profile("c".into(), "o".into(), 3, vec!["web".into(), "api".into()])
+            .unwrap();
 
         let web = store.list_profiles_by_tag("web").unwrap();
         assert_eq!(web.len(), 2);
@@ -392,7 +485,9 @@ mod tests {
     #[test]
     fn delete_profile() {
         let (store, _tmp) = test_store();
-        let profile = store.get_or_create_profile("del".into(), "o".into(), 1, vec![]).unwrap();
+        let profile = store
+            .get_or_create_profile("del".into(), "o".into(), 1, vec![])
+            .unwrap();
         assert_eq!(store.profile_count(), 1);
 
         assert!(store.delete_profile(&profile.id).unwrap());
@@ -411,7 +506,9 @@ mod tests {
     #[test]
     fn profile_data_path_returns_correct_dir() {
         let (store, _tmp) = test_store();
-        let profile = store.get_or_create_profile("my-profile".into(), "agent-1".into(), 42, vec![]).unwrap();
+        let profile = store
+            .get_or_create_profile("my-profile".into(), "agent-1".into(), 42, vec![])
+            .unwrap();
         let path = store.profile_data_path(&profile.id).unwrap();
         assert!(path.to_str().unwrap().contains("agent-1"));
         assert!(path.to_str().unwrap().contains("my-profile"));
@@ -420,9 +517,13 @@ mod tests {
     #[test]
     fn update_cookie_hash() {
         let (store, _tmp) = test_store();
-        let profile = store.get_or_create_profile("cookietest".into(), "a1".into(), 1, vec![]).unwrap();
+        let profile = store
+            .get_or_create_profile("cookietest".into(), "a1".into(), 1, vec![])
+            .unwrap();
 
-        store.update_cookie_hash(&profile.id, "abc123hash".into()).unwrap();
+        store
+            .update_cookie_hash(&profile.id, "abc123hash".into())
+            .unwrap();
         let updated = store.get_profile(&profile.id).unwrap().unwrap();
         assert_eq!(updated.cookie_db_hash, Some("abc123hash".into()));
     }

@@ -11,8 +11,8 @@ pub struct BriefItem {
     pub id: String,
     pub title: String,
     pub description: Option<String>,
-    pub priority: String,       // critical, high, medium, low
-    pub source: String,         // approval, task, goal, calendar, integration
+    pub priority: String,           // critical, high, medium, low
+    pub source: String,             // approval, task, goal, calendar, integration
     pub action_url: Option<String>, // URL para ação direta no cockpit
     pub metadata: Option<serde_json::Value>,
 }
@@ -20,8 +20,8 @@ pub struct BriefItem {
 /// Uma seção do morning brief
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BriefSection {
-    pub name: String,           // needs_you, can_wait, calendar, unchecked
-    pub icon: String,           // emoji ou ícone visual
+    pub name: String, // needs_you, can_wait, calendar, unchecked
+    pub icon: String, // emoji ou ícone visual
     pub items: Vec<BriefItem>,
     pub summary: Option<String>, // Resumo textual da seção
 }
@@ -31,9 +31,9 @@ pub struct BriefSection {
 pub struct MorningBrief {
     pub id: String,
     pub user_id: String,
-    pub date: String,           // YYYY-MM-DD
+    pub date: String, // YYYY-MM-DD
     pub sections: Vec<BriefSection>,
-    pub generated_at: String,   // ISO 8601
+    pub generated_at: String, // ISO 8601
     pub total_items: usize,
     pub needs_you_count: usize,
 }
@@ -80,7 +80,9 @@ impl MorningBrief {
     /// Atualiza contadores após popular seções
     pub fn finalize(&mut self) {
         self.total_items = self.sections.iter().map(|s| s.items.len()).sum();
-        self.needs_you_count = self.sections.iter()
+        self.needs_you_count = self
+            .sections
+            .iter()
             .find(|s| s.name == "needs_you")
             .map(|s| s.items.len())
             .unwrap_or(0);
@@ -91,7 +93,10 @@ impl MorningBrief {
                 continue; // Manter summary padrão de vazio
             }
             section.summary = match section.name.as_str() {
-                "needs_you" => Some(format!("{} itens requerem sua atenção", section.items.len())),
+                "needs_you" => Some(format!(
+                    "{} itens requerem sua atenção",
+                    section.items.len()
+                )),
                 "can_wait" => Some(format!("{} tarefas em andamento", section.items.len())),
                 "calendar" => Some(format!("{} eventos hoje", section.items.len())),
                 "unchecked" => Some(format!("{} integrações com problemas", section.items.len())),
@@ -162,8 +167,14 @@ mod tests {
 
         assert_eq!(brief.total_items, 2);
         assert_eq!(brief.needs_you_count, 1);
-        assert_eq!(brief.sections[0].summary.as_deref(), Some("1 itens requerem sua atenção"));
-        assert_eq!(brief.sections[1].summary.as_deref(), Some("1 tarefas em andamento"));
+        assert_eq!(
+            brief.sections[0].summary.as_deref(),
+            Some("1 itens requerem sua atenção")
+        );
+        assert_eq!(
+            brief.sections[1].summary.as_deref(),
+            Some("1 tarefas em andamento")
+        );
     }
 
     #[test]

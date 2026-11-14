@@ -86,14 +86,20 @@ pub fn run_benchmark(config: BenchmarkConfig) -> BenchmarkResults {
 
     // Warmup runs (not counted) — exercise allocation + filtering
     for _ in 0..config.warmup_runs {
-        let _filtered: Vec<&AgentInfo> = agents.iter().filter(|a| matches!(a.status, AgentStatus::Running)).collect();
+        let _filtered: Vec<&AgentInfo> = agents
+            .iter()
+            .filter(|a| matches!(a.status, AgentStatus::Running))
+            .collect();
     }
 
     // Measured iterations — time agent generation + filtering (DOM-independent cost)
     for _ in 0..config.iterations {
         let start = Instant::now();
         let fresh = generate_agents(config.agent_count);
-        let _filtered: Vec<&AgentInfo> = fresh.iter().filter(|a| matches!(a.status, AgentStatus::Running)).collect();
+        let _filtered: Vec<&AgentInfo> = fresh
+            .iter()
+            .filter(|a| matches!(a.status, AgentStatus::Running))
+            .collect();
         let elapsed = start.elapsed().as_secs_f64() * 1000.0;
         render_times.push(elapsed);
     }
@@ -226,8 +232,14 @@ mod tests {
     #[test]
     fn test_generate_agents_status_distribution() {
         let agents = generate_agents(100);
-        let idle_count = agents.iter().filter(|a| matches!(a.status, AgentStatus::Idle)).count();
-        let running_count = agents.iter().filter(|a| matches!(a.status, AgentStatus::Running)).count();
+        let idle_count = agents
+            .iter()
+            .filter(|a| matches!(a.status, AgentStatus::Idle))
+            .count();
+        let running_count = agents
+            .iter()
+            .filter(|a| matches!(a.status, AgentStatus::Running))
+            .count();
         // Should have roughly equal distribution across 4 statuses
         assert!(idle_count > 20);
         assert!(running_count > 20);

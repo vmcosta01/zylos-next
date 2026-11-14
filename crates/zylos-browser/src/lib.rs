@@ -3,16 +3,18 @@
 //! Provides per-agent browser isolation with deterministic fingerprinting,
 //! persistent permission inbox, and WebMCP spec-compliant tool registration.
 
+pub mod context;
 pub mod error;
 pub mod fingerprint;
-pub mod context;
-pub mod webmcp;
 pub mod headless;
+pub mod webmcp;
 pub mod webmcp_eval;
 
+pub use context::{BrowserContext, BrowserContextConfig, InboxEntry, PermissionDecision};
 pub use error::{BrowserError, Result};
 pub use fingerprint::BrowserFingerprint;
-pub use context::{BrowserContext, BrowserContextConfig, PermissionDecision, InboxEntry};
-pub use webmcp::{WebMcpCompliance, McpToolRegistration};
-pub use headless::{HeadlessBrowser, HeadlessConfig, PageState, NavigationResult};
-pub use webmcp_eval::{WebMcpEvaluator, ComplianceReport, ComplianceCheckResult, SecurePolyfill, CheckSeverity};
+pub use headless::{HeadlessBrowser, HeadlessConfig, NavigationResult, PageState};
+pub use webmcp::{McpToolRegistration, WebMcpCompliance};
+pub use webmcp_eval::{
+    CheckSeverity, ComplianceCheckResult, ComplianceReport, SecurePolyfill, WebMcpEvaluator,
+};

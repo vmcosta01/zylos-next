@@ -40,8 +40,8 @@ pub struct TriageEngine;
 impl TriageEngine {
     /// Função new.
     pub fn new() -> Self {
-            // Retorna nova instância do TriageEngine.
-            Self
+        // Retorna nova instância do TriageEngine.
+        Self
     }
 
     /// Classify an event into a triage decision.

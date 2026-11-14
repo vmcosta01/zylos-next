@@ -6,42 +6,45 @@
 //! - Embedding-based similarity search
 //! - Neighborhood queries and shortest path calculations
 
-pub mod error;
-pub mod types;
-pub mod memory_kind;
-pub mod utils;
+pub mod auto_improvement;
 pub mod context_graph;
-pub mod vector_store;
-#[cfg(feature = "qdrant")]
-pub mod qdrant_adapter;
+pub mod context_room;
+pub mod contradiction;
+pub mod document_spaces;
+pub mod error;
 #[cfg(feature = "lancedb")]
 pub mod lancedb_adapter;
-pub mod rerank;
-pub mod contradiction;
-pub mod memory_agent;
-pub mod write_gate;
-pub mod session_goal;
-pub mod migration;
-pub mod document_spaces;
-pub mod typed_semantic;
 pub mod lifecycle;
+pub mod memory_agent;
+pub mod memory_kind;
 pub mod mental_models;
-pub mod context_room;
-pub mod auto_improvement;
+pub mod migration;
+#[cfg(feature = "qdrant")]
+pub mod qdrant_adapter;
+pub mod rerank;
+pub mod session_goal;
+pub mod typed_semantic;
+pub mod types;
+pub mod utils;
+pub mod vector_store;
+pub mod write_gate;
 
-pub use error::{MemoryError, Result};
-pub use types::{ContextNode, ContextEdge, ContextQuery, MemoryScope, NodeId};
-pub use memory_kind::{
-    MemoryKind, BackendTarget, route_backend,
-    ProvenanceTriple, ProvenanceScope, ProvenanceOrigin, Completeness,
-    CompressionPipeline, ExtractedFact, EntityLink, DecayScore, GcAction, GcDisposition,
-    EvidenceCapsule, EvidenceDisposition,
-};
 pub use context_graph::{ContextGraph, GraphStats};
-pub use vector_store::{VectorStore, VectorDocument, VectorId, SearchParams, SearchResult, InMemoryVectorStore};
-pub use rerank::{BriefAwareReranker, RerankConfig, ResearchBrief, RankedMemory};
 pub use contradiction::{Contradiction, ContradictionDetector, ContradictionType, Resolution};
-pub use memory_agent::{MemoryAgent, MemoryAgentConfig, AgentEvent, ConsolidationReport};
-pub use write_gate::{WriteGate, EvidenceCapsule as WriteGateEvidenceCapsule, Disposition, GateResult};
-pub use session_goal::{SessionGoal, Criterion, GoalStatus};
-pub use migration::{MigrationAdapter, MigrationReport, IntegrityReport};
+pub use error::{MemoryError, Result};
+pub use memory_agent::{AgentEvent, ConsolidationReport, MemoryAgent, MemoryAgentConfig};
+pub use memory_kind::{
+    route_backend, BackendTarget, Completeness, CompressionPipeline, DecayScore, EntityLink,
+    EvidenceCapsule, EvidenceDisposition, ExtractedFact, GcAction, GcDisposition, MemoryKind,
+    ProvenanceOrigin, ProvenanceScope, ProvenanceTriple,
+};
+pub use migration::{IntegrityReport, MigrationAdapter, MigrationReport};
+pub use rerank::{BriefAwareReranker, RankedMemory, RerankConfig, ResearchBrief};
+pub use session_goal::{Criterion, GoalStatus, SessionGoal};
+pub use types::{ContextEdge, ContextNode, ContextQuery, MemoryScope, NodeId};
+pub use vector_store::{
+    InMemoryVectorStore, SearchParams, SearchResult, VectorDocument, VectorId, VectorStore,
+};
+pub use write_gate::{
+    Disposition, EvidenceCapsule as WriteGateEvidenceCapsule, GateResult, WriteGate,
+};

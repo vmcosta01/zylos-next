@@ -5,11 +5,11 @@
 //! and results stream back to connected clients via AG-UI SSE.
 
 use axum::{
-    Json, Router,
     extract::State,
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
+    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use tracing::{error, info};
@@ -46,15 +46,13 @@ async fn post_soar_event(
     Json(request): Json<SoarEventRequest>,
 ) -> impl IntoResponse {
     // Deserialize severity and category from strings via serde (snake_case)
-    let severity: zylos_soar::Severity = serde_json::from_value(
-        serde_json::Value::String(request.severity.to_lowercase()),
-    )
-    .unwrap_or(zylos_soar::Severity::Medium);
+    let severity: zylos_soar::Severity =
+        serde_json::from_value(serde_json::Value::String(request.severity.to_lowercase()))
+            .unwrap_or(zylos_soar::Severity::Medium);
 
-    let category: zylos_soar::EventCategory = serde_json::from_value(
-        serde_json::Value::String(request.category.to_lowercase()),
-    )
-    .unwrap_or(zylos_soar::EventCategory::Anomaly);
+    let category: zylos_soar::EventCategory =
+        serde_json::from_value(serde_json::Value::String(request.category.to_lowercase()))
+            .unwrap_or(zylos_soar::EventCategory::Anomaly);
 
     let event = ZylosSecurityEvent::new(
         &request.source,
@@ -72,7 +70,11 @@ async fn post_soar_event(
 
     match state.soar_orchestrator.process_event(event).await {
         Ok(result) => {
-            let success_count = result.execution_results.iter().filter(|r| r.success).count();
+            let success_count = result
+                .execution_results
+                .iter()
+                .filter(|r| r.success)
+                .count();
             let total = result.execution_results.len();
 
             (
@@ -99,9 +101,7 @@ async fn post_soar_event(
 }
 
 /// GET /api/v1/soar/playbooks — List available SOAR playbooks.
-async fn get_soar_playbooks(
-    State(state): State<AppState>,
-) -> impl IntoResponse {
+async fn get_soar_playbooks(State(state): State<AppState>) -> impl IntoResponse {
     let playbooks = state.soar_orchestrator.list_playbooks().await;
     (StatusCode::OK, Json(playbooks))
 }

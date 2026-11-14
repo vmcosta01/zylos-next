@@ -128,8 +128,12 @@ mod tests {
         };
         mcp.register_tool(reg).unwrap();
 
-        assert!(mcp.check_invocation("browser.navigate", "https://example.com").unwrap());
-        assert!(!mcp.check_invocation("browser.navigate", "https://other.com").unwrap());
+        assert!(mcp
+            .check_invocation("browser.navigate", "https://example.com")
+            .unwrap());
+        assert!(!mcp
+            .check_invocation("browser.navigate", "https://other.com")
+            .unwrap());
     }
 
     #[test]
@@ -144,7 +148,9 @@ mod tests {
             allowed_patterns: vec![],
         };
         assert!(mcp.register_tool(reg).is_err());
-        assert!(mcp.check_invocation("browser.read", "https://evil.com").is_err());
+        assert!(mcp
+            .check_invocation("browser.read", "https://evil.com")
+            .is_err());
     }
 
     #[test]

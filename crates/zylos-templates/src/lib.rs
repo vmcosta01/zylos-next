@@ -87,8 +87,7 @@ pub struct AgentTemplate {
 impl AgentTemplate {
     /// Parse a template from YAML bytes.
     pub fn from_yaml(yaml: &[u8]) -> Result<Self> {
-        serde_yaml::from_slice(yaml)
-            .map_err(|e| TemplateError::InvalidYaml(e.to_string()))
+        serde_yaml::from_slice(yaml).map_err(|e| TemplateError::InvalidYaml(e.to_string()))
     }
 
     /// Serialise the template to YAML bytes.
@@ -248,16 +247,24 @@ fn builtin_templates() -> Vec<AgentTemplate> {
     vec![
         // Engineering
         make_template(
-            "code-reviewer", "1.0.0", "Code Reviewer",
+            "code-reviewer",
+            "1.0.0",
+            "Code Reviewer",
             "Reviews PRs for security, performance, and style compliance",
             "senior-backend-engineer",
             &["github-pr-review", "security-scan", "performance-analysis"],
             &["github", "sonarqube", "semgrep"],
-            Some(ConfigOverrides { hitl_tier: Some(2), sandbox_mode: Some("docker".into()), proof_level: Some("confirmed".into()) }),
+            Some(ConfigOverrides {
+                hitl_tier: Some(2),
+                sandbox_mode: Some("docker".into()),
+                proof_level: Some("confirmed".into()),
+            }),
             &["engineering", "security", "quality"],
         ),
         make_template(
-            "test-writer", "1.0.0", "Test Writer",
+            "test-writer",
+            "1.0.0",
+            "Test Writer",
             "Generates unit and integration tests from source code",
             "qa-engineer",
             &["test-generation", "coverage-analysis"],
@@ -266,16 +273,24 @@ fn builtin_templates() -> Vec<AgentTemplate> {
             &["engineering", "testing"],
         ),
         make_template(
-            "refactor-agent", "1.0.0", "Refactor Agent",
+            "refactor-agent",
+            "1.0.0",
+            "Refactor Agent",
             "Identifies and applies safe code refactoring patterns",
             "senior-backend-engineer",
             &["code-smell-detection", "refactoring"],
             &["github", "ast-analyzer"],
-            Some(ConfigOverrides { hitl_tier: Some(3), sandbox_mode: Some("docker".into()), proof_level: Some("verified".into()) }),
+            Some(ConfigOverrides {
+                hitl_tier: Some(3),
+                sandbox_mode: Some("docker".into()),
+                proof_level: Some("verified".into()),
+            }),
             &["engineering", "maintenance"],
         ),
         make_template(
-            "doc-writer", "1.0.0", "Documentation Writer",
+            "doc-writer",
+            "1.0.0",
+            "Documentation Writer",
             "Generates and maintains technical documentation",
             "technical-writer",
             &["doc-generation", "api-docs", "changelog"],
@@ -285,25 +300,39 @@ fn builtin_templates() -> Vec<AgentTemplate> {
         ),
         // Ops
         make_template(
-            "incident-responder", "1.0.0", "Incident Responder",
+            "incident-responder",
+            "1.0.0",
+            "Incident Responder",
             "Triages and resolves production incidents",
             "sre-on-call",
             &["log-analysis", "runbook-execution", "alert-correlation"],
             &["pagerduty", "grafana", "kubernetes"],
-            Some(ConfigOverrides { hitl_tier: Some(3), sandbox_mode: Some("docker".into()), proof_level: Some("confirmed".into()) }),
+            Some(ConfigOverrides {
+                hitl_tier: Some(3),
+                sandbox_mode: Some("docker".into()),
+                proof_level: Some("confirmed".into()),
+            }),
             &["ops", "reliability"],
         ),
         make_template(
-            "infra-provisioner", "1.0.0", "Infrastructure Provisioner",
+            "infra-provisioner",
+            "1.0.0",
+            "Infrastructure Provisioner",
             "Provisions cloud infrastructure from IaC templates",
             "devops-engineer",
             &["terraform-plan", "cost-estimation", "compliance-check"],
             &["terraform", "aws-cli", "gcloud"],
-            Some(ConfigOverrides { hitl_tier: Some(4), sandbox_mode: Some("docker".into()), proof_level: Some("verified".into()) }),
+            Some(ConfigOverrides {
+                hitl_tier: Some(4),
+                sandbox_mode: Some("docker".into()),
+                proof_level: Some("verified".into()),
+            }),
             &["ops", "infrastructure"],
         ),
         make_template(
-            "ci-debugger", "1.0.0", "CI Debugger",
+            "ci-debugger",
+            "1.0.0",
+            "CI Debugger",
             "Diagnoses and fixes CI/CD pipeline failures",
             "devops-engineer",
             &["pipeline-analysis", "log-parsing", "retry-strategy"],
@@ -312,7 +341,9 @@ fn builtin_templates() -> Vec<AgentTemplate> {
             &["ops", "ci-cd"],
         ),
         make_template(
-            "capacity-planner", "1.0.0", "Capacity Planner",
+            "capacity-planner",
+            "1.0.0",
+            "Capacity Planner",
             "Forecasts resource needs and recommends scaling actions",
             "sre-analyst",
             &["metrics-analysis", "forecasting", "cost-optimization"],
@@ -322,7 +353,9 @@ fn builtin_templates() -> Vec<AgentTemplate> {
         ),
         // Research
         make_template(
-            "literature-reviewer", "1.0.0", "Literature Reviewer",
+            "literature-reviewer",
+            "1.0.0",
+            "Literature Reviewer",
             "Searches and synthesises academic papers on a topic",
             "research-analyst",
             &["arxiv-search", "paper-summarization", "citation-graph"],
@@ -331,16 +364,24 @@ fn builtin_templates() -> Vec<AgentTemplate> {
             &["research", "academic"],
         ),
         make_template(
-            "market-researcher", "1.0.0", "Market Researcher",
+            "market-researcher",
+            "1.0.0",
+            "Market Researcher",
             "Analyses market trends and competitive landscapes",
             "business-analyst",
             &["web-scraping", "trend-analysis", "report-generation"],
             &["browser", "spreadsheet"],
-            Some(ConfigOverrides { hitl_tier: Some(2), sandbox_mode: Some("docker".into()), proof_level: Some("basic".into()) }),
+            Some(ConfigOverrides {
+                hitl_tier: Some(2),
+                sandbox_mode: Some("docker".into()),
+                proof_level: Some("basic".into()),
+            }),
             &["research", "business"],
         ),
         make_template(
-            "data-analyst", "1.0.0", "Data Analyst",
+            "data-analyst",
+            "1.0.0",
+            "Data Analyst",
             "Explores datasets and produces statistical summaries",
             "data-scientist",
             &["sql-query", "visualization", "statistical-analysis"],
@@ -349,7 +390,9 @@ fn builtin_templates() -> Vec<AgentTemplate> {
             &["research", "data"],
         ),
         make_template(
-            "patent-searcher", "1.0.0", "Patent Searcher",
+            "patent-searcher",
+            "1.0.0",
+            "Patent Searcher",
             "Searches patent databases for prior art",
             "ip-analyst",
             &["patent-search", "claim-analysis", "similarity-scoring"],
@@ -359,7 +402,9 @@ fn builtin_templates() -> Vec<AgentTemplate> {
         ),
         // Creative
         make_template(
-            "content-writer", "1.0.0", "Content Writer",
+            "content-writer",
+            "1.0.0",
+            "Content Writer",
             "Drafts blog posts, newsletters, and marketing copy",
             "creative-writer",
             &["copywriting", "seo-optimization", "tone-matching"],
@@ -368,16 +413,24 @@ fn builtin_templates() -> Vec<AgentTemplate> {
             &["creative", "marketing"],
         ),
         make_template(
-            "ui-designer", "1.0.0", "UI Designer",
+            "ui-designer",
+            "1.0.0",
+            "UI Designer",
             "Creates wireframes and design system components",
             "product-designer",
             &["wireframing", "design-system", "accessibility-audit"],
             &["figma", "storybook"],
-            Some(ConfigOverrides { hitl_tier: Some(2), sandbox_mode: Some("none".into()), proof_level: Some("basic".into()) }),
+            Some(ConfigOverrides {
+                hitl_tier: Some(2),
+                sandbox_mode: Some("none".into()),
+                proof_level: Some("basic".into()),
+            }),
             &["creative", "design"],
         ),
         make_template(
-            "video-script-writer", "1.0.0", "Video Script Writer",
+            "video-script-writer",
+            "1.0.0",
+            "Video Script Writer",
             "Writes scripts for tutorials, demos, and presentations",
             "creative-writer",
             &["scriptwriting", "storyboard", "timing-analysis"],
@@ -441,7 +494,10 @@ mod tests {
     #[test]
     fn test_get_nonexistent_template() {
         let reg = TemplateRegistry::new("/tmp/test-templates");
-        assert!(matches!(reg.get("nonexistent"), Err(TemplateError::NotFound(_))));
+        assert!(matches!(
+            reg.get("nonexistent"),
+            Err(TemplateError::NotFound(_))
+        ));
     }
 
     #[test]

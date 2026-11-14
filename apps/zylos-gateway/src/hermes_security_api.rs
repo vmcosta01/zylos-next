@@ -14,13 +14,13 @@
 //! Todos os endpoints publicam eventos no EventBus para visibilidade no cockpit.
 
 use axum::{
-    Json, Router,
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{get, post, delete},
+    routing::{delete, get, post},
+    Json, Router,
 };
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use zylos_live_comm::hermes_bridge::{HermesBridge, HermesEnvelope};
 
 use crate::AppState;
@@ -92,7 +92,10 @@ async fn post_capability_token(State(state): State<AppState>, Json(body): Json<V
     }))
 }
 
-async fn delete_capability_token(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
+async fn delete_capability_token(
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> Response {
     publish_event(&state, "capability-token-revoked", body.clone());
     ok_json(json!({
         "status": "accepted",
@@ -151,15 +154,33 @@ async fn post_sanitize_output(State(state): State<AppState>, Json(body): Json<Va
 
 pub fn create_hermes_security_router() -> Router<AppState> {
     Router::new()
-        .route("/hermes/security/guardrails/stats", get(get_guardrails_stats))
-        .route("/hermes/security/guardrails/rules", post(post_guardrail_rule))
-        .route("/hermes/security/capability-tokens", get(get_capability_tokens))
-        .route("/hermes/security/capability-tokens/issue", post(post_capability_token))
-        .route("/hermes/security/capability-tokens/revoke", delete(delete_capability_token))
+        .route(
+            "/hermes/security/guardrails/stats",
+            get(get_guardrails_stats),
+        )
+        .route(
+            "/hermes/security/guardrails/rules",
+            post(post_guardrail_rule),
+        )
+        .route(
+            "/hermes/security/capability-tokens",
+            get(get_capability_tokens),
+        )
+        .route(
+            "/hermes/security/capability-tokens/issue",
+            post(post_capability_token),
+        )
+        .route(
+            "/hermes/security/capability-tokens/revoke",
+            delete(delete_capability_token),
+        )
         .route("/hermes/security/egress/rules", get(get_egress_rules))
         .route("/hermes/security/egress/rules", post(post_egress_rule))
         .route("/hermes/security/sanitizer/rules", get(get_sanitizer_rules))
-        .route("/hermes/security/sanitizer/sanitize", post(post_sanitize_output))
+        .route(
+            "/hermes/security/sanitizer/sanitize",
+            post(post_sanitize_output),
+        )
 }
 
 #[cfg(test)]

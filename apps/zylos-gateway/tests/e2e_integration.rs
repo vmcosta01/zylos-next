@@ -13,16 +13,15 @@
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use tokio::sync::RwLock;
 use tower::ServiceExt;
 
 // Re-use gateway types
 use zylos_gateway::AppState;
-use zylos_live_comm::{EventBus, skills_api::SkillsApiState};
+use zylos_live_comm::{skills_api::SkillsApiState, EventBus};
 use zylos_skills::{EvalFlywheel, SkillRegistry, SkillValidator};
-use zylos_swarm_orchestrator::SwarmOrchestrator;
 use zylos_soar::{
     audit::AuditTrail,
     executor::ExecutorConfig,
@@ -30,6 +29,7 @@ use zylos_soar::{
     registry::RunbookRegistry,
     router::EventRouter,
 };
+use zylos_swarm_orchestrator::SwarmOrchestrator;
 
 /// Build a test AppState with all subsystems initialized (async to avoid nested runtime).
 async fn e2e_state() -> AppState {
@@ -42,13 +42,9 @@ async fn e2e_state() -> AppState {
     let soar_registry = RunbookRegistry::new();
     let soar_audit = AuditTrail::new(b"e2e-test-key");
     let soar_executor_config = ExecutorConfig::default();
-    let soar_state = OrchestratorState::new(
-        soar_router,
-        soar_registry,
-        soar_audit,
-        soar_executor_config,
-    )
-    .with_event_bus(event_bus.clone());
+    let soar_state =
+        OrchestratorState::new(soar_router, soar_registry, soar_audit, soar_executor_config)
+            .with_event_bus(event_bus.clone());
     let soar_orchestrator = Arc::new(SoarOrchestrator::new(Arc::new(RwLock::new(soar_state))));
 
     let swarm = SwarmOrchestrator::open(":memory:")
@@ -382,7 +378,11 @@ async fn e2e_15_event_bus_propagates_to_sse() {
     });
     let _result = bus.publish("ag_ui.events", event, 1).await;
     // Verify bus is functional by checking receiver_count (0 when no subscribers)
-    assert_eq!(bus.receiver_count(), 0, "No subscribers expected in unit test");
+    assert_eq!(
+        bus.receiver_count(),
+        0,
+        "No subscribers expected in unit test"
+    );
 }
 
 #[tokio::test]
@@ -398,7 +398,11 @@ async fn e2e_16_multiple_subsystems_share_event_bus() {
         payload: serde_json::to_value(&ag_event).unwrap_or_default(),
     });
     let _result = state.event_bus.publish("ag_ui.events", event, 1).await;
-    assert_eq!(state.event_bus.receiver_count(), 0, "No subscribers expected in unit test");
+    assert_eq!(
+        state.event_bus.receiver_count(),
+        0,
+        "No subscribers expected in unit test"
+    );
 }
 
 #[tokio::test]
@@ -663,7 +667,10 @@ async fn e2e_24_orchestrate_rollback_on_failure() {
     assert_eq!(json["rolled_back"], true);
     assert!(json["failed"].as_u64().unwrap() >= 1);
     // skipped-step should not have succeeded because rollback broke the chain
-    let skipped = json["results"].as_array().unwrap().iter()
+    let skipped = json["results"]
+        .as_array()
+        .unwrap()
+        .iter()
         .find(|r| r["node_id"] == "skipped-step");
     assert!(skipped.is_none() || skipped.unwrap()["success"] == false);
 }
@@ -712,8 +719,12 @@ async fn e2e_25_orchestrate_recovery_after_dependency_failure() {
     let body = axum::body::to_bytes(resp.into_body(), 8192).await.unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     // independent-recovery has no deps, so it should succeed despite will-fail
-    let recovery = json["results"].as_array().unwrap().iter()
-        .find(|r| r["node_id"] == "independent-recovery").unwrap();
+    let recovery = json["results"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["node_id"] == "independent-recovery")
+        .unwrap();
     assert_eq!(recovery["success"], true);
 }
 
@@ -744,7 +755,10 @@ async fn e2e_26_orchestrate_proof_validation() {
     let body = axum::body::to_bytes(resp.into_body(), 8192).await.unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["results"][0]["output"]["valid"], true);
-    assert_eq!(json["results"][0]["output"]["claim"], "gateway-integration-verified");
+    assert_eq!(
+        json["results"][0]["output"]["claim"],
+        "gateway-integration-verified"
+    );
 }
 
 #[tokio::test]
@@ -809,7 +823,10 @@ async fn e2e_28_orchestrate_wasm_isolation_check() {
     let body = axum::body::to_bytes(resp.into_body(), 8192).await.unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["results"][0]["output"]["sandbox_available"], true);
-    assert_eq!(json["results"][0]["output"]["isolation"], "wasm-memory-boundary");
+    assert_eq!(
+        json["results"][0]["output"]["isolation"],
+        "wasm-memory-boundary"
+    );
 }
 
 #[tokio::test]
@@ -898,7 +915,9 @@ async fn e2e_31_orchestrate_cockpit_streaming_status() {
     let body = axum::body::to_bytes(resp.into_body(), 8192).await.unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["results"][0]["output"]["streaming"], true);
-    assert!(json["results"][0]["output"]["event_bus_receivers"].as_u64().is_some());
+    assert!(json["results"][0]["output"]["event_bus_receivers"]
+        .as_u64()
+        .is_some());
 }
 
 #[tokio::test]
@@ -938,8 +957,12 @@ async fn e2e_32_orchestrate_lazy_roster_performance() {
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     // Both nodes should complete within reasonable time
     for result in json["results"].as_array().unwrap() {
-        assert!(result["duration_ms"].as_u64().unwrap() < 5000,
-            "Node {} took too long: {}ms", result["node_id"], result["duration_ms"]);
+        assert!(
+            result["duration_ms"].as_u64().unwrap() < 5000,
+            "Node {} took too long: {}ms",
+            result["node_id"],
+            result["duration_ms"]
+        );
     }
 }
 
@@ -983,11 +1006,15 @@ async fn orchestrate(nodes: serde_json::Value) -> (serde_json::Value, Vec<String
         .method("POST")
         .uri("/api/v1/orchestrate")
         .header("content-type", "application/json")
-        .body(Body::from(serde_json::to_string(&orchestrate_request(nodes)).unwrap()))
+        .body(Body::from(
+            serde_json::to_string(&orchestrate_request(nodes)).unwrap(),
+        ))
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
-    let body = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
+    let body = axum::body::to_bytes(resp.into_body(), 1 << 20)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     let ordem = json["results"]
         .as_array()
@@ -1007,7 +1034,10 @@ async fn e2e_34_orchestrate_nos_fora_de_ordem_executam_na_ordem_das_dependencias
         {"id": "a", "subsystem": "sandbox", "action": "wasm_check", "depends_on": []}
     ]))
     .await;
-    assert_eq!(json["failed"], 0, "nenhum no pode falhar por dependencia: {json}");
+    assert_eq!(
+        json["failed"], 0,
+        "nenhum no pode falhar por dependencia: {json}"
+    );
     assert_eq!(json["succeeded"], 3);
     assert_eq!(ordem, ["a", "b", "c"]);
 }
@@ -1035,7 +1065,9 @@ async fn orchestrate_bruto(corpo: serde_json::Value) -> (StatusCode, serde_json:
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
     let status = resp.status();
-    let body = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
+    let body = axum::body::to_bytes(resp.into_body(), 1 << 20)
+        .await
+        .unwrap();
     (status, serde_json::from_slice(&body).unwrap())
 }
 
@@ -1043,7 +1075,11 @@ fn ids(v: &serde_json::Value) -> Vec<String> {
     v.as_array()
         .unwrap()
         .iter()
-        .map(|x| x.as_str().map(String::from).unwrap_or_else(|| x["node_id"].as_str().unwrap().to_string()))
+        .map(|x| {
+            x.as_str()
+                .map(String::from)
+                .unwrap_or_else(|| x["node_id"].as_str().unwrap().to_string())
+        })
         .collect()
 }
 
@@ -1058,12 +1094,19 @@ fn dag_com_etapa_invalida() -> serde_json::Value {
 
 #[tokio::test]
 async fn e2e_36_orchestrate_etapa_invalida_recusa_e_explica_sem_executar() {
-    let (status, json) = orchestrate_bruto(serde_json::json!({"nodes": dag_com_etapa_invalida()})).await;
+    let (status, json) =
+        orchestrate_bruto(serde_json::json!({"nodes": dag_com_etapa_invalida()})).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-    assert!(json.get("results").is_none(), "nada pode ter rodado: {json}");
+    assert!(
+        json.get("results").is_none(),
+        "nada pode ter rodado: {json}"
+    );
     assert_eq!(ids(&json["executaveis"]), ["a", "b"]);
     assert_eq!(ids(&json["fora"]), ["x"]);
-    assert!(json["fora"][0]["motivo"].as_str().unwrap().contains("nao-existe"));
+    assert!(json["fora"][0]["motivo"]
+        .as_str()
+        .unwrap()
+        .contains("nao-existe"));
 }
 
 #[tokio::test]
@@ -1078,7 +1121,10 @@ async fn e2e_37_orchestrate_parte_valida_quando_pedida() {
     assert_eq!(json["results"][0]["success"], true);
     assert_eq!(json["results"][1]["success"], true);
     assert_eq!(json["results"][2]["success"], false);
-    assert!(json["results"][2]["error"].as_str().unwrap().starts_with("não executado"));
+    assert!(json["results"][2]["error"]
+        .as_str()
+        .unwrap()
+        .starts_with("não executado"));
     assert_eq!(json["total_nodes"], 3);
     assert_eq!(json["succeeded"], 2);
     assert_eq!(json["failed"], 1);

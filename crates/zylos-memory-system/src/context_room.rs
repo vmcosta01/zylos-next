@@ -56,8 +56,7 @@ pub struct MemoryEntry {
 }
 
 /// Bundle completo de um ContextRoom.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct RoomBundle {
     /// Fontes/documentos associados ao room.
     pub sources: Vec<NodeRef>,
@@ -68,7 +67,6 @@ pub struct RoomBundle {
     /// Entradas de memória relevantes.
     pub memory: Vec<MemoryEntry>,
 }
-
 
 /// Um ContextRoom persistente.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -203,9 +201,7 @@ impl ContextRoomStore {
     /// Insere um novo ContextRoom.
     pub async fn insert(&self, room: &ContextRoom) -> Result<()> {
         let conn = self.conn.lock().await;
-        let bundle_json = room
-            .bundle_to_json()
-            .map_err(MemoryError::Serialization)?;
+        let bundle_json = room.bundle_to_json().map_err(MemoryError::Serialization)?;
         let metadata_str =
             serde_json::to_string(&room.metadata).map_err(MemoryError::Serialization)?;
 
@@ -325,8 +321,7 @@ impl ContextRoomStore {
         bundle: &RoomBundle,
     ) -> Result<bool> {
         let conn = self.conn.lock().await;
-        let bundle_json =
-            serde_json::to_string(bundle).map_err(MemoryError::Serialization)?;
+        let bundle_json = serde_json::to_string(bundle).map_err(MemoryError::Serialization)?;
         let now = chrono_now_stub();
 
         let affected = conn.execute(
@@ -362,7 +357,13 @@ impl ContextRoomStore {
         conn.execute(
             "INSERT INTO context_room_snapshots (id, room_id, bundle_json, created_at, tag)
              VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![snap.id, snap.room_id, bundle_json, snap.created_at, snap.tag],
+            params![
+                snap.id,
+                snap.room_id,
+                bundle_json,
+                snap.created_at,
+                snap.tag
+            ],
         )?;
 
         Ok(snap)
@@ -459,8 +460,8 @@ mod tests {
     async fn test_insert_and_get() {
         let store = ContextRoomStore::in_memory().await.unwrap();
 
-        let room = ContextRoom::new("Sprint 42", "Context for sprint 42", "tenant-a")
-            .with_bundle(RoomBundle {
+        let room = ContextRoom::new("Sprint 42", "Context for sprint 42", "tenant-a").with_bundle(
+            RoomBundle {
                 sources: vec![NodeRef {
                     node_id: "node-1".into(),
                     label: Some("PRD".into()),
@@ -478,7 +479,8 @@ mod tests {
                     content_preview: "Auth uses JWT".into(),
                     scope: "agent".into(),
                 }],
-            });
+            },
+        );
 
         store.insert(&room).await.unwrap();
 
@@ -516,8 +518,14 @@ mod tests {
 
         let new_bundle = RoomBundle {
             sources: vec![
-                NodeRef { node_id: "s1".into(), label: None },
-                NodeRef { node_id: "s2".into(), label: None },
+                NodeRef {
+                    node_id: "s1".into(),
+                    label: None,
+                },
+                NodeRef {
+                    node_id: "s2".into(),
+                    label: None,
+                },
             ],
             ..RoomBundle::default()
         };
@@ -536,14 +544,15 @@ mod tests {
     async fn test_snapshot_and_list() {
         let store = ContextRoomStore::in_memory().await.unwrap();
 
-        let room = ContextRoom::new("Snapshottable", "Test snapshots", "tenant-a")
-            .with_bundle(RoomBundle {
+        let room = ContextRoom::new("Snapshottable", "Test snapshots", "tenant-a").with_bundle(
+            RoomBundle {
                 sources: vec![NodeRef {
                     node_id: "v1-source".into(),
                     label: None,
                 }],
                 ..RoomBundle::default()
-            });
+            },
+        );
         store.insert(&room).await.unwrap();
 
         // Criar snapshot v1
@@ -557,8 +566,14 @@ mod tests {
         // Atualizar room
         let new_bundle = RoomBundle {
             sources: vec![
-                NodeRef { node_id: "v2-s1".into(), label: None },
-                NodeRef { node_id: "v2-s2".into(), label: None },
+                NodeRef {
+                    node_id: "v2-s1".into(),
+                    label: None,
+                },
+                NodeRef {
+                    node_id: "v2-s2".into(),
+                    label: None,
+                },
             ],
             ..RoomBundle::default()
         };
@@ -575,19 +590,25 @@ mod tests {
         assert_eq!(snap2.bundle.sources.len(), 2);
 
         // Listar snapshots
-            let snaps = store.list_snapshots(&room.id).await.unwrap();
-            assert_eq!(snaps.len(), 2);
-    
-            // Encontrar snapshots por tag (ordem pode variar se timestamps forem iguais)
-            let snap_v1 = snaps.iter().find(|s| s.tag == Some("v1".into())).expect("v1 snapshot not found");
-            let snap_v2 = snaps.iter().find(|s| s.tag == Some("v2".into())).expect("v2 snapshot not found");
+        let snaps = store.list_snapshots(&room.id).await.unwrap();
+        assert_eq!(snaps.len(), 2);
 
-            // Snapshot v1 deve preservar estado original (1 source)
-            assert_eq!(snap_v1.bundle.sources.len(), 1);
-            assert_eq!(snap_v1.bundle.sources[0].node_id, "v1-source");
-    
-            // Snapshot v2 deve ter estado atualizado (2 sources)
-            assert_eq!(snap_v2.bundle.sources.len(), 2);
+        // Encontrar snapshots por tag (ordem pode variar se timestamps forem iguais)
+        let snap_v1 = snaps
+            .iter()
+            .find(|s| s.tag == Some("v1".into()))
+            .expect("v1 snapshot not found");
+        let snap_v2 = snaps
+            .iter()
+            .find(|s| s.tag == Some("v2".into()))
+            .expect("v2 snapshot not found");
+
+        // Snapshot v1 deve preservar estado original (1 source)
+        assert_eq!(snap_v1.bundle.sources.len(), 1);
+        assert_eq!(snap_v1.bundle.sources[0].node_id, "v1-source");
+
+        // Snapshot v2 deve ter estado atualizado (2 sources)
+        assert_eq!(snap_v2.bundle.sources.len(), 2);
     }
 
     #[tokio::test]
@@ -596,10 +617,7 @@ mod tests {
 
         let room = ContextRoom::new("Deletable", "Test delete", "tenant-a");
         store.insert(&room).await.unwrap();
-        store
-            .snapshot(&room.id, "tenant-a", None)
-            .await
-            .unwrap();
+        store.snapshot(&room.id, "tenant-a", None).await.unwrap();
 
         let deleted = store.delete(&room.id, "tenant-a").await.unwrap();
         assert!(deleted);
@@ -627,9 +645,18 @@ mod tests {
     #[tokio::test]
     async fn test_bundle_serialization_roundtrip() {
         let bundle = RoomBundle {
-            sources: vec![NodeRef { node_id: "n1".into(), label: Some("L".into()) }],
-            decisions: vec![ProofRef { proof_id: "p1".into(), summary: None }],
-            tasks: vec![TaskRef { task_id: "t1".into(), name: Some("T".into()) }],
+            sources: vec![NodeRef {
+                node_id: "n1".into(),
+                label: Some("L".into()),
+            }],
+            decisions: vec![ProofRef {
+                proof_id: "p1".into(),
+                summary: None,
+            }],
+            tasks: vec![TaskRef {
+                task_id: "t1".into(),
+                name: Some("T".into()),
+            }],
             memory: vec![MemoryEntry {
                 entry_id: "m1".into(),
                 content_preview: "preview".into(),
@@ -660,12 +687,13 @@ mod tests {
     async fn test_room_with_metadata() {
         let store = ContextRoomStore::in_memory().await.unwrap();
 
-        let room = ContextRoom::new("Rich", "With metadata", "tenant-a")
-            .with_metadata(serde_json::json!({
+        let room = ContextRoom::new("Rich", "With metadata", "tenant-a").with_metadata(
+            serde_json::json!({
                 "owner": "team-alpha",
                 "priority": "high",
                 "tags": ["sprint-42", "auth"]
-            }));
+            }),
+        );
         store.insert(&room).await.unwrap();
 
         let r = store.get(&room.id, "tenant-a").await.unwrap().unwrap();

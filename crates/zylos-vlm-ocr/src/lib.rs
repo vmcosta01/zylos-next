@@ -6,16 +6,16 @@
 
 /// HTTP client for VLM OCR endpoints.
 pub mod client;
-/// Structured types for OCR requests, responses, and elements.
-pub mod types;
 /// Error types and result alias for OCR operations.
 pub mod error;
 /// SVG parsing and rendering for extracted diagrams and formulas.
 pub mod svg;
+/// Structured types for OCR requests, responses, and elements.
+pub mod types;
 
-pub use client::{VlmOcrClient, OcrConfig};
-pub use types::{OcrRequest, OcrResponse, OcrElement, ElementType};
+pub use client::{OcrConfig, VlmOcrClient};
 pub use error::{OcrError, OcrResult};
+pub use types::{ElementType, OcrElement, OcrRequest, OcrResponse};
 
 /// Default benchmark target: dots.mocr 3B Elo 1124.7
 pub const BENCHMARK_ELO_TARGET: f64 = 1124.7;

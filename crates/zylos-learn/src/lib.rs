@@ -129,14 +129,17 @@ impl LearningLoop {
             outcome.signature.clone()
         };
 
-        let entry = self.pending.entry(sig.clone()).or_insert_with(|| PendingLesson {
-            signature: sig.clone(),
-            classification: outcome.classification,
-            occurrences: 0,
-            first_seen: outcome.timestamp.clone(),
-            last_seen: outcome.timestamp.clone(),
-            matured: false,
-        });
+        let entry = self
+            .pending
+            .entry(sig.clone())
+            .or_insert_with(|| PendingLesson {
+                signature: sig.clone(),
+                classification: outcome.classification,
+                occurrences: 0,
+                first_seen: outcome.timestamp.clone(),
+                last_seen: outcome.timestamp.clone(),
+                matured: false,
+            });
 
         entry.occurrences += 1;
         entry.last_seen = outcome.timestamp.clone();
@@ -152,8 +155,8 @@ impl LearningLoop {
     /// Append-only JSONL: adiciona entrada pendente ao arquivo.
     pub fn append_pending(&self, lesson: &PendingLesson) -> Result<(), LearnError> {
         use std::io::Write;
-        let json = serde_json::to_string(lesson)
-            .map_err(|e| LearnError::InvalidOutcome(e.to_string()))?;
+        let json =
+            serde_json::to_string(lesson).map_err(|e| LearnError::InvalidOutcome(e.to_string()))?;
         let mut file = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
@@ -201,12 +204,18 @@ impl LearningLoop {
                 }
             }
         }
-        if failures.is_empty() { Ok(failures) } else { Err(LearnError::WitnessFailed(failures.join("; "))) }
+        if failures.is_empty() {
+            Ok(failures)
+        } else {
+            Err(LearnError::WitnessFailed(failures.join("; ")))
+        }
     }
 
     /// Number of pending lessons currently tracked.
-        pub fn pending_count(&self) -> usize { self.pending.len() }
+    pub fn pending_count(&self) -> usize {
+        self.pending.len()
     }
+}
 
 #[cfg(test)]
 mod tests {
@@ -290,7 +299,10 @@ mod tests {
         let outcome = make_outcome(OutcomeClass::LacunaCapacidade, "no tool for X");
         let result = ll.record_outcome(&outcome);
         assert!(result.is_some());
-        assert_eq!(result.unwrap().classification, OutcomeClass::LacunaCapacidade);
+        assert_eq!(
+            result.unwrap().classification,
+            OutcomeClass::LacunaCapacidade
+        );
     }
 
     #[test]

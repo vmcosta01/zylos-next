@@ -32,17 +32,35 @@ async fn orchestrator_dag_100_nodes_topological_order() {
     });
 
     let url = format!("{}/api/v1/orchestrate", gw.base_url());
-    let resp = gw.client.post(&url).json(&dag).send().await.expect("submit dag");
-    assert!(resp.status().is_success(), "DAG submission failed: {}", resp.status());
+    let resp = gw
+        .client
+        .post(&url)
+        .json(&dag)
+        .send()
+        .await
+        .expect("submit dag");
+    assert!(
+        resp.status().is_success(),
+        "DAG submission failed: {}",
+        resp.status()
+    );
 
     let result: serde_json::Value = resp.json().await.expect("parse dag result");
-    assert_eq!(result["status"], "completed", "DAG should complete successfully");
+    assert_eq!(
+        result["status"], "completed",
+        "DAG should complete successfully"
+    );
 
     // Verify execution order via trace
     let trace = result["trace"].as_array().expect("trace should be array");
     assert_eq!(trace.len(), 100, "all 100 nodes should execute");
     for (idx, entry) in trace.iter().enumerate() {
-        assert_eq!(entry["node_id"], format!("node_{}", idx),
-            "node at position {} should be node_{}", idx, idx);
+        assert_eq!(
+            entry["node_id"],
+            format!("node_{}", idx),
+            "node at position {} should be node_{}",
+            idx,
+            idx
+        );
     }
 }

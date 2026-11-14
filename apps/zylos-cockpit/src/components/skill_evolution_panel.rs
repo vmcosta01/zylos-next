@@ -12,81 +12,96 @@ use wasm_bindgen_futures::spawn_local;
 /// Estado do painel de evolução de skills.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct SkillEvolutionState {
- pub total_contracts: usize,
- pub planning_tier: usize,
- pub functional_tier: usize,
- pub atomic_tier: usize,
- pub graph_nodes: usize,
- pub graph_edges: usize,
- pub edge_types: Vec<String>,
- pub miner_status: String,
- pub trajectory_status: String,
+    pub total_contracts: usize,
+    pub planning_tier: usize,
+    pub functional_tier: usize,
+    pub atomic_tier: usize,
+    pub graph_nodes: usize,
+    pub graph_edges: usize,
+    pub edge_types: Vec<String>,
+    pub miner_status: String,
+    pub trajectory_status: String,
 }
 
 async fn fetch_json(url: &str) -> Result<serde_json::Value, String> {
- let full_url = format!("http://localhost:3000{}", url);
- let resp = gloo_net::http::Request::get(&full_url)
- .send()
- .await
- .map_err(|e| format!("fetch error: {e}"))?;
- if !resp.ok() {
- return Err(format!("HTTP {}", resp.status()));
- }
- resp.json::<serde_json::Value>()
- .await
- .map_err(|e| format!("json parse: {e}"))
+    let full_url = format!("http://localhost:3000{}", url);
+    let resp = gloo_net::http::Request::get(&full_url)
+        .send()
+        .await
+        .map_err(|e| format!("fetch error: {e}"))?;
+    if !resp.ok() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    resp.json::<serde_json::Value>()
+        .await
+        .map_err(|e| format!("json parse: {e}"))
 }
 
 /// Componente SkillEvolutionPanel para o cockpit.
 #[component]
 pub fn SkillEvolutionPanel() -> impl IntoView {
- let state = RwSignal::new(SkillEvolutionState::default());
- let loading = RwSignal::new(true);
- let error_msg = RwSignal::new(None::<String>);
+    let state = RwSignal::new(SkillEvolutionState::default());
+    let loading = RwSignal::new(true);
+    let error_msg = RwSignal::new(None::<String>);
 
- Effect::new(move |_| {
- spawn_local(async move {
- loading.set(true);
- error_msg.set(None);
+    Effect::new(move |_| {
+        spawn_local(async move {
+            loading.set(true);
+            error_msg.set(None);
 
- let mut s = SkillEvolutionState::default();
+            let mut s = SkillEvolutionState::default();
 
- // Fetch hierarchy stats
- match fetch_json("/api/v1/hermes/skill-evolution/hierarchy").await {
- Ok(json) => {
- s.total_contracts = json.get("total").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
- s.planning_tier = json.get("planning_count").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
- s.functional_tier = json.get("functional_count").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
- s.atomic_tier = json.get("atomic_count").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
- }
- Err(e) => { error_msg.set(Some(format!("Hierarchy: {e}"))); }
- }
+            // Fetch hierarchy stats
+            match fetch_json("/api/v1/hermes/skill-evolution/hierarchy").await {
+                Ok(json) => {
+                    s.total_contracts =
+                        json.get("total").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+                    s.planning_tier = json
+                        .get("planning_count")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0) as usize;
+                    s.functional_tier = json
+                        .get("functional_count")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0) as usize;
+                    s.atomic_tier = json
+                        .get("atomic_count")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0) as usize;
+                }
+                Err(e) => {
+                    error_msg.set(Some(format!("Hierarchy: {e}")));
+                }
+            }
 
- // Fetch evolution graph summary
- if let Ok(json) = fetch_json("/api/v1/hermes/skill-evolution/graph").await {
- s.graph_nodes = json.get("nodes").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
- s.graph_edges = json.get("edges").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
- if let Some(types) = json.get("edge_types").and_then(|v| v.as_array()) {
- s.edge_types = types.iter().filter_map(|t| t.as_str().map(String::from)).collect();
- }
- }
+            // Fetch evolution graph summary
+            if let Ok(json) = fetch_json("/api/v1/hermes/skill-evolution/graph").await {
+                s.graph_nodes = json.get("nodes").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+                s.graph_edges = json.get("edges").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+                if let Some(types) = json.get("edge_types").and_then(|v| v.as_array()) {
+                    s.edge_types = types
+                        .iter()
+                        .filter_map(|t| t.as_str().map(String::from))
+                        .collect();
+                }
+            }
 
- // Check contracts endpoint availability
- match fetch_json("/api/v1/hermes/skill-evolution/contracts").await {
- Ok(_) => {
- s.miner_status = "available".into();
- s.trajectory_status = "available".into();
- }
- Err(_) => {
- s.miner_status = "unavailable".into();
- s.trajectory_status = "unavailable".into();
- }
- }
+            // Check contracts endpoint availability
+            match fetch_json("/api/v1/hermes/skill-evolution/contracts").await {
+                Ok(_) => {
+                    s.miner_status = "available".into();
+                    s.trajectory_status = "available".into();
+                }
+                Err(_) => {
+                    s.miner_status = "unavailable".into();
+                    s.trajectory_status = "unavailable".into();
+                }
+            }
 
- state.set(s);
- loading.set(false);
- });
- });
+            state.set(s);
+            loading.set(false);
+        });
+    });
 
     view! {
         <div class="skill-evolution-panel p-4 space-y-4">

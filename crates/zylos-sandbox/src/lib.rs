@@ -6,26 +6,24 @@
 //! - **Browser Anti-Detect**: Fingerprint rotation and bot detection evasion (Phase 4.3)
 //! - **OCR Sidecar**: VLM-based document parsing via dots.mocr (Phase 4.4)
 
-pub mod wasm_sandbox;
-pub mod docker_sandbox;
 pub mod browser_antidetect;
 pub mod browser_profile_store;
-pub mod secure_input;
+pub mod docker_sandbox;
 pub mod screen_share;
+pub mod secure_input;
+pub mod wasm_sandbox;
 
 pub use wasm_sandbox::{
     ExecutionResult, GlobalValue, InputFingerprint, NetworkPolicy, SandboxConfig, SandboxError,
     SandboxId, SandboxSnapshot, SnapshotMetadata, WasmSandbox,
 };
 
-pub use browser_antidetect::{
-    AntiDetectConfig, BrowserProfile, BrowserSandbox, HeadlessMode,
-};
+pub use browser_antidetect::{AntiDetectConfig, BrowserProfile, BrowserSandbox, HeadlessMode};
 
 pub use browser_profile_store::{
     BrowserProfileStore, PersistedProfile, ProfileStoreConfig, ProfileStoreError,
 };
 
 pub use secure_input::{
-    SecureInputPipeline, SecureCredential, CredentialVault, InputMask, GhostTypistError,
+    CredentialVault, GhostTypistError, InputMask, SecureCredential, SecureInputPipeline,
 };

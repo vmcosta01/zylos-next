@@ -342,7 +342,11 @@ impl FrameworkAdapter for AdkAdapter {
             Ok(resp) if resp.status().is_success() => Ok(AdapterHealth {
                 framework: Framework::Adk,
                 available: true,
-                version: resp.headers().get("x-adk-version").and_then(|v| v.to_str().ok()).map(|s| s.to_string()),
+                version: resp
+                    .headers()
+                    .get("x-adk-version")
+                    .and_then(|v| v.to_str().ok())
+                    .map(|s| s.to_string()),
                 active_agents: 0,
                 error_count: 0,
                 last_error: None,
@@ -891,7 +895,12 @@ impl FrameworkAdapter for LangGraphAdapter {
 
     async fn list_agents(&self) -> Result<Vec<AgentInstance>, AdapterError> {
         let url = format!("{}/threads/search", self.base_url);
-        let resp = self.client.post(&url).json(&serde_json::json!({})).send().await?;
+        let resp = self
+            .client
+            .post(&url)
+            .json(&serde_json::json!({}))
+            .send()
+            .await?;
         if !resp.status().is_success() {
             return Err(AdapterError::Communication(format!(
                 "LangGraph list_agents failed: HTTP {}",
@@ -904,7 +913,10 @@ impl FrameworkAdapter for LangGraphAdapter {
             .map(|t| AgentInstance {
                 id: t["thread_id"].as_str().unwrap_or("").to_string(),
                 framework: Framework::LangGraph,
-                name: t["metadata"]["name"].as_str().unwrap_or("unnamed").to_string(),
+                name: t["metadata"]["name"]
+                    .as_str()
+                    .unwrap_or("unnamed")
+                    .to_string(),
                 status: AgentStatus::Ready,
                 config: t["metadata"]["config"].clone(),
                 created_at: Utc::now(),
@@ -1082,10 +1094,16 @@ mod tests {
     #[test]
     fn test_framework_from_str_known_values() {
         assert_eq!(Framework::parse("adk").unwrap(), Framework::Adk);
-        assert_eq!(Framework::parse("claude_sdk").unwrap(), Framework::ClaudeSdk);
+        assert_eq!(
+            Framework::parse("claude_sdk").unwrap(),
+            Framework::ClaudeSdk
+        );
         assert_eq!(Framework::parse("crewai").unwrap(), Framework::CrewAi);
         assert_eq!(Framework::parse("langgraph").unwrap(), Framework::LangGraph);
-        assert_eq!(Framework::parse("llamaindex").unwrap(), Framework::LlamaIndex);
+        assert_eq!(
+            Framework::parse("llamaindex").unwrap(),
+            Framework::LlamaIndex
+        );
     }
 
     #[test]
@@ -1131,7 +1149,12 @@ mod tests {
 
     #[test]
     fn test_message_role_serde_roundtrip() {
-        for role in [MessageRole::User, MessageRole::Assistant, MessageRole::System, MessageRole::Tool] {
+        for role in [
+            MessageRole::User,
+            MessageRole::Assistant,
+            MessageRole::System,
+            MessageRole::Tool,
+        ] {
             let json = serde_json::to_string(&role).unwrap();
             let back: MessageRole = serde_json::from_str(&json).unwrap();
             assert_eq!(back, role);
@@ -1152,7 +1175,10 @@ mod tests {
     fn test_registry_default_matches_new() {
         let a = AdapterRegistry::new();
         let b = AdapterRegistry::default();
-        assert_eq!(a.registered_frameworks().len(), b.registered_frameworks().len());
+        assert_eq!(
+            a.registered_frameworks().len(),
+            b.registered_frameworks().len()
+        );
     }
 
     #[test]
@@ -1357,10 +1383,7 @@ mod tests {
             AdapterError::AgentNotFound("a1".into()).to_string(),
             "Agent not found: a1"
         );
-        assert_eq!(
-            AdapterError::Timeout(30).to_string(),
-            "Timeout after 30s"
-        );
+        assert_eq!(AdapterError::Timeout(30).to_string(), "Timeout after 30s");
         assert_eq!(
             AdapterError::Internal("boom".into()).to_string(),
             "Internal error: boom"

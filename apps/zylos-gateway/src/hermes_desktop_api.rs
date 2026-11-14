@@ -14,13 +14,13 @@
 //! Todos os endpoints publicam eventos no EventBus para visibilidade no cockpit.
 
 use axum::{
-    Json, Router,
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{get, post, delete},
+    routing::{delete, get, post},
+    Json, Router,
 };
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use zylos_live_comm::hermes_bridge::{HermesBridge, HermesEnvelope};
 
 use crate::AppState;
@@ -102,7 +102,10 @@ async fn get_agents_requiring_attention(State(state): State<AppState>) -> Respon
     }))
 }
 
-async fn post_agent_state_update(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
+async fn post_agent_state_update(
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> Response {
     publish_event(&state, "awareness-state-updated", body.clone());
     ok_json(json!({
         "status": "accepted",
@@ -152,15 +155,30 @@ pub fn create_hermes_desktop_router() -> Router<AppState> {
         // Workspace Persistence
         .route("/hermes/desktop/workspace/state", get(get_workspace_state))
         .route("/hermes/desktop/workspace/save", post(post_workspace_save))
-        .route("/hermes/desktop/workspace/reset", post(post_workspace_reset))
+        .route(
+            "/hermes/desktop/workspace/reset",
+            post(post_workspace_reset),
+        )
         // Agent Awareness
-        .route("/hermes/desktop/awareness/states", get(get_agent_awareness_states))
-        .route("/hermes/desktop/awareness/attention", get(get_agents_requiring_attention))
-        .route("/hermes/desktop/awareness/update", post(post_agent_state_update))
+        .route(
+            "/hermes/desktop/awareness/states",
+            get(get_agent_awareness_states),
+        )
+        .route(
+            "/hermes/desktop/awareness/attention",
+            get(get_agents_requiring_attention),
+        )
+        .route(
+            "/hermes/desktop/awareness/update",
+            post(post_agent_state_update),
+        )
         // Relay Server
         .route("/hermes/desktop/relay/devices", get(get_relay_devices))
         .route("/hermes/desktop/relay/pair", post(post_relay_pair))
-        .route("/hermes/desktop/relay/tokens/revoke", delete(delete_relay_token))
+        .route(
+            "/hermes/desktop/relay/tokens/revoke",
+            delete(delete_relay_token),
+        )
 }
 
 #[cfg(test)]

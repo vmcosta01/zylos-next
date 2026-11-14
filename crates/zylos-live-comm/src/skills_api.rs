@@ -4,18 +4,16 @@
 //! Uses zylos-skills crate for registry, schema validation, and eval flywheel.
 
 use axum::{
-    Json, Router,
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
+    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use zylos_skills::{
-    EvalFlywheel, EvalReport, SkillEntry, SkillRegistry, SkillValidator,
-};
+use zylos_skills::{EvalFlywheel, EvalReport, SkillEntry, SkillRegistry, SkillValidator};
 
 /// Shared state for skills API handlers
 #[derive(Clone)]

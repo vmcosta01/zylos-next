@@ -372,10 +372,9 @@ mod tests {
 
     #[test]
     fn test_parse_and() {
-        let f = parse_expression(
-            r#"topic == "agents.*.state" && event_type == "AgentStateChanged""#,
-        )
-        .unwrap();
+        let f =
+            parse_expression(r#"topic == "agents.*.state" && event_type == "AgentStateChanged""#)
+                .unwrap();
         let e = make_envelope(
             "agents.a1.state",
             ZylosEvent::AgentStateChanged(AgentStateChanged {

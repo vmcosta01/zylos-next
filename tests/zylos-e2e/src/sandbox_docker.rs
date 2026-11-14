@@ -19,9 +19,18 @@ async fn sandbox_docker_network_isolation() {
         }
     });
 
-    let resp = gw.client.post(&exec_url).json(&exec_req)
-        .send().await.expect("execute docker");
-    assert!(resp.status().is_success(), "docker exec failed: {}", resp.status());
+    let resp = gw
+        .client
+        .post(&exec_url)
+        .json(&exec_req)
+        .send()
+        .await
+        .expect("execute docker");
+    assert!(
+        resp.status().is_success(),
+        "docker exec failed: {}",
+        resp.status()
+    );
 
     let result: serde_json::Value = resp.json().await.expect("parse docker result");
     let stdout = result["stdout"].as_str().unwrap_or("");

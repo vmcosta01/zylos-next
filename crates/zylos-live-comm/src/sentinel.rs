@@ -239,7 +239,8 @@ fn replace_ipv4(input: &str, replacement: &str) -> String {
             if let Some((ip_len,)) = try_match_ipv4_at(&chars, i) {
                 // Check boundary: must not be preceded or followed by digit/dot
                 let preceded_ok = i == 0 || (!chars[i - 1].is_ascii_digit() && chars[i - 1] != '.');
-                let followed_ok = i + ip_len >= len || (!chars[i + ip_len].is_ascii_digit() && chars[i + ip_len] != '.');
+                let followed_ok = i + ip_len >= len
+                    || (!chars[i + ip_len].is_ascii_digit() && chars[i + ip_len] != '.');
                 if preceded_ok && followed_ok {
                     result.push_str(replacement);
                     i += ip_len;
@@ -324,7 +325,12 @@ pub fn detect_http_5xx(observations: &[Observation]) -> Vec<DetectorFinding> {
 
 /// Detect timeout errors by keyword matching.
 pub fn detect_timeouts(observations: &[Observation]) -> Vec<DetectorFinding> {
-    let timeout_keywords = ["timeout", "timed out", "deadline exceeded", "request timed out"];
+    let timeout_keywords = [
+        "timeout",
+        "timed out",
+        "deadline exceeded",
+        "request timed out",
+    ];
 
     observations
         .iter()
@@ -401,15 +407,17 @@ impl IssueStore {
         let signature = normalize_signature_from_input(&finding.signature_input);
         let mut issues = self.issues.lock().unwrap();
 
-        let issue = issues.entry(signature.clone()).or_insert_with(|| HealthIssue {
-            signature: signature.clone(),
-            detector: finding.detector.clone(),
-            severity: finding.severity,
-            summary: strip_pii(&finding.summary),
-            first_seen: now,
-            last_seen: now,
-            count: 0,
-        });
+        let issue = issues
+            .entry(signature.clone())
+            .or_insert_with(|| HealthIssue {
+                signature: signature.clone(),
+                detector: finding.detector.clone(),
+                severity: finding.severity,
+                summary: strip_pii(&finding.summary),
+                first_seen: now,
+                last_seen: now,
+                count: 0,
+            });
 
         issue.last_seen = now;
         issue.count += 1;
@@ -509,7 +517,9 @@ impl IncidentRateLimiter {
         } else {
             // Oldest active report expires first
             active.iter().min().map(|oldest| {
-                (**oldest + chrono::Duration::seconds(self.window_seconds) - now).num_seconds().max(0)
+                (**oldest + chrono::Duration::seconds(self.window_seconds) - now)
+                    .num_seconds()
+                    .max(0)
             })
         }
     }
@@ -555,7 +565,13 @@ impl SentinelScanner {
     }
 
     /// Report an incident to the team (rate-limited).
-    pub fn report_incident(&self, signature: &str, severity: Severity, summary: &str, now: DateTime<Utc>) -> IncidentReport {
+    pub fn report_incident(
+        &self,
+        signature: &str,
+        severity: Severity,
+        summary: &str,
+        now: DateTime<Utc>,
+    ) -> IncidentReport {
         let allowed = self.rate_limiter.try_report(now);
         // Variante IncidentReport.
         IncidentReport {
@@ -583,11 +599,15 @@ impl SentinelScanner {
 // ---------------------------------------------------------------------------
 
 impl Default for IssueStore {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Default for SentinelScanner {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[cfg(test)]

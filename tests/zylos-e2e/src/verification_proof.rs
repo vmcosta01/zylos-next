@@ -16,20 +16,44 @@ async fn verification_proof_roundtrip() {
         "evidence_sources": ["benchmark_suite_v3", "production_metrics_q3"]
     });
 
-    let gen_resp = gw.client.post(&gen_url).json(&proof_req)
-        .send().await.expect("generate proof");
-    assert!(gen_resp.status().is_success(), "proof generation failed: {}", gen_resp.status());
+    let gen_resp = gw
+        .client
+        .post(&gen_url)
+        .json(&proof_req)
+        .send()
+        .await
+        .expect("generate proof");
+    assert!(
+        gen_resp.status().is_success(),
+        "proof generation failed: {}",
+        gen_resp.status()
+    );
 
     let proof: serde_json::Value = gen_resp.json().await.expect("parse proof");
     assert!(proof.get("proof_hash").is_some(), "proof should have hash");
-    assert!(proof.get("verification_chain").is_some(), "proof should have chain");
+    assert!(
+        proof.get("verification_chain").is_some(),
+        "proof should have chain"
+    );
 
     // Validate the proof
     let validate_url = format!("{}/api/v1/verification/validate-proof", gw.base_url());
-    let val_resp = gw.client.post(&validate_url).json(&proof)
-        .send().await.expect("validate proof");
-    assert!(val_resp.status().is_success(), "proof validation failed: {}", val_resp.status());
+    let val_resp = gw
+        .client
+        .post(&validate_url)
+        .json(&proof)
+        .send()
+        .await
+        .expect("validate proof");
+    assert!(
+        val_resp.status().is_success(),
+        "proof validation failed: {}",
+        val_resp.status()
+    );
 
     let val_result: serde_json::Value = val_resp.json().await.expect("parse validation");
-    assert_eq!(val_result["valid"], true, "proof should validate successfully");
+    assert_eq!(
+        val_result["valid"], true,
+        "proof should validate successfully"
+    );
 }

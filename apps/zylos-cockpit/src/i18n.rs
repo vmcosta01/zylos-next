@@ -39,22 +39,22 @@ fn pt_br_bundle() -> Bundle {
     m.insert("tab.awareness", "Consciência");
     m.insert("tab.skill_evolution", "Evolução de Skills");
     m.insert("tab.employee_governance", "Governança");
- m.insert("tab.task_triage", "Triagem");
- m.insert("tab.threads", "Threads");
- m.insert("tab.subagents", "Subagentes");
- m.insert("tab.files", "Arquivos");
- m.insert("tab.voice", "Voz");
- m.insert("tab.reactions", "Reações");
- m.insert("tab.avatars", "Avatares");
- m.insert("tab.skins", "Temas");
- m.insert("tab.fleet", "Frota");
- m.insert("tab.federation", "Federação");
-     m.insert("tab.chat", "Chat");
-     m.insert("tab.channels", "Canais");
-     m.insert("tab.phone_relay", "Phone Relay");
-     m.insert("tab.swarm_topology", "Topologia Swarm");
-     m.insert("tab.skill_editor", "Editor de Skills");
-     m.insert("health.status", "Status");
+    m.insert("tab.task_triage", "Triagem");
+    m.insert("tab.threads", "Threads");
+    m.insert("tab.subagents", "Subagentes");
+    m.insert("tab.files", "Arquivos");
+    m.insert("tab.voice", "Voz");
+    m.insert("tab.reactions", "Reações");
+    m.insert("tab.avatars", "Avatares");
+    m.insert("tab.skins", "Temas");
+    m.insert("tab.fleet", "Frota");
+    m.insert("tab.federation", "Federação");
+    m.insert("tab.chat", "Chat");
+    m.insert("tab.channels", "Canais");
+    m.insert("tab.phone_relay", "Phone Relay");
+    m.insert("tab.swarm_topology", "Topologia Swarm");
+    m.insert("tab.skill_editor", "Editor de Skills");
+    m.insert("health.status", "Status");
     m.insert("health.streams", "Streams Ativos");
     m.insert("health.version", "Versão");
     m.insert("error.connection", "Conexão perdida");
@@ -82,22 +82,22 @@ fn en_us_bundle() -> Bundle {
     m.insert("tab.awareness", "Awareness");
     m.insert("tab.skill_evolution", "Skill Evolution");
     m.insert("tab.employee_governance", "Governance");
- m.insert("tab.task_triage", "Triage");
- m.insert("tab.threads", "Threads");
- m.insert("tab.subagents", "Subagents");
- m.insert("tab.files", "Files");
- m.insert("tab.voice", "Voice");
- m.insert("tab.reactions", "Reactions");
- m.insert("tab.avatars", "Avatars");
- m.insert("tab.skins", "Skins");
- m.insert("tab.fleet", "Fleet");
- m.insert("tab.federation", "Federation");
-     m.insert("tab.chat", "Chat");
-     m.insert("tab.channels", "Channels");
-     m.insert("tab.phone_relay", "Phone Relay");
-     m.insert("tab.swarm_topology", "Swarm Topology");
-     m.insert("tab.skill_editor", "Skill Editor");
-     m.insert("health.status", "Status");
+    m.insert("tab.task_triage", "Triage");
+    m.insert("tab.threads", "Threads");
+    m.insert("tab.subagents", "Subagents");
+    m.insert("tab.files", "Files");
+    m.insert("tab.voice", "Voice");
+    m.insert("tab.reactions", "Reactions");
+    m.insert("tab.avatars", "Avatars");
+    m.insert("tab.skins", "Skins");
+    m.insert("tab.fleet", "Fleet");
+    m.insert("tab.federation", "Federation");
+    m.insert("tab.chat", "Chat");
+    m.insert("tab.channels", "Channels");
+    m.insert("tab.phone_relay", "Phone Relay");
+    m.insert("tab.swarm_topology", "Swarm Topology");
+    m.insert("tab.skill_editor", "Skill Editor");
+    m.insert("health.status", "Status");
     m.insert("health.streams", "Active Streams");
     m.insert("health.version", "Version");
     m.insert("error.connection", "Connection lost");
@@ -136,11 +136,7 @@ impl I18n {
             Locale::PtBr => pt_br_bundle(),
             Locale::EnUs => en_us_bundle(),
         };
-        bundle
-            .get(key)
-            .copied()
-            .unwrap_or(key)
-            .to_string()
+        bundle.get(key).copied().unwrap_or(key).to_string()
     }
 
     #[allow(dead_code)]

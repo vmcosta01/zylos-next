@@ -33,15 +33,22 @@ impl BrowserFingerprint {
         // Derive deterministic values from hash bytes
         let bytes = hex::decode(&hash[..16]).unwrap_or_default();
         let _rng = <rand::rngs::StdRng as rand::SeedableRng>::from_seed(
-            <[u8; 32]>::try_from(
-                hex::decode(&hash[..64])
-                    .unwrap_or_else(|_| vec![0u8; 32]),
-            )
-            .unwrap_or([0u8; 32]),
+            <[u8; 32]>::try_from(hex::decode(&hash[..64]).unwrap_or_else(|_| vec![0u8; 32]))
+                .unwrap_or([0u8; 32]),
         );
 
-        let resolutions = [(1920, 1080), (2560, 1440), (1366, 768), (1440, 900), (1536, 864)];
-        let vendors = ["Google Inc. (NVIDIA)", "Google Inc. (Intel)", "Google Inc. (AMD)"];
+        let resolutions = [
+            (1920, 1080),
+            (2560, 1440),
+            (1366, 768),
+            (1440, 900),
+            (1536, 864),
+        ];
+        let vendors = [
+            "Google Inc. (NVIDIA)",
+            "Google Inc. (Intel)",
+            "Google Inc. (AMD)",
+        ];
         let languages = ["en-US", "en-GB", "pt-BR", "de-DE", "fr-FR"];
 
         let res_idx = (bytes[0] as usize) % resolutions.len();
@@ -68,7 +75,9 @@ impl BrowserFingerprint {
         hasher.update(self.instance_id.as_bytes());
         hasher.update(self.canvas_hash.as_bytes());
         hasher.update(self.webgl_vendor.as_bytes());
-        hasher.update(format!("{}x{}", self.screen_resolution.0, self.screen_resolution.1).as_bytes());
+        hasher.update(
+            format!("{}x{}", self.screen_resolution.0, self.screen_resolution.1).as_bytes(),
+        );
         hasher.update(self.timezone_offset.to_le_bytes());
         hasher.update(self.language.as_bytes());
         hex::encode(hasher.finalize())

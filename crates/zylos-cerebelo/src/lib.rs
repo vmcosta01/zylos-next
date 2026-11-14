@@ -53,19 +53,19 @@ pub struct AuditEntry {
 
 impl AuditEntry {
     /// Compute the SHA-256 hash that links this entry to the chain.
-        pub fn compute_hash(&self) -> String {
-            let mut hasher = Sha256::new();
-            hasher.update(self.sequence.to_le_bytes());
-            hasher.update(self.action.as_bytes());
-            hasher.update(self.state_hash.as_bytes());
-            hasher.update(self.prev_hash.as_bytes());
-            hasher.update(self.integrity_hash.as_bytes());
-            hasher.update(self.timestamp.as_bytes());
-            format!("{:x}", hasher.finalize())
-        }
+    pub fn compute_hash(&self) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(self.sequence.to_le_bytes());
+        hasher.update(self.action.as_bytes());
+        hasher.update(self.state_hash.as_bytes());
+        hasher.update(self.prev_hash.as_bytes());
+        hasher.update(self.integrity_hash.as_bytes());
+        hasher.update(self.timestamp.as_bytes());
+        format!("{:x}", hasher.finalize())
+    }
 
-        /// Computa integrity_hash por linha do conteúdo.
-        pub fn compute_integrity_hash(content: &str) -> String {
+    /// Computa integrity_hash por linha do conteúdo.
+    pub fn compute_integrity_hash(content: &str) -> String {
         let mut hasher = Sha256::new();
         for line in content.lines() {
             hasher.update(line.as_bytes());
@@ -87,11 +87,19 @@ pub struct AuditChain {
 impl AuditChain {
     /// Create an empty audit chain with genesis head.
     pub fn new() -> Self {
-        Self { entries: Vec::new(), head_hash: "genesis".into() }
+        Self {
+            entries: Vec::new(),
+            head_hash: "genesis".into(),
+        }
     }
 
     /// Append a new entry, updating the chain head hash.
-    pub fn append(&mut self, action: impl Into<String>, state_hash: impl Into<String>, content: &str) -> AuditEntry {
+    pub fn append(
+        &mut self,
+        action: impl Into<String>,
+        state_hash: impl Into<String>,
+        content: &str,
+    ) -> AuditEntry {
         let seq = self.entries.len() as u64 + 1;
         let entry = AuditEntry {
             sequence: seq,
@@ -123,13 +131,19 @@ impl AuditChain {
     }
 
     /// Number of entries in the audit chain.
-        pub fn len(&self) -> usize { self.entries.len() }
-        /// Returns `true` when the chain contains no entries.
-        pub fn is_empty(&self) -> bool { self.entries.is_empty() }
+    pub fn len(&self) -> usize {
+        self.entries.len()
     }
+    /// Returns `true` when the chain contains no entries.
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+}
 
 impl Default for AuditChain {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// Snapshot of project state at a point in time for rollback.
@@ -161,17 +175,26 @@ pub struct TestRatchet {
 impl TestRatchet {
     /// Create a new ratchet with the given absolute minimum.
     pub fn new(minimum: f64) -> Self {
-        Self { minimum_coverage: minimum, history: Vec::new() }
+        Self {
+            minimum_coverage: minimum,
+            history: Vec::new(),
+        }
     }
 
     /// Record a coverage measurement; rejects values below the current floor.
     pub fn record(&mut self, label: impl Into<String>, coverage: f64) -> Result<(), CerebeloError> {
         if coverage < self.minimum_coverage {
-            return Err(CerebeloError::TestRatchetFailed { current: coverage, minimum: self.minimum_coverage });
+            return Err(CerebeloError::TestRatchetFailed {
+                current: coverage,
+                minimum: self.minimum_coverage,
+            });
         }
         if let Some((_, last)) = self.history.last() {
             if coverage < *last {
-                return Err(CerebeloError::TestRatchetFailed { current: coverage, minimum: *last });
+                return Err(CerebeloError::TestRatchetFailed {
+                    current: coverage,
+                    minimum: *last,
+                });
             }
         }
         self.history.push((label.into(), coverage));
@@ -179,40 +202,49 @@ impl TestRatchet {
     }
 
     /// Return the effective minimum coverage (last recorded or absolute floor).
-        pub fn current_minimum(&self) -> f64 {
-            self.history.last().map(|(_, c)| *c).unwrap_or(self.minimum_coverage)
-        }
+    pub fn current_minimum(&self) -> f64 {
+        self.history
+            .last()
+            .map(|(_, c)| *c)
+            .unwrap_or(self.minimum_coverage)
     }
+}
 
-    /// Shadow-git: repo isolado fora do worktree principal.
-    pub struct ShadowGit {
-        shadow_dir: PathBuf,
-        tracked_files: HashSet<String>,
-        sensitive_patterns: Vec<String>,
-    }
+/// Shadow-git: repo isolado fora do worktree principal.
+pub struct ShadowGit {
+    shadow_dir: PathBuf,
+    tracked_files: HashSet<String>,
+    sensitive_patterns: Vec<String>,
+}
 
-    impl ShadowGit {
-        /// Create a new shadow-git instance rooted at the given directory.
-        pub fn new(shadow_dir: impl Into<PathBuf>) -> Self {
+impl ShadowGit {
+    /// Create a new shadow-git instance rooted at the given directory.
+    pub fn new(shadow_dir: impl Into<PathBuf>) -> Self {
         Self {
             shadow_dir: shadow_dir.into(),
             tracked_files: HashSet::new(),
             sensitive_patterns: vec![
-                ".env".into(), "*.key".into(), "*.pem".into(),
-                "*.secret".into(), "credentials".into(), "*.token".into(),
+                ".env".into(),
+                "*.key".into(),
+                "*.pem".into(),
+                "*.secret".into(),
+                "credentials".into(),
+                "*.token".into(),
             ],
         }
     }
 
     /// Returns the root directory of the shadow repository.
-        pub fn shadow_dir(&self) -> &Path { &self.shadow_dir }
+    pub fn shadow_dir(&self) -> &Path {
+        &self.shadow_dir
+    }
 
-        /// Verifica se arquivo é sensível.
-        pub fn is_sensitive(&self, path: &str) -> bool {
+    /// Verifica se arquivo é sensível.
+    pub fn is_sensitive(&self, path: &str) -> bool {
         let lower = path.to_lowercase();
         self.sensitive_patterns.iter().any(|p| {
             if let Some(stripped) = p.strip_prefix("*") {
-                            lower.ends_with(stripped)
+                lower.ends_with(stripped)
             } else {
                 lower.contains(p.as_str())
             }
@@ -220,46 +252,51 @@ impl TestRatchet {
     }
 
     /// Adiciona arquivo ao tracking do shadow repo.
-        pub fn track_file(&mut self, path: impl Into<String>) -> Result<(), CerebeloError> {
-            let p = path.into();
-            if self.is_sensitive(&p) {
-                return Err(CerebeloError::SensitiveFileBlocked(p));
-            }
-            self.tracked_files.insert(p);
-            Ok(())
+    pub fn track_file(&mut self, path: impl Into<String>) -> Result<(), CerebeloError> {
+        let p = path.into();
+        if self.is_sensitive(&p) {
+            return Err(CerebeloError::SensitiveFileBlocked(p));
         }
-
-        /// Verifica se arquivo está tracked no shadow repo.
-        pub fn is_tracked(&self, path: &str) -> bool {
-            self.tracked_files.contains(path)
-        }
-
-        /// Rollback escopado: só arquivos tracked no shadow repo.
-        pub fn rollback_scope(&self, files: &[String]) -> Result<Vec<String>, CerebeloError> {
-            let mut valid = Vec::new();
-            for f in files {
-                if !self.is_tracked(f) {
-                    return Err(CerebeloError::UntrackedFile(f.clone()));
-                }
-                valid.push(f.clone());
-            }
-            Ok(valid)
-        }
-
-        /// Returns the set of files currently tracked by the shadow repo.
-        pub fn tracked_files(&self) -> &HashSet<String> { &self.tracked_files }
+        self.tracked_files.insert(p);
+        Ok(())
     }
 
-    /// CLI commands para cerebelo.
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    pub enum CerebeloCommand {
-        /// List audit chain history.
-        Historia,
-        /// Rewind to a specific checkpoint.
-        Rewind { checkpoint_id: String },
-        /// Fork a new branch from an existing checkpoint.
-        Fork { from_checkpoint: String, branch_name: String },
+    /// Verifica se arquivo está tracked no shadow repo.
+    pub fn is_tracked(&self, path: &str) -> bool {
+        self.tracked_files.contains(path)
     }
+
+    /// Rollback escopado: só arquivos tracked no shadow repo.
+    pub fn rollback_scope(&self, files: &[String]) -> Result<Vec<String>, CerebeloError> {
+        let mut valid = Vec::new();
+        for f in files {
+            if !self.is_tracked(f) {
+                return Err(CerebeloError::UntrackedFile(f.clone()));
+            }
+            valid.push(f.clone());
+        }
+        Ok(valid)
+    }
+
+    /// Returns the set of files currently tracked by the shadow repo.
+    pub fn tracked_files(&self) -> &HashSet<String> {
+        &self.tracked_files
+    }
+}
+
+/// CLI commands para cerebelo.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum CerebeloCommand {
+    /// List audit chain history.
+    Historia,
+    /// Rewind to a specific checkpoint.
+    Rewind { checkpoint_id: String },
+    /// Fork a new branch from an existing checkpoint.
+    Fork {
+        from_checkpoint: String,
+        branch_name: String,
+    },
+}
 
 #[cfg(test)]
 mod tests {

@@ -12,37 +12,37 @@ use wasm_bindgen_futures::spawn_local;
 /// Estado de um agente individual.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AgentAwarenessEntry {
- pub agent_id: String,
- pub state: String,
- pub icon: String,
- pub message: Option<String>,
+    pub agent_id: String,
+    pub state: String,
+    pub icon: String,
+    pub message: Option<String>,
 }
 
 /// Estatísticas agregadas de awareness.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct AwarenessStats {
- pub total_agents: usize,
- pub idle: usize,
- pub thinking: usize,
- pub executing: usize,
- pub waiting_approval: usize,
- pub error: usize,
- pub completed: usize,
- pub attention_required: usize,
+    pub total_agents: usize,
+    pub idle: usize,
+    pub thinking: usize,
+    pub executing: usize,
+    pub waiting_approval: usize,
+    pub error: usize,
+    pub completed: usize,
+    pub attention_required: usize,
 }
 
 async fn fetch_json(url: &str) -> Result<serde_json::Value, String> {
- let full_url = format!("http://localhost:3000{}", url);
- let resp = gloo_net::http::Request::get(&full_url)
- .send()
- .await
- .map_err(|e| format!("fetch error: {e}"))?;
- if !resp.ok() {
- return Err(format!("HTTP {}", resp.status()));
- }
- resp.json::<serde_json::Value>()
- .await
- .map_err(|e| format!("json parse: {e}"))
+    let full_url = format!("http://localhost:3000{}", url);
+    let resp = gloo_net::http::Request::get(&full_url)
+        .send()
+        .await
+        .map_err(|e| format!("fetch error: {e}"))?;
+    if !resp.ok() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    resp.json::<serde_json::Value>()
+        .await
+        .map_err(|e| format!("json parse: {e}"))
 }
 
 /// Componente AgentAwarenessPanel para o cockpit.
@@ -64,35 +64,71 @@ pub fn AgentAwarenessPanel() -> impl IntoView {
             match fetch_json("/api/v1/hermes/desktop/awareness/states").await {
                 Ok(json) => {
                     if let Some(states_map) = json.get("state_counts").and_then(|v| v.as_object()) {
-                        s.idle = states_map.get("idle").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
-                        s.thinking = states_map.get("thinking").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
-                        s.executing = states_map.get("executing").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
-                        s.waiting_approval = states_map.get("waiting_approval").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
-                        s.error = states_map.get("error").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
-                        s.completed = states_map.get("completed").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+                        s.idle =
+                            states_map.get("idle").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+                        s.thinking = states_map
+                            .get("thinking")
+                            .and_then(|v| v.as_u64())
+                            .unwrap_or(0) as usize;
+                        s.executing = states_map
+                            .get("executing")
+                            .and_then(|v| v.as_u64())
+                            .unwrap_or(0) as usize;
+                        s.waiting_approval = states_map
+                            .get("waiting_approval")
+                            .and_then(|v| v.as_u64())
+                            .unwrap_or(0) as usize;
+                        s.error = states_map
+                            .get("error")
+                            .and_then(|v| v.as_u64())
+                            .unwrap_or(0) as usize;
+                        s.completed = states_map
+                            .get("completed")
+                            .and_then(|v| v.as_u64())
+                            .unwrap_or(0) as usize;
                     }
-                    s.total_agents = json.get("total_agents").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
-                    s.attention_required = json.get("attention_required").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+                    s.total_agents = json
+                        .get("total_agents")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0) as usize;
+                    s.attention_required = json
+                        .get("attention_required")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0) as usize;
                 }
-                Err(e) => { error_msg.set(Some(format!("Awareness: {e}"))); }
+                Err(e) => {
+                    error_msg.set(Some(format!("Awareness: {e}")));
+                }
             }
             stats.set(s);
 
             // Fetch agents requiring attention
             if let Ok(json) = fetch_json("/api/v1/hermes/desktop/awareness/attention").await {
                 if let Some(arr) = json.get("agents").and_then(|v| v.as_array()) {
-                    let entries: Vec<AgentAwarenessEntry> = arr.iter().map(|item| {
-                        AgentAwarenessEntry {
-                            agent_id: item.get("agent_id").and_then(|v| v.as_str()).unwrap_or("unknown").into(),
-                            state: item.get("state").and_then(|v| v.as_str()).unwrap_or("unknown").into(),
+                    let entries: Vec<AgentAwarenessEntry> = arr
+                        .iter()
+                        .map(|item| AgentAwarenessEntry {
+                            agent_id: item
+                                .get("agent_id")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("unknown")
+                                .into(),
+                            state: item
+                                .get("state")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("unknown")
+                                .into(),
                             icon: match item.get("state").and_then(|v| v.as_str()).unwrap_or("") {
                                 "waiting_approval" => "✋".into(),
                                 "error" => "❌".into(),
                                 _ => "⚠️".into(),
                             },
-                            message: item.get("message").and_then(|v| v.as_str()).map(|s| s.into()),
-                        }
-                    }).collect();
+                            message: item
+                                .get("message")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.into()),
+                        })
+                        .collect();
                     agents.set(entries);
                 }
             }

@@ -230,8 +230,8 @@ mod tests {
     use super::*;
     use crate::error::Result;
     use crate::playbook::Playbook;
-    use crate::runnable::{BoxFuture, IncidentContext, RunbookResult, SoarRunnable};
     use crate::router::EventRouter;
+    use crate::runnable::{BoxFuture, IncidentContext, RunbookResult, SoarRunnable};
 
     const VALID_PLAYBOOK_YAML: &str = r#"
 name: valid-playbook
@@ -280,10 +280,7 @@ states:
             Box::pin(async { Ok(()) })
         }
 
-        fn execute<'a>(
-            &'a self,
-            _ctx: IncidentContext,
-        ) -> BoxFuture<'a, Result<RunbookResult>> {
+        fn execute<'a>(&'a self, _ctx: IncidentContext) -> BoxFuture<'a, Result<RunbookResult>> {
             Box::pin(async { Ok(RunbookResult::ok("done", 1)) })
         }
     }

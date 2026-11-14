@@ -433,7 +433,9 @@ mod tests {
             ],
         );
         assert!(token.authorizes("filesystem", "read", "/data").is_ok());
-        assert!(token.authorizes("network", "egress", "api.example.com").is_ok());
+        assert!(token
+            .authorizes("network", "egress", "api.example.com")
+            .is_ok());
     }
 
     #[test]
@@ -448,10 +450,8 @@ mod tests {
 
     #[test]
     fn test_token_authorizes_revoked() {
-        let mut token = CapabilityToken::new(
-            "agent-1",
-            vec![Capability::new("filesystem", "read", "*")],
-        );
+        let mut token =
+            CapabilityToken::new("agent-1", vec![Capability::new("filesystem", "read", "*")]);
         token.revoked = true;
         assert_eq!(
             token.authorizes("filesystem", "read", "/anything"),
@@ -515,14 +515,15 @@ mod tests {
     #[tokio::test]
     async fn test_store_revoke() {
         let store = CapabilityTokenStore::new();
-        let token = CapabilityToken::new(
-            "agent-1",
-            vec![Capability::new("filesystem", "read", "*")],
-        );
+        let token =
+            CapabilityToken::new("agent-1", vec![Capability::new("filesystem", "read", "*")]);
         let id = store.issue(token).await;
 
         // Before revocation: should work
-        assert!(store.validate(&id, "filesystem", "read", "/x").await.is_ok());
+        assert!(store
+            .validate(&id, "filesystem", "read", "/x")
+            .await
+            .is_ok());
 
         // Revoke
         store.revoke(&id).await.unwrap();

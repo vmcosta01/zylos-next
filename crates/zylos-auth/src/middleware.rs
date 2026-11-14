@@ -81,7 +81,7 @@ mod tests {
     use axum::body::Body;
     use axum::http::header::AUTHORIZATION;
     use axum::routing::get;
-    use axum::{Router, middleware};
+    use axum::{middleware, Router};
     use tower::ServiceExt;
 
     fn test_service() -> TokenService {

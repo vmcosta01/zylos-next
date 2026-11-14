@@ -12,7 +12,9 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// Certainty level of a verified claim.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Default,
+)]
 pub enum Ground {
     /// Accepted on trust — LLM output, user assertion, unverified source.
     #[default]
@@ -72,8 +74,6 @@ impl fmt::Display for Ground {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -94,9 +94,18 @@ mod tests {
 
     #[test]
     fn test_promote_valid() {
-        assert_eq!(Ground::Crido.promote(Ground::Observado), Some(Ground::Observado));
-        assert_eq!(Ground::Crido.promote(Ground::Confirmado), Some(Ground::Confirmado));
-        assert_eq!(Ground::Observado.promote(Ground::Confirmado), Some(Ground::Confirmado));
+        assert_eq!(
+            Ground::Crido.promote(Ground::Observado),
+            Some(Ground::Observado)
+        );
+        assert_eq!(
+            Ground::Crido.promote(Ground::Confirmado),
+            Some(Ground::Confirmado)
+        );
+        assert_eq!(
+            Ground::Observado.promote(Ground::Confirmado),
+            Some(Ground::Confirmado)
+        );
     }
 
     #[test]
@@ -108,17 +117,26 @@ mod tests {
 
     #[test]
     fn test_demote() {
-        assert_eq!(Ground::Confirmado.demote(Ground::Observado), Ground::Observado);
+        assert_eq!(
+            Ground::Confirmado.demote(Ground::Observado),
+            Ground::Observado
+        );
         assert_eq!(Ground::Confirmado.demote(Ground::Crido), Ground::Crido);
         // Demote to same or higher is a no-op
-        assert_eq!(Ground::Observado.demote(Ground::Confirmado), Ground::Observado);
+        assert_eq!(
+            Ground::Observado.demote(Ground::Confirmado),
+            Ground::Observado
+        );
     }
 
     #[test]
     fn test_from_str_loose() {
         assert_eq!(Ground::from_str_loose("crido"), Some(Ground::Crido));
         assert_eq!(Ground::from_str_loose("OBSERVADO"), Some(Ground::Observado));
-        assert_eq!(Ground::from_str_loose("Confirmed"), Some(Ground::Confirmado));
+        assert_eq!(
+            Ground::from_str_loose("Confirmed"),
+            Some(Ground::Confirmado)
+        );
         assert_eq!(Ground::from_str_loose("believed"), Some(Ground::Crido));
         assert_eq!(Ground::from_str_loose("unknown"), None);
     }

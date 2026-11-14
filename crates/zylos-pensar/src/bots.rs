@@ -41,7 +41,9 @@ pub fn nome_valido(nome: &str) -> bool {
     !nome.is_empty()
         && nome.len() <= 64
         && !nome.starts_with('-')
-        && nome.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+        && nome
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
 }
 
 fn ler_arquivo(caminho: &Path, limite: usize, rotulo: &str) -> Result<String, ErroBot> {
@@ -61,11 +63,19 @@ pub fn carregar(pasta_bots: &Path, nome: &str) -> Result<Bot, ErroBot> {
         return Err(ErroBot::Inexistente);
     }
     let txt = ler_arquivo(&pasta.join("bot.toml"), LIMITE_BOT_TOML, "bot.toml")?;
-    let cfg: BotToml =
-        toml::from_str(&txt).map_err(|e| ErroBot::MalFeito(format!("bot.toml inválido: {}", e.message())))?;
+    let cfg: BotToml = toml::from_str(&txt)
+        .map_err(|e| ErroBot::MalFeito(format!("bot.toml inválido: {}", e.message())))?;
     let alma = ler_arquivo(&pasta.join("ALMA.md"), LIMITE_ALMA, "ALMA.md")?;
-    let modelo = cfg.modelo.map(|m| m.trim().to_string()).filter(|m| !m.is_empty());
-    Ok(Bot { nome: nome.to_string(), provedor: cfg.provedor.trim().to_string(), modelo, alma })
+    let modelo = cfg
+        .modelo
+        .map(|m| m.trim().to_string())
+        .filter(|m| !m.is_empty());
+    Ok(Bot {
+        nome: nome.to_string(),
+        provedor: cfg.provedor.trim().to_string(),
+        modelo,
+        alma,
+    })
 }
 
 #[cfg(test)]
@@ -84,7 +94,12 @@ mod testes {
     #[test]
     fn le_bot_com_bom() {
         let t = tempfile::tempdir().unwrap();
-        bot(t.path(), "vigia", "\u{feff}provedor = \"nvidia\"\nmodelo = \"m\"\n", Some(b"\xEF\xBB\xBFVoce vigia."));
+        bot(
+            t.path(),
+            "vigia",
+            "\u{feff}provedor = \"nvidia\"\nmodelo = \"m\"\n",
+            Some(b"\xEF\xBB\xBFVoce vigia."),
+        );
         let b = carregar(t.path(), "vigia").unwrap();
         assert_eq!(b.provedor, "nvidia");
         assert_eq!(b.modelo.as_deref(), Some("m"));
@@ -105,12 +120,36 @@ mod testes {
         let t = tempfile::tempdir().unwrap();
         assert_eq!(carregar(t.path(), "nada"), Err(ErroBot::Inexistente));
         bot(t.path(), "sem-alma", "provedor = \"nvidia\"\n", None);
-        assert!(matches!(carregar(t.path(), "sem-alma"), Err(ErroBot::MalFeito(m)) if m.contains("ALMA.md")));
-        bot(t.path(), "campo", "provedor = \"nvidia\"\nchave = \"sk\"\n", Some(b"a"));
-        assert!(matches!(carregar(t.path(), "campo"), Err(ErroBot::MalFeito(_))));
-        bot(t.path(), "grande", "provedor = \"nvidia\"\n", Some(&vec![b'a'; LIMITE_ALMA + 1]));
-        assert!(matches!(carregar(t.path(), "grande"), Err(ErroBot::MalFeito(m)) if m.contains("limite")));
-        bot(t.path(), "utf16", "provedor = \"nvidia\"\n", Some(b"\xFF\xFEa\0"));
-        assert!(matches!(carregar(t.path(), "utf16"), Err(ErroBot::MalFeito(m)) if m.contains("UTF-16")));
+        assert!(
+            matches!(carregar(t.path(), "sem-alma"), Err(ErroBot::MalFeito(m)) if m.contains("ALMA.md"))
+        );
+        bot(
+            t.path(),
+            "campo",
+            "provedor = \"nvidia\"\nchave = \"sk\"\n",
+            Some(b"a"),
+        );
+        assert!(matches!(
+            carregar(t.path(), "campo"),
+            Err(ErroBot::MalFeito(_))
+        ));
+        bot(
+            t.path(),
+            "grande",
+            "provedor = \"nvidia\"\n",
+            Some(&vec![b'a'; LIMITE_ALMA + 1]),
+        );
+        assert!(
+            matches!(carregar(t.path(), "grande"), Err(ErroBot::MalFeito(m)) if m.contains("limite"))
+        );
+        bot(
+            t.path(),
+            "utf16",
+            "provedor = \"nvidia\"\n",
+            Some(b"\xFF\xFEa\0"),
+        );
+        assert!(
+            matches!(carregar(t.path(), "utf16"), Err(ErroBot::MalFeito(m)) if m.contains("UTF-16"))
+        );
     }
 }

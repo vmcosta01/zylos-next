@@ -60,13 +60,12 @@ impl ApprovalStore {
 
     /// Busca requisição por ID
     pub async fn get(&self, id: &str) -> Result<ApprovalRequest, ApprovalError> {
-        let row = sqlx::query_as::<_, ApprovalRequest>(
-            "SELECT * FROM approval_requests WHERE id = ?"
-        )
-        .bind(id)
-        .fetch_optional(&self.pool)
-        .await?
-        .ok_or_else(|| ApprovalError::NotFound(id.to_string()))?;
+        let row =
+            sqlx::query_as::<_, ApprovalRequest>("SELECT * FROM approval_requests WHERE id = ?")
+                .bind(id)
+                .fetch_optional(&self.pool)
+                .await?
+                .ok_or_else(|| ApprovalError::NotFound(id.to_string()))?;
 
         Ok(row)
     }
@@ -174,7 +173,7 @@ impl ApprovalStore {
     /// Lista regras persistentes para um bot
     pub async fn list_rules(&self, bot_id: &str) -> Result<Vec<ApprovalRule>, ApprovalError> {
         let rows = sqlx::query_as::<_, ApprovalRule>(
-            "SELECT * FROM approval_rules WHERE bot_id = ? ORDER BY created_at DESC"
+            "SELECT * FROM approval_rules WHERE bot_id = ? ORDER BY created_at DESC",
         )
         .bind(bot_id)
         .fetch_all(&self.pool)
@@ -245,7 +244,7 @@ impl ApprovalStore {
                 decided_at TEXT,
                 expires_at TEXT,
                 receipt_json TEXT
-            )"
+            )",
         )
         .execute(&self.pool)
         .await?;
@@ -259,7 +258,7 @@ impl ApprovalStore {
 
         // Statement 3: idx_approval_created
         sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_approval_created ON approval_requests(created_at)"
+            "CREATE INDEX IF NOT EXISTS idx_approval_created ON approval_requests(created_at)",
         )
         .execute(&self.pool)
         .await?;
@@ -283,7 +282,7 @@ impl ApprovalStore {
                 created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
                 created_by TEXT NOT NULL DEFAULT 'user',
                 UNIQUE(bot_id, tool_name, action_category, arguments_pattern)
-            )"
+            )",
         )
         .execute(&self.pool)
         .await?;
@@ -394,9 +393,7 @@ mod tests {
             .await
             .unwrap();
 
-        let result = store
-            .decide(&id, ApprovalDecision::AllowOnce, None)
-            .await;
+        let result = store.decide(&id, ApprovalDecision::AllowOnce, None).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("already decided"));
     }

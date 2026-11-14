@@ -9,7 +9,11 @@ async fn cockpit_serves_static_and_wasm() {
     // Check index.html
     let index_url = format!("{}/", gw.base_url());
     let index_resp = gw.client.get(&index_url).send().await.expect("fetch index");
-    assert!(index_resp.status().is_success(), "index.html should be served: {}", index_resp.status());
+    assert!(
+        index_resp.status().is_success(),
+        "index.html should be served: {}",
+        index_resp.status()
+    );
     let index_body = index_resp.text().await.expect("read index body");
     assert!(
         index_body.contains("<!DOCTYPE html>") || index_body.contains("<html"),
@@ -28,5 +32,9 @@ async fn cockpit_serves_static_and_wasm() {
     // Check service worker
     let sw_url = format!("{}/sw.js", gw.base_url());
     let sw_resp = gw.client.get(&sw_url).send().await.expect("fetch sw.js");
-    assert!(sw_resp.status().is_success(), "service worker should be served: {}", sw_resp.status());
+    assert!(
+        sw_resp.status().is_success(),
+        "service worker should be served: {}",
+        sw_resp.status()
+    );
 }

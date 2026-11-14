@@ -91,7 +91,8 @@ impl TriageVerdict {
             // Variante Some.
             Some(TriageVerdict::AutoHandle(action.to_string()))
         } else {
-            s.strip_prefix("escalate:").map(|target| TriageVerdict::Escalate(target.to_string()))
+            s.strip_prefix("escalate:")
+                .map(|target| TriageVerdict::Escalate(target.to_string()))
         }
     }
 }
@@ -407,7 +408,9 @@ pub mod builtin_rules {
             matcher: Box::new(|input: &TriageInput| {
                 input.labels.iter().any(|l| {
                     let lower = l.to_lowercase();
-                    lower.contains("promotion") || lower.contains("bulk") || lower.contains("newsletter")
+                    lower.contains("promotion")
+                        || lower.contains("bulk")
+                        || lower.contains("newsletter")
                 }) || input
                     .headers
                     .get("List-Unsubscribe")
@@ -580,13 +583,11 @@ impl TriageEval {
             } else {
                 "model".to_string()
             };
-            let stats = by_source
-                .entry(source_key)
-                .or_insert(EvalSourceStats {
-                    total: 0,
-                    correct: 0,
-                    accuracy: 0.0,
-                });
+            let stats = by_source.entry(source_key).or_insert(EvalSourceStats {
+                total: 0,
+                correct: 0,
+                accuracy: 0.0,
+            });
             stats.total += 1;
             if is_correct {
                 stats.correct += 1;
@@ -644,7 +645,10 @@ mod tests {
         let input = make_input("1", "Out of Office: Re: Meeting", "boss@co.com", &[]);
         let decision = engine.triage(&input).unwrap();
 
-        assert_eq!(decision.verdict, TriageVerdict::AutoHandle("archive".into()));
+        assert_eq!(
+            decision.verdict,
+            TriageVerdict::AutoHandle("archive".into())
+        );
         assert_eq!(decision.decided_by, "rule:auto-reply");
         assert_eq!(decision.confidence, 1.0);
     }
@@ -678,7 +682,10 @@ mod tests {
     fn test_model_failure_throws_not_default() {
         struct FailModel;
         impl TriageModel for FailModel {
-            fn classify(&self, _: &TriageInput) -> Result<(TriageVerdict, f64, String), TriageError> {
+            fn classify(
+                &self,
+                _: &TriageInput,
+            ) -> Result<(TriageVerdict, f64, String), TriageError> {
                 // Variante Err.
                 Err(TriageError::ModelFailure("API timeout".into()))
             }
@@ -703,9 +710,16 @@ mod tests {
     fn test_model_success_populates_decided_by() {
         struct GoodModel;
         impl TriageModel for GoodModel {
-            fn classify(&self, _: &TriageInput) -> Result<(TriageVerdict, f64, String), TriageError> {
+            fn classify(
+                &self,
+                _: &TriageInput,
+            ) -> Result<(TriageVerdict, f64, String), TriageError> {
                 // Variante Ok.
-                Ok((TriageVerdict::NeedsYou, 0.85, "Urgent request detected".into()))
+                Ok((
+                    TriageVerdict::NeedsYou,
+                    0.85,
+                    "Urgent request detected".into(),
+                ))
             }
             fn name(&self) -> &str {
                 "gpt-triage-v1"
@@ -745,7 +759,10 @@ mod tests {
 
         struct SimpleModel;
         impl TriageModel for SimpleModel {
-            fn classify(&self, _: &TriageInput) -> Result<(TriageVerdict, f64, String), TriageError> {
+            fn classify(
+                &self,
+                _: &TriageInput,
+            ) -> Result<(TriageVerdict, f64, String), TriageError> {
                 // Variante Ok.
                 Ok((TriageVerdict::CanWait, 0.7, "Low priority".into()))
             }
@@ -796,7 +813,10 @@ mod tests {
         input.initiator = Initiator::Routine("morning-checkin".into());
 
         let decision = engine.triage(&input).unwrap();
-        assert_eq!(decision.initiator, Initiator::Routine("morning-checkin".into()));
+        assert_eq!(
+            decision.initiator,
+            Initiator::Routine("morning-checkin".into())
+        );
         assert_eq!(decision.initiator.label(), "routine");
         assert_eq!(decision.initiator.detail(), "morning-checkin");
     }
@@ -865,7 +885,10 @@ mod tests {
 
         struct AlwaysNeedsYou;
         impl TriageModel for AlwaysNeedsYou {
-            fn classify(&self, _: &TriageInput) -> Result<(TriageVerdict, f64, String), TriageError> {
+            fn classify(
+                &self,
+                _: &TriageInput,
+            ) -> Result<(TriageVerdict, f64, String), TriageError> {
                 // Variante Ok.
                 Ok((TriageVerdict::NeedsYou, 0.9, "Needs attention".into()))
             }

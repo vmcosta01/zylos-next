@@ -138,8 +138,8 @@ impl MentalModelStore {
     pub async fn insert(&self, model: &MentalModel) -> Result<()> {
         let conn = self.conn.lock().await;
         let embedding_blob = f32_vec_to_blob(&model.embedding);
-        let metadata_str = serde_json::to_string(&model.metadata)
-            .map_err(MemoryError::Serialization)?;
+        let metadata_str =
+            serde_json::to_string(&model.metadata).map_err(MemoryError::Serialization)?;
 
         conn.execute(
             "INSERT INTO mental_models (id, user_id, name, description, embedding, metadata, created_at, updated_at)
@@ -157,8 +157,10 @@ impl MentalModelStore {
         )?;
 
         // Atualizar cache
-        self.cache
-            .insert((model.user_id.clone(), model.id.clone()), model.embedding.clone());
+        self.cache.insert(
+            (model.user_id.clone(), model.id.clone()),
+            model.embedding.clone(),
+        );
 
         Ok(())
     }
@@ -191,8 +193,8 @@ impl MentalModelStore {
         match result {
             Some((id, uid, name, desc, emb_blob, meta_str, created, updated)) => {
                 let embedding = blob_to_f32_vec(&emb_blob);
-                let metadata: serde_json::Value = serde_json::from_str(&meta_str)
-                    .unwrap_or(serde_json::Value::Null);
+                let metadata: serde_json::Value =
+                    serde_json::from_str(&meta_str).unwrap_or(serde_json::Value::Null);
                 Ok(Some(MentalModel {
                     id,
                     user_id: uid,
@@ -235,21 +237,23 @@ impl MentalModelStore {
 
         let models = rows
             .into_iter()
-            .map(|(id, uid, name, desc, emb_blob, meta_str, created, updated)| {
-                let embedding = blob_to_f32_vec(&emb_blob);
-                let metadata: serde_json::Value =
-                    serde_json::from_str(&meta_str).unwrap_or(serde_json::Value::Null);
-                MentalModel {
-                    id,
-                    user_id: uid,
-                    name,
-                    description: desc,
-                    embedding,
-                    metadata,
-                    created_at: created,
-                    updated_at: updated,
-                }
-            })
+            .map(
+                |(id, uid, name, desc, emb_blob, meta_str, created, updated)| {
+                    let embedding = blob_to_f32_vec(&emb_blob);
+                    let metadata: serde_json::Value =
+                        serde_json::from_str(&meta_str).unwrap_or(serde_json::Value::Null);
+                    MentalModel {
+                        id,
+                        user_id: uid,
+                        name,
+                        description: desc,
+                        embedding,
+                        metadata,
+                        created_at: created,
+                        updated_at: updated,
+                    }
+                },
+            )
             .collect();
 
         Ok(models)
@@ -289,7 +293,11 @@ impl MentalModelStore {
         }
 
         // Ordenar por score decrescente e limitar a top_k
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         results.truncate(top_k);
 
         Ok(results)

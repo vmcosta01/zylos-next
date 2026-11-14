@@ -17,8 +17,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// Standard responsive breakpoints in pixels.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum Breakpoint {
     /// Mobile: single column, stacked layout (< 640px).
     Mobile,
@@ -74,7 +73,6 @@ impl Breakpoint {
         &[Breakpoint::Mobile, Breakpoint::Tablet, Breakpoint::Desktop]
     }
 }
-
 
 impl fmt::Display for Breakpoint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -342,10 +340,7 @@ pub fn generate_responsive_css(layout: &ResponsiveLayout) -> String {
         "  --grid-columns: {};\n",
         layout.grid_columns.mobile
     ));
-    css.push_str(&format!(
-        "  --font-scale: {};\n",
-        layout.font_scale.mobile
-    ));
+    css.push_str(&format!("  --font-scale: {};\n", layout.font_scale.mobile));
     css.push_str(&format!(
         "  --touch-target-min: {}px;\n",
         layout.touch_target_min.mobile
@@ -378,7 +373,10 @@ pub fn generate_responsive_css(layout: &ResponsiveLayout) -> String {
     css.push_str("}\n\n");
 
     // Desktop breakpoint
-    css.push_str(&format!("@media {} {{\n", Breakpoint::Desktop.media_query()));
+    css.push_str(&format!(
+        "@media {} {{\n",
+        Breakpoint::Desktop.media_query()
+    ));
     css.push_str(&format!(
         "  :root {{ --grid-columns: {}; --font-scale: {}; --touch-target-min: {}px; }}\n",
         layout.grid_columns.desktop, layout.font_scale.desktop, layout.touch_target_min.desktop
@@ -440,10 +438,18 @@ mod tests {
 
     #[test]
     fn test_breakpoint_media_queries() {
-        assert!(Breakpoint::Mobile.media_query().contains("max-width: 639px"));
-        assert!(Breakpoint::Tablet.media_query().contains("min-width: 640px"));
-        assert!(Breakpoint::Tablet.media_query().contains("max-width: 1023px"));
-        assert!(Breakpoint::Desktop.media_query().contains("min-width: 1024px"));
+        assert!(Breakpoint::Mobile
+            .media_query()
+            .contains("max-width: 639px"));
+        assert!(Breakpoint::Tablet
+            .media_query()
+            .contains("min-width: 640px"));
+        assert!(Breakpoint::Tablet
+            .media_query()
+            .contains("max-width: 1023px"));
+        assert!(Breakpoint::Desktop
+            .media_query()
+            .contains("min-width: 1024px"));
     }
 
     #[test]
@@ -508,12 +514,7 @@ mod tests {
 
     #[test]
     fn test_usable_dimensions_with_safe_area() {
-        let vp = ViewportState::new(
-            375,
-            812,
-            1.0,
-            SafeAreaInsets::new(44, 0, 34, 0),
-        );
+        let vp = ViewportState::new(375, 812, 1.0, SafeAreaInsets::new(44, 0, 34, 0));
         assert_eq!(vp.usable_width(), 375);
         assert_eq!(vp.usable_height(), 734); // 812 - 44 - 34
     }
@@ -523,8 +524,14 @@ mod tests {
         let layout = ResponsiveLayout::default();
         assert!(!*layout.for_breakpoint(&layout.sidebar_visible, Breakpoint::Mobile));
         assert!(*layout.for_breakpoint(&layout.sidebar_visible, Breakpoint::Desktop));
-        assert_eq!(*layout.for_breakpoint(&layout.grid_columns, Breakpoint::Mobile), 1);
-        assert_eq!(*layout.for_breakpoint(&layout.grid_columns, Breakpoint::Desktop), 3);
+        assert_eq!(
+            *layout.for_breakpoint(&layout.grid_columns, Breakpoint::Mobile),
+            1
+        );
+        assert_eq!(
+            *layout.for_breakpoint(&layout.grid_columns, Breakpoint::Desktop),
+            3
+        );
         assert!(*layout.for_breakpoint(&layout.stack_panels, Breakpoint::Mobile));
         assert!(!*layout.for_breakpoint(&layout.stack_panels, Breakpoint::Desktop));
     }
@@ -592,12 +599,7 @@ mod tests {
 
     #[test]
     fn test_viewport_serialization_roundtrip() {
-        let vp = ViewportState::new(
-            768,
-            1024,
-            2.0,
-            SafeAreaInsets::new(20, 0, 20, 0),
-        );
+        let vp = ViewportState::new(768, 1024, 2.0, SafeAreaInsets::new(20, 0, 20, 0));
 
         let json = serde_json::to_string(&vp).unwrap();
         let restored: ViewportState = serde_json::from_str(&json).unwrap();

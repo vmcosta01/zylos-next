@@ -19,9 +19,11 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
-use wasmtime::{Config, Engine, Extern, Instance, Linker, Module, Store, StoreLimits, StoreLimitsBuilder, Val};
-use wasmtime_wasi::{ResourceTable, WasiCtx, WasiCtxBuilder, WasiView};
+use wasmtime::{
+    Config, Engine, Extern, Instance, Linker, Module, Store, StoreLimits, StoreLimitsBuilder, Val,
+};
 use wasmtime_wasi::preview1::WasiP1Ctx;
+use wasmtime_wasi::{ResourceTable, WasiCtx, WasiCtxBuilder, WasiView};
 
 /// Unique identifier for a sandbox instance.
 pub type SandboxId = uuid::Uuid;
@@ -203,7 +205,11 @@ impl InputFingerprint {
         combined_hasher.update(args_hash.as_bytes());
         let combined = hex::encode(combined_hasher.finalize());
 
-        Self { module_hash, args_hash, combined }
+        Self {
+            module_hash,
+            args_hash,
+            combined,
+        }
     }
 }
 
@@ -264,8 +270,8 @@ impl WasmSandbox {
         wasm_config.consume_fuel(true);
         wasm_config.async_support(false);
 
-        let engine = Engine::new(&wasm_config)
-            .map_err(|e| SandboxError::Compilation(e.to_string()))?;
+        let engine =
+            Engine::new(&wasm_config).map_err(|e| SandboxError::Compilation(e.to_string()))?;
 
         let module = Module::new(&engine, wasm_bytes)
             .map_err(|e| SandboxError::Compilation(e.to_string()))?;
@@ -273,39 +279,55 @@ impl WasmSandbox {
         let module_hash = hex::encode(Sha256::digest(wasm_bytes));
 
         let mut linker = Linker::new(&engine);
-        wasmtime_wasi::preview1::add_to_linker_sync(&mut linker, |s: &mut SandboxState| &mut s.wasi)
-            .map_err(|e| SandboxError::Instantiation(e.to_string()))?;
+        wasmtime_wasi::preview1::add_to_linker_sync(&mut linker, |s: &mut SandboxState| {
+            &mut s.wasi
+        })
+        .map_err(|e| SandboxError::Instantiation(e.to_string()))?;
 
         let mut wasi_builder = WasiCtxBuilder::new();
         wasi_builder.inherit_stdio();
 
         for path in &config.allowed_read_paths {
             if path.exists() {
-                let guest_path = path.file_name()
+                let guest_path = path
+                    .file_name()
                     .and_then(|n| n.to_str())
                     .unwrap_or("sandbox-ro");
-                wasi_builder.preopened_dir(
-                    path, guest_path,
-                    wasmtime_wasi::DirPerms::READ,
-                    wasmtime_wasi::FilePerms::READ,
-                ).map_err(|e| SandboxError::Instantiation(
-                    format!("Failed to preopen read dir {:?}: {}", path, e)
-                ))?;
+                wasi_builder
+                    .preopened_dir(
+                        path,
+                        guest_path,
+                        wasmtime_wasi::DirPerms::READ,
+                        wasmtime_wasi::FilePerms::READ,
+                    )
+                    .map_err(|e| {
+                        SandboxError::Instantiation(format!(
+                            "Failed to preopen read dir {:?}: {}",
+                            path, e
+                        ))
+                    })?;
             }
         }
 
         for path in &config.allowed_write_paths {
             if path.exists() {
-                let guest_path = path.file_name()
+                let guest_path = path
+                    .file_name()
                     .and_then(|n| n.to_str())
                     .unwrap_or("sandbox-rw");
-                wasi_builder.preopened_dir(
-                    path, guest_path,
-                    wasmtime_wasi::DirPerms::all(),
-                    wasmtime_wasi::FilePerms::all(),
-                ).map_err(|e| SandboxError::Instantiation(
-                    format!("Failed to preopen write dir {:?}: {}", path, e)
-                ))?;
+                wasi_builder
+                    .preopened_dir(
+                        path,
+                        guest_path,
+                        wasmtime_wasi::DirPerms::all(),
+                        wasmtime_wasi::FilePerms::all(),
+                    )
+                    .map_err(|e| {
+                        SandboxError::Instantiation(format!(
+                            "Failed to preopen write dir {:?}: {}",
+                            path, e
+                        ))
+                    })?;
             }
         }
 
@@ -334,13 +356,16 @@ impl WasmSandbox {
 
         let mut store = Store::new(&engine, state);
         store.limiter(|s| &mut s.limits);
-        store.set_fuel(config.max_fuel)
+        store
+            .set_fuel(config.max_fuel)
             .map_err(|e| SandboxError::Instantiation(e.to_string()))?;
 
-        let instance = linker.instantiate(&mut store, &module)
+        let instance = linker
+            .instantiate(&mut store, &module)
             .map_err(|e| SandboxError::Instantiation(e.to_string()))?;
 
-        let max_pages = config.max_memory_pages
+        let max_pages = config
+            .max_memory_pages
             .unwrap_or((config.max_memory_bytes / 65536) as u32);
 
         info!(module_hash = %module_hash, max_memory_pages = max_pages, "Sandbox created");
@@ -357,7 +382,9 @@ impl WasmSandbox {
         })
     }
 
-    pub fn id(&self) -> SandboxId { self.id }
+    pub fn id(&self) -> SandboxId {
+        self.id
+    }
 
     pub fn memory_usage_bytes(&mut self) -> usize {
         if let Some(memory) = self.instance.get_memory(&mut self.store, "memory") {
@@ -383,11 +410,21 @@ impl WasmSandbox {
         }
     }
 
-    pub fn is_shutdown_requested(&self) -> bool { self.cancel_token.is_cancelled() }
-    pub fn request_shutdown(&self) { self.cancel_token.cancel(); }
-    pub fn cancel_token(&self) -> CancellationToken { self.cancel_token.clone() }
+    pub fn is_shutdown_requested(&self) -> bool {
+        self.cancel_token.is_cancelled()
+    }
+    pub fn request_shutdown(&self) {
+        self.cancel_token.cancel();
+    }
+    pub fn cancel_token(&self) -> CancellationToken {
+        self.cancel_token.clone()
+    }
 
-    pub fn compute_fingerprint(&self, func_name: &str, args: &[serde_json::Value]) -> InputFingerprint {
+    pub fn compute_fingerprint(
+        &self,
+        func_name: &str,
+        args: &[serde_json::Value],
+    ) -> InputFingerprint {
         InputFingerprint::compute(&self.wasm_bytes, func_name, args)
     }
 
@@ -402,29 +439,37 @@ impl WasmSandbox {
 
         let start = Instant::now();
 
-        self.store.set_fuel(self.config.max_fuel)
+        self.store
+            .set_fuel(self.config.max_fuel)
             .map_err(|e| SandboxError::CallFailed(e.to_string()))?;
 
-        let func = self.instance.get_func(&mut self.store, func_name)
-            .ok_or_else(|| SandboxError::CallFailed(format!("Function '{}' not found", func_name)))?;
+        let func = self
+            .instance
+            .get_func(&mut self.store, func_name)
+            .ok_or_else(|| {
+                SandboxError::CallFailed(format!("Function '{}' not found", func_name))
+            })?;
 
-        let wasm_args: Vec<Val> = args.iter().map(|v| match v {
-            serde_json::Value::Number(n) => {
-                if let Some(i) = n.as_i64() {
-                    // Prefer I32 when the value fits, since most WASM functions use i32 params
-                    if i >= i32::MIN as i64 && i <= i32::MAX as i64 {
-                        Val::I32(i as i32)
+        let wasm_args: Vec<Val> = args
+            .iter()
+            .map(|v| match v {
+                serde_json::Value::Number(n) => {
+                    if let Some(i) = n.as_i64() {
+                        // Prefer I32 when the value fits, since most WASM functions use i32 params
+                        if i >= i32::MIN as i64 && i <= i32::MAX as i64 {
+                            Val::I32(i as i32)
+                        } else {
+                            Val::I64(i)
+                        }
+                    } else if let Some(f) = n.as_f64() {
+                        Val::F64(f.to_bits())
                     } else {
-                        Val::I64(i)
+                        Val::I32(0)
                     }
-                } else if let Some(f) = n.as_f64() {
-                    Val::F64(f.to_bits())
-                } else {
-                    Val::I32(0)
                 }
-            }
-            _ => Val::I32(0),
-        }).collect();
+                _ => Val::I32(0),
+            })
+            .collect();
 
         let mut results = vec![Val::I32(0); 1];
         let call_result = func.call(&mut self.store, &wasm_args, &mut results);
@@ -466,14 +511,18 @@ impl WasmSandbox {
     }
 
     pub fn snapshot(&mut self, tags: Vec<String>) -> Result<SandboxSnapshot, SandboxError> {
-        let memory = self.instance.get_memory(&mut self.store, "memory")
+        let memory = self
+            .instance
+            .get_memory(&mut self.store, "memory")
             .ok_or_else(|| SandboxError::Snapshot("No linear memory found".into()))?;
 
         let memory_data = memory.data(&self.store).to_vec();
 
         let mut globals = Vec::new();
         // Collect export names first to avoid borrow-after-move and double-mutable-borrow
-        let export_names: Vec<String> = self.instance.exports(&mut self.store)
+        let export_names: Vec<String> = self
+            .instance
+            .exports(&mut self.store)
             .filter_map(|e| {
                 let name = e.name().to_string();
                 if matches!(e.into_extern(), Extern::Global(_)) {
@@ -542,14 +591,17 @@ impl WasmSandbox {
     ) -> Result<Self, SandboxError> {
         let hash = hex::encode(Sha256::digest(wasm_bytes));
         if hash != snapshot.module_hash {
-            return Err(SandboxError::Restore(
-                format!("Module hash mismatch: expected {}, got {}", snapshot.module_hash, hash)
-            ));
+            return Err(SandboxError::Restore(format!(
+                "Module hash mismatch: expected {}, got {}",
+                snapshot.module_hash, hash
+            )));
         }
 
         let mut sandbox = Self::new_with_cancel(wasm_bytes, config, cancel_token)?;
 
-        let memory = sandbox.instance.get_memory(&mut sandbox.store, "memory")
+        let memory = sandbox
+            .instance
+            .get_memory(&mut sandbox.store, "memory")
             .ok_or_else(|| SandboxError::Restore("Restored module has no linear memory".into()))?;
 
         let current_size = memory.data_size(&sandbox.store);
@@ -557,10 +609,11 @@ impl WasmSandbox {
 
         if snapshot_size > current_size {
             let pages_needed = (snapshot_size - current_size).div_ceil(65536);
-            memory.grow(&mut sandbox.store, pages_needed as u64)
-                .map_err(|e| SandboxError::Restore(
-                    format!("Failed to grow memory for restore: {}", e)
-                ))?;
+            memory
+                .grow(&mut sandbox.store, pages_needed as u64)
+                .map_err(|e| {
+                    SandboxError::Restore(format!("Failed to grow memory for restore: {}", e))
+                })?;
         }
 
         let mem_slice = memory.data_mut(&mut sandbox.store);
@@ -568,14 +621,18 @@ impl WasmSandbox {
         mem_slice[..copy_len].copy_from_slice(&snapshot.memory_data[..copy_len]);
 
         for gv in &snapshot.globals {
-            if let Some(Extern::Global(global)) = sandbox.instance.get_export(&mut sandbox.store, &gv.name) {
+            if let Some(Extern::Global(global)) =
+                sandbox.instance.get_export(&mut sandbox.store, &gv.name)
+            {
                 {
                     let ty = global.ty(&sandbox.store);
                     let val = match ty.content() {
                         wasmtime::ValType::I32 => Val::I32(gv.value as i32),
                         wasmtime::ValType::I64 => Val::I64(gv.value),
                         wasmtime::ValType::F32 => Val::F32(gv.value as u32),
-                        wasmtime::ValType::F64 => Val::F64(f64::from_bits(gv.value as u64).to_bits()),
+                        wasmtime::ValType::F64 => {
+                            Val::F64(f64::from_bits(gv.value as u64).to_bits())
+                        }
                         _ => continue,
                     };
                     if ty.mutability() == wasmtime::Mutability::Var {
@@ -585,8 +642,13 @@ impl WasmSandbox {
             }
         }
 
-        let fuel_to_set = sandbox.config.max_fuel.saturating_sub(snapshot.metadata.fuel_consumed);
-        sandbox.store.set_fuel(fuel_to_set)
+        let fuel_to_set = sandbox
+            .config
+            .max_fuel
+            .saturating_sub(snapshot.metadata.fuel_consumed);
+        sandbox
+            .store
+            .set_fuel(fuel_to_set)
             .map_err(|e| SandboxError::Restore(format!("Failed to set fuel: {}", e)))?;
 
         info!(
@@ -604,10 +666,18 @@ impl WasmSandbox {
         snapshot.module_hash == hash
     }
 
-    pub fn fuel_remaining(&self) -> u64 { self.store.get_fuel().unwrap_or(0) }
-    pub fn elapsed(&self) -> Duration { self.store.data().start_time.elapsed() }
-    pub fn module_hash(&self) -> &str { &self.store.data().module_hash }
-    pub fn network_policy(&self) -> &NetworkPolicy { &self.store.data().network_policy }
+    pub fn fuel_remaining(&self) -> u64 {
+        self.store.get_fuel().unwrap_or(0)
+    }
+    pub fn elapsed(&self) -> Duration {
+        self.store.data().start_time.elapsed()
+    }
+    pub fn module_hash(&self) -> &str {
+        &self.store.data().module_hash
+    }
+    pub fn network_policy(&self) -> &NetworkPolicy {
+        &self.store.data().network_policy
+    }
 }
 
 #[cfg(test)]
@@ -615,22 +685,14 @@ mod tests {
     use super::*;
 
     const WASM_WITH_MEMORY: &[u8] = &[
-        0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
-        0x01, 0x07, 0x01, 0x60, 0x02, 0x7f, 0x7f, 0x01, 0x7f,
-        0x03, 0x02, 0x01, 0x00,
-        0x05, 0x03, 0x01, 0x00, 0x01,
-        0x06, 0x06, 0x01, 0x7f, 0x01, 0x41, 0x00, 0x0b,
-        0x07, 0x1a, 0x03,
-        0x06, 0x6d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x02, 0x00,
-        0x07, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x65, 0x72, 0x03, 0x00,
-        0x03, 0x61, 0x64, 0x64, 0x00, 0x00,
-        0x0a, 0x09, 0x01, 0x07, 0x00, 0x20, 0x00, 0x20, 0x01, 0x6a, 0x0b,
+        0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x01, 0x07, 0x01, 0x60, 0x02, 0x7f, 0x7f,
+        0x01, 0x7f, 0x03, 0x02, 0x01, 0x00, 0x05, 0x03, 0x01, 0x00, 0x01, 0x06, 0x06, 0x01, 0x7f,
+        0x01, 0x41, 0x00, 0x0b, 0x07, 0x1a, 0x03, 0x06, 0x6d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x02,
+        0x00, 0x07, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x65, 0x72, 0x03, 0x00, 0x03, 0x61, 0x64, 0x64,
+        0x00, 0x00, 0x0a, 0x09, 0x01, 0x07, 0x00, 0x20, 0x00, 0x20, 0x01, 0x6a, 0x0b,
     ];
 
-    const MINIMAL_WASM: &[u8] = &[
-        0x00, 0x61, 0x73, 0x6d,
-        0x01, 0x00, 0x00, 0x00,
-    ];
+    const MINIMAL_WASM: &[u8] = &[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
 
     #[test]
     fn test_sandbox_creation() {
@@ -684,12 +746,18 @@ mod tests {
     fn test_snapshot_roundtrip() {
         let mut sandbox = WasmSandbox::new(WASM_WITH_MEMORY, SandboxConfig::default()).unwrap();
 
-        let res = sandbox.call_function("add", &[
-            serde_json::Value::Number(3.into()),
-            serde_json::Value::Number(4.into()),
-        ]);
+        let res = sandbox.call_function(
+            "add",
+            &[
+                serde_json::Value::Number(3.into()),
+                serde_json::Value::Number(4.into()),
+            ],
+        );
         assert!(res.is_ok());
-        assert_eq!(res.unwrap().return_value, Some(serde_json::Value::Number(7.into())));
+        assert_eq!(
+            res.unwrap().return_value,
+            Some(serde_json::Value::Number(7.into()))
+        );
 
         let snap = sandbox.snapshot(vec!["roundtrip".into()]).unwrap();
         assert!(!snap.memory_data.is_empty());
@@ -699,7 +767,8 @@ mod tests {
         // Note: calling functions on restored sandbox can panic across FFI
         // due to wasmtime internal state; full execution resume requires
         // async wasmtime support (Phase 5).
-        let restored = WasmSandbox::restore(&snap, WASM_WITH_MEMORY, SandboxConfig::default()).unwrap();
+        let restored =
+            WasmSandbox::restore(&snap, WASM_WITH_MEMORY, SandboxConfig::default()).unwrap();
         assert!(WasmSandbox::validate_snapshot(&snap, WASM_WITH_MEMORY));
         assert_eq!(restored.module_hash(), snap.module_hash);
     }
@@ -729,9 +798,21 @@ mod tests {
 
     #[test]
     fn test_deterministic_fingerprint() {
-        let fp1 = InputFingerprint::compute(WASM_WITH_MEMORY, "add", &[serde_json::Value::Number(1.into())]);
-        let fp2 = InputFingerprint::compute(WASM_WITH_MEMORY, "add", &[serde_json::Value::Number(1.into())]);
-        let fp3 = InputFingerprint::compute(WASM_WITH_MEMORY, "add", &[serde_json::Value::Number(2.into())]);
+        let fp1 = InputFingerprint::compute(
+            WASM_WITH_MEMORY,
+            "add",
+            &[serde_json::Value::Number(1.into())],
+        );
+        let fp2 = InputFingerprint::compute(
+            WASM_WITH_MEMORY,
+            "add",
+            &[serde_json::Value::Number(1.into())],
+        );
+        let fp3 = InputFingerprint::compute(
+            WASM_WITH_MEMORY,
+            "add",
+            &[serde_json::Value::Number(2.into())],
+        );
         assert_eq!(fp1, fp2);
         assert_ne!(fp1, fp3);
     }
@@ -747,9 +828,9 @@ mod tests {
     #[test]
     fn test_cancellation_token() {
         let token = CancellationToken::new();
-        let mut sandbox = WasmSandbox::new_with_cancel(
-            MINIMAL_WASM, SandboxConfig::default(), token.clone(),
-        ).unwrap();
+        let mut sandbox =
+            WasmSandbox::new_with_cancel(MINIMAL_WASM, SandboxConfig::default(), token.clone())
+                .unwrap();
 
         assert!(!sandbox.is_shutdown_requested());
         token.cancel();

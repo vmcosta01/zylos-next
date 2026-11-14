@@ -5,7 +5,6 @@
 //! wasm-bindgen. A lógica real da UI vive em `main.rs` e nos componentes
 //! Leptos; este arquivo re-exporta o necessário para o build WASM funcionar.
 
-
 /// Ponto de entrada chamado pelo JS (`wasm_bindgen`) para montar a aplicação
 /// no DOM quando usado como biblioteca cdylib.
 #[cfg(target_arch = "wasm32")]

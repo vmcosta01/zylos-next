@@ -9,7 +9,7 @@ use reqwest::Client;
 use std::collections::HashMap;
 
 use crate::channel::{
-    CalendarEvent, ChatInfo, ChannelAdapter, DepartmentInfo, MessageId, OutboundMessage,
+    CalendarEvent, ChannelAdapter, ChatInfo, DepartmentInfo, MessageId, OutboundMessage,
     SendResult, UserInfo,
 };
 use crate::error::{IntegrationError, Result};
@@ -64,18 +64,16 @@ impl NotionAdapter {
             });
         }
 
-        resp.json().await.map_err(|e| IntegrationError::ProviderExecution {
-            provider: "notion".to_string(),
-            action: path.to_string(),
-            detail: format!("JSON parse failed: {}", e),
-        })
+        resp.json()
+            .await
+            .map_err(|e| IntegrationError::ProviderExecution {
+                provider: "notion".to_string(),
+                action: path.to_string(),
+                detail: format!("JSON parse failed: {}", e),
+            })
     }
 
-    async fn api_post(
-        &self,
-        path: &str,
-        payload: &serde_json::Value,
-    ) -> Result<serde_json::Value> {
+    async fn api_post(&self, path: &str, payload: &serde_json::Value) -> Result<serde_json::Value> {
         let url = format!("{}{}", self.base_url, path);
         let resp = self
             .client
@@ -102,11 +100,13 @@ impl NotionAdapter {
             });
         }
 
-        resp.json().await.map_err(|e| IntegrationError::ProviderExecution {
-            provider: "notion".to_string(),
-            action: path.to_string(),
-            detail: format!("JSON parse failed: {}", e),
-        })
+        resp.json()
+            .await
+            .map_err(|e| IntegrationError::ProviderExecution {
+                provider: "notion".to_string(),
+                action: path.to_string(),
+                detail: format!("JSON parse failed: {}", e),
+            })
     }
 }
 

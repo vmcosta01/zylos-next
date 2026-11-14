@@ -1,10 +1,10 @@
 //! Integration tests for ChannelRegistry and SessionManager
 
-use zylos_router::channels::ChannelAdapter;
-use zylos_router::channels::wechat::{WechatAdapter, WechatConfig};
-use zylos_router::channels::feishu::{FeishuAdapter, FeishuConfig};
-use zylos_router::{ChannelRegistry, SessionManager};
 use bytes::Bytes;
+use zylos_router::channels::feishu::{FeishuAdapter, FeishuConfig};
+use zylos_router::channels::wechat::{WechatAdapter, WechatConfig};
+use zylos_router::channels::ChannelAdapter;
+use zylos_router::{ChannelRegistry, SessionManager};
 
 fn make_wechat_adapter() -> WechatAdapter {
     WechatAdapter::new(WechatConfig {
@@ -89,9 +89,12 @@ async fn test_registry_feishu_challenge_verification() {
         "challenge": "test_challenge_string",
         "token": "vtoken_test",
         "type": "url_verification"
-    }).to_string();
+    })
+    .to_string();
 
-    let result = reg.verify_webhook("feishu", "", None, challenge_body.as_bytes()).await;
+    let result = reg
+        .verify_webhook("feishu", "", None, challenge_body.as_bytes())
+        .await;
     assert!(result.is_ok());
     let response = result.unwrap();
     assert!(response.contains("test_challenge_string"));
@@ -123,7 +126,8 @@ async fn test_registry_feishu_receive_im_event() {
                 "chat_type": "p2p"
             }
         }
-    }).to_string();
+    })
+    .to_string();
 
     let msg = reg.receive("feishu", Bytes::from(event)).await.unwrap();
     assert_eq!(msg.channel_type, "feishu");

@@ -196,8 +196,8 @@ impl A2mBus {
         };
 
         // Persist to SQLite
-        let payload = serde_json::to_string(&msg)
-            .map_err(|e| A2mError::Serialization(e.to_string()))?;
+        let payload =
+            serde_json::to_string(&msg).map_err(|e| A2mError::Serialization(e.to_string()))?;
 
         let db = self.db.read().await;
         db.execute(
@@ -219,7 +219,10 @@ impl A2mBus {
                 if tx.send(msg.clone()).is_ok() {
                     // Mark as delivered
                     let db = self.db.read().await;
-                    let _ = db.execute("UPDATE messages SET delivered = 1 WHERE id = ?1", params![&id]);
+                    let _ = db.execute(
+                        "UPDATE messages SET delivered = 1 WHERE id = ?1",
+                        params![&id],
+                    );
                 }
             }
         }
@@ -231,12 +234,10 @@ impl A2mBus {
     /// Subscribe to messages for a specific agent. Returns a stream receiver.
     pub async fn subscribe(&self, agent_id: &AgentId) -> broadcast::Receiver<A2mMessage> {
         let mut subs = self.subscribers.write().await;
-        let tx = subs
-            .entry(agent_id.clone())
-            .or_insert_with(|| {
-                let (tx, _) = broadcast::channel(256);
-                tx
-            });
+        let tx = subs.entry(agent_id.clone()).or_insert_with(|| {
+            let (tx, _) = broadcast::channel(256);
+            tx
+        });
         let rx = tx.subscribe();
 
         // Deliver any pending offline messages
@@ -536,7 +537,9 @@ mod tests {
 
         // Create a test file
         let test_file = dir.path().join("test.txt");
-        tokio::fs::write(&test_file, b"file contents here").await.unwrap();
+        tokio::fs::write(&test_file, b"file contents here")
+            .await
+            .unwrap();
 
         let msg_id = bus
             .transfer_file(&"agent-a".into(), &"agent-b".into(), &test_file)
@@ -577,7 +580,9 @@ mod tests {
         let hash = hex::encode(Sha256::digest(data));
 
         // Store file manually
-        tokio::fs::write(dir.path().join(&hash), data).await.unwrap();
+        tokio::fs::write(dir.path().join(&hash), data)
+            .await
+            .unwrap();
 
         let retrieved = bus.retrieve_file(&hash).await.unwrap();
         assert_eq!(retrieved, data);

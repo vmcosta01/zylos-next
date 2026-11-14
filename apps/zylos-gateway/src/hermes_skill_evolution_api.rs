@@ -11,13 +11,13 @@
 //! Todos os endpoints publicam eventos no EventBus para visibilidade no cockpit.
 
 use axum::{
-    Json, Router,
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::{get, post},
+    Json, Router,
 };
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use zylos_live_comm::hermes_bridge::{HermesBridge, HermesEnvelope};
 
 use crate::AppState;
@@ -58,7 +58,10 @@ async fn get_skill_contracts(State(state): State<AppState>) -> Response {
     }))
 }
 
-async fn post_skill_contract_validate(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
+async fn post_skill_contract_validate(
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> Response {
     publish_event(&state, "contract-validated", body.clone());
     ok_json(json!({
         "status": "accepted",
@@ -98,7 +101,10 @@ async fn post_skill_miner_run(State(state): State<AppState>, Json(body): Json<Va
 // Trajectory Compiler
 // ---------------------------------------------------------------------------
 
-async fn post_trajectory_compile(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
+async fn post_trajectory_compile(
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> Response {
     publish_event(&state, "trajectory-compiled", body.clone());
     ok_json(json!({
         "status": "accepted",
@@ -127,12 +133,27 @@ async fn get_skill_hierarchy(State(state): State<AppState>) -> Response {
 
 pub fn create_hermes_skill_evolution_router() -> Router<AppState> {
     Router::new()
-        .route("/hermes/skill-evolution/contracts", get(get_skill_contracts))
-        .route("/hermes/skill-evolution/contracts/validate", post(post_skill_contract_validate))
+        .route(
+            "/hermes/skill-evolution/contracts",
+            get(get_skill_contracts),
+        )
+        .route(
+            "/hermes/skill-evolution/contracts/validate",
+            post(post_skill_contract_validate),
+        )
         .route("/hermes/skill-evolution/graph", get(get_evolution_graph))
-        .route("/hermes/skill-evolution/miner/run", post(post_skill_miner_run))
-        .route("/hermes/skill-evolution/trajectory/compile", post(post_trajectory_compile))
-        .route("/hermes/skill-evolution/hierarchy", get(get_skill_hierarchy))
+        .route(
+            "/hermes/skill-evolution/miner/run",
+            post(post_skill_miner_run),
+        )
+        .route(
+            "/hermes/skill-evolution/trajectory/compile",
+            post(post_trajectory_compile),
+        )
+        .route(
+            "/hermes/skill-evolution/hierarchy",
+            get(get_skill_hierarchy),
+        )
 }
 
 #[cfg(test)]

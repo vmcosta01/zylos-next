@@ -18,18 +18,18 @@ use std::path::PathBuf;
 // Backend Modules
 // ---------------------------------------------------------------------------
 
+/// Estados de consciência do agente para UI (T8.6.2).
+pub mod agent_awareness;
 pub mod gateway_embed;
+/// Responsive layout utilities for cockpit UI (T8.6.4).
+pub mod mobile_responsive;
 pub mod notifications;
+/// Relay server para comunicação mobile-to-desktop (T8.6.3).
+pub mod relay_server;
 pub mod tray;
 pub mod workspace;
 /// Persistência de estado do cockpit entre sessões (T8.6.1).
 pub mod workspace_persistence;
-/// Estados de consciência do agente para UI (T8.6.2).
-pub mod agent_awareness;
-/// Relay server para comunicação mobile-to-desktop (T8.6.3).
-pub mod relay_server;
-/// Responsive layout utilities for cockpit UI (T8.6.4).
-pub mod mobile_responsive;
 
 // ---------------------------------------------------------------------------
 // Desktop Configuration
@@ -132,7 +132,10 @@ pub enum IpcRequest {
     /// Backend responds with [`IpcResponse::PromptAck`] containing the
     /// run ID for tracking the agent execution.
     #[serde(rename = "send_prompt")]
-    SendPrompt { message: String, thread_id: Option<String> },
+    SendPrompt {
+        message: String,
+        thread_id: Option<String>,
+    },
     /// List available skills from the consolidated registry.
     ///
     /// Backend responds with [`IpcResponse::Skills`] containing summaries
@@ -258,7 +261,10 @@ pub enum DeepLink {
     ///
     /// URL format: `zylos://run_skill?skill=<name>&params=<json>`
     #[serde(rename = "run_skill")]
-    RunSkill { skill: String, params: Option<serde_json::Value> },
+    RunSkill {
+        skill: String,
+        params: Option<serde_json::Value>,
+    },
     /// Open the settings/preferences page, optionally at a specific section.
     ///
     /// URL format: `zylos://settings?page=<section>`
@@ -304,7 +310,9 @@ impl DeepLink {
                     .get("skill")
                     .cloned()
                     .ok_or(DeepLinkError::MissingParam("skill"))?;
-                let p = params.get("params").and_then(|s| serde_json::from_str(s).ok());
+                let p = params
+                    .get("params")
+                    .and_then(|s| serde_json::from_str(s).ok());
                 Ok(DeepLink::RunSkill { skill, params: p })
             }
             "settings" => Ok(DeepLink::Settings {
@@ -405,10 +413,9 @@ mod tests {
 
     #[test]
     fn test_deep_link_oauth_callback() {
-        let link = DeepLink::parse(
-            "zylos://oauth_callback?provider=gmail&code=4/xyz&state=pkce-verifier",
-        )
-        .unwrap();
+        let link =
+            DeepLink::parse("zylos://oauth_callback?provider=gmail&code=4/xyz&state=pkce-verifier")
+                .unwrap();
         match link {
             DeepLink::OAuthCallback {
                 provider,

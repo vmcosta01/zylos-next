@@ -197,13 +197,18 @@ impl Vault {
             for row in rows {
                 let (key, tags_json, created_at, updated_at) = row?;
                 let tags: Vec<String> = serde_json::from_str(&tags_json)?;
-                result.push(VaultEntry { key, tags, created_at, updated_at });
+                result.push(VaultEntry {
+                    key,
+                    tags,
+                    created_at,
+                    updated_at,
+                });
             }
             result
         } else {
-            let mut stmt = self.db.prepare(
-                "SELECT key, tags, created_at, updated_at FROM secrets ORDER BY key",
-            )?;
+            let mut stmt = self
+                .db
+                .prepare("SELECT key, tags, created_at, updated_at FROM secrets ORDER BY key")?;
             let rows = stmt.query_map([], |row| {
                 Ok((
                     row.get::<_, String>(0)?,
@@ -216,7 +221,12 @@ impl Vault {
             for row in rows {
                 let (key, tags_json, created_at, updated_at) = row?;
                 let tags: Vec<String> = serde_json::from_str(&tags_json)?;
-                result.push(VaultEntry { key, tags, created_at, updated_at });
+                result.push(VaultEntry {
+                    key,
+                    tags,
+                    created_at,
+                    updated_at,
+                });
             }
             result
         };
@@ -225,7 +235,9 @@ impl Vault {
 
     /// Delete a secret by key.
     pub fn delete_secret(&self, key: &str, caller: &str) -> Result<()> {
-        let affected = self.db.execute("DELETE FROM secrets WHERE key = ?1", params![key])?;
+        let affected = self
+            .db
+            .execute("DELETE FROM secrets WHERE key = ?1", params![key])?;
         if affected == 0 {
             return Err(VaultError::NotFound(key.to_string()));
         }
@@ -235,7 +247,12 @@ impl Vault {
     }
 
     /// Rotate the master key: re-encrypt all secrets with a new passphrase.
-    pub fn rotate_key(&mut self, old_passphrase: &str, new_passphrase: &str, caller: &str) -> Result<()> {
+    pub fn rotate_key(
+        &mut self,
+        old_passphrase: &str,
+        new_passphrase: &str,
+        caller: &str,
+    ) -> Result<()> {
         // Verify old passphrase matches current master key
         let salt = Self::read_salt(&self.db)?;
         let verify_key = MasterKey::derive(old_passphrase.as_bytes(), &salt)?;
@@ -356,16 +373,18 @@ impl Vault {
 
         let mut salt = [0u8; 16];
         rand::thread_rng().fill_bytes(&mut salt);
-        db.execute("INSERT INTO meta (key, value) VALUES ('salt', ?1)", params![salt.to_vec()])?;
+        db.execute(
+            "INSERT INTO meta (key, value) VALUES ('salt', ?1)",
+            params![salt.to_vec()],
+        )?;
         Ok(salt)
     }
 
     fn read_salt(db: &Connection) -> Result<[u8; 16]> {
-        let salt_blob: Vec<u8> = db.query_row(
-            "SELECT value FROM meta WHERE key='salt'",
-            [],
-            |row| row.get(0),
-        )?;
+        let salt_blob: Vec<u8> =
+            db.query_row("SELECT value FROM meta WHERE key='salt'", [], |row| {
+                row.get(0)
+            })?;
         let mut salt = [0u8; 16];
         salt.copy_from_slice(&salt_blob[..16]);
         Ok(salt)
@@ -378,14 +397,26 @@ impl Vault {
         let ct = cipher
             .encrypt(Nonce::from_slice(&nonce), b"vault-verify".as_ref())
             .map_err(|e| VaultError::Crypto(e.to_string()))?;
-        db.execute("INSERT INTO meta (key, value) VALUES ('verify_ct', ?1)", params![ct])?;
-        db.execute("INSERT INTO meta (key, value) VALUES ('verify_nonce', ?1)", params![nonce.to_vec()])?;
+        db.execute(
+            "INSERT INTO meta (key, value) VALUES ('verify_ct', ?1)",
+            params![ct],
+        )?;
+        db.execute(
+            "INSERT INTO meta (key, value) VALUES ('verify_nonce', ?1)",
+            params![nonce.to_vec()],
+        )?;
         Ok(())
     }
 
     fn verify_key(db: &Connection, key: &MasterKey) -> Result<()> {
-        let ct: Vec<u8> = db.query_row("SELECT value FROM meta WHERE key='verify_ct'", [], |r| r.get(0))?;
-        let nonce: Vec<u8> = db.query_row("SELECT value FROM meta WHERE key='verify_nonce'", [], |r| r.get(0))?;
+        let ct: Vec<u8> =
+            db.query_row("SELECT value FROM meta WHERE key='verify_ct'", [], |r| {
+                r.get(0)
+            })?;
+        let nonce: Vec<u8> =
+            db.query_row("SELECT value FROM meta WHERE key='verify_nonce'", [], |r| {
+                r.get(0)
+            })?;
         let cipher = Aes256Gcm::new_from_slice(key.as_bytes())
             .map_err(|e| VaultError::Crypto(e.to_string()))?;
         cipher
@@ -394,7 +425,13 @@ impl Vault {
         Ok(())
     }
 
-    fn write_audit(&self, action: &str, target_key: &str, caller: &str, success: bool) -> Result<()> {
+    fn write_audit(
+        &self,
+        action: &str,
+        target_key: &str,
+        caller: &str,
+        success: bool,
+    ) -> Result<()> {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now().timestamp();
         self.db.execute(
@@ -421,7 +458,9 @@ mod tests {
     #[test]
     fn test_store_and_retrieve() {
         let (vault, _tmp) = test_vault();
-        vault.store_secret("api-key", b"sk-abc123", &["prod", "stripe"], "test").unwrap();
+        vault
+            .store_secret("api-key", b"sk-abc123", &["prod", "stripe"], "test")
+            .unwrap();
         let result = vault.retrieve_secret("api-key", "test").unwrap();
         assert_eq!(result, Some(b"sk-abc123".to_vec()));
     }
@@ -438,7 +477,9 @@ mod tests {
         let (vault, _tmp) = test_vault();
         vault.store_secret("k1", b"v1", &["tag-a"], "test").unwrap();
         vault.store_secret("k2", b"v2", &["tag-b"], "test").unwrap();
-        vault.store_secret("k3", b"v3", &["tag-a", "tag-b"], "test").unwrap();
+        vault
+            .store_secret("k3", b"v3", &["tag-a", "tag-b"], "test")
+            .unwrap();
 
         let all = vault.list_keys(None).unwrap();
         assert_eq!(all.len(), 3);
@@ -450,9 +491,14 @@ mod tests {
     #[test]
     fn test_delete_secret() {
         let (vault, _tmp) = test_vault();
-        vault.store_secret("to-delete", b"data", &[], "test").unwrap();
+        vault
+            .store_secret("to-delete", b"data", &[], "test")
+            .unwrap();
         vault.delete_secret("to-delete", "test").unwrap();
-        assert!(vault.retrieve_secret("to-delete", "test").unwrap().is_none());
+        assert!(vault
+            .retrieve_secret("to-delete", "test")
+            .unwrap()
+            .is_none());
     }
 
     #[test]
@@ -474,8 +520,12 @@ mod tests {
     #[test]
     fn test_rotate_key() {
         let (mut vault, _tmp) = test_vault();
-        vault.store_secret("rot-test", b"secret-data", &["rot"], "test").unwrap();
-        vault.rotate_key("test-passphrase-123", "new-passphrase-456", "admin").unwrap();
+        vault
+            .store_secret("rot-test", b"secret-data", &["rot"], "test")
+            .unwrap();
+        vault
+            .rotate_key("test-passphrase-123", "new-passphrase-456", "admin")
+            .unwrap();
 
         // Old passphrase should fail
         // Note: we can't easily test this without reopening, but we can verify
@@ -487,7 +537,9 @@ mod tests {
     #[test]
     fn test_audit_log() {
         let (vault, _tmp) = test_vault();
-        vault.store_secret("audit-test", b"data", &[], "alice").unwrap();
+        vault
+            .store_secret("audit-test", b"data", &[], "alice")
+            .unwrap();
         vault.retrieve_secret("audit-test", "bob").unwrap();
         vault.retrieve_secret("missing", "charlie").unwrap();
 
@@ -502,8 +554,12 @@ mod tests {
     #[test]
     fn test_overwrite_existing_secret() {
         let (vault, _tmp) = test_vault();
-        vault.store_secret("overwrite", b"old", &[], "test").unwrap();
-        vault.store_secret("overwrite", b"new", &["updated"], "test").unwrap();
+        vault
+            .store_secret("overwrite", b"old", &[], "test")
+            .unwrap();
+        vault
+            .store_secret("overwrite", b"new", &["updated"], "test")
+            .unwrap();
         let data = vault.retrieve_secret("overwrite", "test").unwrap();
         assert_eq!(data, Some(b"new".to_vec()));
     }

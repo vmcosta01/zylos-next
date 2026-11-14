@@ -168,7 +168,12 @@ impl KanbanBridge {
     }
 
     /// Push a DAG node status change to Kanban.
-    pub async fn push_status(&self, dag_id: DagId, node_id: &str, status: NodeStatus) -> Result<()> {
+    pub async fn push_status(
+        &self,
+        dag_id: DagId,
+        node_id: &str,
+        status: NodeStatus,
+    ) -> Result<()> {
         let key = (dag_id, node_id.to_string());
         let mapping = {
             let map = self.mappings.read().await;
@@ -400,18 +405,19 @@ mod tests {
             .await
             .unwrap();
 
-        let col = backend.get_task_column(&TaskId(
-            bridge
-                .mappings_snapshot()
-                .await
-                .first()
-                .unwrap()
-                .task_id
-                .0
-                .clone(),
-        ))
-        .await
-        .unwrap();
+        let col = backend
+            .get_task_column(&TaskId(
+                bridge
+                    .mappings_snapshot()
+                    .await
+                    .first()
+                    .unwrap()
+                    .task_id
+                    .0
+                    .clone(),
+            ))
+            .await
+            .unwrap();
         assert_eq!(col, TaskColumn::Running);
     }
 
@@ -450,7 +456,9 @@ mod tests {
         let bridge = KanbanBridge::new(backend, Duration::from_secs(60));
         let dag_id = DagId::new();
 
-        let result = bridge.push_status(dag_id, "nonexistent", NodeStatus::Running).await;
+        let result = bridge
+            .push_status(dag_id, "nonexistent", NodeStatus::Running)
+            .await;
         assert!(result.is_err());
     }
 }

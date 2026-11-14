@@ -230,7 +230,10 @@ impl CredentialVault {
             tags,
         };
 
-        let mut creds = self.credentials.write().map_err(|_| GhostTypistError::LockPoisoned)?;
+        let mut creds = self
+            .credentials
+            .write()
+            .map_err(|_| GhostTypistError::LockPoisoned)?;
         creds.insert(id.clone(), cred);
 
         Ok((id, fingerprint))
@@ -238,8 +241,12 @@ impl CredentialVault {
 
     /// Retrieve a credential's metadata (NOT the secret) for display.
     pub fn get_metadata(&self, credential_id: &str) -> Result<InputMask, GhostTypistError> {
-        let creds = self.credentials.read().map_err(|_| GhostTypistError::LockPoisoned)?;
-        let cred = creds.get(credential_id)
+        let creds = self
+            .credentials
+            .read()
+            .map_err(|_| GhostTypistError::LockPoisoned)?;
+        let cred = creds
+            .get(credential_id)
             .ok_or_else(|| GhostTypistError::NotFound(credential_id.to_string()))?;
         Ok(InputMask::for_credential(cred))
     }
@@ -267,8 +274,13 @@ impl CredentialVault {
 
         // 1. Lookup credential
         let cred = {
-            let creds = self.credentials.read().map_err(|_| GhostTypistError::LockPoisoned)?;
-            creds.get(credential_id).cloned()
+            let creds = self
+                .credentials
+                .read()
+                .map_err(|_| GhostTypistError::LockPoisoned)?;
+            creds
+                .get(credential_id)
+                .cloned()
                 .ok_or_else(|| GhostTypistError::NotFound(credential_id.to_string()))?
         };
 
@@ -301,7 +313,10 @@ impl CredentialVault {
 
         // 6. Update usage counters
         if success {
-            let mut creds = self.credentials.write().map_err(|_| GhostTypistError::LockPoisoned)?;
+            let mut creds = self
+                .credentials
+                .write()
+                .map_err(|_| GhostTypistError::LockPoisoned)?;
             if let Some(c) = creds.get_mut(credential_id) {
                 c.use_count += 1;
                 c.last_used_at = Some(now);
@@ -309,7 +324,8 @@ impl CredentialVault {
 
             // Record rate limit timestamp
             if let Ok(mut limits) = self.rate_limits.write() {
-                limits.entry(credential_id.to_string())
+                limits
+                    .entry(credential_id.to_string())
                     .or_default()
                     .push(Instant::now());
             }
@@ -328,17 +344,31 @@ impl CredentialVault {
     }
 
     /// List all credentials owned by a given identity (metadata only).
-    pub fn list_credentials(&self, owner_id: &str) -> Result<Vec<(CredentialId, String, CredentialKind)>, GhostTypistError> {
-        let creds = self.credentials.read().map_err(|_| GhostTypistError::LockPoisoned)?;
-        Ok(creds.values()
+    pub fn list_credentials(
+        &self,
+        owner_id: &str,
+    ) -> Result<Vec<(CredentialId, String, CredentialKind)>, GhostTypistError> {
+        let creds = self
+            .credentials
+            .read()
+            .map_err(|_| GhostTypistError::LockPoisoned)?;
+        Ok(creds
+            .values()
             .filter(|c| c.owner_id == owner_id)
             .map(|c| (c.id.clone(), c.label.clone(), c.kind))
             .collect())
     }
 
     /// Delete a credential.
-    pub fn delete_credential(&self, credential_id: &str, caller_id: &str) -> Result<bool, GhostTypistError> {
-        let mut creds = self.credentials.write().map_err(|_| GhostTypistError::LockPoisoned)?;
+    pub fn delete_credential(
+        &self,
+        credential_id: &str,
+        caller_id: &str,
+    ) -> Result<bool, GhostTypistError> {
+        let mut creds = self
+            .credentials
+            .write()
+            .map_err(|_| GhostTypistError::LockPoisoned)?;
         if let Some(cred) = creds.get(credential_id) {
             if self.config.enforce_ownership && cred.owner_id != caller_id {
                 return Err(GhostTypistError::AccessDenied {
@@ -352,13 +382,19 @@ impl CredentialVault {
 
     /// Get audit log entries (most recent first).
     pub fn get_audit_log(&self, limit: usize) -> Result<Vec<AuditEntry>, GhostTypistError> {
-        let log = self.audit_log.read().map_err(|_| GhostTypistError::LockPoisoned)?;
+        let log = self
+            .audit_log
+            .read()
+            .map_err(|_| GhostTypistError::LockPoisoned)?;
         let entries: Vec<AuditEntry> = log.iter().rev().take(limit).cloned().collect();
         Ok(entries)
     }
 
     fn check_rate_limit(&self, credential_id: &str) -> Result<(), GhostTypistError> {
-        let limits = self.rate_limits.read().map_err(|_| GhostTypistError::LockPoisoned)?;
+        let limits = self
+            .rate_limits
+            .read()
+            .map_err(|_| GhostTypistError::LockPoisoned)?;
         if let Some(uses) = limits.get(credential_id) {
             let window = Duration::from_secs(self.config.rate_limit_window_secs);
             let cutoff = Instant::now() - window;
@@ -374,7 +410,14 @@ impl CredentialVault {
         Ok(())
     }
 
-    fn log_audit(&self, audit_id: &str, credential_id: &str, caller_id: &str, target_type: &str, success: bool) {
+    fn log_audit(
+        &self,
+        audit_id: &str,
+        credential_id: &str,
+        caller_id: &str,
+        target_type: &str,
+        success: bool,
+    ) {
         if !self.config.audit_logging {
             return;
         }
@@ -417,16 +460,17 @@ impl SecureInputPipeline {
         caller_id: &str,
         target_description: &str,
     ) -> Result<InjectionResult, GhostTypistError> {
-        self.vault.inject(credential_id, caller_id, target_description, |_bytes| {
-            // In production: send bytes to browser CDP Input.dispatchKeyEvent
-            // or WASM sandbox stdin character by character with random delays.
-            // Reference implementation: validate payload is non-empty.
-            if _bytes.is_empty() {
-                Err("Empty credential payload".to_string())
-            } else {
-                Ok(())
-            }
-        })
+        self.vault
+            .inject(credential_id, caller_id, target_description, |_bytes| {
+                // In production: send bytes to browser CDP Input.dispatchKeyEvent
+                // or WASM sandbox stdin character by character with random delays.
+                // Reference implementation: validate payload is non-empty.
+                if _bytes.is_empty() {
+                    Err("Empty credential payload".to_string())
+                } else {
+                    Ok(())
+                }
+            })
     }
 
     /// Inject a credential as an environment variable.
@@ -436,15 +480,20 @@ impl SecureInputPipeline {
         caller_id: &str,
         var_name: &str,
     ) -> Result<InjectionResult, GhostTypistError> {
-        self.vault.inject(credential_id, caller_id, &format!("env:{var_name}"), |_bytes| {
-            // In production: set env var in Docker container or WASM sandbox
-            // via the sandbox API, never through shell commands visible in traces.
-            if _bytes.is_empty() {
-                Err("Empty credential payload".to_string())
-            } else {
-                Ok(())
-            }
-        })
+        self.vault.inject(
+            credential_id,
+            caller_id,
+            &format!("env:{var_name}"),
+            |_bytes| {
+                // In production: set env var in Docker container or WASM sandbox
+                // via the sandbox API, never through shell commands visible in traces.
+                if _bytes.is_empty() {
+                    Err("Empty credential payload".to_string())
+                } else {
+                    Ok(())
+                }
+            },
+        )
     }
 
     /// Inject a credential via browser CDP isolated world evaluation.
@@ -475,7 +524,13 @@ impl SecureInputPipeline {
 fn sanitize_label(label: &str) -> String {
     let sanitized: String = label
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect::<String>()
         .to_lowercase();
     // Collapse consecutive underscores and trim leading/trailing
@@ -504,18 +559,23 @@ mod tests {
     #[test]
     fn store_and_inject_credential() {
         let pipeline = test_pipeline();
-        let (id, fingerprint) = pipeline.vault().store_credential(
-            "GitHub Token".into(),
-            CredentialKind::EnvironmentVariable,
-            b"ghp_fake_token_12345".to_vec(),
-            "agent-1".into(),
-            vec!["github".into()],
-            None,
-        ).unwrap();
+        let (id, fingerprint) = pipeline
+            .vault()
+            .store_credential(
+                "GitHub Token".into(),
+                CredentialKind::EnvironmentVariable,
+                b"ghp_fake_token_12345".to_vec(),
+                "agent-1".into(),
+                vec!["github".into()],
+                None,
+            )
+            .unwrap();
 
         assert!(!fingerprint.is_empty());
 
-        let result = pipeline.inject_as_env_var(&id, "agent-1", "GITHUB_TOKEN").unwrap();
+        let result = pipeline
+            .inject_as_env_var(&id, "agent-1", "GITHUB_TOKEN")
+            .unwrap();
         assert!(result.success);
         assert!(result.mask.placeholder.contains("github_token"));
         assert!(!result.mask.placeholder.contains("ghp_fake"));
@@ -524,16 +584,21 @@ mod tests {
     #[test]
     fn injection_blocks_wrong_owner() {
         let pipeline = test_pipeline();
-        let (id, _) = pipeline.vault().store_credential(
-            "Secret".into(),
-            CredentialKind::KeyboardTyping,
-            b"password123".to_vec(),
-            "agent-1".into(),
-            vec![],
-            None,
-        ).unwrap();
+        let (id, _) = pipeline
+            .vault()
+            .store_credential(
+                "Secret".into(),
+                CredentialKind::KeyboardTyping,
+                b"password123".to_vec(),
+                "agent-1".into(),
+                vec![],
+                None,
+            )
+            .unwrap();
 
-        let result = pipeline.vault().inject(&id, "agent-2", "browser", |_| Ok(()));
+        let result = pipeline
+            .vault()
+            .inject(&id, "agent-2", "browser", |_| Ok(()));
         assert!(result.is_err());
         match result.unwrap_err() {
             GhostTypistError::AccessDenied { caller, .. } => {
@@ -547,14 +612,17 @@ mod tests {
     fn expired_credential_rejected() {
         let pipeline = test_pipeline();
         let past = chrono::Utc::now() - chrono::Duration::hours(1);
-        let (id, _) = pipeline.vault().store_credential(
-            "Old Token".into(),
-            CredentialKind::HttpHeader,
-            b"expired_token".to_vec(),
-            "agent-1".into(),
-            vec![],
-            Some(past),
-        ).unwrap();
+        let (id, _) = pipeline
+            .vault()
+            .store_credential(
+                "Old Token".into(),
+                CredentialKind::HttpHeader,
+                b"expired_token".to_vec(),
+                "agent-1".into(),
+                vec![],
+                Some(past),
+            )
+            .unwrap();
 
         let result = pipeline.vault().inject(&id, "agent-1", "http", |_| Ok(()));
         assert!(matches!(result, Err(GhostTypistError::Expired(_))));
@@ -569,39 +637,55 @@ mod tests {
             ..Default::default()
         });
 
-        let (id, _) = pipeline.vault().store_credential(
-            "Rate Limited".into(),
-            CredentialKind::ClipboardPaste,
-            b"secret".to_vec(),
-            "agent-1".into(),
-            vec![],
-            None,
-        ).unwrap();
+        let (id, _) = pipeline
+            .vault()
+            .store_credential(
+                "Rate Limited".into(),
+                CredentialKind::ClipboardPaste,
+                b"secret".to_vec(),
+                "agent-1".into(),
+                vec![],
+                None,
+            )
+            .unwrap();
 
         // Use up the limit
         for _ in 0..3 {
-            pipeline.vault().inject(&id, "agent-1", "browser", |_| Ok(())).unwrap();
+            pipeline
+                .vault()
+                .inject(&id, "agent-1", "browser", |_| Ok(()))
+                .unwrap();
         }
 
         // Next use should be rate limited
-        let result = pipeline.vault().inject(&id, "agent-1", "browser", |_| Ok(()));
-        assert!(matches!(result, Err(GhostTypistError::RateLimited(_, _, _))));
+        let result = pipeline
+            .vault()
+            .inject(&id, "agent-1", "browser", |_| Ok(()));
+        assert!(matches!(
+            result,
+            Err(GhostTypistError::RateLimited(_, _, _))
+        ));
     }
 
     #[test]
     fn mask_never_contains_secret() {
         let pipeline = test_pipeline();
         let secret = "super_secret_password_do_not_leak";
-        let (id, _) = pipeline.vault().store_credential(
-            "Password".into(),
-            CredentialKind::KeyboardTyping,
-            secret.as_bytes().to_vec(),
-            "agent-1".into(),
-            vec![],
-            None,
-        ).unwrap();
+        let (id, _) = pipeline
+            .vault()
+            .store_credential(
+                "Password".into(),
+                CredentialKind::KeyboardTyping,
+                secret.as_bytes().to_vec(),
+                "agent-1".into(),
+                vec![],
+                None,
+            )
+            .unwrap();
 
-        let result = pipeline.inject_as_typing(&id, "agent-1", "login_form").unwrap();
+        let result = pipeline
+            .inject_as_typing(&id, "agent-1", "login_form")
+            .unwrap();
         assert!(!result.mask.placeholder.contains(secret));
         assert!(!result.mask.placeholder.contains("super_secret"));
         assert!(result.mask.placeholder.contains("***"));
@@ -610,16 +694,22 @@ mod tests {
     #[test]
     fn audit_log_records_injections() {
         let pipeline = test_pipeline();
-        let (id, _) = pipeline.vault().store_credential(
-            "Audited".into(),
-            CredentialKind::FileContent,
-            b"content".to_vec(),
-            "agent-1".into(),
-            vec![],
-            None,
-        ).unwrap();
+        let (id, _) = pipeline
+            .vault()
+            .store_credential(
+                "Audited".into(),
+                CredentialKind::FileContent,
+                b"content".to_vec(),
+                "agent-1".into(),
+                vec![],
+                None,
+            )
+            .unwrap();
 
-        pipeline.vault().inject(&id, "agent-1", "file:/tmp/secret", |_| Ok(())).unwrap();
+        pipeline
+            .vault()
+            .inject(&id, "agent-1", "file:/tmp/secret", |_| Ok(()))
+            .unwrap();
 
         let log = pipeline.vault().get_audit_log(10).unwrap();
         assert_eq!(log.len(), 1);
@@ -631,14 +721,17 @@ mod tests {
     #[test]
     fn delete_requires_ownership() {
         let pipeline = test_pipeline();
-        let (id, _) = pipeline.vault().store_credential(
-            "Protected".into(),
-            CredentialKind::BrowserCdpEval,
-            b"data".to_vec(),
-            "agent-1".into(),
-            vec![],
-            None,
-        ).unwrap();
+        let (id, _) = pipeline
+            .vault()
+            .store_credential(
+                "Protected".into(),
+                CredentialKind::BrowserCdpEval,
+                b"data".to_vec(),
+                "agent-1".into(),
+                vec![],
+                None,
+            )
+            .unwrap();
 
         assert!(pipeline.vault().delete_credential(&id, "agent-2").is_err());
         assert!(pipeline.vault().delete_credential(&id, "agent-1").unwrap());
@@ -647,16 +740,23 @@ mod tests {
     #[test]
     fn cdp_injection_rejects_interpolation_template() {
         let pipeline = test_pipeline();
-        let (id, _) = pipeline.vault().store_credential(
-            "CDP Cred".into(),
-            CredentialKind::BrowserCdpEval,
-            b"value".to_vec(),
-            "agent-1".into(),
-            vec![],
-            None,
-        ).unwrap();
+        let (id, _) = pipeline
+            .vault()
+            .store_credential(
+                "CDP Cred".into(),
+                CredentialKind::BrowserCdpEval,
+                b"value".to_vec(),
+                "agent-1".into(),
+                vec![],
+                None,
+            )
+            .unwrap();
 
-        let result = pipeline.inject_via_cdp(&id, "agent-1", "document.getElementById('pw').value = '${secret}'");
+        let result = pipeline.inject_via_cdp(
+            &id,
+            "agent-1",
+            "document.getElementById('pw').value = '${secret}'",
+        );
         assert!(result.is_ok()); // inject succeeds but inner validation catches it
         let injection = result.unwrap();
         assert!(!injection.success);
@@ -666,22 +766,28 @@ mod tests {
     #[test]
     fn list_credentials_returns_metadata_only() {
         let pipeline = test_pipeline();
-        pipeline.vault().store_credential(
-            "Token A".into(),
-            CredentialKind::HttpHeader,
-            b"aaa".to_vec(),
-            "agent-1".into(),
-            vec![],
-            None,
-        ).unwrap();
-        pipeline.vault().store_credential(
-            "Token B".into(),
-            CredentialKind::EnvironmentVariable,
-            b"bbb".to_vec(),
-            "agent-1".into(),
-            vec![],
-            None,
-        ).unwrap();
+        pipeline
+            .vault()
+            .store_credential(
+                "Token A".into(),
+                CredentialKind::HttpHeader,
+                b"aaa".to_vec(),
+                "agent-1".into(),
+                vec![],
+                None,
+            )
+            .unwrap();
+        pipeline
+            .vault()
+            .store_credential(
+                "Token B".into(),
+                CredentialKind::EnvironmentVariable,
+                b"bbb".to_vec(),
+                "agent-1".into(),
+                vec![],
+                None,
+            )
+            .unwrap();
 
         let list = pipeline.vault().list_credentials("agent-1").unwrap();
         assert_eq!(list.len(), 2);

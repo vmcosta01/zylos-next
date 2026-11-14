@@ -43,13 +43,22 @@ async fn app() -> axum::Router {
             eval_flywheel: Arc::new(RwLock::new(EvalFlywheel::empty())),
         },
         soar_orchestrator: Arc::new(SoarOrchestrator::new(Arc::new(RwLock::new(soar_state)))),
-        swarm: Arc::new(SwarmOrchestrator::open(":memory:").await.expect("swarm em memória")),
+        swarm: Arc::new(
+            SwarmOrchestrator::open(":memory:")
+                .await
+                .expect("swarm em memória"),
+        ),
         ready: Arc::new(AtomicBool::new(true)),
     };
     zylos_gateway::build_router(state)
 }
 
-fn pedido(metodo: Method, uri: &str, cabecalhos: &[(header::HeaderName, &str)], corpo: &str) -> Request<Body> {
+fn pedido(
+    metodo: Method,
+    uri: &str,
+    cabecalhos: &[(header::HeaderName, &str)],
+    corpo: &str,
+) -> Request<Body> {
     let mut b = Request::builder().method(metodo).uri(uri);
     for (k, v) in cabecalhos {
         b = b.header(k, *v);
@@ -77,7 +86,10 @@ async fn post_orchestrate_de_outro_site_e_recusado() {
     ))
     .await;
     assert_eq!(st, StatusCode::FORBIDDEN);
-    assert_eq!(h.get(header::CONTENT_TYPE).unwrap(), "application/problem+json");
+    assert_eq!(
+        h.get(header::CONTENT_TYPE).unwrap(),
+        "application/problem+json"
+    );
 }
 
 #[tokio::test]
@@ -107,7 +119,13 @@ async fn get_de_outro_site_com_origin_e_recusado() {
 
 #[tokio::test]
 async fn origin_null_e_recusado() {
-    let (st, _) = status(pedido(Method::GET, "/gateway/health", &[(header::ORIGIN, "null")], "")).await;
+    let (st, _) = status(pedido(
+        Method::GET,
+        "/gateway/health",
+        &[(header::ORIGIN, "null")],
+        "",
+    ))
+    .await;
     assert_eq!(st, StatusCode::FORBIDDEN);
 }
 
@@ -146,7 +164,13 @@ async fn preflight_de_outro_site_nao_recebe_cors() {
 #[tokio::test]
 async fn cliente_sem_navegador_passa() {
     // zylos-cli e plugin do Hermes: sem Origin, Host local
-    let (st, _) = status(pedido(Method::GET, "/gateway/health", &[(header::HOST, "127.0.0.1:3000")], "")).await;
+    let (st, _) = status(pedido(
+        Method::GET,
+        "/gateway/health",
+        &[(header::HOST, "127.0.0.1:3000")],
+        "",
+    ))
+    .await;
     assert_eq!(st, StatusCode::OK);
 }
 
@@ -189,7 +213,11 @@ async fn preflight_local_recebe_cors_da_propria_origem() {
         "",
     ))
     .await;
-    assert_eq!(h.get(header::ACCESS_CONTROL_ALLOW_ORIGIN).map(|v| v.to_str().unwrap()), Some(TELA));
+    assert_eq!(
+        h.get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+            .map(|v| v.to_str().unwrap()),
+        Some(TELA)
+    );
 }
 
 #[tokio::test]
@@ -215,7 +243,10 @@ async fn bots_local_chega_ao_handler() {
     ))
     .await;
     assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY);
-    assert_eq!(h.get(header::CONTENT_TYPE).unwrap(), "application/problem+json");
+    assert_eq!(
+        h.get(header::CONTENT_TYPE).unwrap(),
+        "application/problem+json"
+    );
 }
 
 #[tokio::test]
@@ -228,5 +259,8 @@ async fn hermes_continua_exigindo_token() {
         r#"{"source":"x","event_type":"text.start","payload":{}}"#,
     ))
     .await;
-    assert!(st == StatusCode::UNAUTHORIZED || st == StatusCode::SERVICE_UNAVAILABLE, "veio {st}");
+    assert!(
+        st == StatusCode::UNAUTHORIZED || st == StatusCode::SERVICE_UNAVAILABLE,
+        "veio {st}"
+    );
 }

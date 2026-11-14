@@ -32,27 +32,82 @@ pub fn create_bots_router(cfg: Config) -> Router {
         .route("/bots/:nome/perguntar", post(post_perguntar))
         .route("/provedores", get(get_provedores))
         .route("/provedores/:nome/modelos", get(get_modelos))
-        .with_state(BotsState { cfg: Arc::new(cfg), cliente: reqwest::Client::new() })
+        .with_state(BotsState {
+            cfg: Arc::new(cfg),
+            cliente: reqwest::Client::new(),
+        })
 }
 
 /// Status HTTP e tipo de problema de cada erro.
 pub fn status_e_tipo(e: &ErroPensar) -> (StatusCode, &'static str, &'static str) {
     use ErroPensar::*;
     match e {
-        NomeInvalido => (StatusCode::UNPROCESSABLE_ENTITY, "nome-de-bot-invalido", "Nome de bot inválido"),
-        PerguntaVazia | PerguntaGrande => (StatusCode::UNPROCESSABLE_ENTITY, "pergunta-invalida", "Pergunta inválida"),
+        NomeInvalido => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "nome-de-bot-invalido",
+            "Nome de bot inválido",
+        ),
+        PerguntaVazia | PerguntaGrande => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "pergunta-invalida",
+            "Pergunta inválida",
+        ),
         BotInexistente(_) => (StatusCode::NOT_FOUND, "bot-inexistente", "Bot não existe"),
-        BotMalFeito { .. } => (StatusCode::UNPROCESSABLE_ENTITY, "bot-mal-configurado", "Bot mal configurado"),
-        Catalogo(_) => (StatusCode::UNPROCESSABLE_ENTITY, "fichas-de-provedor-invalidas", "Fichas de provedor com problema"),
-        ProvedorDesconhecido { .. } => (StatusCode::UNPROCESSABLE_ENTITY, "provedor-desconhecido", "Provedor desconhecido"),
-        ProvedorNaoExiste { .. } => (StatusCode::NOT_FOUND, "provedor-inexistente", "Provedor não existe"),
-        SemModelo(_) => (StatusCode::UNPROCESSABLE_ENTITY, "bot-sem-modelo", "Bot sem modelo"),
-        ChaveFaltando { .. } => (StatusCode::FAILED_DEPENDENCY, "chave-faltando", "Chave de API faltando"),
-        ChaveInvalida { .. } => (StatusCode::FAILED_DEPENDENCY, "chave-invalida", "Chave de API não pode ser usada"),
-        ProvedorRecusou { .. } => (StatusCode::BAD_GATEWAY, "provedor-recusou", "O provedor recusou"),
-        Rede(_) => (StatusCode::BAD_GATEWAY, "provedor-inalcancavel", "Falha de rede com o provedor"),
-        RespostaEstranha(_) => (StatusCode::BAD_GATEWAY, "resposta-inesperada", "Resposta inesperada do provedor"),
-        TempoEsgotado(_) => (StatusCode::GATEWAY_TIMEOUT, "tempo-esgotado", "O provedor não respondeu a tempo"),
+        BotMalFeito { .. } => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "bot-mal-configurado",
+            "Bot mal configurado",
+        ),
+        Catalogo(_) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "fichas-de-provedor-invalidas",
+            "Fichas de provedor com problema",
+        ),
+        ProvedorDesconhecido { .. } => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "provedor-desconhecido",
+            "Provedor desconhecido",
+        ),
+        ProvedorNaoExiste { .. } => (
+            StatusCode::NOT_FOUND,
+            "provedor-inexistente",
+            "Provedor não existe",
+        ),
+        SemModelo(_) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "bot-sem-modelo",
+            "Bot sem modelo",
+        ),
+        ChaveFaltando { .. } => (
+            StatusCode::FAILED_DEPENDENCY,
+            "chave-faltando",
+            "Chave de API faltando",
+        ),
+        ChaveInvalida { .. } => (
+            StatusCode::FAILED_DEPENDENCY,
+            "chave-invalida",
+            "Chave de API não pode ser usada",
+        ),
+        ProvedorRecusou { .. } => (
+            StatusCode::BAD_GATEWAY,
+            "provedor-recusou",
+            "O provedor recusou",
+        ),
+        Rede(_) => (
+            StatusCode::BAD_GATEWAY,
+            "provedor-inalcancavel",
+            "Falha de rede com o provedor",
+        ),
+        RespostaEstranha(_) => (
+            StatusCode::BAD_GATEWAY,
+            "resposta-inesperada",
+            "Resposta inesperada do provedor",
+        ),
+        TempoEsgotado(_) => (
+            StatusCode::GATEWAY_TIMEOUT,
+            "tempo-esgotado",
+            "O provedor não respondeu a tempo",
+        ),
     }
 }
 
@@ -65,7 +120,12 @@ fn problema(e: &ErroPensar, instancia: String) -> Response {
         "detail": e.to_string(),
         "instance": instancia,
     });
-    (status, [(header::CONTENT_TYPE, "application/problem+json")], Json(corpo)).into_response()
+    (
+        status,
+        [(header::CONTENT_TYPE, "application/problem+json")],
+        Json(corpo),
+    )
+        .into_response()
 }
 
 fn ambiente(n: &str) -> Option<String> {

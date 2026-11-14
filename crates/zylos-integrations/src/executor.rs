@@ -119,8 +119,8 @@ impl ActionExecutor {
 
             // Log successful action
             self.db
-                            .log_action(user_id, &spec.slug, &action.id, "auto", &body)
-                            .await?;
+                .log_action(user_id, &spec.slug, &action.id, "auto", &body)
+                .await?;
 
             info!(provider = %spec.slug, action = %action.id, status = %status, "Action executed successfully");
             Ok(body)
@@ -217,8 +217,6 @@ impl ActionExecutor {
             builder = builder.header("Content-Type", "application/json");
         }
 
-        builder
-            .build()
-            .map_err(IntegrationError::Http)
+        builder.build().map_err(IntegrationError::Http)
     }
 }

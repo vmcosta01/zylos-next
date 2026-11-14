@@ -4,8 +4,8 @@
 //! Cada adapter implementa `ChannelAdapter` com verificação de webhook,
 //! parsing de mensagens inbound e envio de mensagens outbound.
 
-pub mod wechat;
 pub mod feishu;
+pub mod wechat;
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -65,9 +65,16 @@ pub enum MessageContent {
     /// Mensagem de texto simples.
     Text { body: String },
     /// Imagem com URL e legenda opcional.
-    Image { url: String, caption: Option<String> },
+    Image {
+        url: String,
+        caption: Option<String>,
+    },
     /// Arquivo anexado com metadados.
-    File { url: String, filename: String, size_bytes: u64 },
+    File {
+        url: String,
+        filename: String,
+        size_bytes: u64,
+    },
     /// Mensagem de voz com duração.
     Voice { url: String, duration_ms: u64 },
     /// Vídeo com duração.
@@ -75,7 +82,10 @@ pub enum MessageContent {
     /// Card interativo renderizado pelo provedor.
     InteractiveCard { card_json: String },
     /// Template pré-aprovado com dados dinâmicos.
-    Template { template_id: String, data: serde_json::Value },
+    Template {
+        template_id: String,
+        data: serde_json::Value,
+    },
 }
 
 /// Mensagem a ser enviada para um canal externo.
@@ -113,7 +123,12 @@ pub trait ChannelAdapter: Send + Sync {
     fn name(&self) -> &str;
 
     /// Verifica a assinatura/challenge do webhook
-    async fn verify_webhook(&self, challenge: &str, signature: Option<&str>, body: &[u8]) -> Result<String, ChannelError>;
+    async fn verify_webhook(
+        &self,
+        challenge: &str,
+        signature: Option<&str>,
+        body: &[u8],
+    ) -> Result<String, ChannelError>;
 
     /// Faz parse de um payload de webhook em uma InboundMessage
     async fn receive(&self, webhook_payload: Bytes) -> Result<InboundMessage, ChannelError>;

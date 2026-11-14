@@ -231,7 +231,10 @@ impl OutputSanitizer {
 
             let count = rule.regex.find_iter(&text).count();
             if count > 0 {
-                text = rule.regex.replace_all(&text, replacement.as_str()).to_string();
+                text = rule
+                    .regex
+                    .replace_all(&text, replacement.as_str())
+                    .to_string();
                 redactions_count += count;
                 rules_triggered.push(rule.name.clone());
             }
@@ -254,7 +257,10 @@ impl OutputSanitizer {
 
     /// Retorna os nomes de todas as regras ativas.
     pub fn active_rule_names(&self) -> Vec<&str> {
-        self.compiled_rules.iter().map(|r| r.name.as_str()).collect()
+        self.compiled_rules
+            .iter()
+            .map(|r| r.name.as_str())
+            .collect()
     }
 
     /// Retorna o número de regras ativas.
@@ -282,7 +288,9 @@ mod tests {
         assert!(result.was_modified);
         assert!(!result.text.contains("AKIAIOSFODNN7EXAMPLE"));
         assert!(result.text.contains("[REDACTED:AWS_KEY]"));
-        assert!(result.rules_triggered.contains(&"aws_access_key".to_string()));
+        assert!(result
+            .rules_triggered
+            .contains(&"aws_access_key".to_string()));
     }
 
     #[test]
@@ -403,9 +411,7 @@ mod tests {
             rules: vec![SanitizeRule {
                 name: "disabled_rule".into(),
                 pattern: r"SECRET_WORD".into(),
-                strategy: SanitizeStrategy::Redact {
-                    label: "X".into(),
-                },
+                strategy: SanitizeStrategy::Redact { label: "X".into() },
                 enabled: false,
             }],
             use_builtin_rules: false,
@@ -463,7 +469,8 @@ mod tests {
     #[test]
     fn test_hex_secret_detection() {
         let s = test_sanitizer();
-        let result = s.sanitize("secret=abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789");
+        let result =
+            s.sanitize("secret=abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789");
         assert!(result.was_modified);
         assert!(result.text.contains("[REDACTED:HEX_SECRET]"));
     }
@@ -486,7 +493,11 @@ mod tests {
         // Both builtin and custom should work
         let result = s.sanitize("Key: AKIAIOSFODNN7EXAMPLE Ref: TICKET-9999");
         assert!(result.was_modified);
-        assert!(result.rules_triggered.contains(&"aws_access_key".to_string()));
-        assert!(result.rules_triggered.contains(&"custom_ticket".to_string()));
+        assert!(result
+            .rules_triggered
+            .contains(&"aws_access_key".to_string()));
+        assert!(result
+            .rules_triggered
+            .contains(&"custom_ticket".to_string()));
     }
 }

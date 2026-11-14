@@ -52,13 +52,19 @@ pub type SchedulerResult<T> = Result<T, SchedulerError>;
 /// Enumeração TriggerType.
 pub enum TriggerType {
     // Expressão cron (ex: "0 */6 * * *")
-    Cron { expression: String },
+    Cron {
+        expression: String,
+    },
     // Gatilho por evento (ex: "on_push", "on_merge")
-    Event { event: String },
+    Event {
+        event: String,
+    },
     /// Execução manual sob demanda
     Manual,
     // Intervalo fixo em segundos
-    Interval { seconds: u64 },
+    Interval {
+        seconds: u64,
+    },
 }
 
 impl std::fmt::Display for TriggerType {
@@ -298,7 +304,10 @@ impl RoutineScheduler {
             validate_cron_expression(expression)?;
         }
 
-        info!("Rotina registrada: '{}' ({})", routine.name, routine.trigger);
+        info!(
+            "Rotina registrada: '{}' ({})",
+            routine.name, routine.trigger
+        );
         self.state.routines.insert(routine.id.clone(), routine);
         // Variante Ok.
         Ok(())
@@ -448,12 +457,7 @@ impl RoutineScheduler {
             .filter(|r| r.status == RoutineStatus::Failed)
             .count();
 
-        let total_executions: usize = self
-            .state
-            .execution_history
-            .values()
-            .map(|h| h.len())
-            .sum();
+        let total_executions: usize = self.state.execution_history.values().map(|h| h.len()).sum();
 
         let successful_executions: usize = self
             .state
@@ -497,10 +501,7 @@ impl RoutineScheduler {
             format!("- **Pausadas:** {}", stats.paused_routines),
             format!("- **Falhadas:** {}", stats.failed_routines),
             format!("- **Total de execuções:** {}", stats.total_executions),
-            format!(
-                "- **Taxa de sucesso:** {:.1}%",
-                stats.success_rate * 100.0
-            ),
+            format!("- **Taxa de sucesso:** {:.1}%", stats.success_rate * 100.0),
             String::new(),
             "## Rotinas Registradas".to_string(),
         ];
@@ -509,19 +510,10 @@ impl RoutineScheduler {
         routines.sort_by(|a, b| a.name.cmp(&b.name));
 
         for routine in &routines {
-            let last = routine
-                .last_run
-                .as_deref()
-                .unwrap_or("nunca");
-            let next = routine
-                .next_run
-                .as_deref()
-                .unwrap_or("N/A");
+            let last = routine.last_run.as_deref().unwrap_or("nunca");
+            let next = routine.next_run.as_deref().unwrap_or("N/A");
 
-            lines.push(format!(
-                "\n### {} (`{}`)",
-                routine.name, routine.id
-            ));
+            lines.push(format!("\n### {} (`{}`)", routine.name, routine.id));
             lines.push(format!("- **Status:** {}", routine.status));
             lines.push(format!("- **Gatilho:** {}", routine.trigger));
             lines.push(format!("- **Ação:** `{}`", routine.action));
@@ -664,9 +656,7 @@ mod tests {
     #[test]
     fn test_duplicate_routine_rejected() {
         let mut sched = RoutineScheduler::new();
-        sched
-            .add_routine(sample_routine("r-001", "A"))
-            .unwrap();
+        sched.add_routine(sample_routine("r-001", "A")).unwrap();
         let result = sched.add_routine(sample_routine("r-001", "B"));
         assert!(result.is_err());
     }
@@ -674,9 +664,7 @@ mod tests {
     #[test]
     fn test_remove_routine() {
         let mut sched = RoutineScheduler::new();
-        sched
-            .add_routine(sample_routine("r-001", "X"))
-            .unwrap();
+        sched.add_routine(sample_routine("r-001", "X")).unwrap();
         let removed = sched.remove_routine("r-001").unwrap();
         assert_eq!(removed.id, "r-001");
         assert!(sched.get_routine("r-001").is_none());
@@ -711,12 +699,8 @@ mod tests {
     #[test]
     fn test_list_by_status() {
         let mut sched = RoutineScheduler::new();
-        sched
-            .add_routine(sample_routine("r-001", "A"))
-            .unwrap();
-        sched
-            .add_routine(sample_routine("r-002", "B"))
-            .unwrap();
+        sched.add_routine(sample_routine("r-001", "A")).unwrap();
+        sched.add_routine(sample_routine("r-002", "B")).unwrap();
         sched.pause_routine("r-002").unwrap();
 
         let active = sched.list_by_status(&RoutineStatus::Active);
@@ -745,9 +729,7 @@ mod tests {
     #[test]
     fn test_record_execution_success() {
         let mut sched = RoutineScheduler::new();
-        sched
-            .add_routine(sample_routine("r-001", "Exec"))
-            .unwrap();
+        sched.add_routine(sample_routine("r-001", "Exec")).unwrap();
 
         let log = ExecutionLog {
             execution_id: "e-001".to_string(),
@@ -810,9 +792,7 @@ mod tests {
     #[test]
     fn test_stats_with_data() {
         let mut sched = RoutineScheduler::new();
-        sched
-            .add_routine(sample_routine("r-001", "S"))
-            .unwrap();
+        sched.add_routine(sample_routine("r-001", "S")).unwrap();
 
         let log = ExecutionLog {
             execution_id: "e-001".to_string(),
@@ -869,9 +849,7 @@ mod tests {
     #[test]
     fn test_to_json_roundtrip() {
         let mut sched = RoutineScheduler::new();
-        sched
-            .add_routine(sample_routine("r-001", "JSON"))
-            .unwrap();
+        sched.add_routine(sample_routine("r-001", "JSON")).unwrap();
 
         let json = sched.to_json().unwrap();
         let parsed: SchedulerState = serde_json::from_str(&json).unwrap();

@@ -177,8 +177,12 @@ impl ProofBuilder {
         content: &[u8],
         source: impl Into<String>,
     ) -> Self {
-        self.evidence_chain
-            .push(Evidence::new(description, Ground::Observed, content, source));
+        self.evidence_chain.push(Evidence::new(
+            description,
+            Ground::Observed,
+            content,
+            source,
+        ));
         self
     }
 
@@ -189,8 +193,12 @@ impl ProofBuilder {
         content: &[u8],
         source: impl Into<String>,
     ) -> Self {
-        self.evidence_chain
-            .push(Evidence::new(description, Ground::Confirmed, content, source));
+        self.evidence_chain.push(Evidence::new(
+            description,
+            Ground::Confirmed,
+            content,
+            source,
+        ));
         self
     }
 
@@ -201,8 +209,12 @@ impl ProofBuilder {
         content: &[u8],
         source: impl Into<String>,
     ) -> Self {
-        self.evidence_chain
-            .push(Evidence::new(description, Ground::Verified, content, source));
+        self.evidence_chain.push(Evidence::new(
+            description,
+            Ground::Verified,
+            content,
+            source,
+        ));
         self
     }
 

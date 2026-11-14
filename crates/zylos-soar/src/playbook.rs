@@ -105,11 +105,8 @@ impl Playbook {
         }
 
         // Build state name index
-        let state_names: HashMap<&str, &PlaybookState> = self
-            .states
-            .iter()
-            .map(|s| (s.name.as_str(), s))
-            .collect();
+        let state_names: HashMap<&str, &PlaybookState> =
+            self.states.iter().map(|s| (s.name.as_str(), s)).collect();
 
         // Verify all transitions reference existing states
         for state in &self.states {
@@ -187,14 +184,12 @@ impl PlaybookCursor {
         playbook: &Playbook,
         _context: &serde_json::Value,
     ) -> Result<Option<String>> {
-        let state = playbook
-            .find_state(&self.current_state)
-            .ok_or_else(|| {
-                SoarError::PlaybookParse(format!(
-                    "current state '{}' not found in playbook '{}'",
-                    self.current_state, self.playbook_name
-                ))
-            })?;
+        let state = playbook.find_state(&self.current_state).ok_or_else(|| {
+            SoarError::PlaybookParse(format!(
+                "current state '{}' not found in playbook '{}'",
+                self.current_state, self.playbook_name
+            ))
+        })?;
 
         if state.terminal {
             return Ok(None);

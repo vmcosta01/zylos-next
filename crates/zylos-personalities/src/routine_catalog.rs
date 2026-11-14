@@ -222,12 +222,7 @@ impl RoutineCatalog {
     pub fn list_for_role(&self, role: &EmployeeRole) -> Vec<&RoutineDefinition> {
         self.role_index
             .get(role)
-            .map(|names| {
-                names
-                    .iter()
-                    .filter_map(|n| self.routines.get(n))
-                    .collect()
-            })
+            .map(|names| names.iter().filter_map(|n| self.routines.get(n)).collect())
             .unwrap_or_default()
     }
 
@@ -482,18 +477,23 @@ mod tests {
 
     #[test]
     fn test_builder_pattern() {
-        let def = RoutineDefinition::new("full", "Full routine", "handler", vec![EmployeeRole::Developer])
-            .with_timeout(600)
-            .requires_approval()
-            .with_parameter(RoutineParameter {
-                name: "target".into(),
-                param_type: "string".into(),
-                required: true,
-                default_value: None,
-                description: Some("Target path".into()),
-            })
-            .with_tag("ci-cd")
-            .with_version("2.0");
+        let def = RoutineDefinition::new(
+            "full",
+            "Full routine",
+            "handler",
+            vec![EmployeeRole::Developer],
+        )
+        .with_timeout(600)
+        .requires_approval()
+        .with_parameter(RoutineParameter {
+            name: "target".into(),
+            param_type: "string".into(),
+            required: true,
+            default_value: None,
+            description: Some("Target path".into()),
+        })
+        .with_tag("ci-cd")
+        .with_version("2.0");
 
         assert_eq!(def.timeout_secs, 600);
         assert!(def.requires_approval);
@@ -513,10 +513,20 @@ mod tests {
             )
             .unwrap();
         catalog
-            .register(RoutineDefinition::new("r2", "d2", "h2", vec![EmployeeRole::Developer]))
+            .register(RoutineDefinition::new(
+                "r2",
+                "d2",
+                "h2",
+                vec![EmployeeRole::Developer],
+            ))
             .unwrap();
         catalog
-            .register(RoutineDefinition::new("r3", "d3", "h3", vec![EmployeeRole::Researcher]))
+            .register(RoutineDefinition::new(
+                "r3",
+                "d3",
+                "h3",
+                vec![EmployeeRole::Researcher],
+            ))
             .unwrap();
 
         let stats = catalog.stats();
@@ -531,9 +541,14 @@ mod tests {
         let mut catalog = RoutineCatalog::new();
         catalog
             .register(
-                RoutineDefinition::new("ser-test", "Serialization test", "handler", vec![EmployeeRole::DevOps])
-                    .with_timeout(120)
-                    .with_tag("infra"),
+                RoutineDefinition::new(
+                    "ser-test",
+                    "Serialization test",
+                    "handler",
+                    vec![EmployeeRole::DevOps],
+                )
+                .with_timeout(120)
+                .with_tag("infra"),
             )
             .unwrap();
 
@@ -577,10 +592,7 @@ mod tests {
     fn test_catalog_stats_serialization() {
         let stats = CatalogStats {
             total_routines: 10,
-            role_counts: HashMap::from([
-                (EmployeeRole::Developer, 5),
-                (EmployeeRole::DevOps, 3),
-            ]),
+            role_counts: HashMap::from([(EmployeeRole::Developer, 5), (EmployeeRole::DevOps, 3)]),
             approval_required_count: 2,
         };
         let json = serde_json::to_string(&stats).unwrap();

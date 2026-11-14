@@ -11,16 +11,20 @@ use tracing::{info, warn};
 #[derive(Clone)]
 #[allow(dead_code)]
 pub struct AxiomConfig {
- pub token: String,
- pub dataset: String,
- pub endpoint: String,
+    pub token: String,
+    pub dataset: String,
+    pub endpoint: String,
 }
 
 impl AxiomConfig {
     /// Carrega configuração de env vars. Retorna None se não configurado.
     pub fn from_env() -> Option<Self> {
-        let token = std::env::var("AXIOM_TOKEN").ok().filter(|t| !t.is_empty())?;
-        let dataset = std::env::var("AXIOM_DATASET").ok().filter(|d| !d.is_empty())?;
+        let token = std::env::var("AXIOM_TOKEN")
+            .ok()
+            .filter(|t| !t.is_empty())?;
+        let dataset = std::env::var("AXIOM_DATASET")
+            .ok()
+            .filter(|d| !d.is_empty())?;
         let endpoint = std::env::var("AXIOM_ENDPOINT")
             .unwrap_or_else(|_| "https://api.axiom.co/v1/datasets".to_string());
 
@@ -56,9 +60,9 @@ struct AxiomLogEntry {
 #[derive(Clone)]
 #[allow(dead_code)]
 pub struct AxiomClient {
- config: AxiomConfig,
- client: reqwest::Client,
- tx: mpsc::Sender<AxiomLogEntry>,
+    config: AxiomConfig,
+    client: reqwest::Client,
+    tx: mpsc::Sender<AxiomLogEntry>,
 }
 
 impl AxiomClient {

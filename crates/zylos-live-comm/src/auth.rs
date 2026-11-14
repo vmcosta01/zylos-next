@@ -18,13 +18,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// Estrutura Claims.
 pub struct Claims {
     /// Campo sub.
-    pub sub: String,       // User ID
+    pub sub: String, // User ID
     /// Campo role.
-    pub role: String,      // RBAC role
+    pub role: String, // RBAC role
     /// Campo exp.
-    pub exp: usize,        // Expiration timestamp
+    pub exp: usize, // Expiration timestamp
     /// Campo iat.
-    pub iat: usize,        // Issued at timestamp
+    pub iat: usize, // Issued at timestamp
 }
 
 /// Configuration for JWT authentication
@@ -53,7 +53,11 @@ impl Default for JwtConfig {
 
 impl JwtConfig {
     /// Create a new JWT token for the given user
-    pub fn create_token(&self, user_id: &str, role: &str) -> Result<String, jsonwebtoken::errors::Error> {
+    pub fn create_token(
+        &self,
+        user_id: &str,
+        role: &str,
+    ) -> Result<String, jsonwebtoken::errors::Error> {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("system time before epoch")
@@ -88,10 +92,7 @@ impl JwtConfig {
 }
 
 /// Axum middleware that validates JWT Bearer tokens
-pub async fn jwt_auth_middleware(
-    mut request: Request,
-    next: Next,
-) -> Response {
+pub async fn jwt_auth_middleware(mut request: Request, next: Next) -> Response {
     let config = request
         .extensions()
         .get::<JwtConfig>()
@@ -105,7 +106,10 @@ pub async fn jwt_auth_middleware(
         .unwrap_or("");
 
     if !auth_header.starts_with("Bearer ") {
-        return error_response(StatusCode::UNAUTHORIZED, "missing or invalid authorization header");
+        return error_response(
+            StatusCode::UNAUTHORIZED,
+            "missing or invalid authorization header",
+        );
     }
 
     let token = &auth_header[7..];

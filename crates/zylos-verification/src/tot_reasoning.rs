@@ -209,9 +209,7 @@ impl CompositePruner {
 
 impl PruningStrategy for CompositePruner {
     fn should_keep(&self, node: &ThoughtNode, ctx: &PruneContext) -> bool {
-        self.strategies
-            .iter()
-            .all(|s| s.should_keep(node, ctx))
+        self.strategies.iter().all(|s| s.should_keep(node, ctx))
     }
     fn name(&self) -> &'static str {
         "composite"
@@ -494,10 +492,7 @@ mod tests {
 
         assert_eq!(result.len(), 2, "beam width must be respected");
         // Scores of kept nodes should be the two highest.
-        let scores: Vec<f64> = result
-            .iter()
-            .map(|id| search.nodes()[id].score)
-            .collect();
+        let scores: Vec<f64> = result.iter().map(|id| search.nodes()[id].score).collect();
         assert!(scores.iter().all(|&s| s >= 0.7));
     }
 
@@ -554,9 +549,7 @@ mod tests {
         search.save_checkpoint(1, beam_before.clone());
 
         // Mutate: add another child.
-        search.expand(0, |_| {
-            vec![("z".into(), 0.1, ThoughtVerdict::DeadEnd)]
-        });
+        search.expand(0, |_| vec![("z".into(), 0.1, ThoughtVerdict::DeadEnd)]);
         assert_eq!(search.nodes().len(), 4); // root + x + y + z
 
         // Backtrack.
@@ -591,14 +584,11 @@ mod tests {
             depth_limit: 3,
         };
         let mut search = TreeSearch::new("root", config);
-        search.expand(0, |_| {
-            vec![("step1".into(), 0.9, ThoughtVerdict::Solved)]
-        });
+        search.expand(0, |_| vec![("step1".into(), 0.9, ThoughtVerdict::Solved)]);
 
         let trace = search.build_trace(42, 100);
         let json = trace.to_json().expect("must serialise");
-        let parsed: serde_json::Value =
-            serde_json::from_str(&json).expect("must be valid JSON");
+        let parsed: serde_json::Value = serde_json::from_str(&json).expect("must be valid JSON");
         assert!(parsed["explored_nodes"].is_array());
         assert_eq!(parsed["latency_ms"], 42);
     }

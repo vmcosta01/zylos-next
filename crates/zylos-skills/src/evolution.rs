@@ -53,7 +53,10 @@ pub enum SkillStatus {
     /// Skill ativa e utilizável.
     Active,
     /// Skill deprecated (substituída ou reparada).
-    Deprecated { reason: String, replaced_by: Option<String> },
+    Deprecated {
+        reason: String,
+        replaced_by: Option<String>,
+    },
     /// Skill removida do grafo.
     Retired,
 }
@@ -144,9 +147,7 @@ impl SkillEvolutionGraph {
 
     /// Busca uma skill por ID.
     pub fn get_skill(&self, skill_id: &str) -> Option<&SkillNode> {
-        self.node_map
-            .get(skill_id)
-            .map(|&idx| &self.graph[idx])
+        self.node_map.get(skill_id).map(|&idx| &self.graph[idx])
     }
 
     /// Retorna todas as skills ativas.
@@ -239,17 +240,29 @@ impl SkillEvolutionGraph {
         // Criar contrato mergeado
         let mut merged_contract = SkillContract::default();
         if let Some(ref ca) = node_a.contract {
-            merged_contract.preconditions.extend(ca.preconditions.iter().cloned());
+            merged_contract
+                .preconditions
+                .extend(ca.preconditions.iter().cloned());
             merged_contract.outputs.extend(ca.outputs.iter().cloned());
-            merged_contract.assertions.extend(ca.assertions.iter().cloned());
-            merged_contract.validators.extend(ca.validators.iter().cloned());
+            merged_contract
+                .assertions
+                .extend(ca.assertions.iter().cloned());
+            merged_contract
+                .validators
+                .extend(ca.validators.iter().cloned());
             merged_contract.fitness.extend(ca.fitness.iter().cloned());
         }
         if let Some(ref cb) = node_b.contract {
-            merged_contract.preconditions.extend(cb.preconditions.iter().cloned());
+            merged_contract
+                .preconditions
+                .extend(cb.preconditions.iter().cloned());
             merged_contract.outputs.extend(cb.outputs.iter().cloned());
-            merged_contract.assertions.extend(cb.assertions.iter().cloned());
-            merged_contract.validators.extend(cb.validators.iter().cloned());
+            merged_contract
+                .assertions
+                .extend(cb.assertions.iter().cloned());
+            merged_contract
+                .validators
+                .extend(cb.validators.iter().cloned());
             merged_contract.fitness.extend(cb.fitness.iter().cloned());
         }
 
@@ -446,9 +459,7 @@ mod tests {
         graph.add_skill(make_node("a", "Skill A"));
         graph.add_skill(make_node("b", "Skill B"));
 
-        assert!(graph
-            .add_relation("a", "b", EvolutionEdge::Extends)
-            .is_ok());
+        assert!(graph.add_relation("a", "b", EvolutionEdge::Extends).is_ok());
         assert_eq!(graph.relation_count(), 1);
     }
 
@@ -555,8 +566,12 @@ mod tests {
         graph.add_skill(make_node("b", "B"));
         graph.add_skill(make_node("c", "C"));
 
-        graph.add_relation("a", "b", EvolutionEdge::Extends).unwrap();
-        graph.add_relation("a", "c", EvolutionEdge::DependsOn).unwrap();
+        graph
+            .add_relation("a", "b", EvolutionEdge::Extends)
+            .unwrap();
+        graph
+            .add_relation("a", "c", EvolutionEdge::DependsOn)
+            .unwrap();
 
         let succs = graph.successors("a").unwrap();
         assert_eq!(succs.len(), 2);
@@ -588,8 +603,12 @@ mod tests {
         graph.add_skill(make_node("b", "B"));
         graph.add_skill(make_node("c", "C"));
 
-        graph.add_relation("a", "b", EvolutionEdge::Extends).unwrap();
-        graph.add_relation("b", "c", EvolutionEdge::DependsOn).unwrap();
+        graph
+            .add_relation("a", "b", EvolutionEdge::Extends)
+            .unwrap();
+        graph
+            .add_relation("b", "c", EvolutionEdge::DependsOn)
+            .unwrap();
 
         assert!(!graph.has_cycles());
     }
@@ -600,8 +619,12 @@ mod tests {
         graph.add_skill(make_node("a", "A"));
         graph.add_skill(make_node("b", "B"));
 
-        graph.add_relation("a", "b", EvolutionEdge::DependsOn).unwrap();
-        graph.add_relation("b", "a", EvolutionEdge::DependsOn).unwrap();
+        graph
+            .add_relation("a", "b", EvolutionEdge::DependsOn)
+            .unwrap();
+        graph
+            .add_relation("b", "a", EvolutionEdge::DependsOn)
+            .unwrap();
 
         assert!(graph.has_cycles());
     }
@@ -611,7 +634,9 @@ mod tests {
         let mut graph = SkillEvolutionGraph::new();
         graph.add_skill(make_node("a", "A"));
         graph.add_skill(make_node("b", "B"));
-        graph.add_relation("a", "b", EvolutionEdge::Extends).unwrap();
+        graph
+            .add_relation("a", "b", EvolutionEdge::Extends)
+            .unwrap();
         graph.deprecate("b", "old", None).unwrap();
 
         let stats = graph.stats();
@@ -628,7 +653,9 @@ mod tests {
         let mut graph = SkillEvolutionGraph::new();
         graph.add_skill(make_node("x", "X"));
         graph.add_skill(make_node("y", "Y"));
-        graph.add_relation("x", "y", EvolutionEdge::Replaces).unwrap();
+        graph
+            .add_relation("x", "y", EvolutionEdge::Replaces)
+            .unwrap();
 
         let json = graph.to_json().unwrap();
         assert!(json.contains("\"nodes\""));

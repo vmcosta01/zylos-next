@@ -68,7 +68,9 @@ fn post(path: &str, auth: Option<&str>, body: &str) -> Request<Body> {
 }
 
 async fn json_of(resp: axum::response::Response) -> serde_json::Value {
-    let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
+    let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20)
+        .await
+        .unwrap();
     serde_json::from_slice(&bytes).unwrap()
 }
 
@@ -76,8 +78,7 @@ fn bearer() -> String {
     format!("Bearer {TOKEN}")
 }
 
-const EVENT: &str =
-    r#"{"source":"hermes-kanban","event_type":"text.delta","payload":{"message_id":"m1","delta":"oi"}}"#;
+const EVENT: &str = r#"{"source":"hermes-kanban","event_type":"text.delta","payload":{"message_id":"m1","delta":"oi"}}"#;
 
 #[tokio::test]
 async fn sem_token_configurado_nega_tudo() {
@@ -92,7 +93,10 @@ async fn sem_token_configurado_nega_tudo() {
 #[tokio::test]
 async fn sem_header_retorna_401() {
     let (app, _) = app(Some(TOKEN)).await;
-    let r = app.oneshot(post("/api/v1/hermes/events", None, EVENT)).await.unwrap();
+    let r = app
+        .oneshot(post("/api/v1/hermes/events", None, EVENT))
+        .await
+        .unwrap();
     assert_eq!(r.status(), StatusCode::UNAUTHORIZED);
 }
 
@@ -104,7 +108,13 @@ async fn token_errado_retorna_401() {
         .await
         .unwrap();
     assert_eq!(r.status(), StatusCode::UNAUTHORIZED);
-    let ct = r.headers().get("content-type").unwrap().to_str().unwrap().to_string();
+    let ct = r
+        .headers()
+        .get("content-type")
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
     assert!(ct.contains("application/problem+json"));
 }
 
@@ -152,7 +162,11 @@ async fn atalho_sistema_acao_funciona() {
     let (app, _) = app(Some(TOKEN)).await;
     // Usa uma ação genérica (não dispatch-task/spawn-crew) para testar o catch-all.
     let r = app
-        .oneshot(post("/api/v1/hermes/bot/heartbeat", Some(&bearer()), r#"{}"#))
+        .oneshot(post(
+            "/api/v1/hermes/bot/heartbeat",
+            Some(&bearer()),
+            r#"{}"#,
+        ))
         .await
         .unwrap();
     assert_eq!(r.status(), StatusCode::OK);
@@ -176,7 +190,11 @@ const DISPATCH_OK: &str = r#"{
 async fn dispatch_task_um_no_retorna_executed() {
     let (app, _) = app(Some(TOKEN)).await;
     let r = app
-        .oneshot(post("/api/v1/hermes/bot/dispatch-task", Some(&bearer()), DISPATCH_OK))
+        .oneshot(post(
+            "/api/v1/hermes/bot/dispatch-task",
+            Some(&bearer()),
+            DISPATCH_OK,
+        ))
         .await
         .unwrap();
     assert_eq!(r.status(), StatusCode::OK);
@@ -200,7 +218,11 @@ async fn dispatch_task_com_dependencia_executa_dois_nos() {
     }"#;
     let (app, _) = app(Some(TOKEN)).await;
     let r = app
-        .oneshot(post("/api/v1/hermes/bot/dispatch-task", Some(&bearer()), body))
+        .oneshot(post(
+            "/api/v1/hermes/bot/dispatch-task",
+            Some(&bearer()),
+            body,
+        ))
         .await
         .unwrap();
     assert_eq!(r.status(), StatusCode::OK);
@@ -214,7 +236,11 @@ async fn dispatch_task_sem_task_id_retorna_422() {
     let body = r#"{"task_id":"","nodes":[{"subsystem":"sandbox","action":"wasm_check","payload":{},"depends_on":[]}]}"#;
     let (app, _) = app(Some(TOKEN)).await;
     let r = app
-        .oneshot(post("/api/v1/hermes/bot/dispatch-task", Some(&bearer()), body))
+        .oneshot(post(
+            "/api/v1/hermes/bot/dispatch-task",
+            Some(&bearer()),
+            body,
+        ))
         .await
         .unwrap();
     assert_eq!(r.status(), StatusCode::UNPROCESSABLE_ENTITY);
@@ -227,7 +253,11 @@ async fn dispatch_task_sem_nodes_retorna_422() {
     let body = r#"{"task_id":"x","nodes":[]}"#;
     let (app, _) = app(Some(TOKEN)).await;
     let r = app
-        .oneshot(post("/api/v1/hermes/bot/dispatch-task", Some(&bearer()), body))
+        .oneshot(post(
+            "/api/v1/hermes/bot/dispatch-task",
+            Some(&bearer()),
+            body,
+        ))
         .await
         .unwrap();
     assert_eq!(r.status(), StatusCode::UNPROCESSABLE_ENTITY);
@@ -248,7 +278,11 @@ async fn dispatch_task_publica_evento_no_event_bus() {
     let (app, st) = app(Some(TOKEN)).await;
     let _sub = st.event_bus.subscribe_legacy();
     let r = app
-        .oneshot(post("/api/v1/hermes/bot/dispatch-task", Some(&bearer()), DISPATCH_OK))
+        .oneshot(post(
+            "/api/v1/hermes/bot/dispatch-task",
+            Some(&bearer()),
+            DISPATCH_OK,
+        ))
         .await
         .unwrap();
     assert_eq!(r.status(), StatusCode::OK);
@@ -276,7 +310,11 @@ const CREW_OK: &str = r#"{
 async fn spawn_crew_valido_retorna_spawned() {
     let (app, _) = app(Some(TOKEN)).await;
     let r = app
-        .oneshot(post("/api/v1/hermes/bot/spawn-crew", Some(&bearer()), CREW_OK))
+        .oneshot(post(
+            "/api/v1/hermes/bot/spawn-crew",
+            Some(&bearer()),
+            CREW_OK,
+        ))
         .await
         .unwrap();
     assert_eq!(r.status(), StatusCode::OK);
@@ -320,7 +358,11 @@ async fn spawn_crew_publica_evento_no_event_bus() {
     let (app, st) = app(Some(TOKEN)).await;
     let _sub = st.event_bus.subscribe_legacy();
     let r = app
-        .oneshot(post("/api/v1/hermes/bot/spawn-crew", Some(&bearer()), CREW_OK))
+        .oneshot(post(
+            "/api/v1/hermes/bot/spawn-crew",
+            Some(&bearer()),
+            CREW_OK,
+        ))
         .await
         .unwrap();
     assert_eq!(r.status(), StatusCode::OK);
@@ -347,7 +389,11 @@ async fn dispatch_task_forma_simplificada_um_no() {
     let body = r#"{"task_id":"t-simple","subsystem":"sandbox","action":"wasm_check"}"#;
     let (app, _) = app(Some(TOKEN)).await;
     let r = app
-        .oneshot(post("/api/v1/hermes/bot/dispatch-task", Some(&bearer()), body))
+        .oneshot(post(
+            "/api/v1/hermes/bot/dispatch-task",
+            Some(&bearer()),
+            body,
+        ))
         .await
         .unwrap();
     assert_eq!(r.status(), StatusCode::OK);
@@ -372,7 +418,11 @@ async fn dispatch_task_ids_customos_com_dependencia() {
     }"#;
     let (app, _) = app(Some(TOKEN)).await;
     let r = app
-        .oneshot(post("/api/v1/hermes/bot/dispatch-task", Some(&bearer()), body))
+        .oneshot(post(
+            "/api/v1/hermes/bot/dispatch-task",
+            Some(&bearer()),
+            body,
+        ))
         .await
         .unwrap();
     assert_eq!(r.status(), StatusCode::OK);
@@ -391,7 +441,11 @@ async fn dispatch_task_depends_on_inexistente_retorna_422() {
     }"#;
     let (app, _) = app(Some(TOKEN)).await;
     let r = app
-        .oneshot(post("/api/v1/hermes/bot/dispatch-task", Some(&bearer()), body))
+        .oneshot(post(
+            "/api/v1/hermes/bot/dispatch-task",
+            Some(&bearer()),
+            body,
+        ))
         .await
         .unwrap();
     assert_eq!(r.status(), StatusCode::UNPROCESSABLE_ENTITY);
@@ -410,7 +464,11 @@ async fn dispatch_task_ciclo_entre_nos_retorna_422() {
     }"#;
     let (app, _) = app(Some(TOKEN)).await;
     let r = app
-        .oneshot(post("/api/v1/hermes/bot/dispatch-task", Some(&bearer()), body))
+        .oneshot(post(
+            "/api/v1/hermes/bot/dispatch-task",
+            Some(&bearer()),
+            body,
+        ))
         .await
         .unwrap();
     assert_eq!(r.status(), StatusCode::UNPROCESSABLE_ENTITY);
@@ -437,7 +495,10 @@ async fn dispatch_task_json_malformado_retorna_422_problem() {
     let ct = r.headers().get("content-type").unwrap().to_str().unwrap();
     assert!(ct.contains("application/problem+json"));
     let v = json_of(r).await;
-    assert!(v["type"].as_str().unwrap().ends_with("invalid-dispatch-task"));
+    assert!(v["type"]
+        .as_str()
+        .unwrap()
+        .ends_with("invalid-dispatch-task"));
 }
 
 #[tokio::test]
@@ -464,7 +525,11 @@ async fn dispatch_task_sem_campo_task_id_retorna_422() {
     let body = r#"{"subsystem":"sandbox","action":"wasm_check"}"#;
     let (app, _) = app(Some(TOKEN)).await;
     let r = app
-        .oneshot(post("/api/v1/hermes/bot/dispatch-task", Some(&bearer()), body))
+        .oneshot(post(
+            "/api/v1/hermes/bot/dispatch-task",
+            Some(&bearer()),
+            body,
+        ))
         .await
         .unwrap();
     assert_eq!(r.status(), StatusCode::UNPROCESSABLE_ENTITY);
@@ -553,7 +618,11 @@ async fn spawn_crew_isola_equipes_atribuicoes_so_da_propria_crew() {
 
     let rx = app
         .clone()
-        .oneshot(post("/api/v1/hermes/bot/spawn-crew", Some(&bearer()), body_x))
+        .oneshot(post(
+            "/api/v1/hermes/bot/spawn-crew",
+            Some(&bearer()),
+            body_x,
+        ))
         .await
         .unwrap();
     assert_eq!(rx.status(), StatusCode::OK);
@@ -567,7 +636,11 @@ async fn spawn_crew_isola_equipes_atribuicoes_so_da_propria_crew() {
     assert_eq!(x_task_ids.len(), 2, "X deve ter 2 tasks registradas");
 
     let ry = app
-        .oneshot(post("/api/v1/hermes/bot/spawn-crew", Some(&bearer()), body_y))
+        .oneshot(post(
+            "/api/v1/hermes/bot/spawn-crew",
+            Some(&bearer()),
+            body_y,
+        ))
         .await
         .unwrap();
     assert_eq!(ry.status(), StatusCode::OK);
@@ -590,7 +663,10 @@ async fn spawn_crew_isola_equipes_atribuicoes_so_da_propria_crew() {
             y_task_ids.contains(&tid.to_string()),
             "assignment de Y referencia task_id {tid} que não pertence a Y (tasks={y_task_ids:?})"
         );
-        assert_eq!(aid, "my", "assignment de Y referencia agente {aid} fora da crew");
+        assert_eq!(
+            aid, "my",
+            "assignment de Y referencia agente {aid} fora da crew"
+        );
     }
 
     // (b) blocked/unassignable de Y não listam a task que sobrou de X.
@@ -708,7 +784,11 @@ async fn dispatch_task_resposta_inclui_resumo_por_no() {
         ]
     }"#;
     let r = app
-        .oneshot(post("/api/v1/hermes/bot/dispatch-task", Some(&bearer()), body))
+        .oneshot(post(
+            "/api/v1/hermes/bot/dispatch-task",
+            Some(&bearer()),
+            body,
+        ))
         .await
         .unwrap();
     assert_eq!(r.status(), StatusCode::OK);
@@ -717,7 +797,10 @@ async fn dispatch_task_resposta_inclui_resumo_por_no() {
     assert_eq!(results.len(), 2);
     for node in results {
         assert!(node.get("node_id").is_some(), "node_id ausente em {node:?}");
-        assert!(node.get("subsystem").is_some(), "subsystem ausente em {node:?}");
+        assert!(
+            node.get("subsystem").is_some(),
+            "subsystem ausente em {node:?}"
+        );
         assert!(node.get("success").is_some(), "success ausente em {node:?}");
     }
 }
@@ -730,12 +813,17 @@ async fn spawn_crew_tarefa_que_sobrou_nao_vai_para_outra_equipe() {
     // swarm (assigned_agent), nao na resposta filtrada.
     let body_x = r#"{"crew_id":"sx","members":[{"id":"sx-m","name":"SX","max_concurrent":1}],
         "tasks":[{"name":"sx1"},{"name":"sx2"}]}"#;
-    let body_y = r#"{"crew_id":"sy","members":[{"id":"sy-m","name":"SY"}],"tasks":[{"name":"sy1"}]}"#;
+    let body_y =
+        r#"{"crew_id":"sy","members":[{"id":"sy-m","name":"SY"}],"tasks":[{"name":"sy1"}]}"#;
     let (app, st) = app(Some(TOKEN)).await;
 
     let vx = json_of(
         app.clone()
-            .oneshot(post("/api/v1/hermes/bot/spawn-crew", Some(&bearer()), body_x))
+            .oneshot(post(
+                "/api/v1/hermes/bot/spawn-crew",
+                Some(&bearer()),
+                body_x,
+            ))
             .await
             .unwrap(),
     )
@@ -749,13 +837,22 @@ async fn spawn_crew_tarefa_que_sobrou_nao_vai_para_outra_equipe() {
     assert_eq!(x_ids.len(), 2);
 
     let ry = app
-        .oneshot(post("/api/v1/hermes/bot/spawn-crew", Some(&bearer()), body_y))
+        .oneshot(post(
+            "/api/v1/hermes/bot/spawn-crew",
+            Some(&bearer()),
+            body_y,
+        ))
         .await
         .unwrap();
     assert_eq!(ry.status(), StatusCode::OK);
 
     for id in &x_ids {
-        let task = st.swarm.get_task(id).await.unwrap().expect("task de X sumiu do swarm");
+        let task = st
+            .swarm
+            .get_task(id)
+            .await
+            .unwrap()
+            .expect("task de X sumiu do swarm");
         assert_ne!(
             task.assigned_agent.as_deref(),
             Some("sy-m"),
@@ -786,7 +883,11 @@ async fn dispatch_task_nos_fora_de_ordem_executam_na_ordem_das_dependencias() {
     }"#;
     let (app, _) = app(Some(TOKEN)).await;
     let r = app
-        .oneshot(post("/api/v1/hermes/bot/dispatch-task", Some(&bearer()), body))
+        .oneshot(post(
+            "/api/v1/hermes/bot/dispatch-task",
+            Some(&bearer()),
+            body,
+        ))
         .await
         .unwrap();
     assert_eq!(r.status(), StatusCode::OK);
@@ -809,9 +910,13 @@ async fn dispatch_task_pedido_ja_em_ordem_nao_muda_de_ordem() {
     }"#;
     let (app, _) = app(Some(TOKEN)).await;
     let v = json_of(
-        app.oneshot(post("/api/v1/hermes/bot/dispatch-task", Some(&bearer()), body))
-            .await
-            .unwrap(),
+        app.oneshot(post(
+            "/api/v1/hermes/bot/dispatch-task",
+            Some(&bearer()),
+            body,
+        ))
+        .await
+        .unwrap(),
     )
     .await;
     assert_eq!(v["succeeded"], 3);

@@ -369,7 +369,13 @@ struct ClaudePluginManifest {
 /// Sanitiza nome de arquivo removendo caracteres inseguros
 fn sanitize_filename(id: &str) -> String {
     id.chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 
@@ -381,10 +387,10 @@ mod tests {
     fn sample_skills() -> Vec<ExportableSkill> {
         vec![
             // Variante ExportableSkill.
-                        ExportableSkill {
-                            id: "code-review-v2".to_string(),
-                            name: "Code Review v2".to_string(),
-                            description: "Revisão de código com foco em segurança e performance".to_string(),
+            ExportableSkill {
+                id: "code-review-v2".to_string(),
+                name: "Code Review v2".to_string(),
+                description: "Revisão de código com foco em segurança e performance".to_string(),
                 version: "2.1.0".to_string(),
                 triggers: vec!["review code".to_string(), "check PR".to_string()],
                 instructions: "Analise o diff, identifique vulnerabilidades...".to_string(),
@@ -393,10 +399,10 @@ mod tests {
                 metadata: HashMap::new(),
             },
             // Variante ExportableSkill.
-             ExportableSkill {
-             id: "test-generator".to_string(),
-             name: "Test Generator".to_string(),
-             description: "Gera testes unitários automaticamente".to_string(),
+            ExportableSkill {
+                id: "test-generator".to_string(),
+                name: "Test Generator".to_string(),
+                description: "Gera testes unitários automaticamente".to_string(),
                 version: "1.0.0".to_string(),
                 triggers: vec!["generate tests".to_string()],
                 instructions: "Leia o arquivo fonte e gere testes...".to_string(),
@@ -468,13 +474,18 @@ mod tests {
 
         let plugin_dir = tmp.join(".claude-plugin");
         assert!(plugin_dir.join("manifest.json").exists());
-        assert!(plugin_dir.join("skills").join("code-review-v2.json").exists());
-        assert!(plugin_dir.join("skills").join("test-generator.json").exists());
+        assert!(plugin_dir
+            .join("skills")
+            .join("code-review-v2.json")
+            .exists());
+        assert!(plugin_dir
+            .join("skills")
+            .join("test-generator.json")
+            .exists());
 
-        let manifest: serde_json::Value = serde_json::from_str(
-            &fs::read_to_string(plugin_dir.join("manifest.json")).unwrap(),
-        )
-        .unwrap();
+        let manifest: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(plugin_dir.join("manifest.json")).unwrap())
+                .unwrap();
         assert_eq!(manifest["name"], "zylos-exported-skills");
         assert_eq!(manifest["skills"].as_array().unwrap().len(), 2);
 
@@ -498,7 +509,10 @@ mod tests {
     #[test]
     fn test_sanitize_filename() {
         assert_eq!(sanitize_filename("my-skill_v2"), "my-skill_v2");
-        assert_eq!(sanitize_filename("skill/with:special"), "skill_with_special");
+        assert_eq!(
+            sanitize_filename("skill/with:special"),
+            "skill_with_special"
+        );
         assert_eq!(sanitize_filename("normal-name"), "normal-name");
     }
 

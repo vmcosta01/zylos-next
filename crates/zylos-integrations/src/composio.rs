@@ -181,7 +181,9 @@ impl ComposioAdapter {
             .filter(|a| {
                 a.name.to_lowercase().contains(&query_lower)
                     || a.description.to_lowercase().contains(&query_lower)
-                    || a.categories.iter().any(|c| c.to_lowercase().contains(&query_lower))
+                    || a.categories
+                        .iter()
+                        .any(|c| c.to_lowercase().contains(&query_lower))
             })
             .collect())
     }
@@ -199,7 +201,10 @@ impl ComposioAdapter {
             req = req.header("x-api-key", key);
         }
 
-        let resp = req.send().await.map_err(|e| ComposioError::Http(e.to_string()))?;
+        let resp = req
+            .send()
+            .await
+            .map_err(|e| ComposioError::Http(e.to_string()))?;
 
         if resp.status().as_u16() == 429 {
             let retry = resp
@@ -255,7 +260,10 @@ impl ComposioAdapter {
             req = req.header("x-api-key", key);
         }
 
-        let resp = req.send().await.map_err(|e| ComposioError::Http(e.to_string()))?;
+        let resp = req
+            .send()
+            .await
+            .map_err(|e| ComposioError::Http(e.to_string()))?;
 
         if !resp.status().is_success() {
             return Err(ComposioError::Http(format!(
@@ -290,7 +298,10 @@ impl ComposioAdapter {
             req = req.header("x-api-key", key);
         }
 
-        let resp = req.send().await.map_err(|e| ComposioError::Http(e.to_string()))?;
+        let resp = req
+            .send()
+            .await
+            .map_err(|e| ComposioError::Http(e.to_string()))?;
 
         if !resp.status().is_success() {
             return Err(ComposioError::Http(format!(
@@ -325,7 +336,10 @@ impl ComposioAdapter {
             req = req.header("x-api-key", key);
         }
 
-        let resp = req.send().await.map_err(|e| ComposioError::Http(e.to_string()))?;
+        let resp = req
+            .send()
+            .await
+            .map_err(|e| ComposioError::Http(e.to_string()))?;
 
         if !resp.status().is_success() {
             warn!(status = %resp.status(), "Failed to fetch Composio catalog");
@@ -340,7 +354,8 @@ impl ComposioAdapter {
             .await
             .map_err(|e| ComposioError::Serialization(e.to_string()))?;
 
-        let map: HashMap<String, ComposioApp> = apps.iter().map(|a| (a.id.clone(), a.clone())).collect();
+        let map: HashMap<String, ComposioApp> =
+            apps.iter().map(|a| (a.id.clone(), a.clone())).collect();
         let count = map.len();
 
         let mut cache = self.catalog.write().await;
@@ -419,7 +434,9 @@ mod tests {
     #[tokio::test]
     async fn test_initiate_oauth_when_disabled() {
         let adapter = disabled_adapter();
-        let result = adapter.initiate_oauth("slack", "http://localhost/callback").await;
+        let result = adapter
+            .initiate_oauth("slack", "http://localhost/callback")
+            .await;
         assert!(matches!(result, Err(ComposioError::Disabled)));
     }
 

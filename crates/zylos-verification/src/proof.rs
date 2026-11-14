@@ -116,10 +116,7 @@ impl Proof {
             return ProofStatus::Refuted;
         }
 
-        let all_evidence_meets_ground = self
-            .evidence
-            .iter()
-            .all(|e| e.ground.meets(self.ground));
+        let all_evidence_meets_ground = self.evidence.iter().all(|e| e.ground.meets(self.ground));
 
         self.status = if self.evidence.is_empty() {
             tracing::info!(proof_id = %self.id, "Proof has no evidence, remains Pending");
@@ -222,7 +219,11 @@ mod tests {
     #[test]
     fn test_verify_with_sufficient_evidence() {
         let mut proof = Proof::new("file exists", Ground::Observado);
-        proof.add_evidence(Evidence::new("read_file returned content", "read_file", Ground::Observado));
+        proof.add_evidence(Evidence::new(
+            "read_file returned content",
+            "read_file",
+            Ground::Observado,
+        ));
         let status = proof.verify();
         assert_eq!(status, ProofStatus::Valid);
         assert!(proof.is_valid());
@@ -232,7 +233,11 @@ mod tests {
     fn test_verify_with_insufficient_evidence() {
         let mut proof = Proof::new("deployment succeeded", Ground::Confirmado);
         // Only Observado-level evidence, but claim requires Confirmado
-        proof.add_evidence(Evidence::new("log shows success", "terminal", Ground::Observado));
+        proof.add_evidence(Evidence::new(
+            "log shows success",
+            "terminal",
+            Ground::Observado,
+        ));
         let status = proof.verify();
         assert_eq!(status, ProofStatus::Pending);
     }
@@ -247,11 +252,19 @@ mod tests {
     #[test]
     fn test_refute() {
         let mut proof = Proof::new("server is up", Ground::Observado);
-        proof.add_evidence(Evidence::new("curl returned 200", "curl", Ground::Observado));
+        proof.add_evidence(Evidence::new(
+            "curl returned 200",
+            "curl",
+            Ground::Observado,
+        ));
         proof.verify();
         assert!(proof.is_valid());
 
-        proof.refute(Evidence::new("health check failed", "monitor", Ground::Observado));
+        proof.refute(Evidence::new(
+            "health check failed",
+            "monitor",
+            Ground::Observado,
+        ));
         assert!(proof.is_refuted());
         assert_eq!(proof.status, ProofStatus::Refuted);
     }
@@ -301,7 +314,11 @@ mod tests {
     #[test]
     fn test_serde_roundtrip() {
         let mut proof = Proof::new("serializable claim", Ground::Observado);
-        proof.add_evidence(Evidence::new("test evidence", "test_src", Ground::Observado));
+        proof.add_evidence(Evidence::new(
+            "test evidence",
+            "test_src",
+            Ground::Observado,
+        ));
         proof.verify();
 
         let json = serde_json::to_string(&proof).unwrap();

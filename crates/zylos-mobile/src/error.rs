@@ -1,5 +1,5 @@
-use thiserror::Error;
 use crate::mcp_server::McpErrorBody;
+use thiserror::Error;
 
 /// Unified error type for all mobile MCP server operations.
 ///
@@ -84,6 +84,10 @@ impl From<MobileError> for crate::mcp_server::McpErrorBody {
             MobileError::Timeout(_) => (-32005, err.to_string()),
             _ => (-32603, err.to_string()),
         };
-        McpErrorBody { code, message, data: None }
+        McpErrorBody {
+            code,
+            message,
+            data: None,
+        }
     }
 }

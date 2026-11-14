@@ -17,18 +17,39 @@ async fn memory_decay_prunes_stale_entries() {
     });
 
     let ingest_url = format!("{}/api/v1/memory/ingest", gw.base_url());
-    gw.client.post(&ingest_url).json(&stale_fact).send().await.expect("ingest stale");
+    gw.client
+        .post(&ingest_url)
+        .json(&stale_fact)
+        .send()
+        .await
+        .expect("ingest stale");
 
     // Trigger decay/prune
     let prune_url = format!("{}/api/v1/memory/decay", gw.base_url());
     let resp = gw.client.post(&prune_url).send().await.expect("decay");
-    assert!(resp.status().is_success(), "decay failed: {}", resp.status());
+    assert!(
+        resp.status().is_success(),
+        "decay failed: {}",
+        resp.status()
+    );
 
     // Verify the stale entry is gone
-    let query_url = format!("{}/api/v1/memory/query?key=session.temp_token", gw.base_url());
-    let body: serde_json::Value = gw.client.get(&query_url)
-        .send().await.expect("query")
-        .json().await.expect("parse");
+    let query_url = format!(
+        "{}/api/v1/memory/query?key=session.temp_token",
+        gw.base_url()
+    );
+    let body: serde_json::Value = gw
+        .client
+        .get(&query_url)
+        .send()
+        .await
+        .expect("query")
+        .json()
+        .await
+        .expect("parse");
 
-    assert!(body.is_null() || body.get("value").is_none(), "stale entry should be pruned");
+    assert!(
+        body.is_null() || body.get("value").is_none(),
+        "stale entry should be pruned"
+    );
 }

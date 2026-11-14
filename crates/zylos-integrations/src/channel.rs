@@ -201,10 +201,12 @@ pub mod wechat_work {
 
         async fn ensure_token(&self) -> Result<String> {
             let token = self.access_token.read().await;
-            token.clone().ok_or_else(|| IntegrationError::NoTokensStored {
-                user_id: "system".to_string(),
-                provider: "wechat_work".to_string(),
-            })
+            token
+                .clone()
+                .ok_or_else(|| IntegrationError::NoTokensStored {
+                    user_id: "system".to_string(),
+                    provider: "wechat_work".to_string(),
+                })
         }
 
         async fn api_get(&self, path: &str, params: &[(&str, &str)]) -> Result<serde_json::Value> {
@@ -216,35 +218,50 @@ pub mod wechat_work {
                 req = req.query(&[(k, v)]);
             }
 
-            let resp = req.send().await.map_err(|e| IntegrationError::ProviderExecution {
-                provider: "wechat_work".to_string(),
-                action: path.to_string(),
-                detail: e.to_string(),
-            })?;
-
-            resp.json::<serde_json::Value>().await.map_err(|e| IntegrationError::ProviderExecution {
-                provider: "wechat_work".to_string(),
-                action: path.to_string(),
-                detail: format!("JSON parse error: {}", e),
-            })
-        }
-
-        async fn api_post(&self, path: &str, body: &serde_json::Value) -> Result<serde_json::Value> {
-            let token = self.ensure_token().await?;
-            let url = format!("{}{}?access_token={}", self.base_url, path, token);
-
-            let resp = self.client.post(&url)
-                .json(body)
-                .send().await.map_err(|e| IntegrationError::ProviderExecution {
+            let resp = req
+                .send()
+                .await
+                .map_err(|e| IntegrationError::ProviderExecution {
                     provider: "wechat_work".to_string(),
                     action: path.to_string(),
                     detail: e.to_string(),
                 })?;
 
-            resp.json::<serde_json::Value>().await.map_err(|e| IntegrationError::ProviderExecution {
-                provider: "wechat_work".to_string(),
-                action: path.to_string(),
-                detail: format!("JSON parse error: {}", e),
+            resp.json::<serde_json::Value>().await.map_err(|e| {
+                IntegrationError::ProviderExecution {
+                    provider: "wechat_work".to_string(),
+                    action: path.to_string(),
+                    detail: format!("JSON parse error: {}", e),
+                }
+            })
+        }
+
+        async fn api_post(
+            &self,
+            path: &str,
+            body: &serde_json::Value,
+        ) -> Result<serde_json::Value> {
+            let token = self.ensure_token().await?;
+            let url = format!("{}{}?access_token={}", self.base_url, path, token);
+
+            let resp = self
+                .client
+                .post(&url)
+                .json(body)
+                .send()
+                .await
+                .map_err(|e| IntegrationError::ProviderExecution {
+                    provider: "wechat_work".to_string(),
+                    action: path.to_string(),
+                    detail: e.to_string(),
+                })?;
+
+            resp.json::<serde_json::Value>().await.map_err(|e| {
+                IntegrationError::ProviderExecution {
+                    provider: "wechat_work".to_string(),
+                    action: path.to_string(),
+                    detail: format!("JSON parse error: {}", e),
+                }
             })
         }
     }
@@ -269,13 +286,17 @@ pub mod wechat_work {
             let errcode = resp.get("errcode").and_then(|v| v.as_i64()).unwrap_or(-1);
 
             Ok(SendResult {
-                message_id: MessageId(resp.get("msgid")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("unknown")
-                    .to_string()),
+                message_id: MessageId(
+                    resp.get("msgid")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown")
+                        .to_string(),
+                ),
                 success: errcode == 0,
                 error: if errcode != 0 {
-                    resp.get("errmsg").and_then(|v| v.as_str()).map(|s| s.to_string())
+                    resp.get("errmsg")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
                 } else {
                     None
                 },
@@ -283,45 +304,99 @@ pub mod wechat_work {
             })
         }
 
-        async fn list_users(&self, page: Option<u32>, _page_size: Option<u32>) -> Result<Vec<UserInfo>> {
-            let department_id = page.map(|p| p.to_string()).unwrap_or_else(|| "1".to_string());
-            let resp = self.api_get("/user/list", &[("department_id", &department_id)]).await?;
+        async fn list_users(
+            &self,
+            page: Option<u32>,
+            _page_size: Option<u32>,
+        ) -> Result<Vec<UserInfo>> {
+            let department_id = page
+                .map(|p| p.to_string())
+                .unwrap_or_else(|| "1".to_string());
+            let resp = self
+                .api_get("/user/list", &[("department_id", &department_id)])
+                .await?;
 
-            let users = resp.get("userlist")
+            let users = resp
+                .get("userlist")
                 .and_then(|v| v.as_array())
                 .cloned()
                 .unwrap_or_default();
 
-            Ok(users.into_iter().map(|u| UserInfo {
-                user_id: u.get("userid").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                name: u.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                email: u.get("email").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                avatar_url: u.get("avatar").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                department_ids: u.get("department")
-                    .and_then(|v| v.as_array())
-                    .map(|arr| arr.iter().filter_map(|n| n.as_i64().map(|i| i.to_string())).collect())
-                    .unwrap_or_default(),
-                extra: HashMap::new(),
-            }).collect())
+            Ok(users
+                .into_iter()
+                .map(|u| UserInfo {
+                    user_id: u
+                        .get("userid")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    name: u
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    email: u
+                        .get("email")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    avatar_url: u
+                        .get("avatar")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    department_ids: u
+                        .get("department")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| {
+                            arr.iter()
+                                .filter_map(|n| n.as_i64().map(|i| i.to_string()))
+                                .collect()
+                        })
+                        .unwrap_or_default(),
+                    extra: HashMap::new(),
+                })
+                .collect())
         }
 
         async fn get_user_info(&self, user_id: &str) -> Result<UserInfo> {
             let resp = self.api_get("/user/get", &[("userid", user_id)]).await?;
 
             Ok(UserInfo {
-                user_id: resp.get("userid").and_then(|v| v.as_str()).unwrap_or(user_id).to_string(),
-                name: resp.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                email: resp.get("email").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                avatar_url: resp.get("avatar").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                department_ids: resp.get("department")
+                user_id: resp
+                    .get("userid")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(user_id)
+                    .to_string(),
+                name: resp
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                email: resp
+                    .get("email")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
+                avatar_url: resp
+                    .get("avatar")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
+                department_ids: resp
+                    .get("department")
                     .and_then(|v| v.as_array())
-                    .map(|arr| arr.iter().filter_map(|n| n.as_i64().map(|i| i.to_string())).collect())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|n| n.as_i64().map(|i| i.to_string()))
+                            .collect()
+                    })
                     .unwrap_or_default(),
                 extra: HashMap::new(),
             })
         }
 
-        async fn list_chats(&self, _page: Option<u32>, _page_size: Option<u32>) -> Result<Vec<ChatInfo>> {
+        async fn list_chats(
+            &self,
+            _page: Option<u32>,
+            _page_size: Option<u32>,
+        ) -> Result<Vec<ChatInfo>> {
             // WeChat Work uses appchat for group chats
             // This requires iterating known chat IDs; returning empty for now
             // Full implementation requires chat ID registry
@@ -332,21 +407,40 @@ pub mod wechat_work {
             let pid = parent_id.unwrap_or("0");
             let resp = self.api_get("/department/list", &[("id", pid)]).await?;
 
-            let depts = resp.get("department")
+            let depts = resp
+                .get("department")
                 .and_then(|v| v.as_array())
                 .cloned()
                 .unwrap_or_default();
 
-            Ok(depts.into_iter().map(|d| DepartmentInfo {
-                department_id: d.get("id").and_then(|v| v.as_i64()).unwrap_or(0).to_string(),
-                name: d.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                parent_id: d.get("parentid").and_then(|v| v.as_i64()).map(|i| i.to_string()),
-                member_count: None,
-                extra: HashMap::new(),
-            }).collect())
+            Ok(depts
+                .into_iter()
+                .map(|d| DepartmentInfo {
+                    department_id: d
+                        .get("id")
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(0)
+                        .to_string(),
+                    name: d
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    parent_id: d
+                        .get("parentid")
+                        .and_then(|v| v.as_i64())
+                        .map(|i| i.to_string()),
+                    member_count: None,
+                    extra: HashMap::new(),
+                })
+                .collect())
         }
 
-        async fn list_calendar_events(&self, _start: &str, _end: &str) -> Result<Vec<CalendarEvent>> {
+        async fn list_calendar_events(
+            &self,
+            _start: &str,
+            _end: &str,
+        ) -> Result<Vec<CalendarEvent>> {
             // WeChat Work calendar API requires separate OAuth scope
             // Returning empty until calendar scope is configured
             Ok(vec![])
@@ -397,52 +491,71 @@ pub mod feishu {
 
         async fn ensure_token(&self) -> Result<String> {
             let token = self.tenant_token.read().await;
-            token.clone().ok_or_else(|| IntegrationError::NoTokensStored {
-                user_id: "system".to_string(),
-                provider: "feishu".to_string(),
-            })
+            token
+                .clone()
+                .ok_or_else(|| IntegrationError::NoTokensStored {
+                    user_id: "system".to_string(),
+                    provider: "feishu".to_string(),
+                })
         }
 
         async fn api_get(&self, path: &str, params: &[(&str, &str)]) -> Result<serde_json::Value> {
             let token = self.ensure_token().await?;
             let url = format!("{}{}", self.base_url, path);
 
-            let mut req = self.client.get(&url)
+            let mut req = self
+                .client
+                .get(&url)
                 .header("Authorization", format!("Bearer {}", token));
             for (k, v) in params {
                 req = req.query(&[(k, v)]);
             }
 
-            let resp = req.send().await.map_err(|e| IntegrationError::ProviderExecution {
-                provider: "feishu".to_string(),
-                action: path.to_string(),
-                detail: e.to_string(),
-            })?;
-
-            resp.json::<serde_json::Value>().await.map_err(|e| IntegrationError::ProviderExecution {
-                provider: "feishu".to_string(),
-                action: path.to_string(),
-                detail: format!("JSON parse error: {}", e),
-            })
-        }
-
-        async fn api_post(&self, path: &str, body: &serde_json::Value) -> Result<serde_json::Value> {
-            let token = self.ensure_token().await?;
-            let url = format!("{}{}", self.base_url, path);
-
-            let resp = self.client.post(&url)
-                .header("Authorization", format!("Bearer {}", token))
-                .json(body)
-                .send().await.map_err(|e| IntegrationError::ProviderExecution {
+            let resp = req
+                .send()
+                .await
+                .map_err(|e| IntegrationError::ProviderExecution {
                     provider: "feishu".to_string(),
                     action: path.to_string(),
                     detail: e.to_string(),
                 })?;
 
-            resp.json::<serde_json::Value>().await.map_err(|e| IntegrationError::ProviderExecution {
-                provider: "feishu".to_string(),
-                action: path.to_string(),
-                detail: format!("JSON parse error: {}", e),
+            resp.json::<serde_json::Value>().await.map_err(|e| {
+                IntegrationError::ProviderExecution {
+                    provider: "feishu".to_string(),
+                    action: path.to_string(),
+                    detail: format!("JSON parse error: {}", e),
+                }
+            })
+        }
+
+        async fn api_post(
+            &self,
+            path: &str,
+            body: &serde_json::Value,
+        ) -> Result<serde_json::Value> {
+            let token = self.ensure_token().await?;
+            let url = format!("{}{}", self.base_url, path);
+
+            let resp = self
+                .client
+                .post(&url)
+                .header("Authorization", format!("Bearer {}", token))
+                .json(body)
+                .send()
+                .await
+                .map_err(|e| IntegrationError::ProviderExecution {
+                    provider: "feishu".to_string(),
+                    action: path.to_string(),
+                    detail: e.to_string(),
+                })?;
+
+            resp.json::<serde_json::Value>().await.map_err(|e| {
+                IntegrationError::ProviderExecution {
+                    provider: "feishu".to_string(),
+                    action: path.to_string(),
+                    detail: format!("JSON parse error: {}", e),
+                }
             })
         }
     }
@@ -454,7 +567,9 @@ pub mod feishu {
         }
 
         async fn send_message(&self, msg: &OutboundMessage) -> Result<SendResult> {
-            let receive_id_type = msg.extra.get("receive_id_type")
+            let receive_id_type = msg
+                .extra
+                .get("receive_id_type")
                 .and_then(|v| v.as_str())
                 .unwrap_or("open_id");
 
@@ -464,10 +579,12 @@ pub mod feishu {
                 "content": serde_json::json!({"text": msg.content}).to_string()
             });
 
-            let resp = self.api_post(
-                &format!("/im/v1/messages?receive_id_type={}", receive_id_type),
-                &body,
-            ).await?;
+            let resp = self
+                .api_post(
+                    &format!("/im/v1/messages?receive_id_type={}", receive_id_type),
+                    &body,
+                )
+                .await?;
 
             let code = resp.get("code").and_then(|v| v.as_i64()).unwrap_or(-1);
             let data = resp.get("data");
@@ -477,11 +594,13 @@ pub mod feishu {
                     data.and_then(|d| d.get("message_id"))
                         .and_then(|v| v.as_str())
                         .unwrap_or("unknown")
-                        .to_string()
+                        .to_string(),
                 ),
                 success: code == 0,
                 error: if code != 0 {
-                    resp.get("msg").and_then(|v| v.as_str()).map(|s| s.to_string())
+                    resp.get("msg")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
                 } else {
                     None
                 },
@@ -489,7 +608,11 @@ pub mod feishu {
             })
         }
 
-        async fn list_users(&self, page: Option<u32>, page_size: Option<u32>) -> Result<Vec<UserInfo>> {
+        async fn list_users(
+            &self,
+            page: Option<u32>,
+            page_size: Option<u32>,
+        ) -> Result<Vec<UserInfo>> {
             let ps = page_size.unwrap_or(50).to_string();
             let pt = page.map(|p| p.to_string()).unwrap_or_default();
 
@@ -498,54 +621,100 @@ pub mod feishu {
                 params.push(("page_token", pt.as_str()));
             }
 
-            let resp = self.api_get("/contact/v3/users/find_by_department", &params).await?;
-            let items = resp.get("data")
+            let resp = self
+                .api_get("/contact/v3/users/find_by_department", &params)
+                .await?;
+            let items = resp
+                .get("data")
                 .and_then(|d| d.get("items"))
                 .and_then(|v| v.as_array())
                 .cloned()
                 .unwrap_or_default();
 
-            Ok(items.into_iter().map(|u| UserInfo {
-                user_id: u.get("open_id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                name: u.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                email: u.get("email").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                avatar_url: u.get("avatar")
-                    .and_then(|a| a.get("avatar_origin"))
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string()),
-                department_ids: u.get("department_ids")
-                    .and_then(|v| v.as_array())
-                    .map(|arr| arr.iter().filter_map(|n| n.as_str().map(|s| s.to_string())).collect())
-                    .unwrap_or_default(),
-                extra: HashMap::new(),
-            }).collect())
+            Ok(items
+                .into_iter()
+                .map(|u| UserInfo {
+                    user_id: u
+                        .get("open_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    name: u
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    email: u
+                        .get("email")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    avatar_url: u
+                        .get("avatar")
+                        .and_then(|a| a.get("avatar_origin"))
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    department_ids: u
+                        .get("department_ids")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| {
+                            arr.iter()
+                                .filter_map(|n| n.as_str().map(|s| s.to_string()))
+                                .collect()
+                        })
+                        .unwrap_or_default(),
+                    extra: HashMap::new(),
+                })
+                .collect())
         }
 
         async fn get_user_info(&self, user_id: &str) -> Result<UserInfo> {
-            let resp = self.api_get(
-                &format!("/contact/v3/users/{}", user_id),
-                &[("user_id_type", "open_id")],
-            ).await?;
+            let resp = self
+                .api_get(
+                    &format!("/contact/v3/users/{}", user_id),
+                    &[("user_id_type", "open_id")],
+                )
+                .await?;
 
             let data = resp.get("data").and_then(|d| d.get("user"));
 
             Ok(UserInfo {
-                user_id: data.and_then(|u| u.get("open_id")).and_then(|v| v.as_str()).unwrap_or(user_id).to_string(),
-                name: data.and_then(|u| u.get("name")).and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                email: data.and_then(|u| u.get("email")).and_then(|v| v.as_str()).map(|s| s.to_string()),
-                avatar_url: data.and_then(|u| u.get("avatar"))
+                user_id: data
+                    .and_then(|u| u.get("open_id"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(user_id)
+                    .to_string(),
+                name: data
+                    .and_then(|u| u.get("name"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                email: data
+                    .and_then(|u| u.get("email"))
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
+                avatar_url: data
+                    .and_then(|u| u.get("avatar"))
                     .and_then(|a| a.get("avatar_origin"))
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string()),
-                department_ids: data.and_then(|u| u.get("department_ids"))
+                department_ids: data
+                    .and_then(|u| u.get("department_ids"))
                     .and_then(|v| v.as_array())
-                    .map(|arr| arr.iter().filter_map(|n| n.as_str().map(|s| s.to_string())).collect())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|n| n.as_str().map(|s| s.to_string()))
+                            .collect()
+                    })
                     .unwrap_or_default(),
                 extra: HashMap::new(),
             })
         }
 
-        async fn list_chats(&self, page: Option<u32>, page_size: Option<u32>) -> Result<Vec<ChatInfo>> {
+        async fn list_chats(
+            &self,
+            page: Option<u32>,
+            page_size: Option<u32>,
+        ) -> Result<Vec<ChatInfo>> {
             let ps = page_size.unwrap_or(50).to_string();
             let pt = page.map(|p| p.to_string()).unwrap_or_default();
 
@@ -555,87 +724,148 @@ pub mod feishu {
             }
 
             let resp = self.api_get("/im/v1/chats", &params).await?;
-            let items = resp.get("data")
+            let items = resp
+                .get("data")
                 .and_then(|d| d.get("items"))
                 .and_then(|v| v.as_array())
                 .cloned()
                 .unwrap_or_default();
 
-            Ok(items.into_iter().map(|c| ChatInfo {
-                chat_id: c.get("chat_id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                name: c.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                member_count: c.get("user_count").and_then(|v| v.as_u64()).map(|n| n as usize),
-                owner_id: c.get("owner_id").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                extra: HashMap::new(),
-            }).collect())
+            Ok(items
+                .into_iter()
+                .map(|c| ChatInfo {
+                    chat_id: c
+                        .get("chat_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    name: c
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    member_count: c
+                        .get("user_count")
+                        .and_then(|v| v.as_u64())
+                        .map(|n| n as usize),
+                    owner_id: c
+                        .get("owner_id")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    extra: HashMap::new(),
+                })
+                .collect())
         }
 
         async fn list_departments(&self, parent_id: Option<&str>) -> Result<Vec<DepartmentInfo>> {
             let pid = parent_id.unwrap_or("0");
-            let resp = self.api_get(
-                "/contact/v3/departments",
-                &[("parent_department_id", pid)],
-            ).await?;
+            let resp = self
+                .api_get("/contact/v3/departments", &[("parent_department_id", pid)])
+                .await?;
 
-            let items = resp.get("data")
+            let items = resp
+                .get("data")
                 .and_then(|d| d.get("items"))
                 .and_then(|v| v.as_array())
                 .cloned()
                 .unwrap_or_default();
 
-            Ok(items.into_iter().map(|d| DepartmentInfo {
-                department_id: d.get("open_department_id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                name: d.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                parent_id: d.get("parent_department_id").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                member_count: d.get("member_count").and_then(|v| v.as_u64()).map(|n| n as usize),
-                extra: HashMap::new(),
-            }).collect())
+            Ok(items
+                .into_iter()
+                .map(|d| DepartmentInfo {
+                    department_id: d
+                        .get("open_department_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    name: d
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    parent_id: d
+                        .get("parent_department_id")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    member_count: d
+                        .get("member_count")
+                        .and_then(|v| v.as_u64())
+                        .map(|n| n as usize),
+                    extra: HashMap::new(),
+                })
+                .collect())
         }
 
-        async fn list_calendar_events(&self, start_time: &str, end_time: &str) -> Result<Vec<CalendarEvent>> {
-            let resp = self.api_get(
-                "/calendar/v4/calendars/primary/events",
-                &[
-                    ("start_time", start_time),
-                    ("end_time", end_time),
-                    ("page_size", "100"),
-                ],
-            ).await?;
+        async fn list_calendar_events(
+            &self,
+            start_time: &str,
+            end_time: &str,
+        ) -> Result<Vec<CalendarEvent>> {
+            let resp = self
+                .api_get(
+                    "/calendar/v4/calendars/primary/events",
+                    &[
+                        ("start_time", start_time),
+                        ("end_time", end_time),
+                        ("page_size", "100"),
+                    ],
+                )
+                .await?;
 
-            let items = resp.get("data")
+            let items = resp
+                .get("data")
                 .and_then(|d| d.get("items"))
                 .and_then(|v| v.as_array())
                 .cloned()
                 .unwrap_or_default();
 
-            Ok(items.into_iter().map(|e| CalendarEvent {
-                event_id: e.get("event_id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                title: e.get("summary").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                start_time: e.get("start_time")
-                    .and_then(|s| s.get("timestamp"))
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string(),
-                end_time: e.get("end_time")
-                    .and_then(|s| s.get("timestamp"))
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string(),
-                location: e.get("location")
-                    .and_then(|l| l.get("name"))
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string()),
-                attendees: e.get("attendees")
-                    .and_then(|v| v.as_array())
-                    .map(|arr| arr.iter().filter_map(|a| {
-                        a.get("attendee_id")
-                            .and_then(|id| id.get("open_id"))
-                            .and_then(|v| v.as_str())
-                            .map(|s| s.to_string())
-                    }).collect())
-                    .unwrap_or_default(),
-                extra: HashMap::new(),
-            }).collect())
+            Ok(items
+                .into_iter()
+                .map(|e| CalendarEvent {
+                    event_id: e
+                        .get("event_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    title: e
+                        .get("summary")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    start_time: e
+                        .get("start_time")
+                        .and_then(|s| s.get("timestamp"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    end_time: e
+                        .get("end_time")
+                        .and_then(|s| s.get("timestamp"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    location: e
+                        .get("location")
+                        .and_then(|l| l.get("name"))
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
+                    attendees: e
+                        .get("attendees")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| {
+                            arr.iter()
+                                .filter_map(|a| {
+                                    a.get("attendee_id")
+                                        .and_then(|id| id.get("open_id"))
+                                        .and_then(|v| v.as_str())
+                                        .map(|s| s.to_string())
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default(),
+                    extra: HashMap::new(),
+                })
+                .collect())
         }
 
         async fn health_check(&self) -> Result<bool> {
@@ -696,11 +926,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_feishu_health_no_token() {
-        let adapter = feishu::FeishuAdapter::new(
-            "app123".to_string(),
-            "secret456".to_string(),
-            None,
-        );
+        let adapter =
+            feishu::FeishuAdapter::new("app123".to_string(), "secret456".to_string(), None);
         let result = adapter.health_check().await.unwrap();
         assert!(!result);
     }

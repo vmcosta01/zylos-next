@@ -13,9 +13,7 @@ use zylos_swarm_orchestrator::{SwarmAgent, SwarmOrchestrator, Task};
 
 /// Cria orquestrador efêmero para testes de crash.
 async fn crash_test_orchestrator() -> SwarmOrchestrator {
-    let db_path = format!(
-        "sqlite::memory:"
-    );
+    let db_path = format!("sqlite::memory:");
     SwarmOrchestrator::open(&db_path)
         .await
         .expect("Failed to create crash test orchestrator")
@@ -63,7 +61,10 @@ async fn test_crash_spawn_failure_recovery() {
 
     // Verificar estado final consistente
     let final_task = orch.get_task(&task.id).await.unwrap().unwrap();
-    assert_eq!(final_task.state, zylos_swarm_orchestrator::TaskState::Running);
+    assert_eq!(
+        final_task.state,
+        zylos_swarm_orchestrator::TaskState::Running
+    );
     assert!(final_task.assigned_agent.is_some());
 }
 
@@ -146,7 +147,10 @@ async fn test_crash_timeout_recovery() {
 
     // Verificar estado final
     let final_task = orch.get_task(&task.id).await.unwrap().unwrap();
-    assert_eq!(final_task.state, zylos_swarm_orchestrator::TaskState::Failed);
+    assert_eq!(
+        final_task.state,
+        zylos_swarm_orchestrator::TaskState::Failed
+    );
 
     // Agent deve estar disponível para novas tasks
     let updated_agent = orch.get_agent("timeout-agent").await.unwrap().unwrap();

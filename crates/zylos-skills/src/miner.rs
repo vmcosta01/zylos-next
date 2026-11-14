@@ -157,17 +157,17 @@ impl SkillMiner {
     fn normalize_operation(op: &str) -> String {
         let trimmed = op.trim();
         // Colapsar múltiplos espaços
-        let collapsed: String = trimmed
-            .split_whitespace()
-            .collect::<Vec<_>>()
-            .join(" ");
+        let collapsed: String = trimmed.split_whitespace().collect::<Vec<_>>().join(" ");
         collapsed.to_lowercase()
     }
 
     /// Computa hash SHA-256 de uma sequência de operações normalizadas.
     fn compute_pattern_hash(operations: &[String]) -> String {
         use sha2::{Digest, Sha256};
-        let normalized: Vec<String> = operations.iter().map(|op| Self::normalize_operation(op)).collect();
+        let normalized: Vec<String> = operations
+            .iter()
+            .map(|op| Self::normalize_operation(op))
+            .collect();
         let joined = normalized.join("|");
         let mut hasher = Sha256::new();
         hasher.update(joined.as_bytes());
@@ -196,16 +196,17 @@ impl SkillMiner {
             } else if !current_sequence.is_empty() {
                 // Fim de uma sequência de operações → agrupar
                 let hash = Self::compute_pattern_hash(&current_sequence);
-                let entry = operation_sequences
-                    .entry(hash.clone())
-                    .or_insert_with(|| CandidatePattern {
-                        pattern_hash: hash,
-                        operations: current_sequence.clone(),
-                        occurrence_count: 0,
-                        timestamps: Vec::new(),
-                        common_inputs: Vec::new(),
-                        common_outputs: Vec::new(),
-                    });
+                let entry =
+                    operation_sequences
+                        .entry(hash.clone())
+                        .or_insert_with(|| CandidatePattern {
+                            pattern_hash: hash,
+                            operations: current_sequence.clone(),
+                            occurrence_count: 0,
+                            timestamps: Vec::new(),
+                            common_inputs: Vec::new(),
+                            common_outputs: Vec::new(),
+                        });
                 entry.occurrence_count += 1;
                 entry.timestamps.extend(current_timestamps.iter().cloned());
 
@@ -217,16 +218,17 @@ impl SkillMiner {
         // Processar última sequência pendente
         if !current_sequence.is_empty() {
             let hash = Self::compute_pattern_hash(&current_sequence);
-            let entry = operation_sequences
-                .entry(hash.clone())
-                .or_insert_with(|| CandidatePattern {
-                    pattern_hash: hash,
-                    operations: current_sequence.clone(),
-                    occurrence_count: 0,
-                    timestamps: Vec::new(),
-                    common_inputs: Vec::new(),
-                    common_outputs: Vec::new(),
-                });
+            let entry =
+                operation_sequences
+                    .entry(hash.clone())
+                    .or_insert_with(|| CandidatePattern {
+                        pattern_hash: hash,
+                        operations: current_sequence.clone(),
+                        occurrence_count: 0,
+                        timestamps: Vec::new(),
+                        common_inputs: Vec::new(),
+                        common_outputs: Vec::new(),
+                    });
             entry.occurrence_count += 1;
             entry.timestamps.extend(current_timestamps.iter().cloned());
         }
@@ -279,12 +281,9 @@ impl SkillMiner {
         // Adicionar outputs baseados nas operações
         for (i, op) in pattern.operations.iter().enumerate() {
             contract.outputs.push(
-                OutputSchema::new(
-                    format!("step_{}_output", i + 1),
-                    "object",
-                )
-                .with_description(format!("Output of: {}", op))
-                .optional(),
+                OutputSchema::new(format!("step_{}_output", i + 1), "object")
+                    .with_description(format!("Output of: {}", op))
+                    .optional(),
             );
         }
 
@@ -296,7 +295,11 @@ impl SkillMiner {
 
         // Calcular confidence score baseada em frequência e consistência
         let frequency_score = (pattern.occurrence_count as f64 / 10.0).min(1.0);
-        let consistency_score = if pattern.timestamps.len() > 1 { 0.8 } else { 0.5 };
+        let consistency_score = if pattern.timestamps.len() > 1 {
+            0.8
+        } else {
+            0.5
+        };
         let confidence = (frequency_score * 0.6 + consistency_score * 0.4).min(1.0);
 
         CandidateSkill {
@@ -327,7 +330,9 @@ impl SkillMiner {
 /// Extrai timestamp ISO 8601 do início de uma linha de log.
 fn extract_timestamp(line: &str) -> Option<String> {
     // Match patterns like "2026-11-11T00:00:00Z" or "2026-11-11 00:00:00"
-    let ts_regex = Regex::new(r"^(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)").ok()?;
+    let ts_regex =
+        Regex::new(r"^(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)")
+            .ok()?;
     ts_regex.captures(line).map(|c| c[1].to_string())
 }
 

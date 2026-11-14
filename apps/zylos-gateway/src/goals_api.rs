@@ -9,11 +9,11 @@
 //! std::sync::Mutex + spawn_blocking para acesso thread-safe no Axum.
 
 use axum::{
-    Json, Router,
     extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::get,
+    Json, Router,
 };
 use serde_json::json;
 use std::sync::Arc;
@@ -24,7 +24,7 @@ use zylos_goals::GoalStore;
 /// GoalStore internamente usa Arc<tokio::sync::RwLock<Connection>>, mas
 /// como só acessamos via Mutex externo, nunca há acesso concorrente real.
 pub struct GoalsHandleInner {
- pub store: GoalStore,
+    pub store: GoalStore,
 }
 unsafe impl Send for GoalsHandleInner {}
 unsafe impl Sync for GoalsHandleInner {}
@@ -41,11 +41,9 @@ pub fn create_goals_router(handle: GoalsHandle) -> Router {
 }
 
 async fn list_goals(State(handle): State<GoalsHandle>) -> Response {
- let rt = tokio::runtime::Handle::current();
- let result = tokio::task::spawn_blocking(move || {
- rt.block_on(handle.store.list_goals(None))
- })
- .await;
+    let rt = tokio::runtime::Handle::current();
+    let result =
+        tokio::task::spawn_blocking(move || rt.block_on(handle.store.list_goals(None))).await;
 
     match result {
         Ok(Ok(goals)) => Json(json!({ "goals": goals })).into_response(),
@@ -63,11 +61,9 @@ async fn list_goals(State(handle): State<GoalsHandle>) -> Response {
 }
 
 async fn goals_stats(State(handle): State<GoalsHandle>) -> Response {
- let rt = tokio::runtime::Handle::current();
- let result = tokio::task::spawn_blocking(move || {
- rt.block_on(handle.store.dashboard_summary())
- })
- .await;
+    let rt = tokio::runtime::Handle::current();
+    let result =
+        tokio::task::spawn_blocking(move || rt.block_on(handle.store.dashboard_summary())).await;
 
     match result {
         Ok(Ok(summary)) => Json(summary).into_response(),
@@ -84,16 +80,10 @@ async fn goals_stats(State(handle): State<GoalsHandle>) -> Response {
     }
 }
 
-async fn get_goal(
- State(handle): State<GoalsHandle>,
- Path(id): Path<String>,
-) -> Response {
- let id_for_error = id.clone();
- let rt = tokio::runtime::Handle::current();
- let result = tokio::task::spawn_blocking(move || {
- rt.block_on(handle.store.get_goal(&id))
- })
- .await;
+async fn get_goal(State(handle): State<GoalsHandle>, Path(id): Path<String>) -> Response {
+    let id_for_error = id.clone();
+    let rt = tokio::runtime::Handle::current();
+    let result = tokio::task::spawn_blocking(move || rt.block_on(handle.store.get_goal(&id))).await;
 
     match result {
         Ok(Ok(goal)) => Json(goal).into_response(),

@@ -12,35 +12,35 @@ use tracing::{info, warn};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Workspace {
     /// Unique bot identifier (alphanumeric, hyphens, underscores; 1-128 chars).
-   pub bot_id: String,
+    pub bot_id: String,
     /// Human-readable display name for the workspace.
-   pub name: String,
+    pub name: String,
     /// Root directory of this workspace on disk (e.g., `~/Zylos/Agents/<bot_id>/`).
-   pub path: PathBuf,
+    pub path: PathBuf,
     /// When the workspace was created (Unix epoch seconds).
-   pub created_at: u64,
+    pub created_at: u64,
     /// Last access time (Unix epoch seconds); updated by [`WorkspaceManager::touch`].
-   pub last_accessed: u64,
+    pub last_accessed: u64,
 }
 
 /// Errors from workspace operations.
 #[derive(Debug, thiserror::Error)]
 pub enum WorkspaceError {
     /// Filesystem I/O error during workspace operations.
-   #[error("IO error: {0}")]
-   Io(#[from] std::io::Error),
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
     /// Bot ID contains invalid characters or is outside the 1-128 char range.
-   #[error("Invalid bot ID: {0}")]
-   InvalidBotId(String),
+    #[error("Invalid bot ID: {0}")]
+    InvalidBotId(String),
     /// A workspace already exists for the given bot ID.
-   #[error("Workspace already exists: {0}")]
-   AlreadyExists(String),
+    #[error("Workspace already exists: {0}")]
+    AlreadyExists(String),
     /// No workspace found for the given bot ID.
-   #[error("Workspace not found: {0}")]
-   NotFound(String),
+    #[error("Workspace not found: {0}")]
+    NotFound(String),
     /// JSON serialization/deserialization error for workspace metadata.
-   #[error("JSON error: {0}")]
-   Json(#[from] serde_json::Error),
+    #[error("JSON error: {0}")]
+    Json(#[from] serde_json::Error),
 }
 
 /// Manages per-bot workspace directories.
@@ -123,7 +123,10 @@ impl WorkspaceManager {
         let json = serde_json::to_string_pretty(&ws)?;
         std::fs::write(meta_path, json)?;
 
-        info!("Created workspace for bot '{bot_id}' at {}", ws.path.display());
+        info!(
+            "Created workspace for bot '{bot_id}' at {}",
+            ws.path.display()
+        );
         Ok(ws)
     }
 
@@ -145,7 +148,9 @@ impl WorkspaceManager {
                 match std::fs::read_to_string(&meta_path) {
                     Ok(content) => match serde_json::from_str::<Workspace>(&content) {
                         Ok(ws) => workspaces.push(ws),
-                        Err(e) => warn!("Failed to parse workspace.json in {:?}: {e}", entry.path()),
+                        Err(e) => {
+                            warn!("Failed to parse workspace.json in {:?}: {e}", entry.path())
+                        }
                     },
                     Err(e) => warn!("Failed to read workspace.json in {:?}: {e}", entry.path()),
                 }
@@ -300,7 +305,13 @@ mod tests {
     #[test]
     fn test_subdirectory_paths() {
         let (mgr, _tmp) = test_manager();
-        assert_eq!(mgr.memory_dir("b1"), mgr.workspace_path("b1").join("memory"));
-        assert_eq!(mgr.skills_dir("b1"), mgr.workspace_path("b1").join("skills"));
+        assert_eq!(
+            mgr.memory_dir("b1"),
+            mgr.workspace_path("b1").join("memory")
+        );
+        assert_eq!(
+            mgr.skills_dir("b1"),
+            mgr.workspace_path("b1").join("skills")
+        );
     }
 }

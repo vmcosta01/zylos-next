@@ -11,15 +11,15 @@
 //! O módulo `roles` define 8 papéis de negócio padronizados para AI Employees,
 //! cada um mapeado para um personality preset e conjunto de rotinas padrão.
 
-pub mod roles;
-/// Módulo routine_catalog — Catálogo indexado de rotinas por employee role (T8.5.2).
-pub mod routine_catalog;
+/// Módulo guardrails — GuardrailEnforcer com regras declarativas por role/recurso (T8.5.5).
+pub mod guardrails;
 /// Módulo plan_first_gate — Gate de aprovação humana antes de execução (T8.5.3).
 pub mod plan_first_gate;
 /// Módulo rate_limiter — EmployeeRateLimiter com token bucket por role/employee (T8.5.4).
 pub mod rate_limiter;
-/// Módulo guardrails — GuardrailEnforcer com regras declarativas por role/recurso (T8.5.5).
-pub mod guardrails;
+pub mod roles;
+/// Módulo routine_catalog — Catálogo indexado de rotinas por employee role (T8.5.2).
+pub mod routine_catalog;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -256,7 +256,11 @@ impl PersonalityProfile {
         hasher.update(self.display_name.as_bytes());
         hasher.update(self.division.to_string().as_bytes());
         hasher.update(self.system_prompt_fragment.as_bytes());
-        hasher.update(serde_json::to_string(&self.behavioral_traits).unwrap_or_default().as_bytes());
+        hasher.update(
+            serde_json::to_string(&self.behavioral_traits)
+                .unwrap_or_default()
+                .as_bytes(),
+        );
         hex::encode(hasher.finalize())
     }
 }
@@ -352,12 +356,21 @@ impl PersonalityRegistry {
     async fn run_migrations(&self) -> Result<(), PersonalityError> {
         sqlx::query("CREATE TABLE IF NOT EXISTS personality_profiles (id TEXT PRIMARY KEY, slug TEXT NOT NULL UNIQUE, display_name TEXT NOT NULL, division TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', system_prompt_fragment TEXT NOT NULL DEFAULT '', communication_style TEXT NOT NULL DEFAULT '{}', behavioral_traits TEXT NOT NULL DEFAULT '[]', expertise_domains TEXT NOT NULL DEFAULT '[]', collaboration TEXT NOT NULL DEFAULT '{}', tags TEXT NOT NULL DEFAULT '[]', active INTEGER NOT NULL DEFAULT 1, version INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)")
             .execute(&self.pool).await?;
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_personality_division ON personality_profiles(division)")
-            .execute(&self.pool).await?;
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_personality_slug ON personality_profiles(slug)")
-            .execute(&self.pool).await?;
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_personality_active ON personality_profiles(active)")
-            .execute(&self.pool).await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_personality_division ON personality_profiles(division)",
+        )
+        .execute(&self.pool)
+        .await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_personality_slug ON personality_profiles(slug)",
+        )
+        .execute(&self.pool)
+        .await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_personality_active ON personality_profiles(active)",
+        )
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 
@@ -405,7 +418,10 @@ impl PersonalityRegistry {
     }
 
     /// Retrieves a personality by slug.
-    pub async fn get_by_slug(&self, slug: &str) -> Result<Option<PersonalityProfile>, PersonalityError> {
+    pub async fn get_by_slug(
+        &self,
+        slug: &str,
+    ) -> Result<Option<PersonalityProfile>, PersonalityError> {
         let row = sqlx::query("SELECT * FROM personality_profiles WHERE slug = ?")
             .bind(slug)
             .fetch_optional(&self.pool)
@@ -417,7 +433,10 @@ impl PersonalityRegistry {
     }
 
     /// Retrieves a personality by ID.
-    pub async fn get_by_id(&self, id: &str) -> Result<Option<PersonalityProfile>, PersonalityError> {
+    pub async fn get_by_id(
+        &self,
+        id: &str,
+    ) -> Result<Option<PersonalityProfile>, PersonalityError> {
         let row = sqlx::query("SELECT * FROM personality_profiles WHERE id = ?")
             .bind(id)
             .fetch_optional(&self.pool)
@@ -471,7 +490,10 @@ impl PersonalityRegistry {
     }
 
     /// Queries personalities with optional filters.
-    pub async fn query(&self, q: &PersonalityQuery) -> Result<Vec<PersonalityProfile>, PersonalityError> {
+    pub async fn query(
+        &self,
+        q: &PersonalityQuery,
+    ) -> Result<Vec<PersonalityProfile>, PersonalityError> {
         let mut sql = String::from("SELECT * FROM personality_profiles WHERE 1=1");
         let mut conditions = Vec::new();
 
@@ -509,7 +531,10 @@ impl PersonalityRegistry {
         }
         if let Some(ref search) = q.search {
             let pattern = format!("%{}%", search);
-            query = query.bind(pattern.clone()).bind(pattern.clone()).bind(pattern);
+            query = query
+                .bind(pattern.clone())
+                .bind(pattern.clone())
+                .bind(pattern);
         }
         if let Some(limit) = q.limit {
             query = query.bind(limit as i64);
@@ -656,101 +681,215 @@ fn row_to_profile(row: &sqlx::sqlite::SqliteRow) -> PersonalityProfile {
 fn default_personalities() -> Vec<PersonalityProfile> {
     vec![
         {
-            let mut p = PersonalityProfile::new("senior-engineer", "Senior Engineer", Division::Engineering);
-            p.description = "Experienced software engineer focused on clean code, testing, and architecture.".into();
+            let mut p = PersonalityProfile::new(
+                "senior-engineer",
+                "Senior Engineer",
+                Division::Engineering,
+            );
+            p.description =
+                "Experienced software engineer focused on clean code, testing, and architecture."
+                    .into();
             p.system_prompt_fragment = "You are a senior software engineer. Prioritize correctness, readability, and testability. Suggest improvements and flag potential issues proactively.".into();
             p.communication_style.tone = "technical".into();
             p.communication_style.verbosity = "concise".into();
             p.expertise_domains = vec![
-                ExpertiseDomain { domain: "Rust".into(), proficiency: "expert".into(), years_experience: Some(8) },
-                ExpertiseDomain { domain: "System Design".into(), proficiency: "advanced".into(), years_experience: Some(10) },
-                ExpertiseDomain { domain: "Testing".into(), proficiency: "expert".into(), years_experience: Some(8) },
+                ExpertiseDomain {
+                    domain: "Rust".into(),
+                    proficiency: "expert".into(),
+                    years_experience: Some(8),
+                },
+                ExpertiseDomain {
+                    domain: "System Design".into(),
+                    proficiency: "advanced".into(),
+                    years_experience: Some(10),
+                },
+                ExpertiseDomain {
+                    domain: "Testing".into(),
+                    proficiency: "expert".into(),
+                    years_experience: Some(8),
+                },
             ];
             p.behavioral_traits = vec![
-                BehavioralTrait { name: "precision".into(), description: "Prefers exact specifications over ambiguity".into(), weight: 0.9 },
-                BehavioralTrait { name: "pragmatism".into(), description: "Balances ideal solutions with practical constraints".into(), weight: 0.8 },
+                BehavioralTrait {
+                    name: "precision".into(),
+                    description: "Prefers exact specifications over ambiguity".into(),
+                    weight: 0.9,
+                },
+                BehavioralTrait {
+                    name: "pragmatism".into(),
+                    description: "Balances ideal solutions with practical constraints".into(),
+                    weight: 0.8,
+                },
             ];
             p.collaboration.role = "contributor".into();
             p.tags = vec!["backend".into(), "systems".into(), "code-review".into()];
             p
         },
         {
-            let mut p = PersonalityProfile::new("research-analyst", "Research Analyst", Division::Research);
-            p.description = "Deep research specialist who synthesizes information from multiple sources.".into();
+            let mut p =
+                PersonalityProfile::new("research-analyst", "Research Analyst", Division::Research);
+            p.description =
+                "Deep research specialist who synthesizes information from multiple sources."
+                    .into();
             p.system_prompt_fragment = "You are a research analyst. Provide thorough, well-cited analysis. Distinguish between established facts and speculation. Quantify when possible.".into();
             p.communication_style.tone = "formal".into();
             p.communication_style.verbosity = "detailed".into();
             p.communication_style.format = "structured".into();
             p.expertise_domains = vec![
-                ExpertiseDomain { domain: "Literature Review".into(), proficiency: "expert".into(), years_experience: Some(6) },
-                ExpertiseDomain { domain: "Data Analysis".into(), proficiency: "advanced".into(), years_experience: Some(5) },
+                ExpertiseDomain {
+                    domain: "Literature Review".into(),
+                    proficiency: "expert".into(),
+                    years_experience: Some(6),
+                },
+                ExpertiseDomain {
+                    domain: "Data Analysis".into(),
+                    proficiency: "advanced".into(),
+                    years_experience: Some(5),
+                },
             ];
             p.behavioral_traits = vec![
-                BehavioralTrait { name: "thoroughness".into(), description: "Explores all angles before concluding".into(), weight: 0.95 },
-                BehavioralTrait { name: "skepticism".into(), description: "Questions assumptions and verifies claims".into(), weight: 0.85 },
+                BehavioralTrait {
+                    name: "thoroughness".into(),
+                    description: "Explores all angles before concluding".into(),
+                    weight: 0.95,
+                },
+                BehavioralTrait {
+                    name: "skepticism".into(),
+                    description: "Questions assumptions and verifies claims".into(),
+                    weight: 0.85,
+                },
             ];
             p.tags = vec!["analysis".into(), "synthesis".into(), "citations".into()];
             p
         },
         {
-            let mut p = PersonalityProfile::new("devops-specialist", "DevOps Specialist", Division::Operations);
-            p.description = "Infrastructure and deployment expert focused on reliability and automation.".into();
+            let mut p = PersonalityProfile::new(
+                "devops-specialist",
+                "DevOps Specialist",
+                Division::Operations,
+            );
+            p.description =
+                "Infrastructure and deployment expert focused on reliability and automation."
+                    .into();
             p.system_prompt_fragment = "You are a DevOps specialist. Focus on automation, observability, and reliability. Prefer declarative configurations. Always consider rollback strategies.".into();
             p.communication_style.tone = "technical".into();
             p.communication_style.verbosity = "concise".into();
             p.expertise_domains = vec![
-                ExpertiseDomain { domain: "Kubernetes".into(), proficiency: "expert".into(), years_experience: Some(7) },
-                ExpertiseDomain { domain: "CI/CD".into(), proficiency: "expert".into(), years_experience: Some(8) },
-                ExpertiseDomain { domain: "Terraform".into(), proficiency: "advanced".into(), years_experience: Some(5) },
+                ExpertiseDomain {
+                    domain: "Kubernetes".into(),
+                    proficiency: "expert".into(),
+                    years_experience: Some(7),
+                },
+                ExpertiseDomain {
+                    domain: "CI/CD".into(),
+                    proficiency: "expert".into(),
+                    years_experience: Some(8),
+                },
+                ExpertiseDomain {
+                    domain: "Terraform".into(),
+                    proficiency: "advanced".into(),
+                    years_experience: Some(5),
+                },
             ];
             p.collaboration.role = "specialist".into();
-            p.tags = vec!["infrastructure".into(), "deployment".into(), "monitoring".into()];
+            p.tags = vec![
+                "infrastructure".into(),
+                "deployment".into(),
+                "monitoring".into(),
+            ];
             p
         },
         {
-            let mut p = PersonalityProfile::new("security-auditor", "Security Auditor", Division::Security);
+            let mut p =
+                PersonalityProfile::new("security-auditor", "Security Auditor", Division::Security);
             p.description = "Security-focused agent that identifies vulnerabilities and enforces best practices.".into();
             p.system_prompt_fragment = "You are a security auditor. Assume adversarial conditions. Flag all potential vulnerabilities, even low-severity ones. Reference CVEs and OWASP categories when applicable.".into();
             p.communication_style.tone = "authoritative".into();
             p.communication_style.verbosity = "detailed".into();
             p.expertise_domains = vec![
-                ExpertiseDomain { domain: "Application Security".into(), proficiency: "expert".into(), years_experience: Some(10) },
-                ExpertiseDomain { domain: "Threat Modeling".into(), proficiency: "advanced".into(), years_experience: Some(8) },
-                ExpertiseDomain { domain: "Cryptography".into(), proficiency: "intermediate".into(), years_experience: Some(4) },
+                ExpertiseDomain {
+                    domain: "Application Security".into(),
+                    proficiency: "expert".into(),
+                    years_experience: Some(10),
+                },
+                ExpertiseDomain {
+                    domain: "Threat Modeling".into(),
+                    proficiency: "advanced".into(),
+                    years_experience: Some(8),
+                },
+                ExpertiseDomain {
+                    domain: "Cryptography".into(),
+                    proficiency: "intermediate".into(),
+                    years_experience: Some(4),
+                },
             ];
             p.behavioral_traits = vec![
-                BehavioralTrait { name: "paranoia".into(), description: "Assumes worst-case scenarios by default".into(), weight: 0.9 },
-                BehavioralTrait { name: "compliance".into(), description: "References standards and regulations".into(), weight: 0.7 },
+                BehavioralTrait {
+                    name: "paranoia".into(),
+                    description: "Assumes worst-case scenarios by default".into(),
+                    weight: 0.9,
+                },
+                BehavioralTrait {
+                    name: "compliance".into(),
+                    description: "References standards and regulations".into(),
+                    weight: 0.7,
+                },
             ];
             p.collaboration.conflict_resolution = "escalate".into();
             p.tags = vec!["security".into(), "audit".into(), "compliance".into()];
             p
         },
         {
-            let mut p = PersonalityProfile::new("creative-designer", "Creative Designer", Division::Creative);
-            p.description = "UX/UI and creative problem solver with strong visual design sensibility.".into();
+            let mut p = PersonalityProfile::new(
+                "creative-designer",
+                "Creative Designer",
+                Division::Creative,
+            );
+            p.description =
+                "UX/UI and creative problem solver with strong visual design sensibility.".into();
             p.system_prompt_fragment = "You are a creative designer. Think visually and empathetically. Propose multiple alternatives. Consider accessibility and user experience in every suggestion.".into();
             p.communication_style.tone = "friendly".into();
             p.communication_style.use_emojis = true;
             p.communication_style.format = "mixed".into();
             p.expertise_domains = vec![
-                ExpertiseDomain { domain: "UI/UX Design".into(), proficiency: "expert".into(), years_experience: Some(7) },
-                ExpertiseDomain { domain: "CSS/Tailwind".into(), proficiency: "advanced".into(), years_experience: Some(5) },
-                ExpertiseDomain { domain: "Accessibility".into(), proficiency: "advanced".into(), years_experience: Some(4) },
+                ExpertiseDomain {
+                    domain: "UI/UX Design".into(),
+                    proficiency: "expert".into(),
+                    years_experience: Some(7),
+                },
+                ExpertiseDomain {
+                    domain: "CSS/Tailwind".into(),
+                    proficiency: "advanced".into(),
+                    years_experience: Some(5),
+                },
+                ExpertiseDomain {
+                    domain: "Accessibility".into(),
+                    proficiency: "advanced".into(),
+                    years_experience: Some(4),
+                },
             ];
             p.tags = vec!["design".into(), "ux".into(), "frontend".into()];
             p
         },
         {
-            let mut p = PersonalityProfile::new("project-manager", "Project Manager", Division::Management);
+            let mut p =
+                PersonalityProfile::new("project-manager", "Project Manager", Division::Management);
             p.description = "Organized coordinator who tracks progress, manages risks, and keeps teams aligned.".into();
             p.system_prompt_fragment = "You are a project manager. Focus on clarity, deadlines, and accountability. Break complex work into actionable items. Track dependencies and blockers proactively.".into();
             p.communication_style.tone = "professional".into();
             p.communication_style.verbosity = "concise".into();
             p.communication_style.proactive = true;
             p.expertise_domains = vec![
-                ExpertiseDomain { domain: "Agile/Scrum".into(), proficiency: "expert".into(), years_experience: Some(8) },
-                ExpertiseDomain { domain: "Risk Management".into(), proficiency: "advanced".into(), years_experience: Some(6) },
+                ExpertiseDomain {
+                    domain: "Agile/Scrum".into(),
+                    proficiency: "expert".into(),
+                    years_experience: Some(8),
+                },
+                ExpertiseDomain {
+                    domain: "Risk Management".into(),
+                    proficiency: "advanced".into(),
+                    years_experience: Some(6),
+                },
             ];
             p.collaboration.role = "leader".into();
             p.collaboration.preferred_team_size = "medium".into();
@@ -818,14 +957,38 @@ mod tests {
     #[tokio::test]
     async fn test_query_by_division() {
         let registry = PersonalityRegistry::open(":memory:").await.unwrap();
-        registry.create(&PersonalityProfile::new("eng1", "Eng 1", Division::Engineering)).await.unwrap();
-        registry.create(&PersonalityProfile::new("eng2", "Eng 2", Division::Engineering)).await.unwrap();
-        registry.create(&PersonalityProfile::new("res1", "Res 1", Division::Research)).await.unwrap();
+        registry
+            .create(&PersonalityProfile::new(
+                "eng1",
+                "Eng 1",
+                Division::Engineering,
+            ))
+            .await
+            .unwrap();
+        registry
+            .create(&PersonalityProfile::new(
+                "eng2",
+                "Eng 2",
+                Division::Engineering,
+            ))
+            .await
+            .unwrap();
+        registry
+            .create(&PersonalityProfile::new(
+                "res1",
+                "Res 1",
+                Division::Research,
+            ))
+            .await
+            .unwrap();
 
-        let eng = registry.query(&PersonalityQuery {
-            division: Some(Division::Engineering),
-            ..Default::default()
-        }).await.unwrap();
+        let eng = registry
+            .query(&PersonalityQuery {
+                division: Some(Division::Engineering),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
         assert_eq!(eng.len(), 2);
     }
 
@@ -852,7 +1015,8 @@ mod tests {
     #[tokio::test]
     async fn test_update_bumps_version() {
         let registry = PersonalityRegistry::open(":memory:").await.unwrap();
-        let mut profile = PersonalityProfile::new("ver-test", "Version Test", Division::Engineering);
+        let mut profile =
+            PersonalityProfile::new("ver-test", "Version Test", Division::Engineering);
         registry.create(&profile).await.unwrap();
 
         profile.description = "Updated description".into();
@@ -866,7 +1030,14 @@ mod tests {
     #[tokio::test]
     async fn test_delete() {
         let registry = PersonalityRegistry::open(":memory:").await.unwrap();
-        registry.create(&PersonalityProfile::new("del-me", "Delete Me", Division::Custom)).await.unwrap();
+        registry
+            .create(&PersonalityProfile::new(
+                "del-me",
+                "Delete Me",
+                Division::Custom,
+            ))
+            .await
+            .unwrap();
         let deleted = registry.delete("del-me").await.unwrap();
         assert!(deleted);
         assert!(registry.get_by_slug("del-me").await.unwrap().is_none());
@@ -912,15 +1083,39 @@ mod tests {
     #[tokio::test]
     async fn test_query_with_search_and_limit() {
         let registry = PersonalityRegistry::open(":memory:").await.unwrap();
-        registry.create(&PersonalityProfile::new("alpha-one", "Alpha One", Division::Engineering)).await.unwrap();
-        registry.create(&PersonalityProfile::new("alpha-two", "Alpha Two", Division::Research)).await.unwrap();
-        registry.create(&PersonalityProfile::new("beta-one", "Beta One", Division::Engineering)).await.unwrap();
+        registry
+            .create(&PersonalityProfile::new(
+                "alpha-one",
+                "Alpha One",
+                Division::Engineering,
+            ))
+            .await
+            .unwrap();
+        registry
+            .create(&PersonalityProfile::new(
+                "alpha-two",
+                "Alpha Two",
+                Division::Research,
+            ))
+            .await
+            .unwrap();
+        registry
+            .create(&PersonalityProfile::new(
+                "beta-one",
+                "Beta One",
+                Division::Engineering,
+            ))
+            .await
+            .unwrap();
 
-        let results = registry.query(&PersonalityQuery {
-            search: Some("alpha".into()),
-            limit: Some(1),
-            ..Default::default()
-        }).await.unwrap();
+        let results = registry
+            .query(&PersonalityQuery {
+                search: Some("alpha".into()),
+                limit: Some(1),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
         assert_eq!(results.len(), 1);
         assert!(results[0].slug.contains("alpha"));
     }
@@ -940,9 +1135,18 @@ mod tests {
     #[tokio::test]
     async fn test_list_divisions_counts() {
         let registry = PersonalityRegistry::open(":memory:").await.unwrap();
-        registry.create(&PersonalityProfile::new("e1", "E1", Division::Engineering)).await.unwrap();
-        registry.create(&PersonalityProfile::new("e2", "E2", Division::Engineering)).await.unwrap();
-        registry.create(&PersonalityProfile::new("r1", "R1", Division::Research)).await.unwrap();
+        registry
+            .create(&PersonalityProfile::new("e1", "E1", Division::Engineering))
+            .await
+            .unwrap();
+        registry
+            .create(&PersonalityProfile::new("e2", "E2", Division::Engineering))
+            .await
+            .unwrap();
+        registry
+            .create(&PersonalityProfile::new("r1", "R1", Division::Research))
+            .await
+            .unwrap();
 
         let divisions = registry.list_divisions().await.unwrap();
         assert_eq!(divisions.get("engineering"), Some(&2));

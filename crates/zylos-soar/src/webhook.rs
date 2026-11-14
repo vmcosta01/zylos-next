@@ -3,13 +3,7 @@
 use crate::error::Result;
 use crate::event::{EventCategory, Severity, ZylosSecurityEvent};
 use crate::router::EventRouter;
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    routing::post,
-    Json, Router,
-};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::post, Json, Router};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -167,10 +161,7 @@ async fn ingest_webhook(
         }
     };
 
-    let playbook_names: Vec<String> = dispatched
-        .iter()
-        .map(|d| d.playbook.name.clone())
-        .collect();
+    let playbook_names: Vec<String> = dispatched.iter().map(|d| d.playbook.name.clone()).collect();
 
     // TODO: hand off dispatched incidents to executor in background task
     drop(dispatched);
@@ -268,7 +259,12 @@ mod tests {
         let app = build_router(test_state());
 
         let response = app
-            .oneshot(Request::builder().uri("/health").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
 

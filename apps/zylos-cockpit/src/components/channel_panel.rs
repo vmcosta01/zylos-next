@@ -22,7 +22,10 @@ async fn fetch_json<T: for<'de> Deserialize<'de>>(url: &str) -> Result<T, String
 }
 
 /// Envia POST com body JSON via gloo-net.
-async fn post_json<B: Serialize, R: for<'de> Deserialize<'de>>(url: &str, body: &B) -> Result<R, String> {
+async fn post_json<B: Serialize, R: for<'de> Deserialize<'de>>(
+    url: &str,
+    body: &B,
+) -> Result<R, String> {
     use gloo_net::http::Request;
     let resp = Request::post(url)
         .header("Content-Type", "application/json")
@@ -142,15 +145,13 @@ fn mock_messages(channel_id: &str) -> Vec<ChannelMessage> {
                 timestamp: "2026-11-11T15:00:00Z".to_string(),
             },
         ],
-        _ => vec![
-            ChannelMessage {
-                id: "msg-empty".to_string(),
-                channel_id: channel_id.to_string(),
-                author: "Sistema".to_string(),
-                content: "Nenhuma mensagem neste canal ainda.".to_string(),
-                timestamp: "2026-11-11T00:00:00Z".to_string(),
-            },
-        ],
+        _ => vec![ChannelMessage {
+            id: "msg-empty".to_string(),
+            channel_id: channel_id.to_string(),
+            author: "Sistema".to_string(),
+            content: "Nenhuma mensagem neste canal ainda.".to_string(),
+            timestamp: "2026-11-11T00:00:00Z".to_string(),
+        }],
     }
 }
 
@@ -182,7 +183,10 @@ pub fn ChannelPanel() -> impl IntoView {
         match fetch_json::<serde_json::Value>("http://localhost:3000/api/v1/channels").await {
             Ok(val) => {
                 if let Some(arr) = val.get("channels").and_then(|v| v.as_array()) {
-                    let data: Vec<Channel> = arr.iter().filter_map(|c| serde_json::from_value(c.clone()).ok()).collect();
+                    let data: Vec<Channel> = arr
+                        .iter()
+                        .filter_map(|c| serde_json::from_value(c.clone()).ok())
+                        .collect();
                     channels.set(data.clone());
                     if let Some(first) = data.first() {
                         active_channel_id.set(first.id.clone());
@@ -208,11 +212,17 @@ pub fn ChannelPanel() -> impl IntoView {
             let msgs_signal = messages;
             let cid_clone = cid.clone();
             spawn_local(async move {
-                let url = format!("http://localhost:3000/api/v1/channels/{}/messages", cid_clone);
+                let url = format!(
+                    "http://localhost:3000/api/v1/channels/{}/messages",
+                    cid_clone
+                );
                 match fetch_json::<serde_json::Value>(&url).await {
                     Ok(val) => {
                         if let Some(arr) = val.get("messages").and_then(|v| v.as_array()) {
-                            let data: Vec<ChannelMessage> = arr.iter().filter_map(|m| serde_json::from_value(m.clone()).ok()).collect();
+                            let data: Vec<ChannelMessage> = arr
+                                .iter()
+                                .filter_map(|m| serde_json::from_value(m.clone()).ok())
+                                .collect();
                             msgs_signal.set(data);
                         }
                     }

@@ -3,10 +3,10 @@
 //! Validates incoming envelopes from Hermes plugins and routes them
 //! through the EventBus for delivery to cockpit/mobile clients.
 
-use serde::{Deserialize, Serialize};
 use crate::agui::AgUiEvent;
 use crate::error::LiveCommError;
 use crate::event_bus::EventBus;
+use serde::{Deserialize, Serialize};
 
 /// Envelope format expected from Hermes plugins
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -49,48 +49,78 @@ impl HermesBridge {
         // Map envelope to AgUiEvent based on event_type
         let event = match envelope.event_type.as_str() {
             "text.start" => AgUiEvent::text_start(
-                envelope.payload.get("message_id")
+                envelope
+                    .payload
+                    .get("message_id")
                     .and_then(|v| v.as_str())
                     .unwrap_or("unknown"),
                 &envelope.source,
             ),
             "text.delta" => AgUiEvent::text_delta(
-                envelope.payload.get("message_id")
+                envelope
+                    .payload
+                    .get("message_id")
                     .and_then(|v| v.as_str())
                     .unwrap_or("unknown"),
-                envelope.payload.get("delta")
+                envelope
+                    .payload
+                    .get("delta")
                     .and_then(|v| v.as_str())
                     .unwrap_or(""),
             ),
             "text.end" => AgUiEvent::text_end(
-                envelope.payload.get("message_id")
+                envelope
+                    .payload
+                    .get("message_id")
                     .and_then(|v| v.as_str())
                     .unwrap_or("unknown"),
             ),
             "state.snapshot" => AgUiEvent::state_snapshot(envelope.payload.clone()),
             "error" => AgUiEvent::error(
-                envelope.payload.get("code")
+                envelope
+                    .payload
+                    .get("code")
                     .and_then(|v| v.as_str())
                     .unwrap_or("UNKNOWN"),
-                envelope.payload.get("message")
+                envelope
+                    .payload
+                    .get("message")
                     .and_then(|v| v.as_str())
                     .unwrap_or("unknown error"),
             ),
             "tool.start" => AgUiEvent::tool_call_start(
-                envelope.payload.get("tool_call_id")
+                envelope
+                    .payload
+                    .get("tool_call_id")
                     .and_then(|v| v.as_str())
                     .unwrap_or("unknown"),
-                envelope.payload.get("tool_name")
+                envelope
+                    .payload
+                    .get("tool_name")
                     .and_then(|v| v.as_str())
                     .unwrap_or("unknown"),
-                envelope.payload.get("arguments").cloned().unwrap_or(serde_json::json!({})),
+                envelope
+                    .payload
+                    .get("arguments")
+                    .cloned()
+                    .unwrap_or(serde_json::json!({})),
             ),
             "tool.result" => AgUiEvent::tool_call_result(
-                envelope.payload.get("tool_call_id")
+                envelope
+                    .payload
+                    .get("tool_call_id")
                     .and_then(|v| v.as_str())
                     .unwrap_or("unknown"),
-                envelope.payload.get("result").cloned().unwrap_or(serde_json::json!(null)),
-                envelope.payload.get("is_error").and_then(|v| v.as_bool()).unwrap_or(false),
+                envelope
+                    .payload
+                    .get("result")
+                    .cloned()
+                    .unwrap_or(serde_json::json!(null)),
+                envelope
+                    .payload
+                    .get("is_error")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false),
             ),
             _ => {
                 // Unknown event types are forwarded as state snapshots for extensibility
@@ -128,7 +158,9 @@ mod tests {
         if let crate::event_types::ZylosEvent::Custom(c) = &received.payload {
             assert_eq!(c.name, "AgUiEvent");
             let agui: AgUiEvent = serde_json::from_value(c.payload.clone()).unwrap();
-            assert!(matches!(agui, AgUiEvent::TextMessageContent { delta, .. } if delta == "hello"));
+            assert!(
+                matches!(agui, AgUiEvent::TextMessageContent { delta, .. } if delta == "hello")
+            );
         } else {
             panic!("expected Custom event");
         }

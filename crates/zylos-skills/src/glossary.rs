@@ -151,7 +151,8 @@ impl GlossaryIndex {
     pub fn add(&mut self, term: GlossaryTerm) {
         let canonical = term.term.to_lowercase();
         for alias in &term.aliases {
-            self.alias_map.insert(alias.to_lowercase(), canonical.clone());
+            self.alias_map
+                .insert(alias.to_lowercase(), canonical.clone());
         }
         self.terms.insert(canonical, term);
     }
@@ -241,7 +242,12 @@ impl GlossaryIndex {
         // Extrai palavras potencialmente técnicas (camelCase, kebab-case, ALL_CAPS)
         let words: Vec<String> = lower_text
             .split(|c: char| !c.is_alphanumeric() && c != '-' && c != '_')
-            .filter(|w| w.len() > 3 && (w.contains('-') || w.contains('_') || w.chars().all(|c| c.is_ascii_uppercase())))
+            .filter(|w| {
+                w.len() > 3
+                    && (w.contains('-')
+                        || w.contains('_')
+                        || w.chars().all(|c| c.is_ascii_uppercase()))
+            })
             .map(|s| s.to_string())
             .collect();
 
@@ -292,9 +298,9 @@ impl GlossaryIndex {
 
 /// Termos comuns que não precisam estar no glossário
 const COMMON_TERMS: &[&str] = &[
-    "true", "false", "null", "none", "some", "this", "that", "with", "from",
-    "into", "over", "under", "self", "super", "crate", "mod", "pub", "use",
-    "let", "mut", "ref", "fn", "struct", "enum", "impl", "trait", "type",
+    "true", "false", "null", "none", "some", "this", "that", "with", "from", "into", "over",
+    "under", "self", "super", "crate", "mod", "pub", "use", "let", "mut", "ref", "fn", "struct",
+    "enum", "impl", "trait", "type",
 ];
 
 #[cfg(test)]
@@ -304,10 +310,10 @@ mod tests {
 
     fn sample_term(name: &str) -> GlossaryTerm {
         // Variante GlossaryTerm.
-         GlossaryTerm {
-         term: name.to_string(),
-         definition: format!("Definição do termo {}", name),
-         aliases: vec![format!("{}-alias", name)],
+        GlossaryTerm {
+            term: name.to_string(),
+            definition: format!("Definição do termo {}", name),
+            aliases: vec![format!("{}-alias", name)],
             tags: vec!["core".to_string()],
             see_also: vec![],
             example: Some(format!("Exemplo de uso de {}", name)),

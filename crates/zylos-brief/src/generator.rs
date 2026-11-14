@@ -165,8 +165,11 @@ mod tests {
                 status TEXT NOT NULL DEFAULT 'pending', decision TEXT, refuse_reason TEXT,
                 created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
                 decided_at TEXT, expires_at TEXT, receipt_json TEXT
-            )"
-        ).execute(&pool).await.unwrap();
+            )",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
 
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS action_audit_log (
@@ -175,8 +178,11 @@ mod tests {
                 arguments_hash TEXT NOT NULL, result_status TEXT, result_summary TEXT,
                 created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
                 decided_at TEXT, executed_at TEXT
-            )"
-        ).execute(&pool).await.unwrap();
+            )",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
 
         MorningBriefGenerator::new(pool)
     }

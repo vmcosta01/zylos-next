@@ -7,7 +7,6 @@ use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-
 /// Unique identifier for a connected client session.
 pub type ClientId = u64;
 
@@ -63,7 +62,14 @@ impl PresenceTracker {
     }
 
     /// Register a new client joining a document session.
-    pub fn join(&self, doc_id: &str, client_id: ClientId, user_id: String, name: String, color: String) -> PresenceEvent {
+    pub fn join(
+        &self,
+        doc_id: &str,
+        client_id: ClientId,
+        user_id: String,
+        name: String,
+        color: String,
+    ) -> PresenceEvent {
         let now_ms = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -83,7 +89,12 @@ impl PresenceTracker {
             .insert(client_id, entry);
 
         tracing::debug!(doc_id, client_id, user_id, "presence: joined");
-        PresenceEvent::Joined { client_id, user_id, name, color }
+        PresenceEvent::Joined {
+            client_id,
+            user_id,
+            name,
+            color,
+        }
     }
 
     /// Remove a client from a document session.
@@ -101,7 +112,13 @@ impl PresenceTracker {
     }
 
     /// Update cursor/selection state for a client.
-    pub fn update_cursor(&self, doc_id: &str, client_id: ClientId, position: String, selection: Option<String>) -> Option<PresenceEvent> {
+    pub fn update_cursor(
+        &self,
+        doc_id: &str,
+        client_id: ClientId,
+        position: String,
+        selection: Option<String>,
+    ) -> Option<PresenceEvent> {
         if let Some(doc_map) = self.documents.get(doc_id) {
             if let Some(mut entry) = doc_map.get_mut(&client_id) {
                 entry.position = Some(position.clone());
@@ -172,7 +189,13 @@ mod tests {
     #[test]
     fn test_join_and_active_users() {
         let tracker = PresenceTracker::new();
-        let event = tracker.join("doc-1", 100, "user-a".into(), "Alice".into(), "#ff0000".into());
+        let event = tracker.join(
+            "doc-1",
+            100,
+            "user-a".into(),
+            "Alice".into(),
+            "#ff0000".into(),
+        );
         assert!(matches!(event, PresenceEvent::Joined { .. }));
 
         let users = tracker.active_users("doc-1");
@@ -183,7 +206,13 @@ mod tests {
     #[test]
     fn test_leave_removes_user() {
         let tracker = PresenceTracker::new();
-        tracker.join("doc-1", 200, "user-b".into(), "Bob".into(), "#00ff00".into());
+        tracker.join(
+            "doc-1",
+            200,
+            "user-b".into(),
+            "Bob".into(),
+            "#00ff00".into(),
+        );
         let event = tracker.leave("doc-1", 200);
         assert!(event.is_some());
         assert!(tracker.active_users("doc-1").is_empty());
@@ -192,7 +221,13 @@ mod tests {
     #[test]
     fn test_cursor_update() {
         let tracker = PresenceTracker::new();
-        tracker.join("doc-1", 300, "user-c".into(), "Carol".into(), "#0000ff".into());
+        tracker.join(
+            "doc-1",
+            300,
+            "user-c".into(),
+            "Carol".into(),
+            "#0000ff".into(),
+        );
         let event = tracker.update_cursor("doc-1", 300, "line:5,col:10".into(), None);
         assert!(matches!(event, Some(PresenceEvent::CursorUpdate { .. })));
     }

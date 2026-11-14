@@ -66,18 +66,28 @@ pub fn montar(p: &Pedido<'_>) -> Result<(String, HeaderMap, Value), ErroProvedor
     cab.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
     match p.provedor.lingua {
         Lingua::OpenaiChat => {
-            cab.insert(AUTHORIZATION, valor_sensivel(&format!("Bearer {}", p.chave.expor()))?);
+            cab.insert(
+                AUTHORIZATION,
+                valor_sensivel(&format!("Bearer {}", p.chave.expor()))?,
+            );
             let mut mensagens = Vec::new();
             if !p.alma.trim().is_empty() {
                 mensagens.push(json!({"role": "system", "content": p.alma}));
             }
             mensagens.push(json!({"role": "user", "content": p.pergunta}));
             let corpo = json!({"model": p.modelo, "messages": mensagens});
-            Ok((format!("{}/chat/completions", p.provedor.endereco), cab, corpo))
+            Ok((
+                format!("{}/chat/completions", p.provedor.endereco),
+                cab,
+                corpo,
+            ))
         }
         Lingua::AnthropicMessages => {
             cab.insert("x-api-key", valor_sensivel(p.chave.expor())?);
-            cab.insert("anthropic-version", HeaderValue::from_static(VERSAO_ANTHROPIC));
+            cab.insert(
+                "anthropic-version",
+                HeaderValue::from_static(VERSAO_ANTHROPIC),
+            );
             let mut corpo = json!({
                 "model": p.modelo,
                 "max_tokens": MAX_TOKENS_ANTHROPIC,
@@ -94,7 +104,9 @@ pub fn montar(p: &Pedido<'_>) -> Result<(String, HeaderMap, Value), ErroProvedor
 /// Lê o texto da resposta de cada língua.
 pub fn extrair(lingua: Lingua, v: &Value) -> Result<String, ErroProvedor> {
     let texto = match lingua {
-        Lingua::OpenaiChat => v["choices"][0]["message"]["content"].as_str().map(str::to_string),
+        Lingua::OpenaiChat => v["choices"][0]["message"]["content"]
+            .as_str()
+            .map(str::to_string),
         Lingua::AnthropicMessages => v["content"].as_array().map(|partes| {
             partes
                 .iter()
@@ -106,7 +118,9 @@ pub fn extrair(lingua: Lingua, v: &Value) -> Result<String, ErroProvedor> {
     };
     match texto {
         Some(t) if !t.trim().is_empty() => Ok(t),
-        _ => Err(ErroProvedor::RespostaEstranha { motivo: "a resposta do provedor não tem texto".into() }),
+        _ => Err(ErroProvedor::RespostaEstranha {
+            motivo: "a resposta do provedor não tem texto".into(),
+        }),
     }
 }
 
@@ -124,10 +138,14 @@ pub async fn perguntar(cliente: &reqwest::Client, p: Pedido<'_>) -> Result<Strin
     let status = resp.status();
     let texto = resp.text().await.map_err(|e| erro_de_rede(e, &p))?;
     if !status.is_success() {
-        return Err(ErroProvedor::Recusou { status: status.as_u16(), trecho: cortar(&sem_chave(&texto, p.chave)) });
+        return Err(ErroProvedor::Recusou {
+            status: status.as_u16(),
+            trecho: cortar(&sem_chave(&texto, p.chave)),
+        });
     }
-    let v: Value = serde_json::from_str(&texto)
-        .map_err(|_| ErroProvedor::RespostaEstranha { motivo: "a resposta do provedor não é JSON".into() })?;
+    let v: Value = serde_json::from_str(&texto).map_err(|_| ErroProvedor::RespostaEstranha {
+        motivo: "a resposta do provedor não é JSON".into(),
+    })?;
     extrair(p.provedor.lingua, &v).map(|t| sem_chave(&t, p.chave))
 }
 
@@ -137,26 +155,39 @@ fn erro_de_rede(e: reqwest::Error, p: &Pedido<'_>) -> ErroProvedor {
 
 fn erro_de_rede_com(e: reqwest::Error, chave: &Segredo, tempo_limite: Duration) -> ErroProvedor {
     if e.is_timeout() {
-        ErroProvedor::TempoEsgotado { segundos: tempo_limite.as_secs() }
+        ErroProvedor::TempoEsgotado {
+            segundos: tempo_limite.as_secs(),
+        }
     } else {
         // `without_url`: o texto não leva o endereço; `sem_chave` por garantia.
-        ErroProvedor::Rede { motivo: sem_chave(&e.without_url().to_string(), chave) }
+        ErroProvedor::Rede {
+            motivo: sem_chave(&e.without_url().to_string(), chave),
+        }
     }
 }
 
 /// Monta o pedido de listagem de modelos: `GET {endereco}/models`, com a chave
 /// no cabeçalho de cada língua. Na Anthropic a lista é paginada; `limit=1000`
 /// traz tudo numa página.
-pub fn montar_listagem(provedor: &Provedor, chave: &Segredo) -> Result<(String, HeaderMap), ErroProvedor> {
+pub fn montar_listagem(
+    provedor: &Provedor,
+    chave: &Segredo,
+) -> Result<(String, HeaderMap), ErroProvedor> {
     let mut cab = HeaderMap::new();
     match provedor.lingua {
         Lingua::OpenaiChat => {
-            cab.insert(AUTHORIZATION, valor_sensivel(&format!("Bearer {}", chave.expor()))?);
+            cab.insert(
+                AUTHORIZATION,
+                valor_sensivel(&format!("Bearer {}", chave.expor()))?,
+            );
             Ok((format!("{}/models", provedor.endereco), cab))
         }
         Lingua::AnthropicMessages => {
             cab.insert("x-api-key", valor_sensivel(chave.expor())?);
-            cab.insert("anthropic-version", HeaderValue::from_static(VERSAO_ANTHROPIC));
+            cab.insert(
+                "anthropic-version",
+                HeaderValue::from_static(VERSAO_ANTHROPIC),
+            );
             Ok((format!("{}/models?limit=1000", provedor.endereco), cab))
         }
     }
@@ -165,10 +196,16 @@ pub fn montar_listagem(provedor: &Provedor, chave: &Segredo) -> Result<(String, 
 /// Lê os ids de modelo de `{"data": [{"id": ...}, ...]}` (formato das duas línguas),
 /// em ordem alfabética e sem repetição.
 pub fn extrair_modelos(v: &Value) -> Result<Vec<String>, ErroProvedor> {
-    let lista = v["data"].as_array().ok_or_else(|| ErroProvedor::RespostaEstranha {
-        motivo: "a lista de modelos não tem o campo data".into(),
-    })?;
-    let mut ids: Vec<String> = lista.iter().filter_map(|m| m["id"].as_str()).map(str::to_string).collect();
+    let lista = v["data"]
+        .as_array()
+        .ok_or_else(|| ErroProvedor::RespostaEstranha {
+            motivo: "a lista de modelos não tem o campo data".into(),
+        })?;
+    let mut ids: Vec<String> = lista
+        .iter()
+        .filter_map(|m| m["id"].as_str())
+        .map(str::to_string)
+        .collect();
     ids.sort();
     ids.dedup();
     Ok(ids)
@@ -190,12 +227,19 @@ pub async fn listar_modelos(
         .await
         .map_err(|e| erro_de_rede_com(e, chave, tempo_limite))?;
     let status = resp.status();
-    let texto = resp.text().await.map_err(|e| erro_de_rede_com(e, chave, tempo_limite))?;
+    let texto = resp
+        .text()
+        .await
+        .map_err(|e| erro_de_rede_com(e, chave, tempo_limite))?;
     if !status.is_success() {
-        return Err(ErroProvedor::Recusou { status: status.as_u16(), trecho: cortar(&sem_chave(&texto, chave)) });
+        return Err(ErroProvedor::Recusou {
+            status: status.as_u16(),
+            trecho: cortar(&sem_chave(&texto, chave)),
+        });
     }
-    let v: Value = serde_json::from_str(&texto)
-        .map_err(|_| ErroProvedor::RespostaEstranha { motivo: "a lista de modelos não é JSON".into() })?;
+    let v: Value = serde_json::from_str(&texto).map_err(|_| ErroProvedor::RespostaEstranha {
+        motivo: "a lista de modelos não é JSON".into(),
+    })?;
     extrair_modelos(&v)
 }
 
@@ -205,7 +249,14 @@ mod testes {
     use crate::provedores::de_fabrica;
 
     fn pedido<'a>(prov: &'a Provedor, chave: &'a Segredo, alma: &'a str) -> Pedido<'a> {
-        Pedido { provedor: prov, modelo: "m-1", alma, pergunta: "oi?", chave, tempo_limite: Duration::from_secs(5) }
+        Pedido {
+            provedor: prov,
+            modelo: "m-1",
+            alma,
+            pergunta: "oi?",
+            chave,
+            tempo_limite: Duration::from_secs(5),
+        }
     }
 
     #[test]
@@ -217,8 +268,14 @@ mod testes {
         assert_eq!(cab[AUTHORIZATION], "Bearer sk-x");
         assert!(cab[AUTHORIZATION].is_sensitive());
         assert_eq!(corpo["model"], "m-1");
-        assert_eq!(corpo["messages"][0], json!({"role": "system", "content": "Você é o Vigia."}));
-        assert_eq!(corpo["messages"][1], json!({"role": "user", "content": "oi?"}));
+        assert_eq!(
+            corpo["messages"][0],
+            json!({"role": "system", "content": "Você é o Vigia."})
+        );
+        assert_eq!(
+            corpo["messages"][1],
+            json!({"role": "user", "content": "oi?"})
+        );
     }
 
     #[test]
@@ -233,7 +290,10 @@ mod testes {
         assert!(cab.get(AUTHORIZATION).is_none());
         assert_eq!(corpo["system"], "Alma");
         assert_eq!(corpo["max_tokens"], MAX_TOKENS_ANTHROPIC);
-        assert_eq!(corpo["messages"], json!([{"role": "user", "content": "oi?"}]));
+        assert_eq!(
+            corpo["messages"],
+            json!([{"role": "user", "content": "oi?"}])
+        );
     }
 
     #[test]
@@ -281,7 +341,10 @@ mod testes {
     #[test]
     fn trecho_corta_e_tira_a_chave() {
         let chave = crate::chaves::tests_segredo("sk-abc");
-        assert_eq!(sem_chave("chave sk-abc invalida", &chave), "chave *** invalida");
+        assert_eq!(
+            sem_chave("chave sk-abc invalida", &chave),
+            "chave *** invalida"
+        );
         let longo = "x".repeat(400);
         assert_eq!(cortar(&longo).chars().count(), TRECHO_MAX + 1);
     }

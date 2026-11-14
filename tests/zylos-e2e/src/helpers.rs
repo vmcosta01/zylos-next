@@ -44,9 +44,7 @@ impl TestGateway {
             .spawn()
             .context("spawn gateway")?;
 
-        let client = Client::builder()
-            .timeout(Duration::from_secs(30))
-            .build()?;
+        let client = Client::builder().timeout(Duration::from_secs(30)).build()?;
 
         // Wait for health endpoint
         let base = format!("http://127.0.0.1:{}/api/v1/health", port);

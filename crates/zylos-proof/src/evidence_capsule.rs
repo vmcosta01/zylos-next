@@ -105,7 +105,14 @@ impl EvidenceCapsule {
         let source_id = source_id.into();
 
         // Digest é computado sobre os campos canônicos (excluindo o próprio digest e links mutáveis)
-        let digest = Self::compute_digest(&finding, evidence_type, &source_id, completeness, trust_boundary, ground);
+        let digest = Self::compute_digest(
+            &finding,
+            evidence_type,
+            &source_id,
+            completeness,
+            trust_boundary,
+            ground,
+        );
 
         Self {
             finding,
@@ -177,22 +184,18 @@ pub fn verify(capsules: &[EvidenceCapsule]) -> VerifyResult {
     for capsule in capsules {
         if !capsule.verify_digest() {
             all_valid = false;
-            missing_evidence.push(format!(
-                "digest mismatch on capsule '{}'",
-                capsule.finding
-            ));
+            missing_evidence.push(format!("digest mismatch on capsule '{}'", capsule.finding));
         }
     }
 
     // Fase 2: Suficiência de evidência (mínimo por ground)
     // Requer pelo menos 1 cápsula por nível de ground presente, e >= 2 para Verified+
-    let ground_counts = capsules.iter().fold(
-        std::collections::HashMap::new(),
-        |mut acc, c| {
+    let ground_counts = capsules
+        .iter()
+        .fold(std::collections::HashMap::new(), |mut acc, c| {
             *acc.entry(c.ground).or_insert(0usize) += 1;
             acc
-        },
-    );
+        });
 
     for (ground, count) in &ground_counts {
         if *ground >= super::Ground::Verified && *count < 2 {
@@ -217,8 +220,12 @@ pub fn verify(capsules: &[EvidenceCapsule]) -> VerifyResult {
         findings_seen.entry(c.finding.as_str()).or_default().push(c);
     }
     for (finding, group) in &findings_seen {
-        let has_contradicted = group.iter().any(|c| c.completeness == Completeness::Contradicted);
-        let has_verified = group.iter().any(|c| c.completeness == Completeness::Verified);
+        let has_contradicted = group
+            .iter()
+            .any(|c| c.completeness == Completeness::Contradicted);
+        let has_verified = group
+            .iter()
+            .any(|c| c.completeness == Completeness::Verified);
         if has_contradicted && has_verified {
             contradictions.push(format!("contradiction on finding '{}'", finding));
             all_valid = false;
@@ -290,14 +297,28 @@ pub fn compose(capsules: &[EvidenceCapsule]) -> Result<EvidenceCapsule, ComposeE
     };
 
     let composed_ground = if independent {
-        capsules.iter().map(|c| c.ground).min().unwrap_or(super::Ground::Assumed)
+        capsules
+            .iter()
+            .map(|c| c.ground)
+            .min()
+            .unwrap_or(super::Ground::Assumed)
     } else {
-        capsules.iter().map(|c| c.ground).max().unwrap_or(super::Ground::Assumed)
+        capsules
+            .iter()
+            .map(|c| c.ground)
+            .max()
+            .unwrap_or(super::Ground::Assumed)
     };
 
-    let composed_completeness = if capsules.iter().any(|c| c.completeness == Completeness::Contradicted) {
+    let composed_completeness = if capsules
+        .iter()
+        .any(|c| c.completeness == Completeness::Contradicted)
+    {
         Completeness::Contradicted
-    } else if capsules.iter().all(|c| c.completeness == Completeness::Verified) {
+    } else if capsules
+        .iter()
+        .all(|c| c.completeness == Completeness::Verified)
+    {
         Completeness::Verified
     } else {
         Completeness::Partial
@@ -307,7 +328,10 @@ pub fn compose(capsules: &[EvidenceCapsule]) -> Result<EvidenceCapsule, ComposeE
     let composed_finding = format!("composed({})", findings.join(", "));
 
     let composed_source = if independent {
-        format!("compose_independent({})", sources.into_iter().collect::<Vec<_>>().join(","))
+        format!(
+            "compose_independent({})",
+            sources.into_iter().collect::<Vec<_>>().join(",")
+        )
     } else {
         format!("compose_corroborative({})", capsules[0].source_id)
     };
@@ -334,7 +358,11 @@ impl std::fmt::Display for ComposeError {
         match self {
             ComposeError::Empty => write!(f, "cannot compose empty capsule set"),
             ComposeError::CircularComposition(digest) => {
-                write!(f, "circular composition detected: duplicate digest {}", digest)
+                write!(
+                    f,
+                    "circular composition detected: duplicate digest {}",
+                    digest
+                )
             }
         }
     }
@@ -419,19 +447,33 @@ mod tests {
 
     #[test]
     fn test_verify_detects_digest_tamper() {
-        let mut capsules = vec![sample_capsule("check", Ground::Confirmed, TrustLevel::Internal)];
+        let mut capsules = vec![sample_capsule(
+            "check",
+            Ground::Confirmed,
+            TrustLevel::Internal,
+        )];
         capsules[0].finding = "tampered".into();
         let result = verify(&capsules);
         assert!(!result.valid);
-        assert!(result.missing_evidence.iter().any(|m| m.contains("digest mismatch")));
+        assert!(result
+            .missing_evidence
+            .iter()
+            .any(|m| m.contains("digest mismatch")));
     }
 
     #[test]
     fn test_verify_detects_insufficient_evidence() {
-        let capsules = vec![sample_capsule("only_one", Ground::Verified, TrustLevel::Internal)];
+        let capsules = vec![sample_capsule(
+            "only_one",
+            Ground::Verified,
+            TrustLevel::Internal,
+        )];
         let result = verify(&capsules);
         assert!(!result.valid);
-        assert!(result.missing_evidence.iter().any(|m| m.contains("insufficient")));
+        assert!(result
+            .missing_evidence
+            .iter()
+            .any(|m| m.contains("insufficient")));
     }
 
     #[test]
@@ -443,8 +485,12 @@ mod tests {
         // Precisamos de digests diferentes para não serem filtradas como duplicatas
         c2.source_id = "other_source".into();
         c2.digest = EvidenceCapsule::compute_digest(
-            &c2.finding, c2.evidence_type, &c2.source_id,
-            c2.completeness, c2.trust_boundary, c2.ground,
+            &c2.finding,
+            c2.evidence_type,
+            &c2.source_id,
+            c2.completeness,
+            c2.trust_boundary,
+            c2.ground,
         );
         let result = verify(&[c1, c2]);
         assert!(!result.valid);

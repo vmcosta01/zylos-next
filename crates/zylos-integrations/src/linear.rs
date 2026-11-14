@@ -9,7 +9,7 @@ use reqwest::Client;
 use std::collections::HashMap;
 
 use crate::channel::{
-    CalendarEvent, ChatInfo, ChannelAdapter, DepartmentInfo, MessageId, OutboundMessage,
+    CalendarEvent, ChannelAdapter, ChatInfo, DepartmentInfo, MessageId, OutboundMessage,
     SendResult, UserInfo,
 };
 use crate::error::{IntegrationError, Result};
@@ -36,7 +36,11 @@ impl LinearAdapter {
         }
     }
 
-    async fn graphql(&self, query: &str, variables: Option<&serde_json::Value>) -> Result<serde_json::Value> {
+    async fn graphql(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+    ) -> Result<serde_json::Value> {
         let mut payload = serde_json::json!({ "query": query });
         if let Some(vars) = variables {
             payload["variables"] = vars.clone();
@@ -66,13 +70,14 @@ impl LinearAdapter {
             });
         }
 
-        let body: serde_json::Value = resp.json().await.map_err(|e| {
-            IntegrationError::ProviderExecution {
-                provider: "linear".to_string(),
-                action: "graphql".to_string(),
-                detail: format!("JSON parse failed: {}", e),
-            }
-        })?;
+        let body: serde_json::Value =
+            resp.json()
+                .await
+                .map_err(|e| IntegrationError::ProviderExecution {
+                    provider: "linear".to_string(),
+                    action: "graphql".to_string(),
+                    detail: format!("JSON parse failed: {}", e),
+                })?;
 
         // Check for GraphQL errors
         if let Some(errors) = body.get("errors").and_then(|v| v.as_array()) {
@@ -134,7 +139,11 @@ impl ChannelAdapter for LinearAdapter {
         Ok(SendResult {
             message_id: MessageId(comment_id),
             success,
-            error: if success { None } else { Some("commentCreate returned success=false".to_string()) },
+            error: if success {
+                None
+            } else {
+                Some("commentCreate returned success=false".to_string())
+            },
             raw_response: Some(body),
         })
     }
@@ -168,10 +177,24 @@ impl ChannelAdapter for LinearAdapter {
         let users: Vec<UserInfo> = nodes
             .iter()
             .map(|u| UserInfo {
-                user_id: u.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                name: u.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                email: u.get("email").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                avatar_url: u.get("avatarUrl").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                user_id: u
+                    .get("id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                name: u
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                email: u
+                    .get("email")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
+                avatar_url: u
+                    .get("avatarUrl")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
                 department_ids: vec![],
                 extra: HashMap::new(),
             })
@@ -198,10 +221,24 @@ impl ChannelAdapter for LinearAdapter {
         let user = body.pointer("/data/user").cloned().unwrap_or_default();
 
         Ok(UserInfo {
-            user_id: user.get("id").and_then(|v| v.as_str()).unwrap_or(user_id).to_string(),
-            name: user.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            email: user.get("email").and_then(|v| v.as_str()).map(|s| s.to_string()),
-            avatar_url: user.get("avatarUrl").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            user_id: user
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or(user_id)
+                .to_string(),
+            name: user
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            email: user
+                .get("email")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            avatar_url: user
+                .get("avatarUrl")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
             department_ids: vec![],
             extra: HashMap::new(),
         })
@@ -239,7 +276,11 @@ impl ChannelAdapter for LinearAdapter {
                 let key = t.get("key").and_then(|v| v.as_str()).unwrap_or("");
                 let name = t.get("name").and_then(|v| v.as_str()).unwrap_or("");
                 ChatInfo {
-                    chat_id: t.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    chat_id: t
+                        .get("id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
                     name: format!("[{}] {}", key, name),
                     member_count: None,
                     owner_id: None,

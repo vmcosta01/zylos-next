@@ -534,7 +534,15 @@ impl GoalStore {
                 tags_json,
             ],
         )?;
-        self.log_audit_sync(&conn, "goal", &goal.id, "created", None, Some(&goal.title), None)?;
+        self.log_audit_sync(
+            &conn,
+            "goal",
+            &goal.id,
+            "created",
+            None,
+            Some(&goal.title),
+            None,
+        )?;
         Ok(())
     }
 
@@ -566,10 +574,17 @@ impl GoalStore {
     }
 
     /// Transition a goal to a new status and record the change in the audit log.
-    pub async fn update_goal_status(&self, id: &str, status: GoalStatus, actor: Option<&str>) -> Result<(), GoalsError> {
+    pub async fn update_goal_status(
+        &self,
+        id: &str,
+        status: GoalStatus,
+        actor: Option<&str>,
+    ) -> Result<(), GoalsError> {
         let conn = self.conn.write().await;
         let old: Option<String> = conn
-            .query_row("SELECT status FROM goals WHERE id = ?1", params![id], |r| r.get(0))
+            .query_row("SELECT status FROM goals WHERE id = ?1", params![id], |r| {
+                r.get(0)
+            })
             .optional()?
             .ok_or_else(|| GoalsError::NotFound(id.to_string()))?;
         let now = Utc::now().to_rfc3339();
@@ -577,7 +592,15 @@ impl GoalStore {
             "UPDATE goals SET status = ?1, updated_at = ?2 WHERE id = ?3",
             params![status.to_string(), now, id],
         )?;
-        self.log_audit_sync(&conn, "goal", id, "status_changed", old.as_deref(), Some(&status.to_string()), actor)?;
+        self.log_audit_sync(
+            &conn,
+            "goal",
+            id,
+            "status_changed",
+            old.as_deref(),
+            Some(&status.to_string()),
+            actor,
+        )?;
         Ok(())
     }
 
@@ -613,16 +636,33 @@ impl GoalStore {
                 kr.updated_at.to_rfc3339(),
             ],
         )?;
-        self.log_audit_sync(&conn, "key_result", &kr.id, "created", None, Some(&kr.title), None)?;
+        self.log_audit_sync(
+            &conn,
+            "key_result",
+            &kr.id,
+            "created",
+            None,
+            Some(&kr.title),
+            None,
+        )?;
         Ok(())
     }
 
     /// Update a key result's current value. Automatically transitions status to
     /// `Achieved` when the value reaches or exceeds the target.
-    pub async fn update_kr_progress(&self, id: &str, value: f64, actor: Option<&str>) -> Result<(), GoalsError> {
+    pub async fn update_kr_progress(
+        &self,
+        id: &str,
+        value: f64,
+        actor: Option<&str>,
+    ) -> Result<(), GoalsError> {
         let conn = self.conn.write().await;
         let old: Option<f64> = conn
-            .query_row("SELECT current_value FROM key_results WHERE id = ?1", params![id], |r| r.get(0))
+            .query_row(
+                "SELECT current_value FROM key_results WHERE id = ?1",
+                params![id],
+                |r| r.get(0),
+            )
             .optional()?
             .ok_or_else(|| GoalsError::NotFound(id.to_string()))?;
         let now = Utc::now().to_rfc3339();
@@ -776,7 +816,11 @@ impl GoalStore {
     }
 
     /// Retrieve the most recent audit-log entries for an entity, newest first.
-    pub async fn get_audit_log(&self, entity_id: &str, limit: usize) -> Result<Vec<GoalAuditEntry>, GoalsError> {
+    pub async fn get_audit_log(
+        &self,
+        entity_id: &str,
+        limit: usize,
+    ) -> Result<Vec<GoalAuditEntry>, GoalsError> {
         let conn = self.conn.read().await;
         let mut stmt = conn.prepare(
             "SELECT id, entity_type, entity_id, action, old_value, new_value, actor, timestamp FROM goal_audit_log WHERE entity_id = ?1 ORDER BY timestamp DESC LIMIT ?2",
@@ -805,14 +849,26 @@ impl GoalStore {
         let conn = self.conn.read().await;
         let total_goals: usize = conn.query_row("SELECT COUNT(*) FROM goals", [], |r| r.get(0))?;
         let active_goals: usize = conn.query_row("SELECT COUNT(*) FROM goals WHERE status IN ('active', 'on_track', 'at_risk', 'blocked')", [], |r| r.get(0))?;
-        let completed_goals: usize = conn.query_row("SELECT COUNT(*) FROM goals WHERE status = 'completed'", [], |r| r.get(0))?;
-        let at_risk: usize = conn.query_row("SELECT COUNT(*) FROM goals WHERE status = 'at_risk'", [], |r| r.get(0))?;
+        let completed_goals: usize = conn.query_row(
+            "SELECT COUNT(*) FROM goals WHERE status = 'completed'",
+            [],
+            |r| r.get(0),
+        )?;
+        let at_risk: usize = conn.query_row(
+            "SELECT COUNT(*) FROM goals WHERE status = 'at_risk'",
+            [],
+            |r| r.get(0),
+        )?;
         let overdue_milestones: usize = conn.query_row(
             "SELECT COUNT(*) FROM milestones WHERE status = 'pending' AND due_date < ?1",
             params![Utc::now().to_rfc3339()],
             |r| r.get(0),
         )?;
-        let active_watchers: usize = conn.query_row("SELECT COUNT(*) FROM progress_watchers WHERE enabled = 1", [], |r| r.get(0))?;
+        let active_watchers: usize = conn.query_row(
+            "SELECT COUNT(*) FROM progress_watchers WHERE enabled = 1",
+            [],
+            |r| r.get(0),
+        )?;
         let avg_kr_progress: f64 = conn.query_row(
             "SELECT COALESCE(AVG(CASE WHEN target_value > 0 THEN (current_value / target_value) * 100.0 ELSE 0 END), 0) FROM key_results",
             [],
@@ -913,7 +969,8 @@ fn row_to_milestone(row: &rusqlite::Row) -> Result<Milestone, rusqlite::Error> {
             .unwrap_or_default()
             .with_timezone(&Utc),
         completed_at,
-        status: MilestoneStatus::from_str(&row.get::<_, String>(6)?).unwrap_or(MilestoneStatus::Pending),
+        status: MilestoneStatus::from_str(&row.get::<_, String>(6)?)
+            .unwrap_or(MilestoneStatus::Pending),
         created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(7)?)
             .unwrap_or_default()
             .with_timezone(&Utc),
@@ -931,7 +988,8 @@ fn row_to_watcher(row: &rusqlite::Row) -> Result<ProgressWatcher, rusqlite::Erro
         id: row.get(0)?,
         key_result_id: row.get(1)?,
         cron_expr: row.get(2)?,
-        source_type: WatcherSourceType::from_str(&row.get::<_, String>(3)?).unwrap_or(WatcherSourceType::Manual),
+        source_type: WatcherSourceType::from_str(&row.get::<_, String>(3)?)
+            .unwrap_or(WatcherSourceType::Manual),
         source_config,
         enabled: row.get::<_, i32>(5)? != 0,
         last_run_at,
@@ -1197,7 +1255,10 @@ mod tests {
         };
         store.create_goal(&goal).await.unwrap();
 
-        store.update_goal_status("g1", GoalStatus::Active, Some("alice")).await.unwrap();
+        store
+            .update_goal_status("g1", GoalStatus::Active, Some("alice"))
+            .await
+            .unwrap();
         let fetched = store.get_goal("g1").await.unwrap();
         assert_eq!(fetched.status, GoalStatus::Active);
 
@@ -1262,13 +1323,19 @@ mod tests {
         assert_eq!(watchers.len(), 1);
         assert_eq!(watchers[0].cron_expr, "0 */6 * * * *");
 
-        store.record_watcher_run("w1", Some(42.0), None).await.unwrap();
+        store
+            .record_watcher_run("w1", Some(42.0), None)
+            .await
+            .unwrap();
         let watchers = store.list_enabled_watchers().await.unwrap();
         assert_eq!(watchers[0].last_result, Some(42.0));
         assert!(watchers[0].last_run_at.is_some());
         assert!(watchers[0].last_error.is_none());
 
-        store.record_watcher_run("w1", None, Some("timeout")).await.unwrap();
+        store
+            .record_watcher_run("w1", None, Some("timeout"))
+            .await
+            .unwrap();
         let watchers = store.list_enabled_watchers().await.unwrap();
         assert_eq!(watchers[0].last_error.as_deref(), Some("timeout"));
     }
@@ -1280,34 +1347,40 @@ mod tests {
 
         // Create two goals: one active, one completed
         for (id, status) in [("g1", GoalStatus::Active), ("g2", GoalStatus::Completed)] {
-            store.create_goal(&Goal {
-                id: id.into(),
-                title: format!("Goal {}", id),
-                description: None,
-                owner: None,
-                status,
-                priority: Priority::Medium,
-                created_at: now,
-                updated_at: now,
-                due_date: None,
-                parent_goal_id: None,
-                tags: vec![],
-            }).await.unwrap();
+            store
+                .create_goal(&Goal {
+                    id: id.into(),
+                    title: format!("Goal {}", id),
+                    description: None,
+                    owner: None,
+                    status,
+                    priority: Priority::Medium,
+                    created_at: now,
+                    updated_at: now,
+                    due_date: None,
+                    parent_goal_id: None,
+                    tags: vec![],
+                })
+                .await
+                .unwrap();
         }
 
         // One KR at 50% progress
-        store.create_key_result(&KeyResult {
-            id: "kr1".into(),
-            goal_id: "g1".into(),
-            title: "Half done".into(),
-            metric_type: MetricType::Percentage,
-            target_value: 100.0,
-            current_value: 50.0,
-            unit: Some("%".into()),
-            status: KrStatus::InProgress,
-            created_at: now,
-            updated_at: now,
-        }).await.unwrap();
+        store
+            .create_key_result(&KeyResult {
+                id: "kr1".into(),
+                goal_id: "g1".into(),
+                title: "Half done".into(),
+                metric_type: MetricType::Percentage,
+                target_value: 100.0,
+                current_value: 50.0,
+                unit: Some("%".into()),
+                status: KrStatus::InProgress,
+                created_at: now,
+                updated_at: now,
+            })
+            .await
+            .unwrap();
 
         let summary = store.dashboard_summary().await.unwrap();
         assert_eq!(summary.total_goals, 2);
@@ -1319,7 +1392,15 @@ mod tests {
     #[tokio::test]
     async fn test_enum_from_str_roundtrip() {
         // GoalStatus
-        for s in &["draft", "active", "on_track", "at_risk", "blocked", "completed", "cancelled"] {
+        for s in &[
+            "draft",
+            "active",
+            "on_track",
+            "at_risk",
+            "blocked",
+            "completed",
+            "cancelled",
+        ] {
             let parsed = GoalStatus::from_str(s).unwrap();
             assert_eq!(parsed.to_string(), *s);
         }
@@ -1333,7 +1414,14 @@ mod tests {
         assert!(Priority::from_str("ultra").is_err());
 
         // MetricType
-        for s in &["percentage", "count", "currency", "duration", "boolean", "custom"] {
+        for s in &[
+            "percentage",
+            "count",
+            "currency",
+            "duration",
+            "boolean",
+            "custom",
+        ] {
             let parsed = MetricType::from_str(s).unwrap();
             assert_eq!(parsed.to_string(), *s);
         }
@@ -1351,7 +1439,13 @@ mod tests {
         }
 
         // WatcherSourceType
-        for s in &["skill_execution", "integration_action", "sql_query", "http_endpoint", "manual"] {
+        for s in &[
+            "skill_execution",
+            "integration_action",
+            "sql_query",
+            "http_endpoint",
+            "manual",
+        ] {
             let parsed = WatcherSourceType::from_str(s).unwrap();
             assert_eq!(parsed.to_string(), *s);
         }

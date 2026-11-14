@@ -25,17 +25,39 @@ async fn orchestrator_recovery_from_checkpoint() {
     });
 
     let url = format!("{}/api/v1/orchestrate", gw.base_url());
-    let resp = gw.client.post(&url).json(&dag).send().await.expect("submit dag");
-    assert!(resp.status().is_success(), "DAG submission failed: {}", resp.status());
+    let resp = gw
+        .client
+        .post(&url)
+        .json(&dag)
+        .send()
+        .await
+        .expect("submit dag");
+    assert!(
+        resp.status().is_success(),
+        "DAG submission failed: {}",
+        resp.status()
+    );
 
     let result: serde_json::Value = resp.json().await.expect("parse result");
     assert_eq!(result["status"], "completed", "DAG should complete");
 
     // Verify checkpoint exists and state is consistent
-    let checkpoint_url = format!("{}/api/v1/orchestrate/e2e-recovery/checkpoint", gw.base_url());
-    let cp: serde_json::Value = gw.client.get(&checkpoint_url)
-        .send().await.expect("get checkpoint")
-        .json().await.expect("parse checkpoint");
+    let checkpoint_url = format!(
+        "{}/api/v1/orchestrate/e2e-recovery/checkpoint",
+        gw.base_url()
+    );
+    let cp: serde_json::Value = gw
+        .client
+        .get(&checkpoint_url)
+        .send()
+        .await
+        .expect("get checkpoint")
+        .json()
+        .await
+        .expect("parse checkpoint");
 
-    assert!(cp.get("last_completed_node").is_some(), "checkpoint should record progress");
+    assert!(
+        cp.get("last_completed_node").is_some(),
+        "checkpoint should record progress"
+    );
 }

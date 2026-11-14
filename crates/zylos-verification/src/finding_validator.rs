@@ -260,11 +260,10 @@ pub struct InconsistencyDetector;
 
 impl InconsistencyDetector {
     /// Analyze a set of oracle records and produce an inconsistency report if needed.
-    pub fn detect(
-        finding_id: &FindingId,
-        records: &[OracleRecord],
-    ) -> Option<InconsistencyReport> {
-        let has_confirmed = records.iter().any(|r| r.verdict == OracleVerdict::Confirmed);
+    pub fn detect(finding_id: &FindingId, records: &[OracleRecord]) -> Option<InconsistencyReport> {
+        let has_confirmed = records
+            .iter()
+            .any(|r| r.verdict == OracleVerdict::Confirmed);
         let has_refuted = records.iter().any(|r| r.verdict == OracleVerdict::Refuted);
 
         if !has_confirmed || !has_refuted {
@@ -279,19 +278,18 @@ impl InconsistencyDetector {
 
         // Heuristic classification based on oracle types involved
         let types: Vec<OracleType> = conflicting.iter().map(|(t, _)| *t).collect();
-        let inconsistency_type = if types.contains(&OracleType::Statistical)
-            && types.contains(&OracleType::Tool)
-        {
-            InconsistencyType::MethodologyDisagreement
-        } else if types.contains(&OracleType::CrossRef) {
-            InconsistencyType::ScopeMismatch
-        } else if (types.contains(&OracleType::Human) || types.contains(&OracleType::Tool))
-            && (types.contains(&OracleType::LLM) || types.contains(&OracleType::Human))
-        {
-            InconsistencyType::FactualConflict
-        } else {
-            InconsistencyType::TemporalDrift
-        };
+        let inconsistency_type =
+            if types.contains(&OracleType::Statistical) && types.contains(&OracleType::Tool) {
+                InconsistencyType::MethodologyDisagreement
+            } else if types.contains(&OracleType::CrossRef) {
+                InconsistencyType::ScopeMismatch
+            } else if (types.contains(&OracleType::Human) || types.contains(&OracleType::Tool))
+                && (types.contains(&OracleType::LLM) || types.contains(&OracleType::Human))
+            {
+                InconsistencyType::FactualConflict
+            } else {
+                InconsistencyType::TemporalDrift
+            };
 
         Some(InconsistencyReport {
             finding_id: finding_id.clone(),
@@ -442,9 +440,7 @@ impl CrossValidationEngine {
             return (OracleVerdict::Uncertain, 0.0);
         }
 
-        let verdict = if confirmed_weight > refuted_weight
-            && confirmed_weight > uncertain_weight
-        {
+        let verdict = if confirmed_weight > refuted_weight && confirmed_weight > uncertain_weight {
             OracleVerdict::Confirmed
         } else if refuted_weight > confirmed_weight && refuted_weight > uncertain_weight {
             OracleVerdict::Refuted
@@ -637,7 +633,10 @@ mod tests {
             registry.next_id("domain_a");
         }
         let id_b = registry.next_id("domain_b");
-        assert_eq!(id_b.sequence, 1, "domain_b must start at 1 regardless of domain_a count");
+        assert_eq!(
+            id_b.sequence, 1,
+            "domain_b must start at 1 regardless of domain_a count"
+        );
     }
 
     #[test]
@@ -668,7 +667,10 @@ mod tests {
         let mut engine = CrossValidationEngine::new(SelectionStrategy::DiversityMaximizing);
         engine.register(Box::new(AlwaysConfirmedOracle(OracleType::Tool, 0.9)));
         engine.register(Box::new(AlwaysConfirmedOracle(OracleType::LLM, 0.8)));
-        engine.register(Box::new(AlwaysConfirmedOracle(OracleType::Statistical, 0.7)));
+        engine.register(Box::new(AlwaysConfirmedOracle(
+            OracleType::Statistical,
+            0.7,
+        )));
         engine.register(Box::new(AlwaysConfirmedOracle(OracleType::CrossRef, 0.6)));
         engine.register(Box::new(AlwaysConfirmedOracle(OracleType::Human, 0.95)));
 
@@ -681,7 +683,11 @@ mod tests {
         // With DiversityMaximizing, we should see distinct oracle types
         let types: std::collections::HashSet<_> =
             result.records.iter().map(|r| r.oracle_type).collect();
-        assert!(types.len() >= 3, "Expected diverse oracle types, got {:?}", types);
+        assert!(
+            types.len() >= 3,
+            "Expected diverse oracle types, got {:?}",
+            types
+        );
     }
 
     #[test]
@@ -689,7 +695,10 @@ mod tests {
         let mut engine = CrossValidationEngine::new(SelectionStrategy::DiversityMaximizing);
         engine.register(Box::new(AlwaysConfirmedOracle(OracleType::Tool, 0.9)));
         engine.register(Box::new(AlwaysConfirmedOracle(OracleType::LLM, 0.8)));
-        engine.register(Box::new(AlwaysConfirmedOracle(OracleType::Statistical, 0.7)));
+        engine.register(Box::new(AlwaysConfirmedOracle(
+            OracleType::Statistical,
+            0.7,
+        )));
 
         let finding = Finding::new(FindingId::new("test", 1), "test claim");
         let result = engine.validate(&finding);
@@ -703,7 +712,10 @@ mod tests {
         let mut engine = CrossValidationEngine::new(SelectionStrategy::DiversityMaximizing);
         engine.register(Box::new(AlwaysConfirmedOracle(OracleType::Tool, 0.9)));
         engine.register(Box::new(AlwaysConfirmedOracle(OracleType::LLM, 0.8)));
-        engine.register(Box::new(AlwaysConfirmedOracle(OracleType::Statistical, 0.7)));
+        engine.register(Box::new(AlwaysConfirmedOracle(
+            OracleType::Statistical,
+            0.7,
+        )));
 
         let finding = Finding::new(FindingId::new("test", 1), "test claim");
         let result = engine.validate(&finding);
@@ -718,7 +730,10 @@ mod tests {
         let mut engine = CrossValidationEngine::new(SelectionStrategy::DiversityMaximizing);
         engine.register(Box::new(AlwaysRefutedOracle(OracleType::Tool, 0.9)));
         engine.register(Box::new(AlwaysRefutedOracle(OracleType::LLM, 0.8)));
-        engine.register(Box::new(AlwaysConfirmedOracle(OracleType::Statistical, 0.3)));
+        engine.register(Box::new(AlwaysConfirmedOracle(
+            OracleType::Statistical,
+            0.3,
+        )));
 
         let finding = Finding::new(FindingId::new("test", 1), "test claim");
         let result = engine.validate(&finding);
@@ -732,7 +747,10 @@ mod tests {
         let mut engine = CrossValidationEngine::new(SelectionStrategy::DiversityMaximizing);
         engine.register(Box::new(AlwaysUncertainOracle(OracleType::Tool, 0.9)));
         engine.register(Box::new(AlwaysUncertainOracle(OracleType::LLM, 0.8)));
-        engine.register(Box::new(AlwaysUncertainOracle(OracleType::Statistical, 0.7)));
+        engine.register(Box::new(AlwaysUncertainOracle(
+            OracleType::Statistical,
+            0.7,
+        )));
 
         let finding = Finding::new(FindingId::new("test", 1), "test claim");
         let result = engine.validate(&finding);
@@ -760,13 +778,13 @@ mod tests {
             },
         ];
 
-        let report = InconsistencyDetector::detect(
-            &FindingId::new("test", 1),
-            &records,
-        );
+        let report = InconsistencyDetector::detect(&FindingId::new("test", 1), &records);
         assert!(report.is_some());
         let report = report.unwrap();
-        assert_eq!(report.inconsistency_type, InconsistencyType::FactualConflict);
+        assert_eq!(
+            report.inconsistency_type,
+            InconsistencyType::FactualConflict
+        );
         assert!(report.resolution_needed);
     }
 
@@ -787,10 +805,7 @@ mod tests {
             },
         ];
 
-        let report = InconsistencyDetector::detect(
-            &FindingId::new("test", 1),
-            &records,
-        );
+        let report = InconsistencyDetector::detect(&FindingId::new("test", 1), &records);
         assert!(report.is_none());
     }
 

@@ -153,7 +153,11 @@ pub struct NotificationDedupKey {
 }
 
 impl NotificationDedupKey {
-    pub fn new(operation_id: impl Into<String>, target_id: impl Into<String>, outcome: Outcome) -> Self {
+    pub fn new(
+        operation_id: impl Into<String>,
+        target_id: impl Into<String>,
+        outcome: Outcome,
+    ) -> Self {
         Self {
             operation_id: operation_id.into(),
             target_id: target_id.into(),
@@ -234,11 +238,14 @@ impl OutcomeTracker {
         let previous = self.states.get(&key).map(|s| s.outcome);
         let retry_count = self.states.get(&key).map_or(0, |s| s.retry_count + 1);
 
-        self.states.insert(key.clone(), TrackedOutcome {
-            outcome,
-            last_updated: now,
-            retry_count,
-        });
+        self.states.insert(
+            key.clone(),
+            TrackedOutcome {
+                outcome,
+                last_updated: now,
+                retry_count,
+            },
+        );
 
         // Audit log
         self.audit_log.push(OutcomeAuditEntry {
@@ -266,7 +273,8 @@ impl OutcomeTracker {
 
     /// Check if an operation requires human confirmation.
     pub fn needs_human_confirmation(&self, operation_id: &str) -> bool {
-        self.states.get(operation_id)
+        self.states
+            .get(operation_id)
             .is_some_and(|s| s.outcome.requires_human_confirmation())
     }
 
@@ -294,47 +302,110 @@ mod tests {
 
     #[test]
     fn test_classify_2xx_as_succeeded() {
-        assert_eq!(classify_error(&OperationError::HttpStatus(200)), Outcome::Succeeded);
-        assert_eq!(classify_error(&OperationError::HttpStatus(201)), Outcome::Succeeded);
-        assert_eq!(classify_error(&OperationError::HttpStatus(204)), Outcome::Succeeded);
+        assert_eq!(
+            classify_error(&OperationError::HttpStatus(200)),
+            Outcome::Succeeded
+        );
+        assert_eq!(
+            classify_error(&OperationError::HttpStatus(201)),
+            Outcome::Succeeded
+        );
+        assert_eq!(
+            classify_error(&OperationError::HttpStatus(204)),
+            Outcome::Succeeded
+        );
     }
 
     #[test]
     fn test_classify_4xx_as_failed() {
-        assert_eq!(classify_error(&OperationError::HttpStatus(400)), Outcome::Failed);
-        assert_eq!(classify_error(&OperationError::HttpStatus(401)), Outcome::Failed);
-        assert_eq!(classify_error(&OperationError::HttpStatus(403)), Outcome::Failed);
-        assert_eq!(classify_error(&OperationError::HttpStatus(404)), Outcome::Failed);
-        assert_eq!(classify_error(&OperationError::HttpStatus(422)), Outcome::Failed);
-        assert_eq!(classify_error(&OperationError::HttpStatus(429)), Outcome::Failed);
+        assert_eq!(
+            classify_error(&OperationError::HttpStatus(400)),
+            Outcome::Failed
+        );
+        assert_eq!(
+            classify_error(&OperationError::HttpStatus(401)),
+            Outcome::Failed
+        );
+        assert_eq!(
+            classify_error(&OperationError::HttpStatus(403)),
+            Outcome::Failed
+        );
+        assert_eq!(
+            classify_error(&OperationError::HttpStatus(404)),
+            Outcome::Failed
+        );
+        assert_eq!(
+            classify_error(&OperationError::HttpStatus(422)),
+            Outcome::Failed
+        );
+        assert_eq!(
+            classify_error(&OperationError::HttpStatus(429)),
+            Outcome::Failed
+        );
     }
 
     #[test]
     fn test_classify_5xx_as_unknown() {
-        assert_eq!(classify_error(&OperationError::HttpStatus(500)), Outcome::OutcomeUnknown);
-        assert_eq!(classify_error(&OperationError::HttpStatus(502)), Outcome::OutcomeUnknown);
-        assert_eq!(classify_error(&OperationError::HttpStatus(503)), Outcome::OutcomeUnknown);
-        assert_eq!(classify_error(&OperationError::HttpStatus(504)), Outcome::OutcomeUnknown);
+        assert_eq!(
+            classify_error(&OperationError::HttpStatus(500)),
+            Outcome::OutcomeUnknown
+        );
+        assert_eq!(
+            classify_error(&OperationError::HttpStatus(502)),
+            Outcome::OutcomeUnknown
+        );
+        assert_eq!(
+            classify_error(&OperationError::HttpStatus(503)),
+            Outcome::OutcomeUnknown
+        );
+        assert_eq!(
+            classify_error(&OperationError::HttpStatus(504)),
+            Outcome::OutcomeUnknown
+        );
     }
 
     #[test]
     fn test_classify_network_errors_as_unknown() {
-        assert_eq!(classify_error(&OperationError::Timeout), Outcome::OutcomeUnknown);
-        assert_eq!(classify_error(&OperationError::ConnectionReset), Outcome::OutcomeUnknown);
-        assert_eq!(classify_error(&OperationError::DnsFailure), Outcome::OutcomeUnknown);
-        assert_eq!(classify_error(&OperationError::TlsError), Outcome::OutcomeUnknown);
-        assert_eq!(classify_error(&OperationError::IoError("broken pipe".into())), Outcome::OutcomeUnknown);
+        assert_eq!(
+            classify_error(&OperationError::Timeout),
+            Outcome::OutcomeUnknown
+        );
+        assert_eq!(
+            classify_error(&OperationError::ConnectionReset),
+            Outcome::OutcomeUnknown
+        );
+        assert_eq!(
+            classify_error(&OperationError::DnsFailure),
+            Outcome::OutcomeUnknown
+        );
+        assert_eq!(
+            classify_error(&OperationError::TlsError),
+            Outcome::OutcomeUnknown
+        );
+        assert_eq!(
+            classify_error(&OperationError::IoError("broken pipe".into())),
+            Outcome::OutcomeUnknown
+        );
     }
 
     #[test]
     fn test_classify_client_errors_as_failed() {
-        assert_eq!(classify_error(&OperationError::Validation("missing field".into())), Outcome::Failed);
-        assert_eq!(classify_error(&OperationError::Serialization("invalid JSON".into())), Outcome::Failed);
+        assert_eq!(
+            classify_error(&OperationError::Validation("missing field".into())),
+            Outcome::Failed
+        );
+        assert_eq!(
+            classify_error(&OperationError::Serialization("invalid JSON".into())),
+            Outcome::Failed
+        );
     }
 
     #[test]
     fn test_classify_other_as_unknown() {
-        assert_eq!(classify_error(&OperationError::Other("something weird".into())), Outcome::OutcomeUnknown);
+        assert_eq!(
+            classify_error(&OperationError::Other("something weird".into())),
+            Outcome::OutcomeUnknown
+        );
     }
 
     #[test]
@@ -363,21 +434,36 @@ mod tests {
     fn test_tracker_records_audit_log() {
         let mut tracker = OutcomeTracker::new(300);
 
-        tracker.record_outcome("write_email", "msg-123", Some(&OperationError::HttpStatus(500)), "agent-1");
-        tracker.record_outcome("write_email", "msg-123", Some(&OperationError::HttpStatus(200)), "agent-1");
+        tracker.record_outcome(
+            "write_email",
+            "msg-123",
+            Some(&OperationError::HttpStatus(500)),
+            "agent-1",
+        );
+        tracker.record_outcome(
+            "write_email",
+            "msg-123",
+            Some(&OperationError::HttpStatus(200)),
+            "agent-1",
+        );
 
         assert_eq!(tracker.audit_log().len(), 2);
         assert_eq!(tracker.audit_log()[0].new_outcome, Outcome::OutcomeUnknown);
         assert_eq!(tracker.audit_log()[1].new_outcome, Outcome::Succeeded);
-        assert_eq!(tracker.audit_log()[1].previous_outcome, Some(Outcome::OutcomeUnknown));
+        assert_eq!(
+            tracker.audit_log()[1].previous_outcome,
+            Some(Outcome::OutcomeUnknown)
+        );
     }
 
     #[test]
     fn test_notification_dedup() {
         let mut tracker = OutcomeTracker::new(300);
 
-        let (_, notify1) = tracker.record_outcome("op1", "t1", Some(&OperationError::Timeout), "a1");
-        let (_, notify2) = tracker.record_outcome("op1", "t1", Some(&OperationError::Timeout), "a1");
+        let (_, notify1) =
+            tracker.record_outcome("op1", "t1", Some(&OperationError::Timeout), "a1");
+        let (_, notify2) =
+            tracker.record_outcome("op1", "t1", Some(&OperationError::Timeout), "a1");
 
         assert!(notify1, "First notification should be sent");
         assert!(!notify2, "Duplicate notification should be suppressed");
@@ -388,7 +474,8 @@ mod tests {
         let mut tracker = OutcomeTracker::new(300);
 
         let (_, n1) = tracker.record_outcome("op1", "t1", Some(&OperationError::Timeout), "a1");
-        let (_, n2) = tracker.record_outcome("op1", "t1", Some(&OperationError::HttpStatus(200)), "a1");
+        let (_, n2) =
+            tracker.record_outcome("op1", "t1", Some(&OperationError::HttpStatus(200)), "a1");
 
         assert!(n1);
         assert!(n2, "Different outcome should trigger new notification");
@@ -415,7 +502,10 @@ mod tests {
 
         assert_eq!(format!("{}", OperationError::HttpStatus(503)), "HTTP 503");
         assert_eq!(format!("{}", OperationError::Timeout), "request timeout");
-        assert_eq!(format!("{}", OperationError::Validation("bad input".into())), "validation error: bad input");
+        assert_eq!(
+            format!("{}", OperationError::Validation("bad input".into())),
+            "validation error: bad input"
+        );
     }
 
     #[test]
@@ -426,6 +516,9 @@ mod tests {
 
         // After pruning, same notification should be sent again
         let (_, notify) = tracker.record_outcome("op1", "t1", Some(&OperationError::Timeout), "a1");
-        assert!(notify, "After cache prune, notification should be sent again");
+        assert!(
+            notify,
+            "After cache prune, notification should be sent again"
+        );
     }
 }

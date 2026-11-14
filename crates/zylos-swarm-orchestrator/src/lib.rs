@@ -82,7 +82,9 @@ impl FromStr for TaskState {
 }
 
 /// Priority level for task scheduling.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Default,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum Priority {
     Low = 0,
@@ -368,11 +370,11 @@ pub enum SwarmError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
     /// Catch-all for internal orchestrator errors.
-        #[error("Internal: {0}")]
-        Internal(String),
-        /// Hop count circuit breaker opened — spawn depth exceeded limit.
-        #[error("Circuit breaker open: {0}")]
-        CircuitOpen(#[from] hop_count::CircuitOpen),
+    #[error("Internal: {0}")]
+    Internal(String),
+    /// Hop count circuit breaker opened — spawn depth exceeded limit.
+    #[error("Circuit breaker open: {0}")]
+    CircuitOpen(#[from] hop_count::CircuitOpen),
 }
 
 // ---------------------------------------------------------------------------
@@ -390,39 +392,39 @@ pub struct SwarmOrchestrator {
 
 impl SwarmOrchestrator {
     /// Opens or creates the swarm orchestrator store at the given path.
-        ///
-        /// Initializes the hop count circuit breaker with the default limit of 8.
-        /// Use [`set_hop_limit`](Self::set_hop_limit) to override after loading `rules.json`.
-        pub async fn open(path: &str) -> Result<Self, SwarmError> {
-            let options = SqliteConnectOptions::from_str(path)?
-                .create_if_missing(true)
-                .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
-            let pool = SqlitePool::connect_with(options).await?;
-            let orch = Self {
-                pool,
-                hop_guard: hop_count::HopCountGuard::default_limit(),
-            };
-            orch.run_migrations().await?;
-            Ok(orch)
-        }
+    ///
+    /// Initializes the hop count circuit breaker with the default limit of 8.
+    /// Use [`set_hop_limit`](Self::set_hop_limit) to override after loading `rules.json`.
+    pub async fn open(path: &str) -> Result<Self, SwarmError> {
+        let options = SqliteConnectOptions::from_str(path)?
+            .create_if_missing(true)
+            .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
+        let pool = SqlitePool::connect_with(options).await?;
+        let orch = Self {
+            pool,
+            hop_guard: hop_count::HopCountGuard::default_limit(),
+        };
+        orch.run_migrations().await?;
+        Ok(orch)
+    }
 
-        /// Overrides the hop count circuit breaker limit at runtime.
-        ///
-        /// Typically called after loading `rules.json`:
-        /// ```ignore
-        /// let config: serde_json::Value = load_rules_json()?;
-        /// if let Some(max) = config.get("hop_count_max").and_then(|v| v.as_u64()) {
-        ///     orchestrator.set_hop_limit(max as u8);
-        /// }
-        /// ```
-        pub fn set_hop_limit(&mut self, max: u8) {
-            self.hop_guard = hop_count::HopCountGuard::new(max.max(1));
-        }
+    /// Overrides the hop count circuit breaker limit at runtime.
+    ///
+    /// Typically called after loading `rules.json`:
+    /// ```ignore
+    /// let config: serde_json::Value = load_rules_json()?;
+    /// if let Some(max) = config.get("hop_count_max").and_then(|v| v.as_u64()) {
+    ///     orchestrator.set_hop_limit(max as u8);
+    /// }
+    /// ```
+    pub fn set_hop_limit(&mut self, max: u8) {
+        self.hop_guard = hop_count::HopCountGuard::new(max.max(1));
+    }
 
-        /// Returns a clone of the current hop count guard for inspection/testing.
-        pub fn hop_guard(&self) -> &hop_count::HopCountGuard {
-            &self.hop_guard
-        }
+    /// Returns a clone of the current hop count guard for inspection/testing.
+    pub fn hop_guard(&self) -> &hop_count::HopCountGuard {
+        &self.hop_guard
+    }
 
     async fn run_migrations(&self) -> Result<(), SwarmError> {
         sqlx::query(
@@ -479,7 +481,11 @@ impl SwarmOrchestrator {
         let deps_json = serde_json::to_string(&task.dependencies)?;
         let caps_json = serde_json::to_string(&task.required_capabilities)?;
         let payload_json = serde_json::to_string(&task.payload)?;
-        let result_json = task.result.as_ref().map(serde_json::to_string).transpose()?;
+        let result_json = task
+            .result
+            .as_ref()
+            .map(serde_json::to_string)
+            .transpose()?;
         let tags_json = serde_json::to_string(&task.tags)?;
 
         sqlx::query(
@@ -532,7 +538,11 @@ impl SwarmOrchestrator {
         let deps_json = serde_json::to_string(&task.dependencies)?;
         let caps_json = serde_json::to_string(&task.required_capabilities)?;
         let payload_json = serde_json::to_string(&task.payload)?;
-        let result_json = task.result.as_ref().map(serde_json::to_string).transpose()?;
+        let result_json = task
+            .result
+            .as_ref()
+            .map(serde_json::to_string)
+            .transpose()?;
         let tags_json = serde_json::to_string(&task.tags)?;
 
         let result = sqlx::query(
@@ -722,21 +732,24 @@ impl SwarmOrchestrator {
 
     /// Checks for cycles in the task dependency graph.
     pub async fn validate_dag(&self) -> Result<(), SwarmError> {
-        let tasks = self
-            .query_tasks(&TaskQuery::default())
-            .await?;
+        let tasks = self.query_tasks(&TaskQuery::default()).await?;
         let graph = build_dependency_graph(&tasks);
         toposort(&graph, None).map_err(|_| SwarmError::CycleDetected)?;
         Ok(())
     }
 
     /// Promotes tasks from Pending to Ready when all dependencies are Done.
-    pub async fn promote_ready_dependents(&self, completed_task_id: &str) -> Result<usize, SwarmError> {
+    pub async fn promote_ready_dependents(
+        &self,
+        completed_task_id: &str,
+    ) -> Result<usize, SwarmError> {
         // Find all tasks that depend on the completed task
-        let all_tasks = self.query_tasks(&TaskQuery {
-            state: Some(TaskState::Pending),
-            ..Default::default()
-        }).await?;
+        let all_tasks = self
+            .query_tasks(&TaskQuery {
+                state: Some(TaskState::Pending),
+                ..Default::default()
+            })
+            .await?;
 
         let mut promoted = 0;
         for task in &all_tasks {
@@ -771,10 +784,12 @@ impl SwarmOrchestrator {
 
     /// Initializes task states: tasks with no pending dependencies become Ready.
     pub async fn initialize_ready_tasks(&self) -> Result<usize, SwarmError> {
-        let pending = self.query_tasks(&TaskQuery {
-            state: Some(TaskState::Pending),
-            ..Default::default()
-        }).await?;
+        let pending = self
+            .query_tasks(&TaskQuery {
+                state: Some(TaskState::Pending),
+                ..Default::default()
+            })
+            .await?;
 
         let mut promoted = 0;
         for task in &pending {
@@ -880,52 +895,55 @@ impl SwarmOrchestrator {
     // -- Scheduling --
 
     /// Assigns ready tasks to available agents using capability matching and priority ordering.
-        ///
-        /// T8.1.1: Uses hop count circuit breaker as RAII guard for the entire schedule call.
-        /// This prevents recursive/nested schedule invocations from exceeding the configured depth,
-        /// NOT parallel assignments within the same scheduling round.
-        pub async fn schedule(&self) -> Result<ScheduleResult, SwarmError> {
-            // T8.1.1: Guard de entrada para prevenir recursão infinita de schedule()
-            let _hop_guard = self.hop_guard.enter_guard().map_err(SwarmError::from)?;
+    ///
+    /// T8.1.1: Uses hop count circuit breaker as RAII guard for the entire schedule call.
+    /// This prevents recursive/nested schedule invocations from exceeding the configured depth,
+    /// NOT parallel assignments within the same scheduling round.
+    pub async fn schedule(&self) -> Result<ScheduleResult, SwarmError> {
+        // T8.1.1: Guard de entrada para prevenir recursão infinita de schedule()
+        let _hop_guard = self.hop_guard.enter_guard().map_err(SwarmError::from)?;
 
-            let ready_tasks = self.query_tasks(&TaskQuery {
+        let ready_tasks = self
+            .query_tasks(&TaskQuery {
                 state: Some(TaskState::Ready),
                 ..Default::default()
-            }).await?;
+            })
+            .await?;
 
-            let agents = self.list_agents().await?;
-            let mut agent_loads: HashMap<AgentId, usize> = agents
+        let agents = self.list_agents().await?;
+        let mut agent_loads: HashMap<AgentId, usize> = agents
+            .iter()
+            .map(|a| (a.id.clone(), a.current_load))
+            .collect();
+        let _agent_map: HashMap<&str, &SwarmAgent> =
+            agents.iter().map(|a| (a.id.as_str(), a)).collect();
+
+        let mut assignments = Vec::new();
+        let mut unassignable = Vec::new();
+
+        // Sort by priority descending
+        let mut sorted_tasks = ready_tasks;
+        sorted_tasks.sort_by_key(|a| std::cmp::Reverse(a.priority));
+
+        for task in &sorted_tasks {
+            // Find best-fit agent
+            let best_agent = agents
                 .iter()
-                .map(|a| (a.id.clone(), a.current_load))
-                .collect();
-            let _agent_map: HashMap<&str, &SwarmAgent> = agents.iter().map(|a| (a.id.as_str(), a)).collect();
+                .filter(|a| {
+                    a.active
+                        && agent_loads.get(&a.id).copied().unwrap_or(0) < a.max_concurrent_tasks
+                        && a.can_handle(task)
+                })
+                .min_by_key(|a| agent_loads.get(&a.id).copied().unwrap_or(0));
 
-            let mut assignments = Vec::new();
-            let mut unassignable = Vec::new();
-
-            // Sort by priority descending
-            let mut sorted_tasks = ready_tasks;
-            sorted_tasks.sort_by_key(|a| std::cmp::Reverse(a.priority));
-
-            for task in &sorted_tasks {
-                // Find best-fit agent
-                let best_agent = agents
-                    .iter()
-                    .filter(|a| {
-                        a.active
-                            && agent_loads.get(&a.id).copied().unwrap_or(0) < a.max_concurrent_tasks
-                            && a.can_handle(task)
-                    })
-                    .min_by_key(|a| agent_loads.get(&a.id).copied().unwrap_or(0));
-
-                if let Some(agent) = best_agent {
-                    // Assign task
-                    let mut updated_task = task.clone();
-                    updated_task.state = TaskState::Running;
-                    updated_task.assigned_agent = Some(agent.id.clone());
-                    updated_task.started_at = Some(Utc::now());
-                    updated_task.updated_at = Utc::now();
-                    self.update_task(&updated_task).await?;
+            if let Some(agent) = best_agent {
+                // Assign task
+                let mut updated_task = task.clone();
+                updated_task.state = TaskState::Running;
+                updated_task.assigned_agent = Some(agent.id.clone());
+                updated_task.started_at = Some(Utc::now());
+                updated_task.updated_at = Utc::now();
+                self.update_task(&updated_task).await?;
 
                 *agent_loads.entry(agent.id.clone()).or_insert(0) += 1;
 
@@ -952,23 +970,23 @@ impl SwarmOrchestrator {
     }
 
     /// Releases a completed/failed task's slot on its assigned agent.
-        ///
-        pub async fn release_agent_slot(&self, task_id: &str) -> Result<(), SwarmError> {
-                    let task = self
-                        .get_task(task_id)
-                        .await?
-                        .ok_or_else(|| SwarmError::TaskNotFound(task_id.to_string()))?;
+    ///
+    pub async fn release_agent_slot(&self, task_id: &str) -> Result<(), SwarmError> {
+        let task = self
+            .get_task(task_id)
+            .await?
+            .ok_or_else(|| SwarmError::TaskNotFound(task_id.to_string()))?;
 
-                    if let Some(agent_id) = &task.assigned_agent {
-                        sqlx::query(
-                            "UPDATE swarm_agents SET current_load = MAX(0, current_load - 1) WHERE id = ?",
-                        )
-                        .bind(agent_id)
-                        .execute(&self.pool)
-                        .await?;
-                    }
-                    Ok(())
-                }
+        if let Some(agent_id) = &task.assigned_agent {
+            sqlx::query(
+                "UPDATE swarm_agents SET current_load = MAX(0, current_load - 1) WHERE id = ?",
+            )
+            .bind(agent_id)
+            .execute(&self.pool)
+            .await?;
+        }
+        Ok(())
+    }
 
     // -- Stats --
 
@@ -977,44 +995,50 @@ impl SwarmOrchestrator {
         let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM swarm_tasks")
             .fetch_one(&self.pool)
             .await?;
-        let pending: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM swarm_tasks WHERE state = 'pending'")
-            .fetch_one(&self.pool)
-            .await?;
-        let ready: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM swarm_tasks WHERE state = 'ready'")
-            .fetch_one(&self.pool)
-            .await?;
-        let running: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM swarm_tasks WHERE state = 'running'")
-            .fetch_one(&self.pool)
-            .await?;
+        let pending: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM swarm_tasks WHERE state = 'pending'")
+                .fetch_one(&self.pool)
+                .await?;
+        let ready: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM swarm_tasks WHERE state = 'ready'")
+                .fetch_one(&self.pool)
+                .await?;
+        let running: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM swarm_tasks WHERE state = 'running'")
+                .fetch_one(&self.pool)
+                .await?;
         let done: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM swarm_tasks WHERE state = 'done'")
             .fetch_one(&self.pool)
             .await?;
-        let failed: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM swarm_tasks WHERE state = 'failed'")
-            .fetch_one(&self.pool)
-            .await?;
-        let blocked: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM swarm_tasks WHERE state = 'blocked'")
-            .fetch_one(&self.pool)
-            .await?;
-        let cancelled: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM swarm_tasks WHERE state = 'cancelled'")
-            .fetch_one(&self.pool)
-            .await?;
+        let failed: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM swarm_tasks WHERE state = 'failed'")
+                .fetch_one(&self.pool)
+                .await?;
+        let blocked: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM swarm_tasks WHERE state = 'blocked'")
+                .fetch_one(&self.pool)
+                .await?;
+        let cancelled: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM swarm_tasks WHERE state = 'cancelled'")
+                .fetch_one(&self.pool)
+                .await?;
 
         let total_agents: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM swarm_agents")
             .fetch_one(&self.pool)
             .await?;
-        let active_agents: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM swarm_agents WHERE active = 1")
-            .fetch_one(&self.pool)
-            .await?;
+        let active_agents: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM swarm_agents WHERE active = 1")
+                .fetch_one(&self.pool)
+                .await?;
         let total_capacity: i64 = sqlx::query_scalar(
             "SELECT COALESCE(SUM(max_concurrent_tasks), 0) FROM swarm_agents WHERE active = 1",
         )
         .fetch_one(&self.pool)
         .await?;
-        let used_capacity: i64 = sqlx::query_scalar(
-            "SELECT COALESCE(SUM(current_load), 0) FROM swarm_agents",
-        )
-        .fetch_one(&self.pool)
-        .await?;
+        let used_capacity: i64 =
+            sqlx::query_scalar("SELECT COALESCE(SUM(current_load), 0) FROM swarm_agents")
+                .fetch_one(&self.pool)
+                .await?;
 
         Ok(SwarmStats {
             total_tasks: total as usize,
@@ -1056,7 +1080,10 @@ fn validate_transition(from: TaskState, to: TaskState) -> Result<(), SwarmError>
     if valid {
         Ok(())
     } else {
-        Err(SwarmError::InvalidTransition(from.to_string(), to.to_string()))
+        Err(SwarmError::InvalidTransition(
+            from.to_string(),
+            to.to_string(),
+        ))
     }
 }
 
@@ -1107,7 +1134,9 @@ fn row_to_task(row: &sqlx::sqlite::SqliteRow) -> Task {
         required_capabilities: serde_json::from_str(&caps_str).unwrap_or_default(),
         max_retries: row.get::<i32, _>("max_retries") as u32,
         retry_count: row.get::<i32, _>("retry_count") as u32,
-        timeout_seconds: row.get::<Option<i64>, _>("timeout_seconds").map(|t| t as u64),
+        timeout_seconds: row
+            .get::<Option<i64>, _>("timeout_seconds")
+            .map(|t| t as u64),
         payload: serde_json::from_str(&payload_str).unwrap_or(serde_json::Value::Null),
         result: result_str.and_then(|s| serde_json::from_str(&s).ok()),
         error: row.get("error"),
@@ -1117,10 +1146,12 @@ fn row_to_task(row: &sqlx::sqlite::SqliteRow) -> Task {
         updated_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))
             .unwrap_or_else(|_| Utc::now().into())
             .with_timezone(&Utc),
-        started_at: row.get::<Option<String>, _>("started_at")
+        started_at: row
+            .get::<Option<String>, _>("started_at")
             .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
             .map(|dt| dt.with_timezone(&Utc)),
-        completed_at: row.get::<Option<String>, _>("completed_at")
+        completed_at: row
+            .get::<Option<String>, _>("completed_at")
             .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
             .map(|dt| dt.with_timezone(&Utc)),
         parent_id: row.get("parent_id"),
@@ -1176,16 +1207,25 @@ mod tests {
         orch.add_task(&task).await.unwrap();
 
         // Pending -> Ready
-        let t = orch.transition_task(&task.id, TaskState::Ready, None).await.unwrap();
+        let t = orch
+            .transition_task(&task.id, TaskState::Ready, None)
+            .await
+            .unwrap();
         assert_eq!(t.state, TaskState::Ready);
 
         // Ready -> Running
-        let t = orch.transition_task(&task.id, TaskState::Running, None).await.unwrap();
+        let t = orch
+            .transition_task(&task.id, TaskState::Running, None)
+            .await
+            .unwrap();
         assert_eq!(t.state, TaskState::Running);
         assert!(t.started_at.is_some());
 
         // Running -> Done
-        let t = orch.complete_task(&task.id, serde_json::json!({"status": "ok"})).await.unwrap();
+        let t = orch
+            .complete_task(&task.id, serde_json::json!({"status": "ok"}))
+            .await
+            .unwrap();
         assert_eq!(t.state, TaskState::Done);
         assert!(t.completed_at.is_some());
     }
@@ -1209,9 +1249,15 @@ mod tests {
         orch.add_task(&task).await.unwrap();
 
         // Move to Failed
-        orch.transition_task(&task.id, TaskState::Ready, None).await.unwrap();
-        orch.transition_task(&task.id, TaskState::Running, None).await.unwrap();
-        orch.transition_task(&task.id, TaskState::Failed, Some("oops".into())).await.unwrap();
+        orch.transition_task(&task.id, TaskState::Ready, None)
+            .await
+            .unwrap();
+        orch.transition_task(&task.id, TaskState::Running, None)
+            .await
+            .unwrap();
+        orch.transition_task(&task.id, TaskState::Failed, Some("oops".into()))
+            .await
+            .unwrap();
 
         // First retry succeeds
         let retried = orch.retry_task(&task.id).await.unwrap();
@@ -1219,8 +1265,12 @@ mod tests {
         assert_eq!(retried.state, TaskState::Ready);
 
         // Fail again
-        orch.transition_task(&task.id, TaskState::Running, None).await.unwrap();
-        orch.transition_task(&task.id, TaskState::Failed, Some("oops again".into())).await.unwrap();
+        orch.transition_task(&task.id, TaskState::Running, None)
+            .await
+            .unwrap();
+        orch.transition_task(&task.id, TaskState::Failed, Some("oops again".into()))
+            .await
+            .unwrap();
 
         // Second retry should fail (exhausted)
         let err = orch.retry_task(&task.id).await;
@@ -1234,8 +1284,8 @@ mod tests {
         let parent = Task::new("Parent", "Must complete first");
         orch.add_task(&parent).await.unwrap();
 
-        let child = Task::new("Child", "Depends on parent")
-            .with_dependencies(vec![parent.id.clone()]);
+        let child =
+            Task::new("Child", "Depends on parent").with_dependencies(vec![parent.id.clone()]);
         orch.add_task(&child).await.unwrap();
 
         // Initialize: parent has no deps, becomes Ready
@@ -1249,8 +1299,12 @@ mod tests {
         assert_eq!(c.state, TaskState::Pending);
 
         // Complete parent
-        orch.transition_task(&parent.id, TaskState::Running, None).await.unwrap();
-        orch.complete_task(&parent.id, serde_json::json!(null)).await.unwrap();
+        orch.transition_task(&parent.id, TaskState::Running, None)
+            .await
+            .unwrap();
+        orch.complete_task(&parent.id, serde_json::json!(null))
+            .await
+            .unwrap();
 
         // Child should now be Ready
         let c = orch.get_task(&child.id).await.unwrap().unwrap();
@@ -1311,8 +1365,8 @@ mod tests {
         assert_eq!(result.assignments.len(), 1);
 
         // Task requiring python should be unassignable
-        let py_task = Task::new("Write Python", "Needs python")
-            .with_capabilities(vec!["python".into()]);
+        let py_task =
+            Task::new("Write Python", "Needs python").with_capabilities(vec!["python".into()]);
         orch.add_task(&py_task).await.unwrap();
         orch.initialize_ready_tasks().await.unwrap();
 
@@ -1338,130 +1392,130 @@ mod tests {
     }
 
     #[tokio::test]
-        async fn test_release_agent_slot() {
-            let orch = test_orchestrator().await;
+    async fn test_release_agent_slot() {
+        let orch = test_orchestrator().await;
 
-            let agent = SwarmAgent::new("a1", "Agent 1");
-            orch.register_agent(&agent).await.unwrap();
+        let agent = SwarmAgent::new("a1", "Agent 1");
+        orch.register_agent(&agent).await.unwrap();
 
-            let task = Task::new("Slot test", "Test release");
-            orch.add_task(&task).await.unwrap();
-            orch.initialize_ready_tasks().await.unwrap();
-            orch.schedule().await.unwrap();
+        let task = Task::new("Slot test", "Test release");
+        orch.add_task(&task).await.unwrap();
+        orch.initialize_ready_tasks().await.unwrap();
+        orch.schedule().await.unwrap();
 
-            let a = orch.get_agent("a1").await.unwrap().unwrap();
-            assert_eq!(a.current_load, 1);
+        let a = orch.get_agent("a1").await.unwrap().unwrap();
+        assert_eq!(a.current_load, 1);
 
-            orch.release_agent_slot(&task.id).await.unwrap();
-            let a = orch.get_agent("a1").await.unwrap().unwrap();
-            assert_eq!(a.current_load, 0);
-        }
-
-        // -----------------------------------------------------------------------
-                // T8.1.1 — Hop Count Circuit Breaker Integration Tests
-                // -----------------------------------------------------------------------
-
-                #[tokio::test]
-                async fn test_hop_count_default_limit() {
-                    let orch = test_orchestrator().await;
-                    assert_eq!(orch.hop_guard().max(), 8);
-                    assert_eq!(orch.hop_guard().current(), 0);
-                }
-
-                #[tokio::test]
-                async fn test_hop_count_set_limit() {
-                    let mut orch = test_orchestrator().await;
-                    orch.set_hop_limit(3);
-                    assert_eq!(orch.hop_guard().max(), 3);
-                }
-
-                /// T8.1.1: Verifica que chamadas recursivas/aninhadas de schedule()
-                /// são bloqueadas quando excedem o limite de hop count.
-                /// O circuit breaker protege contra recursão infinita, NÃO contra
-                /// assignments paralelos dentro da mesma chamada.
-                #[tokio::test]
-                async fn test_hop_count_blocks_nested_schedule_calls() {
-                    let mut orch = test_orchestrator().await;
-                    orch.set_hop_limit(2);
-
-                    // Simular nesting manual: entrar 2 níveis (preencher o guard)
-                    let _g1 = orch.hop_guard().enter_guard().unwrap();
-                    let _g2 = orch.hop_guard().enter_guard().unwrap();
-                    assert_eq!(orch.hop_guard().current(), 2);
-
-                    // Terceira entrada deve falhar com CircuitOpen
-                    let result = orch.hop_guard().enter();
-                    assert!(result.is_err());
-                    let err = result.unwrap_err();
-                    assert_eq!(err.max_hops, 2);
-                }
-
-                /// T8.1.1: Verifica que schedule() funciona normalmente dentro do limite
-                /// e que múltiplas chamadas sequenciais (não-aninhadas) são permitidas.
-                #[tokio::test]
-                async fn test_hop_count_allows_sequential_schedule_calls() {
-                    let orch = test_orchestrator().await;
-
-                    let mut agent = SwarmAgent::new("a1", "Agent 1");
-                    agent.max_concurrent_tasks = 5;
-                    orch.register_agent(&agent).await.unwrap();
-
-                    // Primeira chamada de schedule
-                    let task1 = Task::new("Task 1", "First round");
-                    orch.add_task(&task1).await.unwrap();
-                    orch.initialize_ready_tasks().await.unwrap();
-                    let r1 = orch.schedule().await.unwrap();
-                    assert_eq!(r1.assignments.len(), 1);
-
-                    // Guard deve ter sido liberado após schedule() retornar (RAII)
-                    assert_eq!(orch.hop_guard().current(), 0);
-
-                    // Segunda chamada sequencial deve funcionar normalmente
-                    let task2 = Task::new("Task 2", "Second round");
-                    orch.add_task(&task2).await.unwrap();
-                    orch.initialize_ready_tasks().await.unwrap();
-                    let r2 = orch.schedule().await.unwrap();
-                    assert_eq!(r2.assignments.len(), 1);
-
-                    // Guard liberado novamente
-                    assert_eq!(orch.hop_guard().current(), 0);
-                }
-
-                /// T8.1.1: Verifica que schedule() com muitas tasks ready funciona
-                /// sem abrir o circuit breaker (assignments paralelos ≠ nesting).
-                #[tokio::test]
-                async fn test_hop_count_parallel_assignments_within_limit() {
-                    let mut orch = test_orchestrator().await;
-                    orch.set_hop_limit(3);
-
-                    let mut agent = SwarmAgent::new("a1", "Agent 1");
-                    agent.max_concurrent_tasks = 10;
-                    orch.register_agent(&agent).await.unwrap();
-
-                    // Adicionar 5 tasks ready
-                    for i in 0..5 {
-                        let task = Task::new(format!("Task {}", i), "Parallel");
-                        orch.add_task(&task).await.unwrap();
-                    }
-                    orch.initialize_ready_tasks().await.unwrap();
-
-                    // Todas as 5 devem ser agendadas em UMA chamada (dentro do limite de hop=3)
-                    let result = orch.schedule().await.unwrap();
-                    assert_eq!(result.assignments.len(), 5);
-
-                    // Guard deve estar liberado após retorno
-                    assert_eq!(orch.hop_guard().current(), 0);
-                }
-
-                #[tokio::test]
-                async fn test_hop_count_zero_exit_safe() {
-                    let orch = test_orchestrator().await;
-                    assert_eq!(orch.hop_guard().current(), 0);
-
-                    // release_agent_slot sem schedule prévio não deve afetar hop count
-                    let task = Task::new("Orphan", "No assignment");
-                    orch.add_task(&task).await.unwrap();
-                    orch.release_agent_slot(&task.id).await.unwrap();
-                    assert_eq!(orch.hop_guard().current(), 0);
-                }
+        orch.release_agent_slot(&task.id).await.unwrap();
+        let a = orch.get_agent("a1").await.unwrap().unwrap();
+        assert_eq!(a.current_load, 0);
     }
+
+    // -----------------------------------------------------------------------
+    // T8.1.1 — Hop Count Circuit Breaker Integration Tests
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_hop_count_default_limit() {
+        let orch = test_orchestrator().await;
+        assert_eq!(orch.hop_guard().max(), 8);
+        assert_eq!(orch.hop_guard().current(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_hop_count_set_limit() {
+        let mut orch = test_orchestrator().await;
+        orch.set_hop_limit(3);
+        assert_eq!(orch.hop_guard().max(), 3);
+    }
+
+    /// T8.1.1: Verifica que chamadas recursivas/aninhadas de schedule()
+    /// são bloqueadas quando excedem o limite de hop count.
+    /// O circuit breaker protege contra recursão infinita, NÃO contra
+    /// assignments paralelos dentro da mesma chamada.
+    #[tokio::test]
+    async fn test_hop_count_blocks_nested_schedule_calls() {
+        let mut orch = test_orchestrator().await;
+        orch.set_hop_limit(2);
+
+        // Simular nesting manual: entrar 2 níveis (preencher o guard)
+        let _g1 = orch.hop_guard().enter_guard().unwrap();
+        let _g2 = orch.hop_guard().enter_guard().unwrap();
+        assert_eq!(orch.hop_guard().current(), 2);
+
+        // Terceira entrada deve falhar com CircuitOpen
+        let result = orch.hop_guard().enter();
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.max_hops, 2);
+    }
+
+    /// T8.1.1: Verifica que schedule() funciona normalmente dentro do limite
+    /// e que múltiplas chamadas sequenciais (não-aninhadas) são permitidas.
+    #[tokio::test]
+    async fn test_hop_count_allows_sequential_schedule_calls() {
+        let orch = test_orchestrator().await;
+
+        let mut agent = SwarmAgent::new("a1", "Agent 1");
+        agent.max_concurrent_tasks = 5;
+        orch.register_agent(&agent).await.unwrap();
+
+        // Primeira chamada de schedule
+        let task1 = Task::new("Task 1", "First round");
+        orch.add_task(&task1).await.unwrap();
+        orch.initialize_ready_tasks().await.unwrap();
+        let r1 = orch.schedule().await.unwrap();
+        assert_eq!(r1.assignments.len(), 1);
+
+        // Guard deve ter sido liberado após schedule() retornar (RAII)
+        assert_eq!(orch.hop_guard().current(), 0);
+
+        // Segunda chamada sequencial deve funcionar normalmente
+        let task2 = Task::new("Task 2", "Second round");
+        orch.add_task(&task2).await.unwrap();
+        orch.initialize_ready_tasks().await.unwrap();
+        let r2 = orch.schedule().await.unwrap();
+        assert_eq!(r2.assignments.len(), 1);
+
+        // Guard liberado novamente
+        assert_eq!(orch.hop_guard().current(), 0);
+    }
+
+    /// T8.1.1: Verifica que schedule() com muitas tasks ready funciona
+    /// sem abrir o circuit breaker (assignments paralelos ≠ nesting).
+    #[tokio::test]
+    async fn test_hop_count_parallel_assignments_within_limit() {
+        let mut orch = test_orchestrator().await;
+        orch.set_hop_limit(3);
+
+        let mut agent = SwarmAgent::new("a1", "Agent 1");
+        agent.max_concurrent_tasks = 10;
+        orch.register_agent(&agent).await.unwrap();
+
+        // Adicionar 5 tasks ready
+        for i in 0..5 {
+            let task = Task::new(format!("Task {}", i), "Parallel");
+            orch.add_task(&task).await.unwrap();
+        }
+        orch.initialize_ready_tasks().await.unwrap();
+
+        // Todas as 5 devem ser agendadas em UMA chamada (dentro do limite de hop=3)
+        let result = orch.schedule().await.unwrap();
+        assert_eq!(result.assignments.len(), 5);
+
+        // Guard deve estar liberado após retorno
+        assert_eq!(orch.hop_guard().current(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_hop_count_zero_exit_safe() {
+        let orch = test_orchestrator().await;
+        assert_eq!(orch.hop_guard().current(), 0);
+
+        // release_agent_slot sem schedule prévio não deve afetar hop count
+        let task = Task::new("Orphan", "No assignment");
+        orch.add_task(&task).await.unwrap();
+        orch.release_agent_slot(&task.id).await.unwrap();
+        assert_eq!(orch.hop_guard().current(), 0);
+    }
+}

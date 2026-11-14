@@ -62,10 +62,7 @@ impl GatewayHandle {
         }
 
         // Wait up to 5 seconds for graceful exit
-        let timeout = tokio::time::timeout(
-            std::time::Duration::from_secs(5),
-            self.child.wait(),
-        );
+        let timeout = tokio::time::timeout(std::time::Duration::from_secs(5), self.child.wait());
 
         match timeout.await {
             Ok(Ok(_)) => {
@@ -78,9 +75,10 @@ impl GatewayHandle {
             }
             Err(_) => {
                 warn!("Gateway did not exit gracefully, force killing");
-                self.child.kill().await.map_err(|e| {
-                    GatewayError::StopFailed(format!("Force kill failed: {e}"))
-                })?;
+                self.child
+                    .kill()
+                    .await
+                    .map_err(|e| GatewayError::StopFailed(format!("Force kill failed: {e}")))?;
                 Ok(())
             }
         }
@@ -193,9 +191,9 @@ impl GatewayManager {
         // Set environment for embedded mode
         cmd.env("ZYLOS_EMBEDDED", "1");
 
-        let child = cmd.spawn().map_err(|e| {
-            GatewayError::StartFailed(format!("Failed to spawn: {e}"))
-        })?;
+        let child = cmd
+            .spawn()
+            .map_err(|e| GatewayError::StartFailed(format!("Failed to spawn: {e}")))?;
 
         let pid = child.id().unwrap_or(0);
         let handle = GatewayHandle {
@@ -291,10 +289,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_status_when_stopped() {
-        let mgr = GatewayManager::new(
-            PathBuf::from("/nonexistent/binary"),
-            None,
-        );
+        let mgr = GatewayManager::new(PathBuf::from("/nonexistent/binary"), None);
         let status = mgr.status().await;
         assert!(!status.running);
         assert!(status.pid.is_none());
@@ -302,10 +297,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_nonexistent_binary() {
-        let mgr = GatewayManager::new(
-            PathBuf::from("/nonexistent/binary"),
-            None,
-        );
+        let mgr = GatewayManager::new(PathBuf::from("/nonexistent/binary"), None);
         let result = mgr.start().await;
         assert!(matches!(result, Err(GatewayError::BinaryNotFound(_))));
     }
