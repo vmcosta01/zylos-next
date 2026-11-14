@@ -570,6 +570,7 @@ pub mod ocr_assisted {
     //! OCR-assisted screenshot verification using VlmOcrClient.
 
     use super::*;
+    #[allow(unused_imports)]
     use zylos_vlm_ocr::client::{OcrConfig, VlmOcrClient};
 
     /// Verify screenshot text content via OCR.

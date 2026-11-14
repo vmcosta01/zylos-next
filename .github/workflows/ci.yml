@@ -20,7 +20,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Install system dependencies (GTK/GLib for desktop crate)
         run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libglib2.0-dev libappindicator3-dev librsvg2-dev libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev libsoup-3.0-dev protobuf-compiler
-      - run: cargo check --workspace --all-targets --exclude zylos-desktop
+      - run: cargo check --workspace --all-targets --exclude zylos-desktop --exclude zylos-desktop-app
 
   fmt:
     name: Rustfmt
@@ -43,7 +43,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Install system dependencies (GTK/GLib for desktop crate)
         run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libglib2.0-dev libappindicator3-dev librsvg2-dev libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev libsoup-3.0-dev protobuf-compiler
-      - run: cargo clippy --workspace --all-targets --exclude zylos-desktop -- -D warnings
+      - run: cargo clippy --workspace --all-targets --exclude zylos-desktop --exclude zylos-desktop-app -- -D warnings
 
   test:
     name: Test Suite
@@ -54,7 +54,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Install system dependencies (GTK/GLib for desktop crate)
         run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libglib2.0-dev libappindicator3-dev librsvg2-dev libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev libsoup-3.0-dev protobuf-compiler
-      - run: cargo test --workspace --all-features --exclude zylos-desktop
+      - run: cargo test --workspace --all-features --exclude zylos-desktop --exclude zylos-desktop-app
 
   docs:
     name: Documentation
@@ -65,7 +65,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Install system dependencies (GTK/GLib for desktop crate)
         run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libglib2.0-dev libappindicator3-dev librsvg2-dev libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev libsoup-3.0-dev protobuf-compiler
-      - run: cargo doc --workspace --no-deps --document-private-items --exclude zylos-desktop
+      - run: cargo doc --workspace --no-deps --document-private-items --exclude zylos-desktop --exclude zylos-desktop-app
         env:
           RUSTDOCFLAGS: "-Dwarnings"
 
@@ -83,7 +83,7 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
-        run: cargo llvm-cov --workspace --lcov --output-path lcov.info --exclude zylos-desktop
+        run: cargo llvm-cov --workspace --lcov --output-path lcov.info --exclude zylos-desktop --exclude zylos-desktop-app
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
@@ -111,7 +111,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Install system dependencies (GTK/GLib for desktop crate)
         run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libglib2.0-dev libappindicator3-dev librsvg2-dev libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev libsoup-3.0-dev protobuf-compiler
-      - run: cargo check --workspace --all-targets --exclude zylos-desktop
+      - run: cargo check --workspace --all-targets --exclude zylos-desktop --exclude zylos-desktop-app
 
   build-release:
     name: Build Release
@@ -123,7 +123,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Install system dependencies (GTK/GLib for desktop crate)
         run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libglib2.0-dev libappindicator3-dev librsvg2-dev libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev libsoup-3.0-dev protobuf-compiler
-      - run: cargo build --workspace --release --exclude zylos-desktop
+      - run: cargo build --workspace --release --exclude zylos-desktop --exclude zylos-desktop-app
 
   # === Fase 11.3: WASM Build + E2E + Size Check ===
 

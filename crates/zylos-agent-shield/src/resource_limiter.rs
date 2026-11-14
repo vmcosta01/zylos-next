@@ -330,8 +330,8 @@ impl CgroupsLimiter {
                 .ok()
                 .and_then(|s| s.trim().parse::<u64>().ok());
 
-            let mem_ok = memory_current.map_or(true, |m| m <= limits.memory_bytes);
-            let pid_ok = pid_current.map_or(true, |p| p <= limits.pids_max);
+            let mem_ok = memory_current.is_none_or(|m| m <= limits.memory_bytes);
+            let pid_ok = pid_current.is_none_or(|p| p <= limits.pids_max);
 
             Ok(LimitCheckResult {
                 within_limits: mem_ok && pid_ok,
