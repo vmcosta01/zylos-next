@@ -19,8 +19,18 @@ use tokio::sync::RwLock;
 use tower::ServiceExt;
 
 // Re-use gateway types
-use zylos_gateway::AppState;
+use zylos_agent_shield::{AgentShield, ShieldConfig};
+use zylos_browser_takeover::TakeoverStore;
+use zylos_evidence_ledger::EvidenceLedger;
+use zylos_gateway::{
+    evidence_api::EvidenceHandleInner, goals_api::GoalsHandleInner, memory_api::MemoryHandleInner,
+    personalities_api::PersonalitiesHandleInner, sentinel_api::SentinelHandleInner, ApiHandles,
+    AppState,
+};
+use zylos_goals::GoalStore;
 use zylos_live_comm::{skills_api::SkillsApiState, EventBus};
+use zylos_memory_sync::MemoryStore;
+use zylos_personalities::PersonalityRegistry;
 use zylos_skills::{EvalFlywheel, SkillRegistry, SkillValidator};
 use zylos_soar::{
     audit::AuditTrail,
@@ -30,6 +40,42 @@ use zylos_soar::{
     router::EventRouter,
 };
 use zylos_swarm_orchestrator::SwarmOrchestrator;
+
+/// Build in-memory ApiHandles for e2e tests.
+async fn e2e_api_handles() -> ApiHandles {
+    let goals_store = GoalStore::in_memory().expect("goals in-memory");
+    let memory_store = MemoryStore::open(":memory:")
+        .await
+        .expect("memory in-memory");
+    let personalities_registry = PersonalityRegistry::open(":memory:")
+        .await
+        .expect("personalities in-memory");
+    let shield = AgentShield::new(ShieldConfig::default(), None)
+        .await
+        .expect("shield in-memory");
+    let takeover_store =
+        TakeoverStore::open(std::path::Path::new(":memory:")).expect("takeover in-memory");
+    let evidence_ledger = EvidenceLedger::open(":memory:")
+        .await
+        .expect("evidence in-memory");
+
+    ApiHandles {
+        goals: Arc::new(GoalsHandleInner { store: goals_store }),
+        memory: Arc::new(MemoryHandleInner {
+            store: memory_store,
+        }),
+        personalities: Arc::new(PersonalitiesHandleInner {
+            registry: personalities_registry,
+        }),
+        sentinel: Arc::new(SentinelHandleInner {
+            shield,
+            takeover: takeover_store,
+        }),
+        evidence: Arc::new(EvidenceHandleInner {
+            ledger: evidence_ledger,
+        }),
+    }
+}
 
 /// Build a test AppState with all subsystems initialized (async to avoid nested runtime).
 async fn e2e_state() -> AppState {
@@ -71,7 +117,8 @@ async fn e2e_state() -> AppState {
 #[tokio::test]
 async fn e2e_01_gateway_health_returns_version() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     let req = Request::builder()
         .uri("/gateway/health")
@@ -93,7 +140,8 @@ async fn e2e_02_readiness_probe_reflects_state() {
     let state = e2e_state().await;
     // Toggle ready off
     state.ready.store(false, Ordering::Relaxed);
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     let req = Request::builder()
         .uri("/gateway/ready")
@@ -109,7 +157,8 @@ async fn e2e_02_readiness_probe_reflects_state() {
 #[tokio::test]
 async fn e2e_03_liveness_probe_always_alive() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     let req = Request::builder()
         .uri("/gateway/live")
@@ -1001,7 +1050,7 @@ async fn e2e_33_orchestrate_soar_playbook_dispatch_via_dag() {
 
 /// Manda um DAG ao /orchestrate e devolve (corpo, ids dos results na ordem).
 async fn orchestrate(nodes: serde_json::Value) -> (serde_json::Value, Vec<String>) {
-    let app = zylos_gateway::build_router(e2e_state().await);
+    let app = zylos_gateway::build_router(e2e_state().await, e2e_api_handles().await);
     let req = Request::builder()
         .method("POST")
         .uri("/api/v1/orchestrate")
@@ -1056,7 +1105,7 @@ async fn e2e_35_orchestrate_pedido_em_ordem_nao_muda_de_ordem() {
 
 /// Manda o corpo inteiro ao /orchestrate e devolve (status, corpo).
 async fn orchestrate_bruto(corpo: serde_json::Value) -> (StatusCode, serde_json::Value) {
-    let app = zylos_gateway::build_router(e2e_state().await);
+    let app = zylos_gateway::build_router(e2e_state().await, e2e_api_handles().await);
     let req = Request::builder()
         .method("POST")
         .uri("/api/v1/orchestrate")
