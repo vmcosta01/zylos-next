@@ -180,7 +180,8 @@ async fn e2e_03_liveness_probe_always_alive() {
 #[tokio::test]
 async fn e2e_04_skills_list_empty_registry() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     let req = Request::builder()
         .uri("/api/v1/skills")
@@ -198,7 +199,8 @@ async fn e2e_04_skills_list_empty_registry() {
 #[tokio::test]
 async fn e2e_05_skill_not_found_returns_404() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     let req = Request::builder()
         .uri("/api/v1/skills/nonexistent-skill")
@@ -212,7 +214,8 @@ async fn e2e_05_skill_not_found_returns_404() {
 #[tokio::test]
 async fn e2e_06_eval_run_not_found_returns_404() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     let req = Request::builder()
         .uri("/api/v1/eval/run/nonexistent")
@@ -230,7 +233,8 @@ async fn e2e_06_eval_run_not_found_returns_404() {
 #[tokio::test]
 async fn e2e_07_sse_endpoint_returns_event_stream() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     let req = Request::builder()
         .uri("/api/v1/events")
@@ -249,7 +253,8 @@ async fn e2e_07_sse_endpoint_returns_event_stream() {
 #[tokio::test]
 async fn e2e_08_sse_with_filter_param() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     let req = Request::builder()
         .uri("/api/v1/events?types=text_delta,tool_call_start")
@@ -268,7 +273,8 @@ async fn e2e_08_sse_with_filter_param() {
 #[tokio::test]
 async fn e2e_09_soar_event_submission_accepted() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     let payload = serde_json::json!({
         "source": "e2e-test",
@@ -299,7 +305,8 @@ async fn e2e_09_soar_event_submission_accepted() {
 #[tokio::test]
 async fn e2e_10_soar_event_invalid_payload_rejected() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     let req = Request::builder()
         .method("POST")
@@ -322,7 +329,8 @@ async fn e2e_10_soar_event_invalid_payload_rejected() {
 #[tokio::test]
 async fn e2e_11_soar_event_with_all_severity_levels() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     for severity in &["low", "medium", "high", "critical"] {
         let payload = serde_json::json!({
@@ -360,7 +368,8 @@ async fn e2e_11_soar_event_with_all_severity_levels() {
 #[tokio::test]
 async fn e2e_12_cors_headers_on_all_endpoints() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     for path in &["/gateway/health", "/gateway/ready", "/gateway/live"] {
         let req = Request::builder()
@@ -381,7 +390,8 @@ async fn e2e_12_cors_headers_on_all_endpoints() {
 #[tokio::test]
 async fn e2e_13_preflight_options_request() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     let req = Request::builder()
         .method("OPTIONS")
@@ -398,7 +408,8 @@ async fn e2e_13_preflight_options_request() {
 #[tokio::test]
 async fn e2e_14_unknown_route_returns_404() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     let req = Request::builder()
         .uri("/api/v1/nonexistent")
@@ -484,7 +495,8 @@ async fn e2e_18_skills_validator_rejects_malformed() {
 #[tokio::test]
 async fn e2e_19_concurrent_requests_no_panic() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     let mut handles = vec![];
     for i in 0..10 {
@@ -507,7 +519,8 @@ async fn e2e_19_concurrent_requests_no_panic() {
 #[tokio::test]
 async fn e2e_20_full_workflow_health_to_soar() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     // Step 1: Verify gateway is healthy
     let req = Request::builder()
@@ -566,7 +579,8 @@ fn orchestrate_request(nodes: serde_json::Value) -> serde_json::Value {
 #[tokio::test]
 async fn e2e_21_orchestrate_memory_consolidation() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     let payload = orchestrate_request(serde_json::json!([
         {
@@ -598,7 +612,8 @@ async fn e2e_21_orchestrate_memory_consolidation() {
 #[tokio::test]
 async fn e2e_22_orchestrate_contradiction_detection() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     let payload = orchestrate_request(serde_json::json!([
         {
@@ -627,7 +642,8 @@ async fn e2e_22_orchestrate_contradiction_detection() {
 #[tokio::test]
 async fn e2e_23_orchestrate_dag_execution_multi_node() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     let payload = orchestrate_request(serde_json::json!([
         {
@@ -672,7 +688,8 @@ async fn e2e_23_orchestrate_dag_execution_multi_node() {
 #[tokio::test]
 async fn e2e_24_orchestrate_rollback_on_failure() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     let payload = serde_json::json!({
         "label": "rollback-test",
@@ -727,7 +744,8 @@ async fn e2e_24_orchestrate_rollback_on_failure() {
 #[tokio::test]
 async fn e2e_25_orchestrate_recovery_after_dependency_failure() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     // Without rollback, nodes after a failure still attempt if deps are met
     let payload = serde_json::json!({
@@ -780,7 +798,8 @@ async fn e2e_25_orchestrate_recovery_after_dependency_failure() {
 #[tokio::test]
 async fn e2e_26_orchestrate_proof_validation() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     let payload = orchestrate_request(serde_json::json!([
         {
@@ -813,7 +832,8 @@ async fn e2e_26_orchestrate_proof_validation() {
 #[tokio::test]
 async fn e2e_27_orchestrate_panel_deliberation() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     let payload = orchestrate_request(serde_json::json!([
         {
@@ -848,7 +868,8 @@ async fn e2e_27_orchestrate_panel_deliberation() {
 #[tokio::test]
 async fn e2e_28_orchestrate_wasm_isolation_check() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     let payload = orchestrate_request(serde_json::json!([
         {
@@ -881,7 +902,8 @@ async fn e2e_28_orchestrate_wasm_isolation_check() {
 #[tokio::test]
 async fn e2e_29_orchestrate_skill_registry_discovery() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     let payload = orchestrate_request(serde_json::json!([
         {
@@ -911,7 +933,8 @@ async fn e2e_29_orchestrate_skill_registry_discovery() {
 #[tokio::test]
 async fn e2e_30_orchestrate_eval_flywheel_status() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     let payload = orchestrate_request(serde_json::json!([
         {
@@ -940,7 +963,8 @@ async fn e2e_30_orchestrate_eval_flywheel_status() {
 #[tokio::test]
 async fn e2e_31_orchestrate_cockpit_streaming_status() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     let payload = orchestrate_request(serde_json::json!([
         {
@@ -972,7 +996,8 @@ async fn e2e_31_orchestrate_cockpit_streaming_status() {
 #[tokio::test]
 async fn e2e_32_orchestrate_lazy_roster_performance() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     // Use cockpit_status as proxy for lazy-roster perf measurement
     // (the orchestrator measures clone timing internally)
@@ -1018,7 +1043,8 @@ async fn e2e_32_orchestrate_lazy_roster_performance() {
 #[tokio::test]
 async fn e2e_33_orchestrate_soar_playbook_dispatch_via_dag() {
     let state = e2e_state().await;
-    let app = zylos_gateway::build_router(state);
+    let handles = e2e_api_handles().await;
+    let app = zylos_gateway::build_router(state, handles);
 
     let payload = orchestrate_request(serde_json::json!([
         {

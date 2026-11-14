@@ -11,8 +11,18 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tower::ServiceExt;
 
-use zylos_gateway::AppState;
+use zylos_agent_shield::{AgentShield, ShieldConfig};
+use zylos_browser_takeover::TakeoverStore;
+use zylos_evidence_ledger::EvidenceLedger;
+use zylos_gateway::{
+    evidence_api::EvidenceHandleInner, goals_api::GoalsHandleInner, memory_api::MemoryHandleInner,
+    personalities_api::PersonalitiesHandleInner, sentinel_api::SentinelHandleInner, ApiHandles,
+    AppState,
+};
+use zylos_goals::GoalStore;
 use zylos_live_comm::{skills_api::SkillsApiState, EventBus};
+use zylos_memory_sync::MemoryStore;
+use zylos_personalities::PersonalityRegistry;
 use zylos_skills::{EvalFlywheel, SkillRegistry, SkillValidator};
 use zylos_soar::{
     audit::AuditTrail,
@@ -50,7 +60,38 @@ async fn app() -> axum::Router {
         ),
         ready: Arc::new(AtomicBool::new(true)),
     };
-    zylos_gateway::build_router(state)
+    let goals_store = GoalStore::in_memory().expect("goals in-memory");
+    let memory_store = MemoryStore::open(":memory:")
+        .await
+        .expect("memory in-memory");
+    let personalities_registry = PersonalityRegistry::open(":memory:")
+        .await
+        .expect("personalities in-memory");
+    let shield = AgentShield::new(ShieldConfig::default(), None)
+        .await
+        .expect("shield in-memory");
+    let takeover_store =
+        TakeoverStore::open(std::path::Path::new(":memory:")).expect("takeover in-memory");
+    let evidence_ledger = EvidenceLedger::open(":memory:")
+        .await
+        .expect("evidence in-memory");
+    let handles = ApiHandles {
+        goals: Arc::new(GoalsHandleInner { store: goals_store }),
+        memory: Arc::new(MemoryHandleInner {
+            store: memory_store,
+        }),
+        personalities: Arc::new(PersonalitiesHandleInner {
+            registry: personalities_registry,
+        }),
+        sentinel: Arc::new(SentinelHandleInner {
+            shield,
+            takeover: takeover_store,
+        }),
+        evidence: Arc::new(EvidenceHandleInner {
+            ledger: evidence_ledger,
+        }),
+    };
+    zylos_gateway::build_router(state, handles)
 }
 
 fn pedido(
