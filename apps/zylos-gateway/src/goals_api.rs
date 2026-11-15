@@ -21,7 +21,7 @@ use zylos_goals::GoalStore;
 
 /// Wrapper Send+Sync para GoalStore (rusqlite Connection não é Sync).
 /// SAFETY: O acesso à Connection é serializado via std::sync::Mutex.
-/// GoalStore internamente usa Arc<tokio::sync::RwLock<Connection>>, mas
+/// GoalStore internamente usa `Arc<tokio::sync::RwLock<Connection>>`, mas
 /// como só acessamos via Mutex externo, nunca há acesso concorrente real.
 pub struct GoalsHandleInner {
     pub store: GoalStore,

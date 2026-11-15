@@ -5,7 +5,7 @@
 //! `http://127.0.0.1:3000`. Esta trava responde 403 em dois casos:
 //!
 //! 1. **Pedido de navegador vindo de outro site.** O cabeçalho `Origin` está
-//!    presente e não é localhost / 127.0.0.1 / [::1]. Navegadores sempre mandam
+//!    presente e não é localhost / 127.0.0.1 / `[::1]`. Navegadores sempre mandam
 //!    `Origin` em POST e em pedidos entre sites; clientes que não são navegador
 //!    (zylos-cli, plugin do Hermes) não mandam e passam. `Origin: null`
 //!    (página aberta de arquivo, iframe isolado) também é recusado.
