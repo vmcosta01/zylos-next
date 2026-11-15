@@ -535,6 +535,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::approx_constant)]
     async fn test_f32_blob_roundtrip() {
         let original = vec![0.1, -0.5, 2.718, 0.0, -1.0];
         let blob = f32_vec_to_blob(&original);
