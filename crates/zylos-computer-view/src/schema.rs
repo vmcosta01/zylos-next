@@ -4,6 +4,7 @@
 //! e controle humano do desktop do agente.
 
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 /// Estado de uma sessão de computer view
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -48,12 +49,27 @@ impl SessionState {
     }
 
     /// Alias for [`parse`] — used by tests and external callers expecting `from_str` naming.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         Self::parse(s)
     }
 
     pub fn is_active(&self) -> bool {
         matches!(self, Self::Active | Self::UserControl)
+    }
+}
+
+impl std::str::FromStr for SessionState {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::parse(s).ok_or_else(|| format!("unknown session state: {s}"))
+    }
+}
+
+impl fmt::Display for SessionState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 
