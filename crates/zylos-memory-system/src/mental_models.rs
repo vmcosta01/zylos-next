@@ -352,7 +352,7 @@ impl MentalModelStore {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Converte Vec<f32> para blob de bytes (little-endian).
+/// Converte `Vec<f32>` para blob de bytes (little-endian).
 fn f32_vec_to_blob(vec: &[f32]) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(vec.len() * 4);
     for &val in vec {
