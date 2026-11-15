@@ -5,7 +5,7 @@
 //! - [`Oracle`] trait: Pluggable validation strategies (Tool, Human, LLM, Statistical, CrossRef)
 //! - [`CrossValidationEngine`]: Selects ≥3 independent oracles, aggregates via weighted voting
 //! - [`InconsistencyDetector`]: Classifies oracle disagreements
-//! - [`FindingLifecycle`]: State machine (Draft → PendingValidation → Validated|Contested|Refuted → Archived)
+//! - \[`FindingLifecycle`\]: State machine (Draft → PendingValidation → Validated|Contested|Refuted → Archived)
 //! - Integration hooks for Proof Engine promotion/refutation
 
 use crate::ground::Ground;
