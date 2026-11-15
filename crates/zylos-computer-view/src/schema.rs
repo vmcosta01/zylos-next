@@ -47,6 +47,11 @@ impl SessionState {
         }
     }
 
+    /// Alias for [`parse`] — used by tests and external callers expecting `from_str` naming.
+    pub fn from_str(s: &str) -> Option<Self> {
+        Self::parse(s)
+    }
+
     pub fn is_active(&self) -> bool {
         matches!(self, Self::Active | Self::UserControl)
     }
