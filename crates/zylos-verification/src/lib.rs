@@ -4,8 +4,8 @@
 //! - [`Ground`]: Certainty levels (Observado, Confirmado, Crido)
 //! - [`Proof`]: Verifiable claims with evidence chains
 //! - [`Guardrail`]: Sub-millisecond false-success detection
-//! - [`Judge`] / [`AdversarialPanel`]: Multi-judge deliberation (Sprint 3.2)
-//! - [`TreeOfThoughts`]: BFS/DFS reasoning exploration (Sprint 3.3)
+//! - \[`Judge`\] / [`AdversarialPanel`]: Multi-judge deliberation (Sprint 3.2)
+//! - \[`TreeOfThoughts`\]: BFS/DFS reasoning exploration (Sprint 3.3)
 
 pub mod finding_validator;
 pub mod goal_contract;
