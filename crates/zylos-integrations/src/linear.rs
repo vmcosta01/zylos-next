@@ -24,7 +24,7 @@ pub struct LinearAdapter {
 impl LinearAdapter {
     /// Create a new Linear adapter with a Personal Access Token.
     ///
-    /// Generate at: https://linear.app/settings/account/security/personal-access-tokens
+    /// Generate at: <https://linear.app/settings/account/security/personal-access-tokens>
     pub fn new(token: String) -> Self {
         Self {
             token,

@@ -536,7 +536,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_f32_blob_roundtrip() {
-        let original = vec![0.1, -0.5, 3.14, 0.0, -1.0];
+        let original = vec![0.1, -0.5, std::f64::consts::PI, 0.0, -1.0];
         let blob = f32_vec_to_blob(&original);
         let restored = blob_to_f32_vec(&blob);
 

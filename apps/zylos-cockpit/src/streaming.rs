@@ -606,7 +606,7 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = StreamConfig::default();
-        assert_eq!(config.endpoint, "/events");
+        assert_eq!(config.endpoint, "http://localhost:3000/api/v1/events");
         assert_eq!(config.max_reconnect_attempts, 10);
         assert_eq!(config.base_retry_ms, 1000);
         assert_eq!(config.max_retry_ms, 30000);
