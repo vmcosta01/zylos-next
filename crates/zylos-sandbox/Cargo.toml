@@ -7,7 +7,6 @@ license.workspace = true
 description = "SANDBOX_ISOLATION: WASM snapshot/resume, Docker per-agent, browser anti-detect, OCR sidecar"
 
 [dependencies]
-zylos-core = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

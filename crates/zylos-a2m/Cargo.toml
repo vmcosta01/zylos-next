@@ -17,9 +17,6 @@ hex = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["sync", "fs", "io-util"] }
 rusqlite = { workspace = true }
-futures = { workspace = true }
-async-stream = { workspace = true }
-
 [dev-dependencies]
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
