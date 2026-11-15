@@ -361,7 +361,7 @@ fn f32_vec_to_blob(vec: &[f32]) -> Vec<u8> {
     bytes
 }
 
-/// Converte blob de bytes para Vec<f32> (little-endian).
+/// Converte blob de bytes para `Vec<f32>` (little-endian).
 fn blob_to_f32_vec(bytes: &[u8]) -> Vec<f32> {
     bytes
         .chunks_exact(4)

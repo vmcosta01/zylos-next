@@ -88,9 +88,9 @@ fn test_js_sys_date_monotonic() {
     );
 }
 
-/// REGRESSÃO: Serialização de tipos com Option<T> deve funcionar corretamente.
+/// REGRESSÃO: Serialização de tipos com `Option<T>` deve funcionar corretamente.
 ///
-/// Bug original: Option<T> serializado como null causava erro de deserialização.
+/// Bug original: `Option<T>` serializado como null causava erro de deserialização.
 /// Fix: Usar `#[serde(skip_serializing_if = "Option::is_none")]` onde apropriado.
 #[wasm_bindgen_test]
 fn test_option_serialization_roundtrip() {
