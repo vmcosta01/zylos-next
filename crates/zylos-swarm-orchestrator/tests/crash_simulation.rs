@@ -13,7 +13,7 @@ use zylos_swarm_orchestrator::{SwarmAgent, SwarmOrchestrator, Task};
 
 /// Cria orquestrador efêmero para testes de crash.
 async fn crash_test_orchestrator() -> SwarmOrchestrator {
-    let db_path = format!("sqlite::memory:");
+    let db_path = "sqlite::memory:".to_string();
     SwarmOrchestrator::open(&db_path)
         .await
         .expect("Failed to create crash test orchestrator")

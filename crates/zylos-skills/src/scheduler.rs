@@ -200,7 +200,7 @@ pub struct ExecutionLog {
     /// Mensagem de erro (se houve)
     pub error: Option<String>,
 
-    /// Quem disparou a execução ("scheduler", "manual", "event:<name>")
+    /// Quem disparou a execução (`"scheduler"`, `"manual"`, `"event:<name>"`)
     pub triggered_by: String,
 }
 

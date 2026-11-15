@@ -177,7 +177,6 @@ fn test_spawn_local_available() {
     // esta referência falha na compilação — proteção contra regressão.
     let _fn_ptr: fn(std::pin::Pin<std::boxed::Box<dyn std::future::Future<Output = ()>>>) =
         leptos::task::spawn_local;
-    assert!(true, "leptos::task::spawn_local está disponível (compila)");
 }
 
 /// REGRESSÃO: gloo_net::http::Request deve compilar em WASM.
@@ -188,7 +187,6 @@ fn test_spawn_local_available() {
 fn test_gloo_net_request_available() {
     // Apenas valida que o tipo está disponível (compila)
     let _request_type = std::any::type_name::<gloo_net::http::Request>();
-    assert!(true, "gloo_net::http::Request está disponível");
 }
 
 /// REGRESSÃO: web_sys console::log_1 deve funcionar (não usar tracing::info em WASM).
@@ -201,5 +199,4 @@ fn test_web_sys_console_available() {
     use web_sys::console;
 
     console::log_1(&JsValue::from_str("Test log from WASM"));
-    assert!(true, "web_sys::console::log_1 está disponível");
 }

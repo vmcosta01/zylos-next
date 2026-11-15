@@ -51,14 +51,8 @@ fn test_workflow_channel_interaction() {
 
     // Step 1: Mount ChannelPanel (renderiza lista ou estado vazio)
     let _handle = leptos::mount::mount_to(
-        container.clone().into(),
+        container.clone(),
         || view! { <zylos_cockpit::components::channel_panel::ChannelPanel /> },
-    );
-
-    // Step 2: Validar que componente está construtível e não panic
-    assert!(
-        true,
-        "ChannelPanel mounted successfully — workflow step 1 OK"
     );
 
     // Step 3: Validar que Channel struct serializa corretamente (usado pelo fetch)
@@ -122,13 +116,8 @@ fn test_workflow_skill_creation() {
 
     // Step 1: Mount SkillEditorPanel
     let _handle = leptos::mount::mount_to(
-        container.clone().into(),
+        container.clone(),
         || view! { <zylos_cockpit::components::skill_editor_panel::SkillEditorPanel /> },
-    );
-
-    assert!(
-        true,
-        "SkillEditorPanel mounted successfully — workflow step 1 OK"
     );
 
     // Step 2: Criar SkillDef completa com steps
@@ -219,13 +208,8 @@ fn test_workflow_phone_relay_session() {
 
     // Step 1: Mount PhoneRelayPanel
     let _handle = leptos::mount::mount_to(
-        container.clone().into(),
+        container.clone(),
         || view! { <zylos_cockpit::components::phone_relay_panel::PhoneRelayPanel /> },
-    );
-
-    assert!(
-        true,
-        "PhoneRelayPanel mounted successfully — workflow step 1 OK"
     );
 
     // Step 2: Criar PairedDevice e simular lifecycle
@@ -281,13 +265,8 @@ fn test_workflow_swarm_topology_layout() {
 
     // Step 1: Mount SwarmTopologyPanel
     let _handle = leptos::mount::mount_to(
-        container.clone().into(),
+        container.clone(),
         || view! { <zylos_cockpit::components::swarm_topology_panel::SwarmTopologyPanel /> },
-    );
-
-    assert!(
-        true,
-        "SwarmTopologyPanel mounted successfully — workflow step 1 OK"
     );
 
     // Step 2: Criar múltiplos nós com posições (simula drag-and-drop)
@@ -368,28 +347,17 @@ fn test_workflow_multi_component_coexistence() {
 
     // Step 1: Mount ChannelPanel
     let _handle1 = leptos::mount::mount_to(
-        container1.clone().into(),
+        container1.clone(),
         || view! { <zylos_cockpit::components::channel_panel::ChannelPanel /> },
     );
 
     // Step 2: Mount SkillEditorPanel (simula troca de tab)
     let _handle2 = leptos::mount::mount_to(
-        container2.clone().into(),
+        container2.clone(),
         || view! { <zylos_cockpit::components::skill_editor_panel::SkillEditorPanel /> },
     );
 
-    // Step 3: Validar que ambos coexistem sem panic
-    assert!(
-        true,
-        "Workflow step 1: Multiple components mounted successfully"
-    );
-
-    // Step 4: Cleanup sequencial (simula logout/close)
+    // Step 3: Cleanup sequencial (simula logout/close)
     cleanup_test_container("test-workflow-multi-1");
     cleanup_test_container("test-workflow-multi-2");
-
-    assert!(
-        true,
-        "Workflow step 2: Sequential cleanup completed without panic"
-    );
 }

@@ -44,12 +44,9 @@ fn test_channel_panel_renders_content() {
 
     // mount_to não deve panicar — valida que o componente é construtível em WASM
     let _handle = leptos::mount::mount_to(
-        container.clone().into(),
+        container.clone(),
         || view! { <zylos_cockpit::components::channel_panel::ChannelPanel /> },
     );
-
-    // Componente montado com sucesso sem panic
-    assert!(true, "ChannelPanel mounted successfully");
 
     cleanup_test_container();
 }
@@ -64,13 +61,9 @@ fn test_channel_panel_empty_or_list_state() {
 
     // mount_to não deve panicar — isso já valida que o componente é construtível
     let _handle = leptos::mount::mount_to(
-        container.clone().into(),
+        container.clone(),
         || view! { <zylos_cockpit::components::channel_panel::ChannelPanel /> },
     );
-
-    // Em ambiente de teste sem gateway, o componente pode renderizar vazio.
-    // Validamos apenas que o container foi criado e o mount succeeded.
-    assert!(true, "ChannelPanel mounted successfully without panic");
 
     cleanup_test_container();
 }
@@ -85,12 +78,9 @@ fn test_channel_panel_has_chat_structure() {
 
     // mount_to não deve panicar — valida que o componente compila e monta em WASM
     let _handle = leptos::mount::mount_to(
-        container.clone().into(),
+        container.clone(),
         || view! { <zylos_cockpit::components::channel_panel::ChannelPanel /> },
     );
-
-    // Componente montado com sucesso sem panic
-    assert!(true, "ChannelPanel mounted successfully in WASM headless");
 
     cleanup_test_container();
 }

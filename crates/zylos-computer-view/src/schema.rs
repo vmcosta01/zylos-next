@@ -48,7 +48,7 @@ impl SessionState {
         }
     }
 
-    /// Alias for [`parse`] — used by tests and external callers expecting `from_str` naming.
+    /// Alias for [`Self::parse`] — used by tests and external callers expecting `from_str` naming.
     #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         Self::parse(s)

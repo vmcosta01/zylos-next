@@ -328,6 +328,6 @@ mod tests {
         let adapter = SlackAdapter::new("xoxb-invalid".to_string());
         let result = adapter.health_check().await;
         // Should return Ok(false) rather than Err when token is invalid
-        assert_eq!(result.unwrap(), false);
+        assert!(!result.unwrap());
     }
 }

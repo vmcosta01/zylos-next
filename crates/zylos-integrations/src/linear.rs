@@ -329,6 +329,6 @@ mod tests {
     async fn test_health_check_without_valid_token() {
         let adapter = LinearAdapter::new("lin_api_invalid".to_string());
         let result = adapter.health_check().await;
-        assert_eq!(result.unwrap(), false);
+        assert!(!result.unwrap());
     }
 }

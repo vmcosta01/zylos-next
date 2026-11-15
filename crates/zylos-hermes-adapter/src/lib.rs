@@ -48,8 +48,8 @@ pub struct HermesAdapter {
 impl HermesAdapter {
     /// Creates a new adapter instance with the given MCP endpoint and auth token.
     ///
-    /// The adapter starts with no registered profiles; call [`register_profile`]
-    /// or [`load_default_profiles`] before exposing skills.
+    /// The adapter starts with no registered profiles; call \[`register_profile`\]
+    /// or \[`load_default_profiles`\] before exposing skills.
     pub fn new(mcp_endpoint: String, auth_token: String) -> Self {
         Self {
             profiles: HashMap::new(),
