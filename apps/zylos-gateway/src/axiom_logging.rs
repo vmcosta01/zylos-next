@@ -93,6 +93,7 @@ impl AxiomClient {
     }
 
     /// Envia log estruturado para o buffer. Não bloqueia se buffer cheio.
+    #[allow(clippy::too_many_arguments)]
     pub fn send_log(
         &self,
         level: &str,
@@ -115,7 +116,7 @@ impl AxiomClient {
             latency_ms,
         };
 
-        if let Err(_) = self.tx.try_send(entry) {
+        if self.tx.try_send(entry).is_err() {
             warn!("Axiom log buffer full, dropping log entry");
         }
     }
@@ -167,7 +168,7 @@ impl AxiomClient {
             return;
         }
 
-        let events: Vec<_> = batch.drain(..).collect();
+        let events: Vec<_> = std::mem::take(batch);
         let body = serde_json::json!({ "events": events });
 
         match client

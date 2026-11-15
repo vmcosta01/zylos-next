@@ -66,24 +66,15 @@ impl SeverityFilter {
 }
 
 /// Configuration for the notification router.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct NotificationRouterConfig {
     /// Routing rules evaluated in order; first match wins.
+    #[serde(default)]
     pub rules: Vec<RoutingRule>,
     /// Default platform if no rule matches (optional).
     pub default_platform: Option<String>,
     /// Default recipient for unmatched alerts (optional).
     pub default_recipient: Option<String>,
-}
-
-impl Default for NotificationRouterConfig {
-    fn default() -> Self {
-        Self {
-            rules: vec![],
-            default_platform: None,
-            default_recipient: None,
-        }
-    }
 }
 
 /// Result of a notification dispatch attempt.
@@ -123,12 +114,9 @@ impl NotificationRouter {
         &self,
         alert: &zylos_sentinel::alert_rules::TriggeredAlert,
     ) -> Option<&RoutingRule> {
-        for rule in &self.config.rules {
-            if rule.alert_rule == alert.rule_name && rule.min_severity.matches(&alert.severity) {
-                return Some(rule);
-            }
-        }
-        None
+        self.config.rules.iter().find(|rule| {
+            rule.alert_rule == alert.rule_name && rule.min_severity.matches(&alert.severity)
+        })
     }
 
     /// Format a notification message from a template and alert data.
