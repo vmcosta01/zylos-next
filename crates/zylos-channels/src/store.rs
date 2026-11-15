@@ -333,7 +333,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[allow(unused_comparisons)]
+    #[allow(unused_comparisons, clippy::absurd_extreme_comparisons)]
     async fn test_04_list_channels_has_member_count() {
         let store = setup().await;
         let channels = store.list_channels().await.unwrap();
