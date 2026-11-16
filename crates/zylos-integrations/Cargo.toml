@@ -31,7 +31,6 @@ sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
 
 # Error handling
 thiserror = "1"
-anyhow = "1"
 
 # Logging
 tracing = "0.1"

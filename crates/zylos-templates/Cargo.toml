@@ -8,7 +8,6 @@ description = "Shareable agent blueprint templates for Zylos"
 
 [dependencies]
 serde = { workspace = true }
-serde_json = { workspace = true }
 serde_yaml = "0.9"
 thiserror = { workspace = true }
 chrono = { workspace = true }
@@ -16,7 +15,6 @@ semver = { version = "1.0", features = ["serde"] }
 sha2 = { workspace = true }
 hex = { workspace = true }
 tracing = { workspace = true }
-tokio = { workspace = true }
 
 [features]
 default = []
@@ -24,4 +22,3 @@ registry = []
 
 [dev-dependencies]
 tempfile = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
