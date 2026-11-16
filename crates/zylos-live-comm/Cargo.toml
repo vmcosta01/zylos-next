@@ -6,7 +6,6 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-zylos-core = { workspace = true }
 zylos-skills = { path = "../zylos-skills" }
 tokio = { workspace = true }
 tokio-stream = { version = "0.1", features = ["sync"] }
