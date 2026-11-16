@@ -857,8 +857,8 @@ mod tests {
         assert!(token.is_cancelled());
     }
 
-    #[test]
-    fn test_gateway_builds_without_panic() {
+    #[tokio::test]
+    async fn test_gateway_builds_without_panic() {
         let bus = crate::event_bus::EventBus::new(16, None);
         let config = GatewayConfig::default();
         let (_app, _shutdown) = build_gateway(config, bus);
