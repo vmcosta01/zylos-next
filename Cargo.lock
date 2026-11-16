@@ -14302,7 +14302,6 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.21",
  "tokio",
- "tracing",
  "uuid",
 ]
 
@@ -14712,7 +14711,6 @@ dependencies = [
  "axum 0.7.9",
  "dashmap 6.2.1",
  "futures-util",
- "governor 0.7.0",
  "jsonwebtoken",
  "reqwest 0.12.28",
  "sentry",
@@ -14727,7 +14725,6 @@ dependencies = [
  "tower-http 0.6.11",
  "tracing",
  "tracing-subscriber",
- "utoipa",
  "zylos-adapters",
  "zylos-agent-shield",
  "zylos-auth",
@@ -14775,7 +14772,6 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
- "tracing",
  "uuid",
 ]
 
@@ -14982,9 +14978,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "serde",
- "serde_json",
  "sha2 0.10.9",
- "thiserror 2.0.21",
  "tokio",
  "zylos-proof",
 ]
@@ -15107,7 +15101,6 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tracing",
- "uuid",
 ]
 
 [[package]]
@@ -15147,7 +15140,6 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
- "zylos-core",
 ]
 
 [[package]]
@@ -15223,7 +15215,6 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
- "zylos-core",
 ]
 
 [[package]]
@@ -15232,7 +15223,6 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "hex",
- "reqwest 0.12.28",
  "semver",
  "serde",
  "serde_json",
@@ -15256,7 +15246,6 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tracing",
- "zylos-proof",
 ]
 
 [[package]]

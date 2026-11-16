@@ -17,7 +17,6 @@ tokio = { workspace = true, features = ["fs", "sync", "time", "rt-multi-thread"]
 rusqlite = { workspace = true }
 uuid = { workspace = true }
 tracing = { workspace = true }
-zylos-core = { path = "../zylos-core" }
 blake3 = "1.8.7"
 
 [dev-dependencies]
