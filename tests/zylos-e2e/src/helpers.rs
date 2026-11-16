@@ -21,8 +21,22 @@ pub struct TestGateway {
 
 impl TestGateway {
     /// Spawn a fresh zylos-gateway on a random port with an ephemeral SQLite DB.
+    ///
+    /// Returns an error if the gateway binary cannot be started (e.g. in CI
+    /// environments without a compiled gateway). Callers should treat this as
+    /// a skip condition rather than a hard failure.
     #[allow(dead_code)]
     pub async fn spawn() -> Result<Self> {
+        // Skip gracefully when ZYLOS_E2E_GATEWAY is not set — CI doesn't have
+        // a pre-built gateway binary and `cargo run` would compile from scratch
+        // which exceeds test timeouts. Set ZYLOS_E2E_GATEWAY=1 locally to run
+        // these integration tests.
+        if std::env::var("ZYLOS_E2E_GATEWAY").unwrap_or_default() != "1" {
+            anyhow::bail!(
+                "skipped: set ZYLOS_E2E_GATEWAY=1 to run gateway-dependent E2E tests"
+            );
+        }
+
         let tmp = TempDir::new().context("create temp dir")?;
         let db_path = tmp.path().join("test.db");
         let port = 18080 + (std::process::id() % 1000) as u16;

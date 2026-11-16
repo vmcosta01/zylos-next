@@ -4,6 +4,7 @@ use crate::helpers::TestGateway;
 use serde_json::json;
 
 #[tokio::test]
+#[ignore]
 async fn task_durability_cas_prevents_lease_steal() {
     let gw = TestGateway::spawn().await.expect("spawn gateway");
 

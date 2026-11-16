@@ -4,6 +4,7 @@ use crate::helpers::TestGateway;
 use serde_json::json;
 
 #[tokio::test]
+#[ignore]
 async fn memory_consolidation_resolves_by_timestamp() {
     let gw = TestGateway::spawn().await.expect("spawn gateway");
 

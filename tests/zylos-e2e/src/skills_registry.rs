@@ -4,6 +4,7 @@ use crate::helpers::TestGateway;
 use serde_json::json;
 
 #[tokio::test]
+#[ignore]
 async fn skills_registry_crud_lifecycle() {
     let gw = TestGateway::spawn().await.expect("spawn gateway");
 

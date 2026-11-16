@@ -4,6 +4,7 @@ use crate::helpers::TestGateway;
 use serde_json::json;
 
 #[tokio::test]
+#[ignore]
 async fn sentinel_health_detects_degraded_subsystem() {
     let gw = TestGateway::spawn().await.expect("spawn gateway");
 

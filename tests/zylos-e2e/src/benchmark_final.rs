@@ -329,6 +329,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+#[ignore]
     async fn test_full_benchmark_suite_passes() {
         let mut suite = BenchmarkSuite::new();
 

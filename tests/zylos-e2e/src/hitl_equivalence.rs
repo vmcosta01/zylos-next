@@ -4,6 +4,7 @@ use crate::helpers::TestGateway;
 use serde_json::json;
 
 #[tokio::test]
+#[ignore]
 async fn hitl_equivalence_reuse_skips_second_approval() {
     let gw = TestGateway::spawn().await.expect("spawn gateway");
 

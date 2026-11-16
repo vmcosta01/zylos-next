@@ -103,18 +103,13 @@ zylos-live-comm = { path = "crates/zylos-live-comm" }
 zylos-verification = { path = "crates/zylos-verification" }
 zylos-sandbox = { path = "crates/zylos-sandbox" }
 zylos-skills = { path = "crates/zylos-skills" }
-zylos-mobile = { path = "crates/zylos-mobile" }
 zylos-vlm-ocr = { path = "crates/zylos-vlm-ocr" }
 zylos-soar = { path = "crates/zylos-soar" }
 zylos-task-durability = { path = "crates/zylos-task-durability" }
-zylos-integrations = { path = "crates/zylos-integrations" }
-zylos-browser-persistent = { path = "crates/zylos-browser-persistent" }
-zylos-ag-ui = { path = "crates/zylos-ag-ui" }
+
 zylos-desktop = { path = "crates/zylos-desktop" }
 zylos-goals = { path = "crates/zylos-goals" }
-zylos-vault = { path = "crates/zylos-vault" }
-zylos-templates = { path = "crates/zylos-templates" }
-zylos-a2m = { path = "crates/zylos-a2m" }
+
 zylos-browser-takeover = { path = "crates/zylos-browser-takeover" }
 zylos-evidence-ledger = { path = "crates/zylos-evidence-ledger" }
 zylos-pensar = { path = "crates/zylos-pensar" }

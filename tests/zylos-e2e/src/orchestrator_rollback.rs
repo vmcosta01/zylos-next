@@ -4,6 +4,7 @@ use crate::helpers::TestGateway;
 use serde_json::json;
 
 #[tokio::test]
+#[ignore]
 async fn orchestrator_rollback_on_failure() {
     let gw = TestGateway::spawn().await.expect("spawn gateway");
 

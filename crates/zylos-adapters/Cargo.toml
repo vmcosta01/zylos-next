@@ -16,3 +16,6 @@ async-trait = "0.1"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["test-util", "macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

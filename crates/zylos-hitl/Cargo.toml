@@ -23,3 +23,6 @@ zylos-proof = { path = "../zylos-proof" }
 
 [dev-dependencies]
 tempfile = "3"
+
+[lints]
+workspace = true

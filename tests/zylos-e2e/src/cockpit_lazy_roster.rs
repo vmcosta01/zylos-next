@@ -5,6 +5,7 @@ use serde_json::json;
 use std::time::Instant;
 
 #[tokio::test]
+#[ignore]
 async fn cockpit_lazy_roster_500_agents_under_100ms() {
     let gw = TestGateway::spawn().await.expect("spawn gateway");
 

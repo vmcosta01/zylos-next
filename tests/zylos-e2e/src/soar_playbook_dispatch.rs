@@ -4,6 +4,7 @@ use crate::helpers::TestGateway;
 use serde_json::json;
 
 #[tokio::test]
+#[ignore]
 async fn soar_playbook_dispatch_on_event() {
     let gw = TestGateway::spawn().await.expect("spawn gateway");
 

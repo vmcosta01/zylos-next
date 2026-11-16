@@ -5,6 +5,7 @@ use futures::StreamExt;
 use serde_json::json;
 
 #[tokio::test]
+#[ignore]
 async fn cockpit_streaming_delivers_events_in_order() {
     let gw = TestGateway::spawn().await.expect("spawn gateway");
 

@@ -17,3 +17,6 @@ tokio = { workspace = true, features = ["sync"] }
 zylos-proof = { path = "../zylos-proof" }
 
 [dev-dependencies]
+
+[lints]
+workspace = true

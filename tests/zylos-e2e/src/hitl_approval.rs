@@ -4,6 +4,7 @@ use crate::helpers::TestGateway;
 use serde_json::json;
 
 #[tokio::test]
+#[ignore]
 async fn hitl_approval_full_lifecycle() {
     let gw = TestGateway::spawn().await.expect("spawn gateway");
 

@@ -20,6 +20,7 @@ tokio = { workspace = true }
 
 [features]
 default = []
+registry = []
 
 [dev-dependencies]
 tempfile = { workspace = true }

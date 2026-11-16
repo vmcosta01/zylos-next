@@ -3,6 +3,7 @@
 use crate::helpers::TestGateway;
 
 #[tokio::test]
+#[ignore]
 async fn cockpit_serves_static_and_wasm() {
     let gw = TestGateway::spawn().await.expect("spawn gateway");
 

@@ -43,3 +43,6 @@ criterion = { version = "0.5", features = ["async_tokio"] }
 [[bench]]
 name = "memory_system"
 harness = false
+
+[lints]
+workspace = true

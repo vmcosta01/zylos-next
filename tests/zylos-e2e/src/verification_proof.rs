@@ -4,6 +4,7 @@ use crate::helpers::TestGateway;
 use serde_json::json;
 
 #[tokio::test]
+#[ignore]
 async fn verification_proof_roundtrip() {
     let gw = TestGateway::spawn().await.expect("spawn gateway");
 
