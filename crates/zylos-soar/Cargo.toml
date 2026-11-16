@@ -18,10 +18,6 @@ serde_yaml = "0.9"
 
 # Error handling
 thiserror = { workspace = true }
-anyhow = { workspace = true }
-
-# Logging / Tracing
-tracing = { workspace = true }
 
 # Utilities
 uuid = { workspace = true }
@@ -29,17 +25,10 @@ chrono = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
 hmac = "0.12"
-async-trait = "0.1"
-
-# Schema validation
-jsonschema = { workspace = true }
 
 # HTTP / Webhook ingest
 axum = { version = "0.7", features = ["json"] }
 tower-http = { version = "0.5", features = ["trace", "cors"] }
-
-# Internal crates
-zylos-core = { workspace = true }
 zylos-live-comm = { path = "../zylos-live-comm" }
 
 [dev-dependencies]

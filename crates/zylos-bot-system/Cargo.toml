@@ -6,7 +6,6 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-zylos-core = { workspace = true }
 tokio = { workspace = true, features = ["full", "sync", "rt-multi-thread", "macros", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 serde = { workspace = true }

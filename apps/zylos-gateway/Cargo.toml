@@ -14,7 +14,6 @@ name = "zylos-gateway"
 path = "src/main.rs"
 
 [dependencies]
-zylos-core = { workspace = true }
 zylos-memory-system = { workspace = true }
 zylos-live-comm = { workspace = true }
 zylos-verification = { workspace = true }
@@ -41,7 +40,6 @@ tracing-subscriber = { workspace = true }
 anyhow = { workspace = true }
 tokio-util = "0.7"
 toml = "0.8"
-jsonwebtoken = "9"
 
 dashmap = "6.2.1"
 futures-util = "0.3"
