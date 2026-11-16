@@ -32,9 +32,7 @@ impl TestGateway {
         // which exceeds test timeouts. Set ZYLOS_E2E_GATEWAY=1 locally to run
         // these integration tests.
         if std::env::var("ZYLOS_E2E_GATEWAY").unwrap_or_default() != "1" {
-            anyhow::bail!(
-                "skipped: set ZYLOS_E2E_GATEWAY=1 to run gateway-dependent E2E tests"
-            );
+            anyhow::bail!("skipped: set ZYLOS_E2E_GATEWAY=1 to run gateway-dependent E2E tests");
         }
 
         let tmp = TempDir::new().context("create temp dir")?;

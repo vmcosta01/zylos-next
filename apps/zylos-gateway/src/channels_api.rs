@@ -306,6 +306,15 @@ mod tests {
     #[tokio::test]
     async fn test_list_messages_empty() {
         let app = test_app().await;
+        // Channel must exist before listing messages; create it first
+        let create_req = Request::builder()
+            .method("POST")
+            .uri("/channels")
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"id":"ch-geral","name":"Geral"}"#))
+            .unwrap();
+        let _create_resp = app.clone().oneshot(create_req).await.unwrap();
+
         let req = Request::builder()
             .uri("/channels/ch-geral/messages")
             .body(Body::empty())
