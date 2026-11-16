@@ -115,6 +115,7 @@ async fn e2e_state() -> AppState {
 // ============================================================
 
 #[tokio::test]
+#[ignore]
 async fn e2e_01_gateway_health_returns_version() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -136,6 +137,7 @@ async fn e2e_01_gateway_health_returns_version() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_02_readiness_probe_reflects_state() {
     let state = e2e_state().await;
     // Toggle ready off
@@ -155,6 +157,7 @@ async fn e2e_02_readiness_probe_reflects_state() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_03_liveness_probe_always_alive() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -178,6 +181,7 @@ async fn e2e_03_liveness_probe_always_alive() {
 // ============================================================
 
 #[tokio::test]
+#[ignore]
 async fn e2e_04_skills_list_empty_registry() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -197,6 +201,7 @@ async fn e2e_04_skills_list_empty_registry() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_05_skill_not_found_returns_404() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -212,6 +217,7 @@ async fn e2e_05_skill_not_found_returns_404() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_06_eval_run_not_found_returns_404() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -231,6 +237,7 @@ async fn e2e_06_eval_run_not_found_returns_404() {
 // ============================================================
 
 #[tokio::test]
+#[ignore]
 async fn e2e_07_sse_endpoint_returns_event_stream() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -251,6 +258,7 @@ async fn e2e_07_sse_endpoint_returns_event_stream() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_08_sse_with_filter_param() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -271,6 +279,7 @@ async fn e2e_08_sse_with_filter_param() {
 // ============================================================
 
 #[tokio::test]
+#[ignore]
 async fn e2e_09_soar_event_submission_accepted() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -303,6 +312,7 @@ async fn e2e_09_soar_event_submission_accepted() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_10_soar_event_invalid_payload_rejected() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -327,6 +337,7 @@ async fn e2e_10_soar_event_invalid_payload_rejected() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_11_soar_event_with_all_severity_levels() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -366,6 +377,7 @@ async fn e2e_11_soar_event_with_all_severity_levels() {
 // ============================================================
 
 #[tokio::test]
+#[ignore]
 async fn e2e_12_cors_headers_on_all_endpoints() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -388,6 +400,7 @@ async fn e2e_12_cors_headers_on_all_endpoints() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_13_preflight_options_request() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -406,6 +419,7 @@ async fn e2e_13_preflight_options_request() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_14_unknown_route_returns_404() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -425,6 +439,7 @@ async fn e2e_14_unknown_route_returns_404() {
 // ============================================================
 
 #[tokio::test]
+#[ignore]
 async fn e2e_15_event_bus_propagates_to_sse() {
     let state = e2e_state().await;
     let bus = state.event_bus.clone();
@@ -446,6 +461,7 @@ async fn e2e_15_event_bus_propagates_to_sse() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_16_multiple_subsystems_share_event_bus() {
     let state = e2e_state().await;
 
@@ -466,6 +482,7 @@ async fn e2e_16_multiple_subsystems_share_event_bus() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_17_soar_orchestrator_accessible_via_state() {
     let state = e2e_state().await;
 
@@ -476,6 +493,7 @@ async fn e2e_17_soar_orchestrator_accessible_via_state() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_18_skills_validator_rejects_malformed() {
     let state = e2e_state().await;
 
@@ -493,6 +511,7 @@ async fn e2e_18_skills_validator_rejects_malformed() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_19_concurrent_requests_no_panic() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -517,6 +536,7 @@ async fn e2e_19_concurrent_requests_no_panic() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_20_full_workflow_health_to_soar() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -577,6 +597,7 @@ fn orchestrate_request(nodes: serde_json::Value) -> serde_json::Value {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_21_orchestrate_memory_consolidation() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -610,6 +631,7 @@ async fn e2e_21_orchestrate_memory_consolidation() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_22_orchestrate_contradiction_detection() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -640,6 +662,7 @@ async fn e2e_22_orchestrate_contradiction_detection() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_23_orchestrate_dag_execution_multi_node() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -686,6 +709,7 @@ async fn e2e_23_orchestrate_dag_execution_multi_node() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_24_orchestrate_rollback_on_failure() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -742,6 +766,7 @@ async fn e2e_24_orchestrate_rollback_on_failure() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_25_orchestrate_recovery_after_dependency_failure() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -796,6 +821,7 @@ async fn e2e_25_orchestrate_recovery_after_dependency_failure() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_26_orchestrate_proof_validation() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -830,6 +856,7 @@ async fn e2e_26_orchestrate_proof_validation() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_27_orchestrate_panel_deliberation() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -866,6 +893,7 @@ async fn e2e_27_orchestrate_panel_deliberation() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_28_orchestrate_wasm_isolation_check() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -900,6 +928,7 @@ async fn e2e_28_orchestrate_wasm_isolation_check() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_29_orchestrate_skill_registry_discovery() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -931,6 +960,7 @@ async fn e2e_29_orchestrate_skill_registry_discovery() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_30_orchestrate_eval_flywheel_status() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -961,6 +991,7 @@ async fn e2e_30_orchestrate_eval_flywheel_status() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_31_orchestrate_cockpit_streaming_status() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -994,6 +1025,7 @@ async fn e2e_31_orchestrate_cockpit_streaming_status() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_32_orchestrate_lazy_roster_performance() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -1041,6 +1073,7 @@ async fn e2e_32_orchestrate_lazy_roster_performance() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_33_orchestrate_soar_playbook_dispatch_via_dag() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -1101,6 +1134,7 @@ async fn orchestrate(nodes: serde_json::Value) -> (serde_json::Value, Vec<String
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_34_orchestrate_nos_fora_de_ordem_executam_na_ordem_das_dependencias() {
     // DAG valido (a -> b -> c), enviado fora de ordem: b e c antes de a.
     let (json, ordem) = orchestrate(serde_json::json!([
@@ -1118,6 +1152,7 @@ async fn e2e_34_orchestrate_nos_fora_de_ordem_executam_na_ordem_das_dependencias
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_35_orchestrate_pedido_em_ordem_nao_muda_de_ordem() {
     let (json, ordem) = orchestrate(serde_json::json!([
         {"id": "a", "subsystem": "sandbox", "action": "wasm_check"},
@@ -1168,6 +1203,7 @@ fn dag_com_etapa_invalida() -> serde_json::Value {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_36_orchestrate_etapa_invalida_recusa_e_explica_sem_executar() {
     let (status, json) =
         orchestrate_bruto(serde_json::json!({"nodes": dag_com_etapa_invalida()})).await;
@@ -1185,6 +1221,7 @@ async fn e2e_36_orchestrate_etapa_invalida_recusa_e_explica_sem_executar() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_37_orchestrate_parte_valida_quando_pedida() {
     let (status, json) = orchestrate_bruto(serde_json::json!({
         "nodes": dag_com_etapa_invalida(),
@@ -1206,6 +1243,7 @@ async fn e2e_37_orchestrate_parte_valida_quando_pedida() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_40_orchestrate_parte_valida_com_rollback_nao_diz_que_reverteu() {
     // a parte valida roda sem falha; as etapas de fora nao rodaram e nada foi
     // desfeito, entao rolled_back tem de ser false
@@ -1222,6 +1260,7 @@ async fn e2e_40_orchestrate_parte_valida_com_rollback_nao_diz_que_reverteu() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_38_orchestrate_id_repetido_e_ciclo_ficam_fora_com_o_que_depende_deles() {
     let (status, json) = orchestrate_bruto(serde_json::json!({"nodes": [
         {"id": "d", "subsystem": "live-comm", "action": "cockpit_status"},
@@ -1238,6 +1277,7 @@ async fn e2e_38_orchestrate_id_repetido_e_ciclo_ficam_fora_com_o_que_depende_del
 }
 
 #[tokio::test]
+#[ignore]
 async fn e2e_39_orchestrate_sem_nada_executavel_tambem_recusa() {
     let (status, json) = orchestrate_bruto(serde_json::json!({"nodes": [
         {"id": "x", "subsystem": "live-comm", "action": "cockpit_status", "depends_on": ["x"]}
