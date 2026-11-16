@@ -122,7 +122,9 @@ lto = true
 codegen-units = 1
 
 [workspace.lints.rust]
-unused_crate_dependencies = "allow"
+unsafe_code = "warn"
 
-[workspace.lints.cargo]
-unused_dependencies = "allow"
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+

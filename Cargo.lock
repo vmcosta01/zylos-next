@@ -14802,7 +14802,6 @@ dependencies = [
  "sha2 0.10.9",
  "thiserror 2.0.21",
  "tokio",
- "tracing",
 ]
 
 [[package]]
@@ -14810,7 +14809,6 @@ name = "zylos-integrations"
 version = "0.1.0"
 dependencies = [
  "aes-gcm",
- "anyhow",
  "async-trait",
  "base64 0.22.1",
  "chrono",
@@ -14946,7 +14944,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
- "tempfile",
  "thiserror 2.0.21",
  "tokio",
  "tokio-stream",
@@ -15022,7 +15019,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
- "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -15091,7 +15087,6 @@ name = "zylos-search-mcp"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "chrono",
  "futures",
  "hex",
  "serde",
@@ -15225,12 +15220,10 @@ dependencies = [
  "hex",
  "semver",
  "serde",
- "serde_json",
  "serde_yaml",
  "sha2 0.10.9",
  "tempfile",
  "thiserror 2.0.21",
- "tokio",
  "tracing",
 ]
 
