@@ -103,11 +103,9 @@ zylos-live-comm = { path = "crates/zylos-live-comm" }
 zylos-verification = { path = "crates/zylos-verification" }
 zylos-sandbox = { path = "crates/zylos-sandbox" }
 zylos-skills = { path = "crates/zylos-skills" }
-zylos-vlm-ocr = { path = "crates/zylos-vlm-ocr" }
 zylos-soar = { path = "crates/zylos-soar" }
 zylos-task-durability = { path = "crates/zylos-task-durability" }
 
-zylos-desktop = { path = "crates/zylos-desktop" }
 zylos-goals = { path = "crates/zylos-goals" }
 
 zylos-browser-takeover = { path = "crates/zylos-browser-takeover" }
