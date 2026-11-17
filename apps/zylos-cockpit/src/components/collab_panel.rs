@@ -14,7 +14,9 @@ use std::cell::RefCell;
 
 use leptos::prelude::*;
 
-use crate::crdt_client::{color_for, sync_url, CrdtClient, DiffLine, Event, Peer, Presence};
+#[cfg(target_arch = "wasm32")]
+use crate::crdt_client::Event;
+use crate::crdt_client::{color_for, sync_url, CrdtClient, DiffLine, Peer, Presence};
 
 thread_local! {
     static CLIENT: RefCell<Option<CrdtClient>> = const { RefCell::new(None) };
@@ -24,6 +26,7 @@ thread_local! {
 
 /// Estado de conexão exibido no cabeçalho.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 enum Conn {
     Disconnected,
     Connecting,

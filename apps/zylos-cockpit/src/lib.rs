@@ -34,3 +34,12 @@ pub mod components;
 
 /// Cliente CRDT (yrs) do painel de edição colaborativa (Fase 11.9).
 pub mod crdt_client;
+
+/// Resolução da URL base do gateway.
+pub mod gateway_config;
+
+/// Traduções pt-BR / en-US.
+pub mod i18n;
+
+/// Abas do cockpit (enum, ordem, chaves i18n, atalhos).
+pub mod tabs;
