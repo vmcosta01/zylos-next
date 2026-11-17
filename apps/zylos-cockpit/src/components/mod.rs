@@ -46,6 +46,8 @@ pub mod phone_relay_panel;
 pub use phone_relay_panel::PhoneRelayPanel;
 pub mod auth_login;
 pub mod theme_toggle;
+pub mod collab_panel;
+pub use collab_panel::CollabPanel;
 
 pub use agent_awareness_panel::AgentAwarenessPanel;
 #[allow(unused_imports)]

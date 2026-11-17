@@ -11,7 +11,7 @@ use wasm_bindgen_futures::spawn_local;
 use crate::benchmarks::BenchmarkPanel;
 use crate::components::{
     provide_theme, AgentAvatarsGrid, AgentAwarenessPanel, AgentInfo, AgentStatus, ChannelPanel,
-    ChatPanel, EmojiReactions, EmployeeGovernancePanel, EvidenceLedgerPanel, FederationDashboard,
+    ChatPanel, CollabPanel, EmojiReactions, EmployeeGovernancePanel, EvidenceLedgerPanel, FederationDashboard,
     FileManager, FleetAuditorPanel, GoalsPanel, HitlApprovalPanel, LazyRoster, MemoryTimeline,
     PersonalitiesPanel, PhoneRelayPanel, SecurityPanel, SentinelPanel, SkillEditorPanel,
     SkillEvolutionPanel, SkinThemesPanel, SoarDashboard, SubagentStatusCards, SwarmDagPanel,
@@ -73,6 +73,7 @@ pub enum Tab {
     PhoneRelay,
     SwarmTopology,
     SkillEditor,
+    Collab,
 }
 
 impl Tab {
@@ -109,6 +110,7 @@ impl Tab {
             Tab::PhoneRelay => "tab-phone-relay",
             Tab::SwarmTopology => "tab-swarm-topology",
             Tab::SkillEditor => "tab-skill-editor",
+            Tab::Collab => "tab-collab",
         }
     }
 
@@ -145,6 +147,7 @@ impl Tab {
             Tab::PhoneRelay => "tab.phone_relay",
             Tab::SwarmTopology => "tab.swarm_topology",
             Tab::SkillEditor => "tab.skill_editor",
+            Tab::Collab => "tab.collab",
         }
     }
 }
@@ -243,6 +246,7 @@ pub fn App() -> impl IntoView {
                                                                                                                                                                                                                                                                                                                                                                                                                             <TabButton tab=Tab::PhoneRelay active_tab=active_tab set_active_tab=set_active_tab />
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         <TabButton tab=Tab::SwarmTopology active_tab=active_tab set_active_tab=set_active_tab />
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 <TabButton tab=Tab::SkillEditor active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                <TabButton tab=Tab::Collab active_tab=active_tab set_active_tab=set_active_tab />
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                </nav>
 
             <main class="cockpit-main">
@@ -577,6 +581,12 @@ fn TabContent(tab: Tab) -> impl IntoView {
         Tab::SkillEditor => view! {
         <div class="tab-panel tab-panel-skill-editor">
         <SkillEditorPanel />
+        </div>
+        }
+        .into_any(),
+        Tab::Collab => view! {
+        <div class="tab-panel tab-panel-collab">
+        <CollabPanel />
         </div>
         }
         .into_any(),
