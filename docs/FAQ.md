@@ -59,8 +59,8 @@ Siga `playbooks/pop-gateway-restart.md`. O shutdown gracioso respeita `ZYLOS_SHU
 **A17. Como ativo Sentry e Axiom?**
 Defina `SENTRY_DSN`. Sem ela, o log mostra "Sentry disabled (SENTRY_DSN not set)" (`apps/zylos-gateway/src/main.rs`). Para Axiom, defina `AXIOM_TOKEN` e `AXIOM_DATASET` (`apps/zylos-gateway/src/axiom_logging.rs`). Os playbooks são `playbooks/pb-sentry-integration.md` e `playbooks/pb-axiom-logging-setup.md`.
 
-**A18. Rodando pelo `docker-compose.yml`, o gateway não responde na 8080. Por quê?**
-O `docker-compose.yml` define `ZYLOS_HOST`/`ZYLOS_PORT`, mas o gateway **não lê essas variáveis**: ele lê `ZYLOS_LISTEN` (`config.rs`). O `Dockerfile` expõe a 8080 e o healthcheck usa `http://localhost:8080/api/v1/health`. Defina `ZYLOS_LISTEN=0.0.0.0:8080` no container. Essa inconsistência está documentada aqui e precisa de correção no compose.
+**A18. Qual variável define a porta do gateway no `docker-compose.yml`?**
+O gateway lê apenas `ZYLOS_LISTEN` (`apps/zylos-gateway/src/config.rs`); `ZYLOS_HOST`/`ZYLOS_PORT` não existem. O `docker-compose.yml` e o `Dockerfile` definem `ZYLOS_LISTEN=0.0.0.0:8080`, coerente com `EXPOSE 8080` e o healthcheck `http://localhost:8080/api/v1/health`; o compose publica a porta como `9090:8080` (acesse `http://localhost:9090`).
 
 ### Incidentes e procedimentos
 

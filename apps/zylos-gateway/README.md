@@ -31,8 +31,8 @@ zylos-gateway/
 export ZYLOS_CONFIG=/etc/zylos/gateway.toml
 
 # Ou via env vars
-export ZYLOS_LISTEN_ADDR=0.0.0.0:3000
-export ZYLOS_SHUTDOWN_TIMEOUT=5
+export ZYLOS_LISTEN=0.0.0.0:3000
+export ZYLOS_SHUTDOWN_TIMEOUT_SECS=5
 
 # Run
 cargo run --bin zylos-gateway

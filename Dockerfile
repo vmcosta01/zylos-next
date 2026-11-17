@@ -61,8 +61,7 @@ RUN mkdir -p /var/lib/zylos/data /var/lib/zylos/logs /etc/zylos \
 # Default config
 COPY <<'EOF' /etc/zylos/config.toml
 [server]
-host = "0.0.0.0"
-port = 8080
+listen_addr = "0.0.0.0:8080"
 
 [database]
 path = "/var/lib/zylos/data/zylos.db"
@@ -73,6 +72,8 @@ format = "json"
 EOF
 
 USER zylos
+# O gateway lê ZYLOS_LISTEN (padrão do binário: 127.0.0.1:3000, inacessível de fora do container)
+ENV ZYLOS_LISTEN=0.0.0.0:8080
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
