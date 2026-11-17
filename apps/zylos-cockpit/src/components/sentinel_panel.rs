@@ -292,7 +292,12 @@ pub fn sparkline_geometry(
     let mut dots = Vec::new();
     for (i, p) in points.iter().enumerate() {
         let (x, y) = (x_of(i), y_of(p.v));
-        path.push_str(&format!("{}{:.1} {:.1} ", if i == 0 { "M" } else { "L" }, x, y));
+        path.push_str(&format!(
+            "{}{:.1} {:.1} ",
+            if i == 0 { "M" } else { "L" },
+            x,
+            y
+        ));
         if p.anomaly {
             dots.push((x, y));
         }
@@ -323,7 +328,10 @@ fn MetricSparkline(
 ) -> impl IntoView {
     const W: f64 = 220.0;
     const H: f64 = 60.0;
-    let last = points.last().map(|p| fmt_value(p.v)).unwrap_or_else(|| "—".into());
+    let last = points
+        .last()
+        .map(|p| fmt_value(p.v))
+        .unwrap_or_else(|| "—".into());
     let anomalies = points.iter().filter(|p| p.anomaly).count();
     let geom = sparkline_geometry(&points, threshold, W, H);
     let body = match geom {
@@ -499,7 +507,8 @@ async fn fetch_remediations() -> Result<Vec<RemediationItem>, String> {
         return Err(format!("HTTP {}", resp.status()));
     }
     let v: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
-    serde_json::from_value(v.get("proposals").cloned().unwrap_or_default()).map_err(|e| e.to_string())
+    serde_json::from_value(v.get("proposals").cloned().unwrap_or_default())
+        .map_err(|e| e.to_string())
 }
 
 async fn post_decision(id: &str, approver: &str, approve: bool) -> Result<(), String> {
@@ -525,7 +534,11 @@ mod chart_tests {
     fn pts(vals: &[(f64, bool)]) -> Vec<ChartPoint> {
         vals.iter()
             .enumerate()
-            .map(|(i, (v, a))| ChartPoint { t: i as u64, v: *v, anomaly: *a })
+            .map(|(i, (v, a))| ChartPoint {
+                t: i as u64,
+                v: *v,
+                anomaly: *a,
+            })
             .collect()
     }
 
@@ -536,7 +549,13 @@ mod chart_tests {
 
     #[test]
     fn geometry_marks_anomalies_and_threshold() {
-        let g = sparkline_geometry(&pts(&[(10.0, false), (20.0, false), (95.0, true)]), 80.0, 220.0, 60.0).unwrap();
+        let g = sparkline_geometry(
+            &pts(&[(10.0, false), (20.0, false), (95.0, true)]),
+            80.0,
+            220.0,
+            60.0,
+        )
+        .unwrap();
         assert!(g.path.starts_with("M4.0 "));
         assert_eq!(g.path.matches('L').count(), 2);
         assert_eq!(g.anomaly_dots.len(), 1);

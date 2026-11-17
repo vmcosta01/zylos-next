@@ -37,7 +37,10 @@ async fn crdt_three_clients_concurrent_inserts_converge() {
             c.insert(0, &ch.to_string());
         }
     }
-    assert!(wait_converged(&clients, T).await, "clientes não convergiram");
+    assert!(
+        wait_converged(&clients, T).await,
+        "clientes não convergiram"
+    );
     let text = clients[0].text();
     assert_eq!(text.len(), 60);
     for ch in ['a', 'b', 'c'] {
@@ -67,7 +70,10 @@ async fn crdt_ten_clients_simultaneous_edits_zero_data_loss() {
     for h in handles {
         h.await.unwrap();
     }
-    assert!(wait_converged(&clients, T).await, "10 clientes não convergiram");
+    assert!(
+        wait_converged(&clients, T).await,
+        "10 clientes não convergiram"
+    );
     let text = clients[0].text();
     for i in 0..10 {
         for k in 0..25 {
@@ -103,7 +109,11 @@ async fn crdt_concurrent_insert_and_delete_converge() {
     clients[1].insert(0, "X");
     clients[2].push("Y");
     assert!(wait_converged(&clients, T).await);
-    assert!(wait_until(T, || clients[0].text() == "X012789Y").await, "texto: {}", clients[0].text());
+    assert!(
+        wait_until(T, || clients[0].text() == "X012789Y").await,
+        "texto: {}",
+        clients[0].text()
+    );
     server.stop();
 }
 
@@ -139,7 +149,12 @@ async fn crdt_offline_edits_merge_on_reconnect() {
     b.insert(0, "onlineB-");
     tokio::time::sleep(Duration::from_millis(50)).await;
     a.attach(&url).await;
-    assert!(wait_until(T, || a.text() == b.text() && a.text().len() == 21).await, "a={} b={}", a.text(), b.text());
+    assert!(
+        wait_until(T, || a.text() == b.text() && a.text().len() == 21).await,
+        "a={} b={}",
+        a.text(),
+        b.text()
+    );
     assert_eq!(a.text(), "onlineB-base-offlineA");
     server.stop();
 }
@@ -167,7 +182,11 @@ async fn crdt_presence_cursor_broadcast_and_cleanup() {
     let c = Client::connect(&url, 13).await;
     tokio::time::sleep(Duration::from_millis(50)).await;
     a.set_presence(r##"{"user":{"name":"Ana","color":"#e11d48"},"cursor":{"anchor":2,"head":5}}"##);
-    assert!(wait_until(T, || b.presence_of(11).is_some() && c.presence_of(11).is_some()).await);
+    assert!(
+        wait_until(T, || b.presence_of(11).is_some()
+            && c.presence_of(11).is_some())
+        .await
+    );
     let p = b.presence_of(11).unwrap();
     assert_eq!(p["user"]["name"], "Ana");
     assert_eq!(p["cursor"]["head"], 5);
@@ -176,7 +195,11 @@ async fn crdt_presence_cursor_broadcast_and_cleanup() {
     assert!(wait_until(T, || d.presence_of(11).is_some()).await);
     // Ao desconectar, a presença de A é removida em todos.
     a.disconnect().await;
-    assert!(wait_until(T, || b.presence_of(11).is_none() && d.presence_of(11).is_none()).await);
+    assert!(
+        wait_until(T, || b.presence_of(11).is_none()
+            && d.presence_of(11).is_none())
+        .await
+    );
     server.stop();
 }
 
@@ -192,13 +215,25 @@ async fn crdt_persistence_survives_server_restart() {
         a.push("persistido ");
         b.push("por dois");
         assert!(wait_converged(&[a, b], T).await);
-        assert!(wait_until(T, || store.load("persist").unwrap().map(|s| text_of_state(&s).unwrap().len()) == Some(19)).await);
+        assert!(
+            wait_until(T, || store.load("persist").unwrap().map(|s| text_of_state(
+                &s
+            )
+            .unwrap()
+            .len())
+                == Some(19))
+            .await
+        );
         server.stop();
     }
     let store = Arc::new(CrdtStore::open(&path).unwrap());
     let server = TestServer::start(Some(store)).await;
     let c = Client::connect(&server.url("persist"), 3).await;
-    assert!(wait_until(T, || c.text().len() == 19).await, "texto: {}", c.text());
+    assert!(
+        wait_until(T, || c.text().len() == 19).await,
+        "texto: {}",
+        c.text()
+    );
     assert!(c.text().contains("persistido ") && c.text().contains("por dois"));
     server.stop();
 }

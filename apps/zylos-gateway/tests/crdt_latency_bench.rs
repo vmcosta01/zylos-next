@@ -120,7 +120,10 @@ async fn crdt_bench_burst_throughput_10_clients() {
     }
     let total = clients.len() * per_client;
     assert!(
-        wait_until(Duration::from_secs(30), || clients.iter().all(|c| c.text().len() == total)).await,
+        wait_until(Duration::from_secs(30), || clients
+            .iter()
+            .all(|c| c.text().len() == total))
+        .await,
         "burst não convergiu"
     );
     let ms = t0.elapsed().as_secs_f64() * 1000.0;

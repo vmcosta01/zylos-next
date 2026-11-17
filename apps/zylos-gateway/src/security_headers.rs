@@ -12,7 +12,8 @@ use axum::{
 };
 
 /// CSP para respostas de API: nada pode ser carregado/embutido.
-pub const API_CSP: &str = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
+pub const API_CSP: &str =
+    "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
 
 /// Middleware que adiciona cabeçalhos de segurança sem sobrescrever os
 /// definidos explicitamente pelo handler.

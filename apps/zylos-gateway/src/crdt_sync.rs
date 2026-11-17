@@ -193,11 +193,7 @@ impl CrdtSyncState {
         };
         let room = Arc::new(Room::new(persisted)?);
         // `entry` resolve a corrida entre duas conexões simultâneas.
-        Ok(self
-            .rooms
-            .entry(doc_id.to_string())
-            .or_insert(room)
-            .clone())
+        Ok(self.rooms.entry(doc_id.to_string()).or_insert(room).clone())
     }
 
     fn persist_update(&self, doc_id: &str, room: &Room, update: &[u8]) {
@@ -322,11 +318,20 @@ async fn handle_socket(mut socket: WebSocket, doc_id: String, state: CrdtSyncSta
     let conn_id = state.next_conn.fetch_add(1, Ordering::SeqCst);
     room.clients.fetch_add(1, Ordering::SeqCst);
     let mut rx = room.tx.subscribe();
-    info!(doc_id, conn_id, clients = room.client_count(), "crdt: cliente conectado");
+    info!(
+        doc_id,
+        conn_id,
+        clients = room.client_count(),
+        "crdt: cliente conectado"
+    );
 
     // Passo 1 do handshake: SyncStep1 do servidor + presença atual.
     let sv = room.with_awareness(|a| a.doc().transact().state_vector());
-    let mut ok = send_bin(&mut socket, encode(&Message::Sync(SyncMessage::SyncStep1(sv)))).await;
+    let mut ok = send_bin(
+        &mut socket,
+        encode(&Message::Sync(SyncMessage::SyncStep1(sv))),
+    )
+    .await;
     if ok {
         if let Ok(upd) = room.with_awareness(|a| a.update()) {
             if !upd.clients.is_empty() {
@@ -404,7 +409,12 @@ async fn handle_socket(mut socket: WebSocket, doc_id: String, state: CrdtSyncSta
         }
     }
     room.clients.fetch_sub(1, Ordering::SeqCst);
-    info!(doc_id, conn_id, clients = room.client_count(), "crdt: cliente desconectado");
+    info!(
+        doc_id,
+        conn_id,
+        clients = room.client_count(),
+        "crdt: cliente desconectado"
+    );
     state.release_room(&doc_id, &room);
 }
 
@@ -652,7 +662,9 @@ mod tests {
         for m in decode_frame(&frame).unwrap() {
             handle_message(&state, "d", &room, m, &mut seen, &mut replies, &mut relay).unwrap();
         }
-        let step1 = encode(&Message::Sync(SyncMessage::SyncStep1(StateVector::default())));
+        let step1 = encode(&Message::Sync(SyncMessage::SyncStep1(
+            StateVector::default(),
+        )));
         for m in decode_frame(&step1).unwrap() {
             handle_message(&state, "d", &room, m, &mut seen, &mut replies, &mut relay).unwrap();
         }
@@ -700,7 +712,11 @@ mod tests {
         let room = state.get_or_load_room("d").unwrap();
         let mut seen = HashSet::new();
         let (mut replies, mut relay) = (vec![], vec![]);
-        let upd = awareness_update(42, 1, r#"{"user":{"name":"Ana"},"cursor":{"anchor":3,"head":3}}"#);
+        let upd = awareness_update(
+            42,
+            1,
+            r#"{"user":{"name":"Ana"},"cursor":{"anchor":3,"head":3}}"#,
+        );
         handle_message(
             &state,
             "d",

@@ -803,5 +803,4 @@ mod tests {
             TokenError::Revoked
         );
     }
-
 }

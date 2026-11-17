@@ -319,11 +319,11 @@ impl TokenService {
         validation.set_audience(&[&self.config.audience]);
         validation.set_required_spec_claims(&["exp", "iss", "aud", "sub"]);
 
-        let data = decode::<Claims>(token, &self.decoding_key, &validation).map_err(|e| {
-            match e.kind() {
-                jsonwebtoken::errors::ErrorKind::ExpiredSignature => TokenError::Expired,
-                _ => TokenError::Invalid(e.to_string()),
-            }
+        let data = decode::<Claims>(token, &self.decoding_key, &validation).map_err(|e| match e
+            .kind()
+        {
+            jsonwebtoken::errors::ErrorKind::ExpiredSignature => TokenError::Expired,
+            _ => TokenError::Invalid(e.to_string()),
         })?;
 
         if data.claims.is_expired() {
@@ -585,7 +585,10 @@ mod tests {
         assert!(matches!(svc.validate_token(&tok), Err(TokenError::Revoked)));
         // clones share the denylist
         let clone = svc.clone();
-        assert!(matches!(clone.validate_token(&tok), Err(TokenError::Revoked)));
+        assert!(matches!(
+            clone.validate_token(&tok),
+            Err(TokenError::Revoked)
+        ));
         // other tokens unaffected
         let other = svc.create_token(&req()).unwrap().access_token;
         assert!(svc.validate_token(&other).is_ok());
@@ -626,7 +629,11 @@ mod tests {
             ..cfg()
         })
         .unwrap();
-        let r = svc.create_token_pair(&req()).unwrap().refresh_token.unwrap();
+        let r = svc
+            .create_token_pair(&req())
+            .unwrap()
+            .refresh_token
+            .unwrap();
         // force expiry
         for mut e in svc.refresh.iter_mut() {
             e.exp = Utc::now().timestamp() - 10;

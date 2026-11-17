@@ -224,7 +224,6 @@ struct SandboxState {
     network_policy: NetworkPolicy,
 }
 
-
 /// A WASM sandbox instance with snapshot/resume capability.
 pub struct WasmSandbox {
     id: SandboxId,

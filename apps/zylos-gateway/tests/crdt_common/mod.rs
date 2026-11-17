@@ -148,7 +148,13 @@ impl Client {
             }
         });
         // Handshake: envia o nosso SyncStep1 (servidor devolve o que falta).
-        let sv = self.awareness.lock().unwrap().doc().transact().state_vector();
+        let sv = self
+            .awareness
+            .lock()
+            .unwrap()
+            .doc()
+            .transact()
+            .state_vector();
         let _ = out_tx.send(WsMessage::Binary(
             Message::Sync(SyncMessage::SyncStep1(sv)).encode_v1(),
         ));
@@ -227,9 +233,7 @@ impl Client {
         let update = {
             let mut guard = self.awareness.lock().unwrap();
             guard.set_local_state_raw(json.to_string());
-            guard
-                .update_with_clients([ClientID::new(self.id)])
-                .unwrap()
+            guard.update_with_clients([ClientID::new(self.id)]).unwrap()
         };
         self.send(Message::Awareness(update).encode_v1());
     }

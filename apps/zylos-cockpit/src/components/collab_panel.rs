@@ -61,7 +61,11 @@ impl Ui {
                 self.text.set(c.draft_text());
                 self.peers.set(c.peers());
                 self.draft.set(c.in_draft());
-                self.diff.set(if c.has_conflict() { c.conflict_diff() } else { Vec::new() });
+                self.diff.set(if c.has_conflict() {
+                    c.conflict_diff()
+                } else {
+                    Vec::new()
+                });
             }
         });
     }
@@ -120,7 +124,11 @@ fn connect(ui: Ui, url: String, name: String) {
     let on_open = Closure::<dyn FnMut()>::new(move || {
         ui.conn.set(Conn::Connected);
         if let Some((hs, pr)) = with_client(|c| {
-            let p = Presence { name: name.clone(), color: color_for(id).to_string(), cursor: None };
+            let p = Presence {
+                name: name.clone(),
+                color: color_for(id).to_string(),
+                cursor: None,
+            };
             (c.handshake(), c.set_presence(&p))
         }) {
             send(hs);
@@ -164,7 +172,11 @@ fn default_ws_base() -> String {
     #[cfg(target_arch = "wasm32")]
     {
         if let Some(loc) = web_sys::window().map(|w| w.location()) {
-            let proto = if loc.protocol().map(|p| p == "https:").unwrap_or(false) { "wss" } else { "ws" };
+            let proto = if loc.protocol().map(|p| p == "https:").unwrap_or(false) {
+                "wss"
+            } else {
+                "ws"
+            };
             if let Ok(host) = loc.host() {
                 if !host.is_empty() && !host.starts_with("localhost:8080") {
                     return format!("{proto}://{host}");
@@ -210,7 +222,11 @@ pub fn CollabPanel() -> impl IntoView {
         let cursor = textarea_selection(target);
         let me = name.get_untracked();
         if let Some(frame) = with_client(|c| {
-            let p = Presence { name: me, color: color_for(c.client_id()).to_string(), cursor };
+            let p = Presence {
+                name: me,
+                color: color_for(c.client_id()).to_string(),
+                cursor,
+            };
             c.set_presence(&p)
         }) {
             send(frame);

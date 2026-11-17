@@ -12,12 +12,12 @@ use crate::benchmarks::BenchmarkPanel;
 use crate::components::analytics_panel::AnalyticsPanel;
 use crate::components::{
     provide_theme, AgentAvatarsGrid, AgentAwarenessPanel, AgentInfo, AgentStatus, ChannelPanel,
-    ChatPanel, CollabPanel, EmojiReactions, EmployeeGovernancePanel, EvidenceLedgerPanel, FederationDashboard,
-    FileManager, FleetAuditorPanel, GoalsPanel, HitlApprovalPanel, IntegrationsPanel, LazyRoster,
-    MemoryTimeline, PersonalitiesPanel, PhoneRelayPanel, SecurityPanel, SentinelPanel,
-    SkillEditorPanel, SkillEvolutionPanel, SkinThemesPanel, SoarDashboard, SubagentStatusCards,
-    SwarmDagPanel, SwarmTopologyPanel, TaskTriagePanel, TasksDag, ThemeToggle, ThreadManager,
-    VoicePanel,
+    ChatPanel, CollabPanel, EmojiReactions, EmployeeGovernancePanel, EvidenceLedgerPanel,
+    FederationDashboard, FileManager, FleetAuditorPanel, GoalsPanel, HitlApprovalPanel,
+    IntegrationsPanel, LazyRoster, MemoryTimeline, PersonalitiesPanel, PhoneRelayPanel,
+    SecurityPanel, SentinelPanel, SkillEditorPanel, SkillEvolutionPanel, SkinThemesPanel,
+    SoarDashboard, SubagentStatusCards, SwarmDagPanel, SwarmTopologyPanel, TaskTriagePanel,
+    TasksDag, ThemeToggle, ThreadManager, VoicePanel,
 };
 use crate::i18n::{provide_i18n, use_i18n, Locale};
 use crate::streaming::{provide_stream, LiveEventFeed, StreamConfig};
@@ -210,123 +210,123 @@ pub fn App() -> impl IntoView {
     });
 
     view! {
-        <div class="cockpit-root">
-            <header class="cockpit-header">
-                <h1><AppTitle /></h1>
-                <div class="header-actions">
-                    <span class="version">{move || match &*state.read() {
-                        DashboardState::Success(h) => format!("v{}", h.version),
-                        _ => "v0.1.0".to_string(),
-                    }}</span>
-                    <ThemeToggle />
-                </div>
-            </header>
+            <div class="cockpit-root">
+                <header class="cockpit-header">
+                    <h1><AppTitle /></h1>
+                    <div class="header-actions">
+                        <span class="version">{move || match &*state.read() {
+                            DashboardState::Success(h) => format!("v{}", h.version),
+                            _ => "v0.1.0".to_string(),
+                        }}</span>
+                        <ThemeToggle />
+                    </div>
+                </header>
 
-            <nav class="cockpit-tabs" aria-label="Abas do cockpit">
-                            <TabButton tab=Tab::Agents active_tab=active_tab set_active_tab=set_active_tab />
-                            <TabButton tab=Tab::Tasks active_tab=active_tab set_active_tab=set_active_tab />
-                            <TabButton tab=Tab::Memory active_tab=active_tab set_active_tab=set_active_tab />
-                            <TabButton tab=Tab::Goals active_tab=active_tab set_active_tab=set_active_tab />
-                            <TabButton tab=Tab::Personalities active_tab=active_tab set_active_tab=set_active_tab />
-                            <TabButton tab=Tab::SwarmDag active_tab=active_tab set_active_tab=set_active_tab />
-                            <TabButton tab=Tab::Sentinel active_tab=active_tab set_active_tab=set_active_tab />
-                            <TabButton tab=Tab::EvidenceLedger active_tab=active_tab set_active_tab=set_active_tab />
-                            <TabButton tab=Tab::HitlApproval active_tab=active_tab set_active_tab=set_active_tab />
-                            <TabButton tab=Tab::Skills active_tab=active_tab set_active_tab=set_active_tab />
-                            <TabButton tab=Tab::Logs active_tab=active_tab set_active_tab=set_active_tab />
-                            <TabButton tab=Tab::Soar active_tab=active_tab set_active_tab=set_active_tab />
-                                                        <TabButton tab=Tab::Security active_tab=active_tab set_active_tab=set_active_tab />
-                                                        <TabButton tab=Tab::Awareness active_tab=active_tab set_active_tab=set_active_tab />
-                                                        <TabButton tab=Tab::SkillEvolution active_tab=active_tab set_active_tab=set_active_tab />
-                                                        <TabButton tab=Tab::EmployeeGovernance active_tab=active_tab set_active_tab=set_active_tab />
-                                                                                                                <TabButton tab=Tab::TaskTriage active_tab=active_tab set_active_tab=set_active_tab />
-                                                                                                                <TabButton tab=Tab::Threads active_tab=active_tab set_active_tab=set_active_tab />
-                                                                                                                <TabButton tab=Tab::Subagents active_tab=active_tab set_active_tab=set_active_tab />
-                                                                                                                 <TabButton tab=Tab::Files active_tab=active_tab set_active_tab=set_active_tab />
-                                                                                                                  <TabButton tab=Tab::Voice active_tab=active_tab set_active_tab=set_active_tab />
-                                                                                                                   <TabButton tab=Tab::Reactions active_tab=active_tab set_active_tab=set_active_tab />
-                                                                                                                   <TabButton tab=Tab::Avatars active_tab=active_tab set_active_tab=set_active_tab />
-                                                                                                                    <TabButton tab=Tab::Skins active_tab=active_tab set_active_tab=set_active_tab />
-                                                                                                                     <TabButton tab=Tab::Fleet active_tab=active_tab set_active_tab=set_active_tab />
-                                                                                                                      <TabButton tab=Tab::Federation active_tab=active_tab set_active_tab=set_active_tab />
-                                                                                                                      <TabButton tab=Tab::Chat active_tab=active_tab set_active_tab=set_active_tab />
-                                                                                                                                                                                                                                            <TabButton tab=Tab::Channels active_tab=active_tab set_active_tab=set_active_tab />
-                                                                                                                                                                                                                                                                                                                                                                                                                            <TabButton tab=Tab::PhoneRelay active_tab=active_tab set_active_tab=set_active_tab />
-<TabButton tab=Tab::Integrations active_tab=active_tab set_active_tab=set_active_tab />
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        <TabButton tab=Tab::SwarmTopology active_tab=active_tab set_active_tab=set_active_tab />
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                <TabButton tab=Tab::SkillEditor active_tab=active_tab set_active_tab=set_active_tab />
-                <TabButton tab=Tab::Analytics active_tab=active_tab set_active_tab=set_active_tab />
-                <TabButton tab=Tab::Collab active_tab=active_tab set_active_tab=set_active_tab />
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               </nav>
+                <nav class="cockpit-tabs" aria-label="Abas do cockpit">
+                                <TabButton tab=Tab::Agents active_tab=active_tab set_active_tab=set_active_tab />
+                                <TabButton tab=Tab::Tasks active_tab=active_tab set_active_tab=set_active_tab />
+                                <TabButton tab=Tab::Memory active_tab=active_tab set_active_tab=set_active_tab />
+                                <TabButton tab=Tab::Goals active_tab=active_tab set_active_tab=set_active_tab />
+                                <TabButton tab=Tab::Personalities active_tab=active_tab set_active_tab=set_active_tab />
+                                <TabButton tab=Tab::SwarmDag active_tab=active_tab set_active_tab=set_active_tab />
+                                <TabButton tab=Tab::Sentinel active_tab=active_tab set_active_tab=set_active_tab />
+                                <TabButton tab=Tab::EvidenceLedger active_tab=active_tab set_active_tab=set_active_tab />
+                                <TabButton tab=Tab::HitlApproval active_tab=active_tab set_active_tab=set_active_tab />
+                                <TabButton tab=Tab::Skills active_tab=active_tab set_active_tab=set_active_tab />
+                                <TabButton tab=Tab::Logs active_tab=active_tab set_active_tab=set_active_tab />
+                                <TabButton tab=Tab::Soar active_tab=active_tab set_active_tab=set_active_tab />
+                                                            <TabButton tab=Tab::Security active_tab=active_tab set_active_tab=set_active_tab />
+                                                            <TabButton tab=Tab::Awareness active_tab=active_tab set_active_tab=set_active_tab />
+                                                            <TabButton tab=Tab::SkillEvolution active_tab=active_tab set_active_tab=set_active_tab />
+                                                            <TabButton tab=Tab::EmployeeGovernance active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                    <TabButton tab=Tab::TaskTriage active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                    <TabButton tab=Tab::Threads active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                    <TabButton tab=Tab::Subagents active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                     <TabButton tab=Tab::Files active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                      <TabButton tab=Tab::Voice active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                       <TabButton tab=Tab::Reactions active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                       <TabButton tab=Tab::Avatars active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                        <TabButton tab=Tab::Skins active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                         <TabButton tab=Tab::Fleet active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                          <TabButton tab=Tab::Federation active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                          <TabButton tab=Tab::Chat active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                                                                                                                                                <TabButton tab=Tab::Channels active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                                                                                                                                                                                                                                                                                                                                <TabButton tab=Tab::PhoneRelay active_tab=active_tab set_active_tab=set_active_tab />
+    <TabButton tab=Tab::Integrations active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            <TabButton tab=Tab::SwarmTopology active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    <TabButton tab=Tab::SkillEditor active_tab=active_tab set_active_tab=set_active_tab />
+                    <TabButton tab=Tab::Analytics active_tab=active_tab set_active_tab=set_active_tab />
+                    <TabButton tab=Tab::Collab active_tab=active_tab set_active_tab=set_active_tab />
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   </nav>
 
-            <main class="cockpit-main">
-                {move || match &*state.read() {
-                    DashboardState::Loading => view! {
-                        <div class="skeleton-grid">
-                            <div class="skeleton-card pulse"></div>
-                            <div class="skeleton-card pulse"></div>
-                            <div class="skeleton-card pulse"></div>
-                        </div>
-                    }.into_any(),
-                    DashboardState::Empty => view! {
-                        <div class="empty-state">
-                            <p><EmptyAgentsText /></p>
-                            <button class="cta-primary"><EmptyCtaText /></button>
-                        </div>
-                    }.into_any(),
-                    DashboardState::Success(health) => {
-                        let status = health.status.clone();
-                        let streams = health.active_streams.to_string();
-                        let version = health.version.clone();
-                        let tab = active_tab.get();
-                        view! {
-                            <div class="dashboard-content">
-                                <div class="metrics-bar">
-                                    <div class="metric-card">
-                                        <span class="metric-label"><HealthStatusLabel /></span>
-                                        <span class="metric-value success">{status}</span>
+                <main class="cockpit-main">
+                    {move || match &*state.read() {
+                        DashboardState::Loading => view! {
+                            <div class="skeleton-grid">
+                                <div class="skeleton-card pulse"></div>
+                                <div class="skeleton-card pulse"></div>
+                                <div class="skeleton-card pulse"></div>
+                            </div>
+                        }.into_any(),
+                        DashboardState::Empty => view! {
+                            <div class="empty-state">
+                                <p><EmptyAgentsText /></p>
+                                <button class="cta-primary"><EmptyCtaText /></button>
+                            </div>
+                        }.into_any(),
+                        DashboardState::Success(health) => {
+                            let status = health.status.clone();
+                            let streams = health.active_streams.to_string();
+                            let version = health.version.clone();
+                            let tab = active_tab.get();
+                            view! {
+                                <div class="dashboard-content">
+                                    <div class="metrics-bar">
+                                        <div class="metric-card">
+                                            <span class="metric-label"><HealthStatusLabel /></span>
+                                            <span class="metric-value success">{status}</span>
+                                        </div>
+                                        <div class="metric-card">
+                                            <span class="metric-label"><HealthStreamsLabel /></span>
+                                            <span class="metric-value">{streams}</span>
+                                        </div>
+                                        <div class="metric-card">
+                                            <span class="metric-label"><HealthVersionLabel /></span>
+                                            <span class="metric-value">{version}</span>
+                                        </div>
                                     </div>
-                                    <div class="metric-card">
-                                        <span class="metric-label"><HealthStreamsLabel /></span>
-                                        <span class="metric-value">{streams}</span>
-                                    </div>
-                                    <div class="metric-card">
-                                        <span class="metric-label"><HealthVersionLabel /></span>
-                                        <span class="metric-value">{version}</span>
-                                    </div>
+                                    <TabContent tab=tab />
                                 </div>
-                                <TabContent tab=tab />
-                            </div>
-                        }.into_any()
-                    }
-                    DashboardState::Error(msg) => {
-                        let err_msg = msg.clone();
-                        view! {
-                            <div class="error-banner" role="alert">
-                                <p>{format!("Connection lost: {}", err_msg)}</p>
-                                <button class="cta-retry" on:click=move |_| {
-                                    spawn_local(async move {
-                                        match fetch_health().await {
-                                            Ok(h) => set_state.set(DashboardState::Success(h)),
-                                            Err(e) => set_state.set(DashboardState::Error(e)),
-                                        }
-                                    });
-                                }><ErrorRetryText /></button>
-                            </div>
-                        }.into_any()
-                    }
-                    DashboardState::Disabled(reason) => {
-                        let r = reason.clone();
-                        view! {
-                            <div class="disabled-overlay">
-                                <p>{format!("System maintenance: {}", r)}</p>
-                            </div>
-                        }.into_any()
-                    }
-                }}
-            </main>
-        </div>
-    }
+                            }.into_any()
+                        }
+                        DashboardState::Error(msg) => {
+                            let err_msg = msg.clone();
+                            view! {
+                                <div class="error-banner" role="alert">
+                                    <p>{format!("Connection lost: {}", err_msg)}</p>
+                                    <button class="cta-retry" on:click=move |_| {
+                                        spawn_local(async move {
+                                            match fetch_health().await {
+                                                Ok(h) => set_state.set(DashboardState::Success(h)),
+                                                Err(e) => set_state.set(DashboardState::Error(e)),
+                                            }
+                                        });
+                                    }><ErrorRetryText /></button>
+                                </div>
+                            }.into_any()
+                        }
+                        DashboardState::Disabled(reason) => {
+                            let r = reason.clone();
+                            view! {
+                                <div class="disabled-overlay">
+                                    <p>{format!("System maintenance: {}", r)}</p>
+                                </div>
+                            }.into_any()
+                        }
+                    }}
+                </main>
+            </div>
+        }
 }
 
 /// Translated app title
@@ -626,8 +626,7 @@ async fn fetch_health() -> Result<HealthResponse, String> {
     let base = crate::gateway_config::gateway_base()
         .ok_or("Gateway não configurado (meta zylos-gateway-url)")?;
     let url = crate::gateway_config::join_url(&base, "/api/v1/health");
-    let request = Request::new_with_str_and_init(&url, &opts)
-        .map_err(|e| format!("{:?}", e))?;
+    let request = Request::new_with_str_and_init(&url, &opts).map_err(|e| format!("{:?}", e))?;
 
     let window = web_sys::window().ok_or("no window")?;
     let resp_value = window

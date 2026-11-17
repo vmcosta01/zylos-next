@@ -249,7 +249,9 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
             sentinel_rt,
             sentinel_runtime::track_requests,
         ))
-        .layer(axum::middleware::from_fn(security_headers::security_headers))
+        .layer(axum::middleware::from_fn(
+            security_headers::security_headers,
+        ))
         .layer(tower_http::trace::TraceLayer::new_for_http())
         .layer(
             tower_http::cors::CorsLayer::new()

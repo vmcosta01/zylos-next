@@ -144,7 +144,10 @@ async fn login_handler(
         return err(StatusCode::SERVICE_UNAVAILABLE, "auth not configured");
     };
     let Some(expected) = st.bootstrap.as_ref() else {
-        return err(StatusCode::SERVICE_UNAVAILABLE, "token issuance not configured");
+        return err(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "token issuance not configured",
+        );
     };
     let provided = bearer(&headers).unwrap_or("");
     if !ct_eq(provided.as_bytes(), expected.as_bytes()) {
@@ -253,7 +256,9 @@ mod tests {
     }
 
     async fn json(resp: Response) -> serde_json::Value {
-        let b = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
+        let b = axum::body::to_bytes(resp.into_body(), 1 << 20)
+            .await
+            .unwrap();
         serde_json::from_slice(&b).unwrap_or(serde_json::Value::Null)
     }
 
@@ -298,7 +303,10 @@ mod tests {
     #[tokio::test]
     async fn login_rejects_unknown_roles() {
         let r = router(Some(BOOT), SECRET)
-            .oneshot(login_req(Some(&format!("Bearer {BOOT}")), r#"["superuser"]"#))
+            .oneshot(login_req(
+                Some(&format!("Bearer {BOOT}")),
+                r#"["superuser"]"#,
+            ))
             .await
             .unwrap();
         assert_eq!(r.status(), StatusCode::BAD_REQUEST);

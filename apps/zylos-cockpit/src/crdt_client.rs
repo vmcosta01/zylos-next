@@ -42,7 +42,11 @@ pub fn color_for(client: u64) -> &'static str {
 
 /// URL do WebSocket de sincronização para um documento.
 pub fn sync_url(base_ws: &str, doc_id: &str) -> String {
-    format!("{}/api/v1/crdt/sync/{}", base_ws.trim_end_matches('/'), doc_id)
+    format!(
+        "{}/api/v1/crdt/sync/{}",
+        base_ws.trim_end_matches('/'),
+        doc_id
+    )
 }
 
 /// Estado de presença publicado via awareness (JSON compatível com y-protocols).
@@ -102,7 +106,10 @@ fn now_ms() -> u64 {
 
 /// Converte índice de caractere em offset de byte UTF-8 (yrs usa bytes por padrão).
 fn byte_at(s: &str, char_idx: usize) -> usize {
-    s.char_indices().nth(char_idx).map(|(b, _)| b).unwrap_or(s.len())
+    s.char_indices()
+        .nth(char_idx)
+        .map(|(b, _)| b)
+        .unwrap_or(s.len())
 }
 
 /// Diff mínimo prefixo/sufixo comum (em caracteres) → (início, removidos, inserção).
@@ -117,7 +124,8 @@ pub fn text_delta(old: &str, new: &str) -> Option<(usize, usize, String)> {
         pre += 1;
     }
     let mut suf = 0;
-    while suf < o.len() - pre && suf < n.len() - pre && o[o.len() - 1 - suf] == n[n.len() - 1 - suf] {
+    while suf < o.len() - pre && suf < n.len() - pre && o[o.len() - 1 - suf] == n[n.len() - 1 - suf]
+    {
         suf += 1;
     }
     let removed = o.len() - pre - suf;
@@ -213,16 +221,25 @@ impl CrdtClient {
         let mut replies = Vec::new();
         let mut events = Vec::new();
         let mut dec = DecoderV1::from(bytes);
-        let msgs: Vec<Message> = MessageReader::new(&mut dec).filter_map(Result::ok).collect();
+        let msgs: Vec<Message> = MessageReader::new(&mut dec)
+            .filter_map(Result::ok)
+            .collect();
         for msg in msgs {
             match msg {
                 Message::Sync(SyncMessage::SyncStep1(sv)) => {
                     let diff = self.awareness.doc().transact().encode_diff_v1(&sv);
                     replies.push(Message::Sync(SyncMessage::SyncStep2(diff)).encode_v1());
                 }
-                Message::Sync(SyncMessage::SyncStep2(u)) | Message::Sync(SyncMessage::Update(u)) => {
+                Message::Sync(SyncMessage::SyncStep2(u))
+                | Message::Sync(SyncMessage::Update(u)) => {
                     if let Ok(upd) = Update::decode_v1(&u) {
-                        if self.awareness.doc().transact_mut().apply_update(upd).is_ok() {
+                        if self
+                            .awareness
+                            .doc()
+                            .transact_mut()
+                            .apply_update(upd)
+                            .is_ok()
+                        {
                             events.push(Event::DocChanged);
                         }
                     }
@@ -265,7 +282,10 @@ impl CrdtClient {
     pub fn set_presence(&mut self, p: &Presence) -> Vec<u8> {
         let json = serde_json::to_string(p).unwrap_or_else(|_| "{}".to_string());
         self.awareness.set_local_state_raw(json);
-        match self.awareness.update_with_clients([ClientID::new(self.client)]) {
+        match self
+            .awareness
+            .update_with_clients([ClientID::new(self.client)])
+        {
             Ok(u) => Message::Awareness(u).encode_v1(),
             Err(_) => Vec::new(),
         }
@@ -280,7 +300,10 @@ impl CrdtClient {
             .filter_map(|(id, st)| {
                 let data: Arc<str> = st.data?;
                 let presence: Presence = serde_json::from_str(&data).ok()?;
-                Some(Peer { client: id.get(), presence })
+                Some(Peer {
+                    client: id.get(),
+                    presence,
+                })
             })
             .collect();
         out.sort_by_key(|p| p.client);
@@ -318,7 +341,10 @@ impl CrdtClient {
 
     /// Texto do rascunho (ou do principal fora do modo rascunho).
     pub fn draft_text(&self) -> String {
-        self.draft.as_ref().map(doc_text).unwrap_or_else(|| self.text())
+        self.draft
+            .as_ref()
+            .map(doc_text)
+            .unwrap_or_else(|| self.text())
     }
 
     /// Diff visual rascunho (local) × documento remoto.
@@ -375,7 +401,10 @@ mod tests {
 
     #[test]
     fn crdt_client_delta_handles_unicode() {
-        assert_eq!(text_delta("olá mundo", "olá, mundo"), Some((3, 0, ",".into())));
+        assert_eq!(
+            text_delta("olá mundo", "olá, mundo"),
+            Some((3, 0, ",".into()))
+        );
         assert_eq!(text_delta("abc", "abc"), None);
         assert_eq!(text_delta("ação", "aço"), Some((2, 1, "".into())));
         let doc = Doc::with_client_id(1);
@@ -416,11 +445,24 @@ mod tests {
     fn crdt_client_presence_roundtrip() {
         let mut a = CrdtClient::new(7);
         let mut b = CrdtClient::new(8);
-        let p = Presence { name: "Ana".into(), color: color_for(7).into(), cursor: Some((2, 5)) };
+        let p = Presence {
+            name: "Ana".into(),
+            color: color_for(7).into(),
+            cursor: Some((2, 5)),
+        };
         let ev = relay(vec![a.set_presence(&p)], &mut b);
         assert_eq!(ev, vec![Event::PresenceChanged]);
-        assert_eq!(b.peers(), vec![Peer { client: 7, presence: p }]);
-        assert!(a.peers().is_empty(), "o próprio cliente não aparece como par");
+        assert_eq!(
+            b.peers(),
+            vec![Peer {
+                client: 7,
+                presence: p
+            }]
+        );
+        assert!(
+            a.peers().is_empty(),
+            "o próprio cliente não aparece como par"
+        );
     }
 
     #[test]
@@ -467,9 +509,16 @@ mod tests {
     fn crdt_client_line_diff_and_url() {
         assert_eq!(
             line_diff("a\nb", "a\nc"),
-            vec![DiffLine::Same("a".into()), DiffLine::Local("b".into()), DiffLine::Remote("c".into())]
+            vec![
+                DiffLine::Same("a".into()),
+                DiffLine::Local("b".into()),
+                DiffLine::Remote("c".into())
+            ]
         );
-        assert_eq!(sync_url("ws://h:3000/", "d1"), "ws://h:3000/api/v1/crdt/sync/d1");
+        assert_eq!(
+            sync_url("ws://h:3000/", "d1"),
+            "ws://h:3000/api/v1/crdt/sync/d1"
+        );
         assert_ne!(color_for(1), color_for(2));
     }
 }

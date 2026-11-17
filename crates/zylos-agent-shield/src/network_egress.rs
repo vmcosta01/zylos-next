@@ -286,7 +286,6 @@ impl NetworkEgressFilter {
     }
 }
 
-
 // ---------------------------------------------------------------------------
 // Normalização / avaliação (hardening F11.11.3)
 // ---------------------------------------------------------------------------
@@ -449,9 +448,7 @@ pub fn normalize_host(raw: &str) -> Result<HostKind, String> {
     }
     // Última label puramente numérica/hex que não parseou = IP malformado.
     let last = h.rsplit('.').next().unwrap_or("");
-    if !last.is_empty()
-        && (last.chars().all(|c| c.is_ascii_digit()) || last.starts_with("0x"))
-    {
+    if !last.is_empty() && (last.chars().all(|c| c.is_ascii_digit()) || last.starts_with("0x")) {
         return Err(format!("Host '{}' looks like a malformed IP literal", raw));
     }
     if !h
@@ -567,12 +564,13 @@ pub fn parse_url_target(url: &str) -> Result<(String, u16), String> {
         other => return Err(format!("Scheme '{}' not allowed for egress", other)),
     };
     // authority termina no primeiro '/', '?', '#' ou '\\' (browsers tratam '\\' como '/')
-    let end = rest
-        .find(['/', '?', '#', '\\'])
-        .unwrap_or(rest.len());
+    let end = rest.find(['/', '?', '#', '\\']).unwrap_or(rest.len());
     let authority = &rest[..end];
     if authority.contains('@') {
-        return Err(format!("URL '{}' contains userinfo (user@host) — rejected", url));
+        return Err(format!(
+            "URL '{}' contains userinfo (user@host) — rejected",
+            url
+        ));
     }
     if authority.is_empty() {
         return Err(format!("URL '{}' has empty host", url));
@@ -1014,7 +1012,10 @@ mod tests {
         ] {
             assert!(blocked(&f.check("a", h, 80).await), "should block {h}");
         }
-        assert_eq!(f.check("a", "example.com", 80).await, EgressDecision::Allowed);
+        assert_eq!(
+            f.check("a", "example.com", 80).await,
+            EgressDecision::Allowed
+        );
         assert_eq!(f.check("a", "8.8.8.8", 53).await, EgressDecision::Allowed);
     }
 
@@ -1022,17 +1023,17 @@ mod tests {
     async fn bypass_alternate_ipv4_encodings() {
         let f = filter_with(&["*"], &[]);
         for h in [
-            "2130706433",      // decimal 127.0.0.1
-            "0x7f000001",      // hex
-            "0x7f.0.0.1",      // hex parcial
-            "0177.0.0.1",      // octal
-            "017700000001",    // octal inteiro
-            "127.1",           // forma curta
-            "127.0.1",         // forma curta 3 partes
-            "2852039166",      // decimal 169.254.169.254
-            "0xA9FEA9FE",      // hex 169.254.169.254
+            "2130706433",          // decimal 127.0.0.1
+            "0x7f000001",          // hex
+            "0x7f.0.0.1",          // hex parcial
+            "0177.0.0.1",          // octal
+            "017700000001",        // octal inteiro
+            "127.1",               // forma curta
+            "127.0.1",             // forma curta 3 partes
+            "2852039166",          // decimal 169.254.169.254
+            "0xA9FEA9FE",          // hex 169.254.169.254
             "0251.0376.0251.0376", // octal metadata
-            "127.0.0.1.",      // ponto final
+            "127.0.0.1.",          // ponto final
         ] {
             assert!(blocked(&f.check("a", h, 80).await), "should block {h}");
         }
@@ -1058,9 +1059,17 @@ mod tests {
     #[tokio::test]
     async fn bypass_exact_whitelist_case_and_trailing_dot_still_match() {
         let f = filter_with(&["api.example.com"], &[443]);
-        assert_eq!(f.check("a", "API.EXAMPLE.COM", 443).await, EgressDecision::Allowed);
-        assert_eq!(f.check("a", "api.example.com.", 443).await, EgressDecision::Allowed);
-        assert!(blocked(&f.check("a", "api.example.com.evil.com", 443).await));
+        assert_eq!(
+            f.check("a", "API.EXAMPLE.COM", 443).await,
+            EgressDecision::Allowed
+        );
+        assert_eq!(
+            f.check("a", "api.example.com.", 443).await,
+            EgressDecision::Allowed
+        );
+        assert!(blocked(
+            &f.check("a", "api.example.com.evil.com", 443).await
+        ));
         assert!(blocked(&f.check("a", "evilapi.example.com", 443).await));
     }
 
@@ -1070,7 +1079,10 @@ mod tests {
         // antes: ends_with(".example.com") ok, mas checar sufixos similares
         assert!(blocked(&f.check("a", "evilexample.com", 443).await));
         assert!(blocked(&f.check("a", "example.com.evil.com", 443).await));
-        assert_eq!(f.check("a", "A.EXAMPLE.COM.", 443).await, EgressDecision::Allowed);
+        assert_eq!(
+            f.check("a", "A.EXAMPLE.COM.", 443).await,
+            EgressDecision::Allowed
+        );
         // wildcard de domínio nunca casa IP
         assert!(blocked(&f.check("a", "93.184.216.34", 443).await));
     }
@@ -1108,9 +1120,15 @@ mod tests {
     #[tokio::test]
     async fn explicit_internal_whitelist_still_works() {
         let f = filter_with(&["127.0.0.1", "[::1]"], &[8080]);
-        assert_eq!(f.check("a", "127.0.0.1", 8080).await, EgressDecision::Allowed);
+        assert_eq!(
+            f.check("a", "127.0.0.1", 8080).await,
+            EgressDecision::Allowed
+        );
         // encodings do mesmo IP explicitamente permitido também casam (normalizados)
-        assert_eq!(f.check("a", "2130706433", 8080).await, EgressDecision::Allowed);
+        assert_eq!(
+            f.check("a", "2130706433", 8080).await,
+            EgressDecision::Allowed
+        );
         assert_eq!(f.check("a", "::1", 8080).await, EgressDecision::Allowed);
         assert!(blocked(&f.check("a", "127.0.0.2", 8080).await));
     }
@@ -1153,7 +1171,9 @@ mod tests {
     async fn check_url_ipv6_forms() {
         let f = filter_with(&["*"], &[]);
         assert!(blocked(&f.check_url("a", "http://[::1]:8080/").await));
-        assert!(blocked(&f.check_url("a", "http://[::ffff:10.0.0.1]/").await));
+        assert!(blocked(
+            &f.check_url("a", "http://[::ffff:10.0.0.1]/").await
+        ));
         assert!(blocked(&f.check_url("a", "http://[::1/").await));
         assert_eq!(
             f.check_url("a", "http://[2606:4700:4700::1111]/").await,
@@ -1175,7 +1195,10 @@ mod tests {
             "http://[::ffff:127.0.0.1]/",
             "file:///etc/passwd",
         ] {
-            assert!(blocked(&f.check_redirect("a", loc).await), "should block {loc}");
+            assert!(
+                blocked(&f.check_redirect("a", loc).await),
+                "should block {loc}"
+            );
         }
     }
 
@@ -1223,7 +1246,9 @@ mod tests {
             )
             .await;
         assert_eq!(d, EgressDecision::Allowed);
-        assert!(blocked(&f.check_resolved("a", "ok.attacker.com", 80, &[]).await));
+        assert!(blocked(
+            &f.check_resolved("a", "ok.attacker.com", 80, &[]).await
+        ));
     }
 
     #[tokio::test]
@@ -1239,9 +1264,22 @@ mod tests {
     #[test]
     fn internal_ip_classification() {
         for ip in [
-            "127.0.0.1", "10.1.2.3", "172.31.0.1", "192.168.0.1", "169.254.169.254",
-            "100.100.100.200", "0.0.0.0", "255.255.255.255", "224.0.0.1", "::1", "::",
-            "fe80::1", "fc00::1", "::ffff:192.168.1.1", "64:ff9b::7f00:1", "2002:7f00:1::",
+            "127.0.0.1",
+            "10.1.2.3",
+            "172.31.0.1",
+            "192.168.0.1",
+            "169.254.169.254",
+            "100.100.100.200",
+            "0.0.0.0",
+            "255.255.255.255",
+            "224.0.0.1",
+            "::1",
+            "::",
+            "fe80::1",
+            "fc00::1",
+            "::ffff:192.168.1.1",
+            "64:ff9b::7f00:1",
+            "2002:7f00:1::",
         ] {
             let ip: IpAddr = ip.parse().unwrap();
             assert!(is_internal_ip(&ip), "{ip} should be internal");
