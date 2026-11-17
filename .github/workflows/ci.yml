@@ -196,5 +196,10 @@ jobs:
           chrome-version: stable
       - name: Run E2E tests (headless Chrome)
         working-directory: apps/zylos-cockpit
+        env:
+          # T11.2.4: timeout por teste de 300s (wasm-bindgen-test-runner; default 20s).
+          # wasm-bindgen-test 0.3.80 não aceita `#[wasm_bindgen_test(timeout = N)]`
+          # (o macro só reconhece async/crate/unsupported), então o limite é global via env.
+          WASM_BINDGEN_TEST_TIMEOUT: "300"
         run: wasm-pack test --headless --chrome
-        timeout-minutes: 10
+        timeout-minutes: 15
