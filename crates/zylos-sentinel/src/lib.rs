@@ -15,6 +15,8 @@
 //! Source: OpenDuet `sentinel.ts`, `health-check.ts`, `incident-rate-limiter.ts`.
 
 pub mod alert_rules;
+pub mod metrics;
+pub mod remediation;
 
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
