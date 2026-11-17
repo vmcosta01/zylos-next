@@ -44,7 +44,6 @@ impl LanceDbVectorStore {
             .map_err(|e| MemoryError::VectorStore(format!("Failed to list tables: {}", e)))?;
 
         if !table_names.iter().any(|n| n == &self.table_name) {
-            use arrow_array::RecordBatchIterator;
             use arrow_array::{ArrayRef, FixedSizeListArray, RecordBatch, StringArray};
             use arrow_schema::{DataType, Field, Schema};
 
@@ -73,10 +72,9 @@ impl LanceDbVectorStore {
                 MemoryError::VectorStore(format!("Failed to create empty batch: {}", e))
             })?;
 
-            let reader = RecordBatchIterator::new(vec![Ok(empty_batch)], schema);
-
+            let _ = schema;
             self.connection
-                .create_table(&self.table_name, Box::new(reader))
+                .create_table(&self.table_name, empty_batch)
                 .execute()
                 .await
                 .map_err(|e| MemoryError::VectorStore(format!("Failed to create table: {}", e)))?;
@@ -106,7 +104,6 @@ impl VectorStore for LanceDbVectorStore {
             return Ok(vec![]);
         }
 
-        use arrow_array::RecordBatchIterator;
         use arrow_array::{ArrayRef, FixedSizeListArray, Float32Array, RecordBatch, StringArray};
         use arrow_schema::{DataType, Field, Schema};
 
@@ -158,11 +155,10 @@ impl VectorStore for LanceDbVectorStore {
         )
         .map_err(|e| MemoryError::VectorStore(format!("Failed to create record batch: {}", e)))?;
 
-        let reader = RecordBatchIterator::new(vec![Ok(batch)], schema);
-
+        let _ = schema;
         let table = self.get_table().await?;
         table
-            .add(Box::new(reader))
+            .add(batch)
             .execute()
             .await
             .map_err(|e| MemoryError::VectorStore(format!("LanceDB insert failed: {}", e)))?;
@@ -368,7 +364,7 @@ impl VectorStore for LanceDbVectorStore {
             }
         }
 
-        for batch in &batches {
+        if let Some(batch) = batches.first() {
             let batch: &RecordBatch = batch;
             if batch.num_rows() == 0 {
                 return Ok(None);

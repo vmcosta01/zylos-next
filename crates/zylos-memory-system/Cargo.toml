@@ -27,9 +27,9 @@ dashmap = "6"
 
 # Optional vector store backends
 qdrant-client = { version = "1", optional = true }
-lancedb = { version = "0.15", optional = true }
-arrow-array = { version = "53", optional = true }
-arrow-schema = { version = "53", optional = true }
+lancedb = { version = "0.41", optional = true }
+arrow-array = { version = "58", optional = true }
+arrow-schema = { version = "58", optional = true }
 tokio-stream = { version = "0.1", optional = true }
 sha2.workspace = true
 hex.workspace = true
