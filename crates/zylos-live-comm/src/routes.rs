@@ -78,7 +78,10 @@ async fn resolve_approval_handler(
         ApprovalDecision::Expired | ApprovalDecision::Withdrawn => {
             return Err((
                 StatusCode::BAD_REQUEST,
-                format!("decision '{:?}' cannot be set via resolve endpoint", body.decision),
+                format!(
+                    "decision '{:?}' cannot be set via resolve endpoint",
+                    body.decision
+                ),
             ));
         }
     };
@@ -151,7 +154,10 @@ pub fn matches_filter(event: &AgUiEvent, types: &[String]) -> bool {
 type SseStream = Pin<Box<dyn Stream<Item = Result<SseEvent, Infallible>> + Send>>;
 
 async fn sse_handler(
-    axum::extract::State((bus, _approval_store)): axum::extract::State<(EventBus, Arc<ApprovalStore>)>,
+    axum::extract::State((bus, _approval_store)): axum::extract::State<(
+        EventBus,
+        Arc<ApprovalStore>,
+    )>,
     Query(params): Query<FilterParams>,
 ) -> Sse<SseStream> {
     let allowed_types = params

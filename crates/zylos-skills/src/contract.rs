@@ -388,8 +388,7 @@ impl SkillContract {
 
     /// Desserializa de JSON.
     pub fn from_json(json: &str) -> Result<Self, ContractError> {
-        serde_json::from_str(json)
-            .map_err(|e| ContractError::SerializationError(e.to_string()))
+        serde_json::from_str(json).map_err(|e| ContractError::SerializationError(e.to_string()))
     }
 
     /// Retorna o número total de elementos no contrato.
@@ -468,8 +467,7 @@ mod tests {
 
     #[test]
     fn test_invalid_precondition_empty_name() {
-        let contract = SkillContract::new()
-            .with_precondition(Predicate::new("", vec![]));
+        let contract = SkillContract::new().with_precondition(Predicate::new("", vec![]));
         assert!(matches!(
             contract.validate(),
             Err(ContractError::InvalidPrecondition(_))
@@ -478,8 +476,7 @@ mod tests {
 
     #[test]
     fn test_invalid_output_empty_name() {
-        let contract = SkillContract::new()
-            .with_output(OutputSchema::new("", "string"));
+        let contract = SkillContract::new().with_output(OutputSchema::new("", "string"));
         assert!(matches!(
             contract.validate(),
             Err(ContractError::InvalidOutputSchema(_))
@@ -499,8 +496,7 @@ mod tests {
 
     #[test]
     fn test_invalid_assertion_empty_id() {
-        let contract = SkillContract::new()
-            .with_assertion(Assertion::new("", "x > 0"));
+        let contract = SkillContract::new().with_assertion(Assertion::new("", "x > 0"));
         assert!(matches!(
             contract.validate(),
             Err(ContractError::InvalidAssertion(_))
@@ -520,8 +516,7 @@ mod tests {
 
     #[test]
     fn test_invalid_assertion_empty_expression() {
-        let contract = SkillContract::new()
-            .with_assertion(Assertion::new("check_1", ""));
+        let contract = SkillContract::new().with_assertion(Assertion::new("check_1", ""));
         assert!(matches!(
             contract.validate(),
             Err(ContractError::InvalidAssertion(_))
@@ -530,8 +525,7 @@ mod tests {
 
     #[test]
     fn test_invalid_validator_empty_path() {
-        let contract = SkillContract::new()
-            .with_validator(ValidatorRef::new(""));
+        let contract = SkillContract::new().with_validator(ValidatorRef::new(""));
         assert!(matches!(
             contract.validate(),
             Err(ContractError::ValidatorNotFound(_))
@@ -540,8 +534,7 @@ mod tests {
 
     #[test]
     fn test_invalid_fitness_empty_name() {
-        let contract = SkillContract::new()
-            .with_fitness(FitnessMetric::new("", 0.5));
+        let contract = SkillContract::new().with_fitness(FitnessMetric::new("", 0.5));
         assert!(matches!(
             contract.validate(),
             Err(ContractError::InvalidFitnessMetric(_))
@@ -594,8 +587,8 @@ mod tests {
             .with_fitness(FitnessMetric::new("b", 100.0).with_max(200.0));
         assert!(ok_contract.all_fitness_ok());
 
-        let bad_contract = SkillContract::new()
-            .with_fitness(FitnessMetric::new("a", 0.1).with_min(0.5));
+        let bad_contract =
+            SkillContract::new().with_fitness(FitnessMetric::new("a", 0.1).with_min(0.5));
         assert!(!bad_contract.all_fitness_ok());
     }
 
@@ -607,8 +600,7 @@ mod tests {
 
     #[test]
     fn test_predicate_with_error() {
-        let pred = Predicate::new("check_x", vec!["arg1".into()])
-            .with_error("X must be present");
+        let pred = Predicate::new("check_x", vec!["arg1".into()]).with_error("X must be present");
         assert_eq!(pred.error_message, Some("X must be present".into()));
     }
 

@@ -202,16 +202,22 @@ impl MemoryStore {
     async fn run_migrations(&self) -> Result<(), MemorySyncError> {
         sqlx::query("CREATE TABLE IF NOT EXISTS memory_entries (id TEXT PRIMARY KEY, namespace TEXT NOT NULL, key TEXT NOT NULL, content TEXT NOT NULL, content_type TEXT NOT NULL DEFAULT 'text/plain', version INTEGER NOT NULL DEFAULT 1, updated_at TEXT NOT NULL, source_harness TEXT NOT NULL, tags TEXT NOT NULL DEFAULT '[]', ttl_seconds INTEGER, created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')))")
             .execute(&self.pool).await?;
-        sqlx::query("CREATE INDEX IF NOT EXISTS idx_memory_ns_key ON memory_entries(namespace, key)")
-            .execute(&self.pool).await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_memory_ns_key ON memory_entries(namespace, key)",
+        )
+        .execute(&self.pool)
+        .await?;
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_memory_tags ON memory_entries(tags)")
-            .execute(&self.pool).await?;
+            .execute(&self.pool)
+            .await?;
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_memory_updated ON memory_entries(updated_at)")
-            .execute(&self.pool).await?;
+            .execute(&self.pool)
+            .await?;
         sqlx::query("CREATE TABLE IF NOT EXISTS sync_ops (op_id TEXT PRIMARY KEY, entry_id TEXT NOT NULL, op_type TEXT NOT NULL, timestamp TEXT NOT NULL, source_harness TEXT NOT NULL, applied INTEGER NOT NULL DEFAULT 0)")
             .execute(&self.pool).await?;
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_sync_applied ON sync_ops(applied, timestamp)")
-            .execute(&self.pool).await?;
+            .execute(&self.pool)
+            .await?;
         sqlx::query("CREATE TABLE IF NOT EXISTS sync_cursors (harness_id TEXT PRIMARY KEY, last_synced_op TEXT, last_synced_at TEXT NOT NULL)")
             .execute(&self.pool).await?;
         Ok(())
@@ -297,13 +303,11 @@ impl MemoryStore {
         namespace: &str,
         key: &str,
     ) -> Result<Option<MemoryEntry>, MemorySyncError> {
-        let row = sqlx::query(
-            "SELECT * FROM memory_entries WHERE namespace = ? AND key = ?",
-        )
-        .bind(namespace)
-        .bind(key)
-        .fetch_optional(&self.pool)
-        .await?;
+        let row = sqlx::query("SELECT * FROM memory_entries WHERE namespace = ? AND key = ?")
+            .bind(namespace)
+            .bind(key)
+            .fetch_optional(&self.pool)
+            .await?;
 
         match row {
             Some(r) => Ok(Some(row_to_entry(&r))),
@@ -416,9 +420,7 @@ impl MemoryStore {
         exclude_harness: Option<&str>,
         limit: usize,
     ) -> Result<Vec<SyncOp>, MemorySyncError> {
-        let mut sql = String::from(
-            "SELECT * FROM sync_ops WHERE applied = 0",
-        );
+        let mut sql = String::from("SELECT * FROM sync_ops WHERE applied = 0");
         if since.is_some() {
             sql.push_str(" AND timestamp > ?");
         }
@@ -463,12 +465,11 @@ impl MemoryStore {
 
     /// Marks sync operations as applied up to the given op_id.
     pub async fn mark_ops_applied(&self, up_to_op_id: &str) -> Result<usize, MemorySyncError> {
-        let result = sqlx::query(
-            "UPDATE sync_ops SET applied = 1 WHERE op_id <= ? AND applied = 0",
-        )
-        .bind(up_to_op_id)
-        .execute(&self.pool)
-        .await?;
+        let result =
+            sqlx::query("UPDATE sync_ops SET applied = 1 WHERE op_id <= ? AND applied = 0")
+                .bind(up_to_op_id)
+                .execute(&self.pool)
+                .await?;
         Ok(result.rows_affected() as usize)
     }
 

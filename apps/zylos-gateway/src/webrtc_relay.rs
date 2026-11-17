@@ -39,11 +39,7 @@ use tracing::{info, warn};
 #[serde(tag = "type")]
 pub enum RelayServerMsg {
     #[serde(rename = "frame")]
-    Frame {
-        data: String,
-        ts: u64,
-        seq: u64,
-    },
+    Frame { data: String, ts: u64, seq: u64 },
     #[serde(rename = "quality")]
     Quality {
         fps: f64,

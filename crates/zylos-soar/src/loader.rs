@@ -110,9 +110,8 @@ pub fn load_runbook_specs(dir: &Path) -> Result<Vec<RunbookSpec>> {
     }
 
     let mut specs = Vec::new();
-    let entries = fs::read_dir(dir).map_err(|e| {
-        SoarError::Config(format!("Failed to read runbook directory: {}", e))
-    })?;
+    let entries = fs::read_dir(dir)
+        .map_err(|e| SoarError::Config(format!("Failed to read runbook directory: {}", e)))?;
 
     for entry in entries.flatten() {
         let path = entry.path();
@@ -137,11 +136,19 @@ pub fn load_runbook_specs(dir: &Path) -> Result<Vec<RunbookSpec>> {
 /// Load a single runbook spec from a YAML file.
 pub fn load_single_runbook(path: &Path) -> Result<RunbookSpec> {
     let content = fs::read_to_string(path).map_err(|e| {
-        SoarError::Config(format!("Failed to read runbook file {}: {}", path.display(), e))
+        SoarError::Config(format!(
+            "Failed to read runbook file {}: {}",
+            path.display(),
+            e
+        ))
     })?;
 
     let spec: RunbookSpec = serde_yaml::from_str(&content).map_err(|e| {
-        SoarError::Config(format!("Failed to parse runbook YAML {}: {}", path.display(), e))
+        SoarError::Config(format!(
+            "Failed to parse runbook YAML {}: {}",
+            path.display(),
+            e
+        ))
     })?;
 
     Ok(spec)
@@ -157,9 +164,8 @@ pub fn load_playbooks(dir: &Path) -> Result<Vec<Playbook>> {
     }
 
     let mut playbooks = Vec::new();
-    let entries = fs::read_dir(dir).map_err(|e| {
-        SoarError::Config(format!("Failed to read playbook directory: {}", e))
-    })?;
+    let entries = fs::read_dir(dir)
+        .map_err(|e| SoarError::Config(format!("Failed to read playbook directory: {}", e)))?;
 
     for entry in entries.flatten() {
         let path = entry.path();
@@ -180,7 +186,11 @@ pub fn load_playbooks(dir: &Path) -> Result<Vec<Playbook>> {
 /// Load a single playbook from a YAML file.
 pub fn load_single_playbook(path: &Path) -> Result<Playbook> {
     let content = fs::read_to_string(path).map_err(|e| {
-        SoarError::Config(format!("Failed to read playbook file {}: {}", path.display(), e))
+        SoarError::Config(format!(
+            "Failed to read playbook file {}: {}",
+            path.display(),
+            e
+        ))
     })?;
 
     Playbook::from_yaml(&content)
@@ -190,11 +200,7 @@ pub fn load_single_playbook(path: &Path) -> Result<Playbook> {
 pub fn discover_runbook_dirs() -> Vec<PathBuf> {
     let mut paths = Vec::new();
 
-    let candidates = [
-        "docs/soar/runbooks",
-        "runbooks",
-        "docs/runbooks",
-    ];
+    let candidates = ["docs/soar/runbooks", "runbooks", "docs/runbooks"];
 
     for candidate in &candidates {
         let p = PathBuf::from(candidate);
@@ -210,10 +216,7 @@ pub fn discover_runbook_dirs() -> Vec<PathBuf> {
 pub fn discover_playbook_dirs() -> Vec<PathBuf> {
     let mut paths = Vec::new();
 
-    let candidates = [
-        "playbooks",
-        "docs/soar/playbooks",
-    ];
+    let candidates = ["playbooks", "docs/soar/playbooks"];
 
     for candidate in &candidates {
         let p = PathBuf::from(candidate);

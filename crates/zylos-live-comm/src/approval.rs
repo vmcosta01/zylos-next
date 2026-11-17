@@ -145,10 +145,7 @@ impl ApprovalStore {
     ) -> ApprovalRequest {
         let id = Uuid::new_v4().to_string();
         let args_hash = ArgsHash::from_args(&args);
-        let headless_excluded = self
-            .config
-            .headless_excluded_tools
-            .contains(&tool_name);
+        let headless_excluded = self.config.headless_excluded_tools.contains(&tool_name);
         let expires_at = Utc::now() + self.config.default_ttl;
 
         let request = ApprovalRequest {
@@ -178,9 +175,7 @@ impl ApprovalStore {
         approved_by: &str,
     ) -> Result<ApprovalRequest, ApprovalError> {
         let mut store = self.approvals.write().unwrap();
-        let request = store
-            .get_mut(approval_id)
-            .ok_or(ApprovalError::NotFound)?;
+        let request = store.get_mut(approval_id).ok_or(ApprovalError::NotFound)?;
 
         // Check expiry first
         if Utc::now() > request.expires_at {
@@ -212,9 +207,7 @@ impl ApprovalStore {
         reason: Option<String>,
     ) -> Result<ApprovalRequest, ApprovalError> {
         let mut store = self.approvals.write().unwrap();
-        let request = store
-            .get_mut(approval_id)
-            .ok_or(ApprovalError::NotFound)?;
+        let request = store.get_mut(approval_id).ok_or(ApprovalError::NotFound)?;
 
         if Utc::now() > request.expires_at {
             request.status = ApprovalStatus::Expired;
@@ -274,9 +267,7 @@ impl ApprovalStore {
         approval_id: &str,
     ) -> Result<Option<ApprovalClientView>, ApprovalError> {
         let store = self.approvals.read().unwrap();
-        let request = store
-            .get(approval_id)
-            .ok_or(ApprovalError::NotFound)?;
+        let request = store.get(approval_id).ok_or(ApprovalError::NotFound)?;
 
         match &request.status {
             ApprovalStatus::Pending => Ok(None), // Still waiting

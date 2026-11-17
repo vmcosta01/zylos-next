@@ -218,7 +218,10 @@ impl AutoloopMessage {
 /// Implementações definem como cada variante é tratada pelo agente receptor.
 pub trait AutoloopHandler: Send + Sync {
     /// Processa uma mensagem Ask; deve retornar resposta ou erro.
-    fn handle_ask(&self, query: &AskQuery) -> impl std::future::Future<Output = Result<serde_json::Value, String>> + Send;
+    fn handle_ask(
+        &self,
+        query: &AskQuery,
+    ) -> impl std::future::Future<Output = Result<serde_json::Value, String>> + Send;
 
     /// Processa uma mensagem Notice; fire-and-forget.
     fn handle_notice(&self, message: &str, metadata: &serde_json::Value);
@@ -278,7 +281,10 @@ mod tests {
         assert!(!msg.requires_response());
         assert_eq!(msg.sender(), "agent-2");
 
-        if let AutoloopMessage::Notice { message, metadata, .. } = &msg {
+        if let AutoloopMessage::Notice {
+            message, metadata, ..
+        } = &msg
+        {
             assert_eq!(message, "Build concluído com sucesso");
             assert_eq!(metadata["duration_ms"], 4500);
         } else {
@@ -395,17 +401,37 @@ mod tests {
 
     #[test]
     fn test_requires_response_only_for_ask() {
-        let ask = AutoloopMessage::ask("a", AskQuery {
-            title: "T".into(), text: "D".into(), options: vec![], key: "k".into(), timeout_secs: None,
-        });
+        let ask = AutoloopMessage::ask(
+            "a",
+            AskQuery {
+                title: "T".into(),
+                text: "D".into(),
+                options: vec![],
+                key: "k".into(),
+                timeout_secs: None,
+            },
+        );
         let notice = AutoloopMessage::notice("a", "m", serde_json::Value::Null);
-        let resolve = AutoloopMessage::resolve("a", ResolveResult {
-            success: true, metric: None, summary: "ok".into(), artifacts: vec![], error: None,
-        });
-        let later = AutoloopMessage::later("a", DeferredTask {
-            delay: Duration::from_secs(60), target_id: "t".into(),
-            context: serde_json::Value::Null, max_retries: 0, retry_count: 0,
-        });
+        let resolve = AutoloopMessage::resolve(
+            "a",
+            ResolveResult {
+                success: true,
+                metric: None,
+                summary: "ok".into(),
+                artifacts: vec![],
+                error: None,
+            },
+        );
+        let later = AutoloopMessage::later(
+            "a",
+            DeferredTask {
+                delay: Duration::from_secs(60),
+                target_id: "t".into(),
+                context: serde_json::Value::Null,
+                max_retries: 0,
+                retry_count: 0,
+            },
+        );
         let events = AutoloopMessage::events("a", vec![]);
 
         assert!(ask.requires_response());

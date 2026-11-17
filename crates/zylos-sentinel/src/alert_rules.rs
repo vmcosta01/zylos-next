@@ -148,18 +148,18 @@ fn default_cooldown() -> u32 {
 /// An alert that has been triggered by rule evaluation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TriggeredAlert {
- /// The rule that triggered this alert.
- pub rule_name: String,
- /// Current metric value that exceeded threshold.
- pub current_value: f64,
- /// Threshold from the rule.
- pub threshold: f64,
- /// Severity classification.
- pub severity: AlertSeverity,
- /// When the alert was triggered (Unix epoch seconds).
- pub triggered_at_epoch_secs: u64,
- /// Description from the rule.
- pub description: String,
+    /// The rule that triggered this alert.
+    pub rule_name: String,
+    /// Current metric value that exceeded threshold.
+    pub current_value: f64,
+    /// Threshold from the rule.
+    pub threshold: f64,
+    /// Severity classification.
+    pub severity: AlertSeverity,
+    /// When the alert was triggered (Unix epoch seconds).
+    pub triggered_at_epoch_secs: u64,
+    /// Description from the rule.
+    pub description: String,
 }
 
 /// State tracker for alert cooldowns.
@@ -258,24 +258,27 @@ impl AlertRulesEngine {
             }
 
             // Alert triggered — update cooldown
-            let entry = self.cooldowns.entry(rule.name.clone()).or_insert(CooldownEntry {
-                last_fired: now,
-                auto_execution_count: 0,
-            });
+            let entry = self
+                .cooldowns
+                .entry(rule.name.clone())
+                .or_insert(CooldownEntry {
+                    last_fired: now,
+                    auto_execution_count: 0,
+                });
             entry.last_fired = now;
             entry.auto_execution_count += 1;
 
             triggered.push(TriggeredAlert {
-                        rule_name: rule.name.clone(),
-                        current_value: *value,
-                        threshold: rule.threshold,
-                        severity: rule.severity,
-                        triggered_at_epoch_secs: std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap_or_default()
-                            .as_secs(),
-                        description: rule.description.clone(),
-                    });
+                rule_name: rule.name.clone(),
+                current_value: *value,
+                threshold: rule.threshold,
+                severity: rule.severity,
+                triggered_at_epoch_secs: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs(),
+                description: rule.description.clone(),
+            });
         }
 
         triggered

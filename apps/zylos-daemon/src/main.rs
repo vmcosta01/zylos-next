@@ -17,6 +17,7 @@
 //! ```
 
 use anyhow::{Context, Result};
+use axum::{extract::State, response::Json};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -26,14 +27,17 @@ use tokio::signal;
 use tokio::sync::RwLock;
 use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
-use axum::{extract::State, response::Json};
 
 /// Zylos-Next Daemon — background agent lifecycle manager.
 #[derive(Parser)]
 #[command(name = "zylos-daemon", version, about = "Zylos-Next Daemon")]
 struct Args {
     /// Path to daemon configuration (TOML)
-    #[arg(long, env = "ZYLOS_DAEMON_CONFIG", default_value = "/etc/zylos/daemon.toml")]
+    #[arg(
+        long,
+        env = "ZYLOS_DAEMON_CONFIG",
+        default_value = "/etc/zylos/daemon.toml"
+    )]
     config: PathBuf,
 
     /// Run in foreground (don't daemonize)
@@ -69,11 +73,21 @@ struct DaemonConfig {
     state_dir: PathBuf,
 }
 
-fn default_health_addr() -> String { "127.0.0.1:9090".into() }
-fn default_health_interval() -> u64 { 30 }
-fn default_max_restarts() -> u32 { 5 }
-fn default_agents_dir() -> PathBuf { PathBuf::from("/var/lib/zylos/agents") }
-fn default_state_dir() -> PathBuf { PathBuf::from("/var/lib/zylos/daemon") }
+fn default_health_addr() -> String {
+    "127.0.0.1:9090".into()
+}
+fn default_health_interval() -> u64 {
+    30
+}
+fn default_max_restarts() -> u32 {
+    5
+}
+fn default_agents_dir() -> PathBuf {
+    PathBuf::from("/var/lib/zylos/agents")
+}
+fn default_state_dir() -> PathBuf {
+    PathBuf::from("/var/lib/zylos/daemon")
+}
 
 impl Default for DaemonConfig {
     fn default() -> Self {
@@ -114,16 +128,17 @@ type SharedState = Arc<RwLock<HashMap<String, AgentState>>>;
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
-        )
+        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
         .json()
         .init();
 
     let args = Args::parse();
 
     let config = load_config(&args.config).unwrap_or_else(|e| {
-        warn!("Failed to load config from {:?}: {}. Using defaults.", args.config, e);
+        warn!(
+            "Failed to load config from {:?}: {}. Using defaults.",
+            args.config, e
+        );
         DaemonConfig::default()
     });
 
@@ -169,21 +184,14 @@ async fn main() -> Result<()> {
 }
 
 fn load_config(path: &PathBuf) -> Result<DaemonConfig> {
-    let content = std::fs::read_to_string(path)
-        .with_context(|| format!("Cannot read config: {:?}", path))?;
-    let config: DaemonConfig = toml::from_str(&content)
-        .context("Invalid TOML in daemon config")?;
+    let content =
+        std::fs::read_to_string(path).with_context(|| format!("Cannot read config: {:?}", path))?;
+    let config: DaemonConfig = toml::from_str(&content).context("Invalid TOML in daemon config")?;
     Ok(config)
 }
 
-async fn health_monitor_loop(
-    state: SharedState,
-    interval_secs: u64,
-    max_restarts: u32,
-) {
-    let mut interval = tokio::time::interval(
-        tokio::time::Duration::from_secs(interval_secs),
-    );
+async fn health_monitor_loop(state: SharedState, interval_secs: u64, max_restarts: u32) {
+    let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(interval_secs));
 
     loop {
         interval.tick().await;
@@ -219,7 +227,9 @@ async fn run_health_server(addr: &str, state: SharedState) -> Result<()> {
         .with_context(|| format!("Cannot bind health server to {}", addr))?;
 
     info!("Health server listening on {}", addr);
-    axum::serve(listener, app).await.context("Health server error")?;
+    axum::serve(listener, app)
+        .await
+        .context("Health server error")?;
     Ok(())
 }
 
@@ -243,9 +253,7 @@ async fn soar_list_playbooks() -> Json<serde_json::Value> {
 }
 
 /// Accept a SOAR event for processing
-async fn soar_submit_event(
-    Json(payload): Json<serde_json::Value>,
-) -> Json<serde_json::Value> {
+async fn soar_submit_event(Json(payload): Json<serde_json::Value>) -> Json<serde_json::Value> {
     info!(event = %payload, "SOAR event received by daemon");
     Json(serde_json::json!({
         "status": "accepted",
@@ -341,12 +349,7 @@ mod tests {
 
     #[test]
     fn parse_cli_health_override() {
-        let args = Args::try_parse_from([
-            "zylos-daemon",
-            "--health-addr",
-            "0.0.0.0:8080",
-        ])
-        .unwrap();
+        let args = Args::try_parse_from(["zylos-daemon", "--health-addr", "0.0.0.0:8080"]).unwrap();
         assert_eq!(args.health_addr.as_deref(), Some("0.0.0.0:8080"));
     }
 }

@@ -59,10 +59,7 @@ pub struct CompletudeResult {
 /// - Se `stakes` for NaN, infinito, negativo ou > 5 → suspeito=true
 /// - Retorna (peso_clampado, suspeito)
 pub fn peso_de(stakes: f64) -> (u8, bool) {
-    let suspeito = stakes.is_nan()
-        || stakes.is_infinite()
-        || stakes < 0.0
-        || stakes > 5.0;
+    let suspeito = stakes.is_nan() || stakes.is_infinite() || stakes < 0.0 || stakes > 5.0;
 
     let clamped = if stakes.is_nan() || stakes.is_sign_negative() {
         1u8
@@ -120,7 +117,11 @@ where
 ///
 /// Se `ok` é false E há evidência aterrada → problemaProvado=true, ok=false.
 /// Nunca entrega ok=true quando há achado negativo aterrado.
-pub fn decide_delivery(ok: bool, achado_negativo_aterrado: bool, motivo: Option<String>) -> DeliveryDecision {
+pub fn decide_delivery(
+    ok: bool,
+    achado_negativo_aterrado: bool,
+    motivo: Option<String>,
+) -> DeliveryDecision {
     if !ok && achado_negativo_aterrado {
         DeliveryDecision {
             ok: false,
@@ -168,7 +169,14 @@ pub fn build_report(
 ) -> HonestReport {
     let tamanho_original = conteudo.len();
     let (truncado, conteudo_final) = if tamanho_original > max_chars {
-        (true, format!("{}…[TRUNCADO {} chars omitidos]", &conteudo[..max_chars], tamanho_original - max_chars))
+        (
+            true,
+            format!(
+                "{}…[TRUNCADO {} chars omitidos]",
+                &conteudo[..max_chars],
+                tamanho_original - max_chars
+            ),
+        )
     } else {
         (false, conteudo.to_string())
     };
@@ -184,7 +192,11 @@ pub fn build_report(
         conteudo_truncado: conteudo_final,
         truncado,
         tamanho_original,
-        itens_omitidos: if truncado { tamanho_original - max_chars } else { 0 },
+        itens_omitidos: if truncado {
+            tamanho_original - max_chars
+        } else {
+            0
+        },
         custo_real: custo,
         pct_aterrado,
     }
@@ -193,7 +205,10 @@ pub fn build_report(
 /// Verifica completude de screenshot: manifesto + hash + timestamp.
 ///
 /// Retorna Completa apenas se todos os campos estiverem presentes e válidos.
-pub fn checar_completude(manifesto: &ScreenshotManifest, conteudo_bytes: &[u8]) -> CompletudeResult {
+pub fn checar_completude(
+    manifesto: &ScreenshotManifest,
+    conteudo_bytes: &[u8],
+) -> CompletudeResult {
     let mut motivos = Vec::new();
 
     // Verifica hash

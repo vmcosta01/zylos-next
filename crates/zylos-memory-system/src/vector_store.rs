@@ -222,7 +222,11 @@ impl VectorStore for InMemoryVectorStore {
             .collect();
 
         // Sort by score descending
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         results.truncate(params.limit);
         Ok(results)
     }
@@ -336,7 +340,10 @@ mod tests {
         assert_eq!(retrieved.embedding, vec![1.0, 2.0, 3.0]);
         assert_eq!(retrieved.content.as_deref(), Some("test content"));
         assert_eq!(
-            retrieved.metadata.as_ref().and_then(|m| m.get("tag").and_then(|v| v.as_str())),
+            retrieved
+                .metadata
+                .as_ref()
+                .and_then(|m| m.get("tag").and_then(|v| v.as_str())),
             Some("important")
         );
     }

@@ -138,10 +138,8 @@ impl WebMcpEvaluator {
 
         for tool in tools {
             // Validate each tool before generating code
-            self.compliance.validate_polyfill(&format!(
-                "registry['{}'] = true;",
-                tool.name
-            ))?;
+            self.compliance
+                .validate_polyfill(&format!("registry['{}'] = true;", tool.name))?;
 
             code_lines.push(format!(
                 "  registry['{}'] = {{ origin: '{}', requiresGesture: {} }};",
@@ -203,7 +201,8 @@ impl WebMcpEvaluator {
     }
 
     fn check_blocked_origin_enforcement(&mut self) {
-        self.compliance.block_origin("https://malicious.example.com");
+        self.compliance
+            .block_origin("https://malicious.example.com");
 
         let reg = McpToolRegistration {
             name: "test.blocked_tool".to_string(),
@@ -252,10 +251,7 @@ impl WebMcpEvaluator {
             check_name: "page_lifetime_scope_clearing".to_string(),
             passed,
             message: if passed {
-                format!(
-                    "Origin cleared: {} → {} registrations",
-                    before, after
-                )
+                format!("Origin cleared: {} → {} registrations", before, after)
             } else {
                 format!(
                     "Page-lifetime clearing failed: {} → {} registrations",

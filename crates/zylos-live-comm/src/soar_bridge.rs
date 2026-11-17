@@ -52,8 +52,14 @@ pub fn publish_soar_event(
     let agui_event = AgUiEvent::state_snapshot(snapshot);
 
     match bus.publish_agui(agui_event) {
-        Ok(n) => debug!(event_id = event_id, receivers = n, "SOAR event published to AG-UI"),
-        Err(e) => warn!(event_id = event_id, error = %e, "Failed to publish SOAR event (no subscribers?)"),
+        Ok(n) => debug!(
+            event_id = event_id,
+            receivers = n,
+            "SOAR event published to AG-UI"
+        ),
+        Err(e) => {
+            warn!(event_id = event_id, error = %e, "Failed to publish SOAR event (no subscribers?)")
+        }
     }
 }
 
@@ -65,14 +71,15 @@ pub fn publish_playbook_started(bus: &EventBus, playbook_name: &str, event_id: &
         "event_id": event_id,
     });
 
-    let agui_event = AgUiEvent::tool_call_start(
-        &format!("soar-pb-{}", event_id),
-        playbook_name,
-        snapshot,
-    );
+    let agui_event =
+        AgUiEvent::tool_call_start(&format!("soar-pb-{}", event_id), playbook_name, snapshot);
 
     match bus.publish_agui(agui_event) {
-        Ok(n) => debug!(playbook = playbook_name, receivers = n, "Playbook start published"),
+        Ok(n) => debug!(
+            playbook = playbook_name,
+            receivers = n,
+            "Playbook start published"
+        ),
         Err(e) => warn!(playbook = playbook_name, error = %e, "Failed to publish playbook start"),
     }
 }
@@ -95,15 +102,18 @@ pub fn publish_playbook_completed(
         "error": error,
     });
 
-    let agui_event = AgUiEvent::tool_call_result(
-        &format!("soar-pb-{}", event_id),
-        result,
-        !success,
-    );
+    let agui_event =
+        AgUiEvent::tool_call_result(&format!("soar-pb-{}", event_id), result, !success);
 
     match bus.publish_agui(agui_event) {
-        Ok(n) => debug!(playbook = playbook_name, receivers = n, "Playbook completion published"),
-        Err(e) => warn!(playbook = playbook_name, error = %e, "Failed to publish playbook completion"),
+        Ok(n) => debug!(
+            playbook = playbook_name,
+            receivers = n,
+            "Playbook completion published"
+        ),
+        Err(e) => {
+            warn!(playbook = playbook_name, error = %e, "Failed to publish playbook completion")
+        }
     }
 }
 
@@ -187,7 +197,13 @@ mod tests {
         let end_env = stream.next().await.unwrap().unwrap();
         if let crate::event_types::ZylosEvent::Custom(c) = &end_env.payload {
             let agui: AgUiEvent = serde_json::from_value(c.payload.clone()).unwrap();
-            assert!(matches!(agui, AgUiEvent::ToolCallResult { is_error: false, .. }));
+            assert!(matches!(
+                agui,
+                AgUiEvent::ToolCallResult {
+                    is_error: false,
+                    ..
+                }
+            ));
         } else {
             panic!("expected Custom event for end");
         }

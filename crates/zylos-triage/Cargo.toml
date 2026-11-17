@@ -12,11 +12,11 @@ description = "Two-stage triage engine with rules-only fast path, model fallback
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
-sha2 = "0.10"
-chrono = { version = "0.4", features = ["serde"] }
 tokio = { workspace = true, features = ["sync"] }
 tracing = { workspace = true }
-zylos-proof = { path = "../zylos-proof" }
 
 [dev-dependencies]
 tempfile = "3"
+
+[lints]
+workspace = true

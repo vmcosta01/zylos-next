@@ -9,7 +9,11 @@ use axum::{
     middleware::Next,
     response::{IntoResponse, Response},
 };
-use governor::{Quota, RateLimiter, clock::DefaultClock, state::{InMemoryState, NotKeyed}};
+use governor::{
+    clock::DefaultClock,
+    state::{InMemoryState, NotKeyed},
+    Quota, RateLimiter,
+};
 use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::time::Duration;
@@ -48,14 +52,8 @@ impl RateLimitConfig {
 }
 
 /// Axum middleware that enforces rate limiting
-pub async fn rate_limit_middleware(
-    request: Request,
-    next: Next,
-) -> Response {
-    let limiter = request
-        .extensions()
-        .get::<SharedRateLimiter>()
-        .cloned();
+pub async fn rate_limit_middleware(request: Request, next: Next) -> Response {
+    let limiter = request.extensions().get::<SharedRateLimiter>().cloned();
 
     match limiter {
         // Variante Some.

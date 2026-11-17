@@ -66,20 +66,11 @@ pub type ContractId = Uuid;
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Criterion {
     /// Command must exit with the expected code.
-    CommandExit {
-        cmd: String,
-        expected_exit: i32,
-    },
+    CommandExit { cmd: String, expected_exit: i32 },
     /// Output must match a regex at least `min_matches` times.
-    OutputPattern {
-        regex: String,
-        min_matches: usize,
-    },
+    OutputPattern { regex: String, min_matches: usize },
     /// A file must exist with an optional SHA-256 hash.
-    FileExists {
-        path: String,
-        hash: Option<String>,
-    },
+    FileExists { path: String, hash: Option<String> },
     /// HTTP endpoint must return expected status and optional body pattern.
     ApiCheck {
         endpoint: String,
@@ -87,10 +78,7 @@ pub enum Criterion {
         body_pattern: Option<String>,
     },
     /// Custom verification via an external tool reference.
-    CustomVerify {
-        tool_ref: String,
-        args: Vec<String>,
-    },
+    CustomVerify { tool_ref: String, args: Vec<String> },
 }
 
 /// Specification for the primary verification command.
@@ -301,10 +289,7 @@ impl GoalContract {
                 .iter()
                 .any(|c| c.criterion_index == i);
             if !has_capsule {
-                errors.push(ContractError::WriteGateBlocked(format!(
-                    "criterion[{}]",
-                    i
-                )));
+                errors.push(ContractError::WriteGateBlocked(format!("criterion[{}]", i)));
             }
         }
 
@@ -365,10 +350,7 @@ impl GoalContract {
             Ground::Crido
         };
 
-        let mut proof = Proof::new(
-            format!("GoalContract '{}' validation", self.title),
-            ground,
-        );
+        let mut proof = Proof::new(format!("GoalContract '{}' validation", self.title), ground);
 
         proof.add_evidence(Evidence::new(
             format!(
@@ -560,10 +542,7 @@ impl GoalContract {
                 let parts: Vec<&str> = api_part.splitn(2, ' ').collect();
                 Criterion::ApiCheck {
                     endpoint: parts.first().unwrap_or(&"").to_string(),
-                    status: parts
-                        .get(1)
-                        .and_then(|s| s.parse().ok())
-                        .unwrap_or(200),
+                    status: parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(200),
                     body_pattern: None,
                 }
             } else {
@@ -621,17 +600,15 @@ impl GoalContract {
                     md.push('\n');
                 }
                 Criterion::CustomVerify { tool_ref, args } => {
-                    md.push_str(&format!(
-                        "- [CUSTOM] {} {}\n",
-                        tool_ref,
-                        args.join(" ")
-                    ));
+                    md.push_str(&format!("- [CUSTOM] {} {}\n", tool_ref, args.join(" ")));
                 }
             }
         }
 
-        md.push_str(&format!("\n## Verification\n\n- Command: `{}`\n- Expected exit: {}\n- Timeout: {}ms\n",
-            self.verification.cmd, self.verification.expected_exit, self.verification.timeout_ms));
+        md.push_str(&format!(
+            "\n## Verification\n\n- Command: `{}`\n- Expected exit: {}\n- Timeout: {}ms\n",
+            self.verification.cmd, self.verification.expected_exit, self.verification.timeout_ms
+        ));
 
         if !self.artifacts_expected.is_empty() {
             md.push_str("\n## Expected Artifacts\n\n");
@@ -786,7 +763,9 @@ mod tests {
         let mut c = sample_contract();
         c.title = "".into();
         let errs = c.validate_schema().unwrap_err();
-        assert!(errs.iter().any(|e| matches!(e, ContractError::SchemaValidation(_))));
+        assert!(errs
+            .iter()
+            .any(|e| matches!(e, ContractError::SchemaValidation(_))));
     }
 
     #[test]
@@ -797,7 +776,9 @@ mod tests {
             min_matches: 1,
         });
         let errs = c.validate_schema().unwrap_err();
-        assert!(errs.iter().any(|e| matches!(e, ContractError::InvalidRegex(_))));
+        assert!(errs
+            .iter()
+            .any(|e| matches!(e, ContractError::InvalidRegex(_))));
     }
 
     #[test]
@@ -805,7 +786,9 @@ mod tests {
         let mut c = sample_contract();
         c.verification.output_pattern = Some("(unclosed".into());
         let errs = c.validate_schema().unwrap_err();
-        assert!(errs.iter().any(|e| matches!(e, ContractError::InvalidRegex(_))));
+        assert!(errs
+            .iter()
+            .any(|e| matches!(e, ContractError::InvalidRegex(_))));
     }
 
     // -- Precondition tests ---------------------------------------------------
@@ -850,10 +833,7 @@ mod tests {
     #[test]
     fn test_dry_run_passes_with_all_capsules() {
         let mut c = sample_contract();
-        c.attach_evidence(
-            0,
-            Evidence::new("cmd passed", "test", Ground::Observado),
-        );
+        c.attach_evidence(0, Evidence::new("cmd passed", "test", Ground::Observado));
         c.attach_evidence(
             1,
             Evidence::new("pattern matched", "test", Ground::Observado),
@@ -866,14 +846,8 @@ mod tests {
     #[test]
     fn test_validate_contract_all_phases_pass() {
         let mut c = sample_contract();
-        c.attach_evidence(
-            0,
-            Evidence::new("cmd ok", "test", Ground::Observado),
-        );
-        c.attach_evidence(
-            1,
-            Evidence::new("pattern ok", "test", Ground::Observado),
-        );
+        c.attach_evidence(0, Evidence::new("cmd ok", "test", Ground::Observado));
+        c.attach_evidence(1, Evidence::new("pattern ok", "test", Ground::Observado));
         let result = c.validate_contract();
         assert!(result.schema_valid);
         assert!(result.preconditions_met);
@@ -1048,8 +1022,14 @@ Extra info.
         let mut params = HashMap::new();
         params.insert("service_name".into(), "gateway".into());
         params.insert("environment".into(), "staging".into());
-        params.insert("health_endpoint".into(), "https://staging.example.com/health".into());
-        params.insert("smoke_test_cmd".into(), "curl -f https://staging.example.com".into());
+        params.insert(
+            "health_endpoint".into(),
+            "https://staging.example.com/health".into(),
+        );
+        params.insert(
+            "smoke_test_cmd".into(),
+            "curl -f https://staging.example.com".into(),
+        );
         params.insert("deploy_verify_cmd".into(), "kubectl rollout status".into());
         params.insert("success_pattern".into(), "successfully rolled out".into());
 
@@ -1077,10 +1057,7 @@ Extra info.
             schema: "json".into(),
             required: true,
         });
-        c.attach_evidence(
-            0,
-            Evidence::new("test evidence", "src", Ground::Observado),
-        );
+        c.attach_evidence(0, Evidence::new("test evidence", "src", Ground::Observado));
         c.bump_version();
 
         let json = serde_json::to_string(&c).unwrap();
@@ -1088,7 +1065,10 @@ Extra info.
         assert_eq!(deserialized.id, c.id);
         assert_eq!(deserialized.title, c.title);
         assert_eq!(deserialized.version, c.version);
-        assert_eq!(deserialized.acceptance_criteria.len(), c.acceptance_criteria.len());
+        assert_eq!(
+            deserialized.acceptance_criteria.len(),
+            c.acceptance_criteria.len()
+        );
         assert_eq!(deserialized.artifacts_expected.len(), 1);
     }
 }

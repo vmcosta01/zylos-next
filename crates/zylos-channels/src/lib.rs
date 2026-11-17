@@ -3,8 +3,8 @@
 //! Substitui o backend em memória (DashMap) por um store persistente com
 //! migrations individuais. Fornece `ChannelsStore` para uso no gateway.
 
-pub mod store;
 pub mod models;
+pub mod store;
 
-pub use models::{Channel, ChannelMessage, ChannelMember};
+pub use models::{Channel, ChannelMember, ChannelMessage};
 pub use store::ChannelsStore;

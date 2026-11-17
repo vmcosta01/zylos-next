@@ -39,13 +39,13 @@ pub mod swarm_topology_panel;
 pub use swarm_topology_panel::SwarmTopologyPanel;
 pub mod skill_editor_panel;
 pub use skill_editor_panel::SkillEditorPanel;
-pub mod tasks_dag;
 pub mod channel_panel;
+pub mod tasks_dag;
 pub use channel_panel::ChannelPanel;
 pub mod phone_relay_panel;
 pub use phone_relay_panel::PhoneRelayPanel;
-pub mod theme_toggle;
 pub mod auth_login;
+pub mod theme_toggle;
 
 pub use agent_awareness_panel::AgentAwarenessPanel;
 #[allow(unused_imports)]
@@ -64,6 +64,6 @@ pub use skill_evolution_panel::SkillEvolutionPanel;
 pub use soar_dashboard::SoarDashboard;
 pub use swarm_dag_panel::SwarmDagPanel;
 pub use tasks_dag::TasksDag;
-pub use theme_toggle::{ThemeToggle, provide_theme};
+pub use theme_toggle::{provide_theme, ThemeToggle};
 #[allow(unused_imports)]
-pub use theme_toggle::{ThemeContext, Theme, use_theme};
+pub use theme_toggle::{use_theme, Theme, ThemeContext};

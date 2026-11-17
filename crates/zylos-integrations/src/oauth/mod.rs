@@ -67,7 +67,11 @@ impl OAuthFlow {
     }
 
     /// Initiate an OAuth2 PKCE authorization flow.
-    pub async fn initiate(&self, spec: &IntegrationSpec, _redirect_uri: &str) -> Result<OAuthSession> {
+    pub async fn initiate(
+        &self,
+        spec: &IntegrationSpec,
+        _redirect_uri: &str,
+    ) -> Result<OAuthSession> {
         let client = build_client(spec)?;
 
         let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
@@ -113,7 +117,9 @@ impl OAuthFlow {
             let mut sessions = self.pending_sessions.write().await;
             sessions.remove(session_id)
         }
-        .ok_or_else(|| IntegrationError::OAuth(format!("Unknown or expired session: {}", session_id)))?;
+        .ok_or_else(|| {
+            IntegrationError::OAuth(format!("Unknown or expired session: {}", session_id))
+        })?;
 
         let pkce_verifier = PkceCodeVerifier::new(pending.pkce_verifier);
         let token_result = pending
@@ -145,7 +151,11 @@ impl OAuthFlow {
     }
 
     /// Refresh an expired token bundle using its refresh token.
-    pub async fn refresh(&self, spec: &IntegrationSpec, bundle: &TokenBundle) -> Result<TokenBundle> {
+    pub async fn refresh(
+        &self,
+        spec: &IntegrationSpec,
+        bundle: &TokenBundle,
+    ) -> Result<TokenBundle> {
         let refresh_token = bundle
             .refresh_token
             .as_ref()

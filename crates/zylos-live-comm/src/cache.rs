@@ -170,10 +170,9 @@ pub async fn caching_middleware(
     // Only cache eligible requests
     if !HttpCache::is_cacheable(&request) {
         let mut response = next.run(request).await;
-        response.headers_mut().insert(
-            "X-Cache",
-            HeaderValue::from_static("BYPASS"),
-        );
+        response
+            .headers_mut()
+            .insert("X-Cache", HeaderValue::from_static("BYPASS"));
         return response;
     }
 
@@ -207,10 +206,9 @@ pub async fn caching_middleware(
         cache.put(key, &reconstructed, body_bytes).await;
 
         let mut final_response = reconstructed;
-        final_response.headers_mut().insert(
-            "X-Cache",
-            HeaderValue::from_static("MISS"),
-        );
+        final_response
+            .headers_mut()
+            .insert("X-Cache", HeaderValue::from_static("MISS"));
         final_response
     } else {
         response
@@ -356,6 +354,10 @@ mod tests {
 
         let stats = cache.stats().await;
         // After eviction, should be <= max_entries
-        assert!(stats.total_entries <= 10, "Expected <= 10, got {}", stats.total_entries);
+        assert!(
+            stats.total_entries <= 10,
+            "Expected <= 10, got {}",
+            stats.total_entries
+        );
     }
 }

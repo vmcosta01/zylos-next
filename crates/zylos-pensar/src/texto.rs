@@ -45,7 +45,11 @@ pub fn decodificar(bytes: Vec<u8>) -> Result<String, ErroTexto> {
     if bytes.starts_with(&[0xFF, 0xFE]) || bytes.starts_with(&[0xFE, 0xFF]) {
         return Err(ErroTexto::Utf16);
     }
-    let sem_bom = if bytes.starts_with(&[0xEF, 0xBB, 0xBF]) { bytes[3..].to_vec() } else { bytes };
+    let sem_bom = if bytes.starts_with(&[0xEF, 0xBB, 0xBF]) {
+        bytes[3..].to_vec()
+    } else {
+        bytes
+    };
     String::from_utf8(sem_bom).map_err(|_| ErroTexto::NaoUtf8)
 }
 
@@ -56,7 +60,10 @@ mod testes {
     #[test]
     fn tira_bom_e_recusa_utf16() {
         assert_eq!(decodificar(b"\xEF\xBB\xBFoi".to_vec()).unwrap(), "oi");
-        assert_eq!(decodificar(b"\xFF\xFEo\0i\0".to_vec()), Err(ErroTexto::Utf16));
+        assert_eq!(
+            decodificar(b"\xFF\xFEo\0i\0".to_vec()),
+            Err(ErroTexto::Utf16)
+        );
         assert_eq!(decodificar(vec![0xC3, 0x28]), Err(ErroTexto::NaoUtf8));
     }
 

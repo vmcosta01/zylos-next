@@ -163,7 +163,11 @@ impl PlanFirstGate {
         }
 
         // Check if approval is required for this routine
-        let requires_approval = self.config.always_require_approval.iter().any(|r| r == routine_name)
+        let requires_approval = self
+            .config
+            .always_require_approval
+            .iter()
+            .any(|r| r == routine_name)
             || self.config.default_require_approval;
 
         if !requires_approval {
@@ -230,16 +234,16 @@ impl PlanFirstGate {
 
         let routine_name_for_log = routine_name_key.clone();
 
-         let mut plans = self.plans.write().await;
-         plans.insert(id.clone(), submission);
+        let mut plans = self.plans.write().await;
+        plans.insert(id.clone(), submission);
 
-         let mut index = self.pending_index.write().await;
-         index
-         .entry(routine_name_key)
-         .or_insert_with(Vec::new)
-         .push(id.clone());
+        let mut index = self.pending_index.write().await;
+        index
+            .entry(routine_name_key)
+            .or_insert_with(Vec::new)
+            .push(id.clone());
 
-         tracing::info!(plan_id = %id, routine = %routine_name_for_log, "Plan submitted for approval");
+        tracing::info!(plan_id = %id, routine = %routine_name_for_log, "Plan submitted for approval");
         id
     }
 
@@ -329,10 +333,22 @@ impl PlanFirstGate {
     pub async fn stats(&self) -> GateStats {
         let plans = self.plans.read().await;
         let total = plans.len();
-        let pending = plans.values().filter(|p| p.status == PlanStatus::Pending).count();
-        let approved = plans.values().filter(|p| p.status == PlanStatus::Approved).count();
-        let rejected = plans.values().filter(|p| p.status == PlanStatus::Rejected).count();
-        let expired = plans.values().filter(|p| p.status == PlanStatus::Expired).count();
+        let pending = plans
+            .values()
+            .filter(|p| p.status == PlanStatus::Pending)
+            .count();
+        let approved = plans
+            .values()
+            .filter(|p| p.status == PlanStatus::Approved)
+            .count();
+        let rejected = plans
+            .values()
+            .filter(|p| p.status == PlanStatus::Rejected)
+            .count();
+        let expired = plans
+            .values()
+            .filter(|p| p.status == PlanStatus::Expired)
+            .count();
 
         GateStats {
             total_plans: total,
@@ -556,26 +572,45 @@ mod tests {
         gate.reject(&id1, "bad plan").await.unwrap();
 
         // Decision should be Rejected
-        assert_eq!(gate.check("deploy-staging", "a1").await, GateDecision::Rejected);
+        assert_eq!(
+            gate.check("deploy-staging", "a1").await,
+            GateDecision::Rejected
+        );
+
+        // Sleep to ensure distinct second-precision timestamp for the newer plan
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
         // Submit newer plan (same routine + agent)
-        let _id2 = gate.submit_plan("deploy-staging", "a1", "v2 improved", "c2").await;
+        let _id2 = gate
+            .submit_plan("deploy-staging", "a1", "v2 improved", "c2")
+            .await;
 
         // Newer pending plan should override older rejected one
-        assert_eq!(gate.check("deploy-staging", "a1").await, GateDecision::Pending);
+        assert_eq!(
+            gate.check("deploy-staging", "a1").await,
+            GateDecision::Pending
+        );
     }
 
     #[tokio::test]
     async fn test_different_agents_independent() {
         let gate = test_gate();
 
-        let id = gate.submit_plan("deploy-staging", "agent-a", "d", "c").await;
+        let id = gate
+            .submit_plan("deploy-staging", "agent-a", "d", "c")
+            .await;
         gate.approve(&id, None).await.unwrap();
 
         // agent-a approved
-        assert_eq!(gate.check("deploy-staging", "agent-a").await, GateDecision::Approved);
+        assert_eq!(
+            gate.check("deploy-staging", "agent-a").await,
+            GateDecision::Approved
+        );
         // agent-b still pending (different agent)
-        assert_eq!(gate.check("deploy-staging", "agent-b").await, GateDecision::Pending);
+        assert_eq!(
+            gate.check("deploy-staging", "agent-b").await,
+            GateDecision::Pending
+        );
     }
 
     #[tokio::test]
@@ -583,7 +618,10 @@ mod tests {
         assert_eq!(format!("{}", GateDecision::Approved), "approved");
         assert_eq!(format!("{}", GateDecision::Pending), "pending");
         assert_eq!(format!("{}", GateDecision::Rejected), "rejected");
-        assert_eq!(format!("{}", GateDecision::NoGateRequired), "no_gate_required");
+        assert_eq!(
+            format!("{}", GateDecision::NoGateRequired),
+            "no_gate_required"
+        );
     }
 
     #[tokio::test]

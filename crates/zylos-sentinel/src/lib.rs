@@ -242,9 +242,7 @@ pub fn sanitize_for_output(text: &str) -> String {
             let pos = search_from + rel_pos;
             let value_start = pos + pattern.len();
             let after = &result[value_start..];
-            let end = after
-                .find(['&', ' ', '\n', '"'])
-                .unwrap_or(after.len());
+            let end = after.find(['&', ' ', '\n', '"']).unwrap_or(after.len());
             if end == 0 {
                 // No value after the key — skip past this occurrence to avoid infinite loop
                 search_from = value_start;
@@ -439,8 +437,7 @@ pub async fn append_jsonl_log(
         .append(true)
         .open(&log_path)
         .await?;
-    let line = serde_json::to_string(entry)
-        .unwrap_or_else(|_| "{}".into());
+    let line = serde_json::to_string(entry).unwrap_or_else(|_| "{}".into());
     file.write_all(line.as_bytes()).await?;
     file.write_all(b"\n").await?;
     Ok(())
@@ -535,7 +532,8 @@ impl HealthScanner {
         let timestamp = Utc::now().to_rfc3339();
 
         // Run all pure-function detectors
-        let checks: Vec<HealthCheck> = self.detectors
+        let checks: Vec<HealthCheck> = self
+            .detectors
             .iter()
             .map(|(_name, detector)| detector())
             .collect();
@@ -571,7 +569,10 @@ impl HealthScanner {
                 severity: Some(incident.severity.to_string()),
                 reason: Some(incident.reason.clone()),
                 incident_signature: Some(incident.signature.0.clone()),
-                details: incident.detail.as_ref().map(|d| serde_json::json!({"detail": d})),
+                details: incident
+                    .detail
+                    .as_ref()
+                    .map(|d| serde_json::json!({"detail": d})),
             };
             let _ = append_jsonl_log(&self.config.output_dir, &entry).await;
         }
@@ -585,9 +586,8 @@ impl HealthScanner {
     /// [`run_scan_cycle`](Self::run_scan_cycle) on each tick. Exits cleanly
     /// when `shutdown` receives a new value.
     pub async fn run_loop(&self, mut shutdown: tokio::sync::watch::Receiver<bool>) {
-        let mut interval = tokio::time::interval(
-            Duration::from_secs(self.config.scan_interval_secs),
-        );
+        let mut interval =
+            tokio::time::interval(Duration::from_secs(self.config.scan_interval_secs));
         loop {
             tokio::select! {
                 _ = interval.tick() => {

@@ -11,11 +11,11 @@
 //! O módulo `resource_limiter` fornece controle de CPU/memória/PIDs por agente
 //! via cgroups v2 (Linux), Docker (cross-platform) ou noop (testes).
 
-pub mod resource_limiter;
-pub mod network_egress;
-pub mod output_sanitizer;
 pub mod capability_token;
 pub mod host_allocator;
+pub mod network_egress;
+pub mod output_sanitizer;
+pub mod resource_limiter;
 
 use chrono::{DateTime, Utc};
 use regex::Regex;
@@ -285,10 +285,7 @@ pub struct AgentShield {
 impl AgentShield {
     /// Creates a new AgentShield with the given configuration.
     /// If `db_path` is provided, audit logs are persisted to SQLite WAL.
-    pub async fn new(
-        config: ShieldConfig,
-        db_path: Option<&str>,
-    ) -> Result<Self, ShieldError> {
+    pub async fn new(config: ShieldConfig, db_path: Option<&str>) -> Result<Self, ShieldError> {
         let patterns = compile_patterns(&config)?;
         let pool = if let Some(path) = db_path {
             let options = SqliteConnectOptions::from_str(path)?
@@ -439,10 +436,9 @@ impl AgentShield {
             .as_ref()
             .ok_or_else(|| ShieldError::Internal("No database configured".into()))?;
 
-        let total_events: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM shield_audit")
-                .fetch_one(pool)
-                .await?;
+        let total_events: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM shield_audit")
+            .fetch_one(pool)
+            .await?;
         let critical_count: i64 =
             sqlx::query_scalar("SELECT COUNT(*) FROM shield_audit WHERE severity = 'critical'")
                 .fetch_one(pool)
@@ -506,9 +502,7 @@ fn compile_patterns(config: &ShieldConfig) -> Result<Vec<CompiledPattern>, Shiel
     if config.detect_phone {
         patterns.push(CompiledPattern {
             sensitive_type: SensitiveType::PhoneNumber,
-            regex: Regex::new(
-                r"(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}",
-            )?,
+            regex: Regex::new(r"(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}")?,
             confidence: 0.7,
         });
     }
@@ -598,11 +592,7 @@ fn compile_patterns(config: &ShieldConfig) -> Result<Vec<CompiledPattern>, Shiel
 // Redaction
 // ---------------------------------------------------------------------------
 
-fn apply_redaction(
-    text: &str,
-    findings: &[Finding],
-    strategy: &RedactionStrategy,
-) -> String {
+fn apply_redaction(text: &str, findings: &[Finding], strategy: &RedactionStrategy) -> String {
     if findings.is_empty() {
         return text.to_string();
     }
@@ -648,11 +638,14 @@ async fn run_audit_migrations(pool: &SqlitePool) -> Result<(), ShieldError> {
     sqlx::query("CREATE TABLE IF NOT EXISTS shield_audit (id TEXT PRIMARY KEY, timestamp TEXT NOT NULL, event_type TEXT NOT NULL, actor TEXT NOT NULL, target TEXT NOT NULL, details TEXT NOT NULL, severity TEXT NOT NULL, fingerprint TEXT NOT NULL)")
         .execute(pool).await?;
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_shield_audit_ts ON shield_audit(timestamp)")
-        .execute(pool).await?;
+        .execute(pool)
+        .await?;
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_shield_audit_severity ON shield_audit(severity)")
-        .execute(pool).await?;
+        .execute(pool)
+        .await?;
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_shield_audit_event ON shield_audit(event_type)")
-        .execute(pool).await?;
+        .execute(pool)
+        .await?;
     Ok(())
 }
 
@@ -803,7 +796,11 @@ mod tests {
                 .iter()
                 .any(|f| f.sensitive_type == SensitiveType::CreditCard),
             "Expected CreditCard finding, got: {:?}",
-            result.findings.iter().map(|f| f.sensitive_type).collect::<Vec<_>>()
+            result
+                .findings
+                .iter()
+                .map(|f| f.sensitive_type)
+                .collect::<Vec<_>>()
         );
     }
 
@@ -835,36 +832,36 @@ mod tests {
     }
 
     #[test]
-     fn test_remove_redaction_strategy() {
-     let config = ShieldConfig {
-     redaction_strategy: RedactionStrategy::Remove,
-     ..Default::default()
-     };
-     let patterns = compile_patterns(&config).unwrap();
-     let shield = AgentShield {
-     config: Arc::new(config),
-     patterns: Arc::new(patterns),
-     pool: None,
-     };
-     let result = shield.scan("Email me at user@example.com please", "test");
-     assert!(!result.redacted_text.contains("user@example.com"));
-     assert!(!result.redacted_text.contains("[REDACTED"));
-     }
+    fn test_remove_redaction_strategy() {
+        let config = ShieldConfig {
+            redaction_strategy: RedactionStrategy::Remove,
+            ..Default::default()
+        };
+        let patterns = compile_patterns(&config).unwrap();
+        let shield = AgentShield {
+            config: Arc::new(config),
+            patterns: Arc::new(patterns),
+            pool: None,
+        };
+        let result = shield.scan("Email me at user@example.com please", "test");
+        assert!(!result.redacted_text.contains("user@example.com"));
+        assert!(!result.redacted_text.contains("[REDACTED"));
+    }
 
-     #[test]
-     fn test_fixed_redaction_strategy() {
-     let config = ShieldConfig {
-     redaction_strategy: RedactionStrategy::Fixed("***".into()),
-     ..Default::default()
-     };
-     let patterns = compile_patterns(&config).unwrap();
-     let shield = AgentShield {
-     config: Arc::new(config),
-     patterns: Arc::new(patterns),
-     pool: None,
-     };
-     let result = shield.scan("Contact: user@example.com", "test");
-     assert!(result.redacted_text.contains("***"));
+    #[test]
+    fn test_fixed_redaction_strategy() {
+        let config = ShieldConfig {
+            redaction_strategy: RedactionStrategy::Fixed("***".into()),
+            ..Default::default()
+        };
+        let patterns = compile_patterns(&config).unwrap();
+        let shield = AgentShield {
+            config: Arc::new(config),
+            patterns: Arc::new(patterns),
+            pool: None,
+        };
+        let result = shield.scan("Contact: user@example.com", "test");
+        assert!(result.redacted_text.contains("***"));
         assert!(!result.redacted_text.contains("user@example.com"));
     }
 
@@ -878,7 +875,9 @@ mod tests {
     #[test]
     fn test_check_outbound_blocks_sensitive_text() {
         let shield = test_shield();
-        let result = shield.check_outbound("secret: password=abc123xyz", "dest").unwrap();
+        let result = shield
+            .check_outbound("secret: password=abc123xyz", "dest")
+            .unwrap();
         assert!(result.is_some());
         assert!(result.unwrap().has_findings);
     }

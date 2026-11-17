@@ -203,11 +203,7 @@ impl std::fmt::Display for ValidationError {
 
 impl ValidationError {
     /// Cria um novo erro actionável
-    pub fn new(
-        path: impl Into<String>,
-        code: ValidationCode,
-        message: impl Into<String>,
-    ) -> Self {
+    pub fn new(path: impl Into<String>, code: ValidationCode, message: impl Into<String>) -> Self {
         // Variante Self.
         Self {
             path: path.into(),
@@ -455,10 +451,7 @@ impl ValidationCache {
 
     /// Retorna estatísticas de hit rate
     pub fn stats(&self) -> CacheStats {
-        self.stats
-            .read()
-            .map(|s| s.clone())
-            .unwrap_or_default()
+        self.stats.read().map(|s| s.clone()).unwrap_or_default()
     }
 }
 
@@ -478,13 +471,13 @@ pub enum SchemaVersion {
 
 impl SchemaVersion {
     /// Parse a schema version string into a [`SchemaVersion`].
-        pub fn parse(s: &str) -> Option<Self> {
-            match s {
-                "v1" | "1" | "draft-7" => Some(Self::V1),
-                "v2" | "2" => Some(Self::V2),
-                _ => None,
-            }
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "v1" | "1" | "draft-7" => Some(Self::V1),
+            "v2" | "2" => Some(Self::V2),
+            _ => None,
         }
+    }
 
     /// Função as str.
     pub fn as_str(&self) -> &'static str {
@@ -497,7 +490,12 @@ impl SchemaVersion {
 
 /// Verifica compatibilidade entre versões de schema (stub)
 pub fn check_backward_compat(from: &SchemaVersion, to: &SchemaVersion) -> bool {
-    matches!((from, to), (SchemaVersion::V1, SchemaVersion::V1) | (SchemaVersion::V1, SchemaVersion::V2) | (SchemaVersion::V2, SchemaVersion::V2))
+    matches!(
+        (from, to),
+        (SchemaVersion::V1, SchemaVersion::V1)
+            | (SchemaVersion::V1, SchemaVersion::V2)
+            | (SchemaVersion::V2, SchemaVersion::V2)
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -576,9 +574,7 @@ impl SkillValidator {
     /// Carrega o validador a partir de um arquivo de schema JSON
     pub fn from_file(path: &Path) -> SchemaResult<Self> {
         if !path.exists() {
-            return Err(SchemaError::SchemaNotFound(
-                path.display().to_string(),
-            ));
+            return Err(SchemaError::SchemaNotFound(path.display().to_string()));
         }
 
         let content = std::fs::read_to_string(path)?;
@@ -632,7 +628,10 @@ impl SkillValidator {
     }
 
     /// Configura skills conhecidas para validação de dependências
-    pub fn with_known_skills(mut self, skills: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    pub fn with_known_skills(
+        mut self,
+        skills: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
         self.known_skills = skills.into_iter().map(Into::into).collect();
         self
     }
@@ -679,12 +678,7 @@ impl SkillValidator {
             // Variante Err.
             Err(errors) => {
                 let error_messages: Vec<String> = errors
-                    .map(|e| {
-                        format!(
-                            "  - {:?}: {} (em {})",
-                            e.kind, e.instance, e.instance_path
-                        )
-                    })
+                    .map(|e| format!("  - {:?}: {} (em {})", e.kind, e.instance, e.instance_path))
                     .collect();
 
                 let formatted_errors = error_messages.join("\n");
@@ -739,12 +733,15 @@ impl SkillValidator {
                 custom_errors: vec![],
                 cached: false,
             };
-            self.cache.put(&digest, CachedResult {
-                phase1: result.phase1_errors.clone(),
-                phase2: vec![],
-                phase3: vec![],
-                custom: vec![],
-            });
+            self.cache.put(
+                &digest,
+                CachedResult {
+                    phase1: result.phase1_errors.clone(),
+                    phase2: vec![],
+                    phase3: vec![],
+                    custom: vec![],
+                },
+            );
             return result;
         }
 
@@ -767,12 +764,15 @@ impl SkillValidator {
         };
 
         // Cache o resultado
-        self.cache.put(&digest, CachedResult {
-            phase1: result.phase1_errors.clone(),
-            phase2: result.phase2_errors.clone(),
-            phase3: result.phase3_errors.clone(),
-            custom: result.custom_errors.clone(),
-        });
+        self.cache.put(
+            &digest,
+            CachedResult {
+                phase1: result.phase1_errors.clone(),
+                phase2: result.phase2_errors.clone(),
+                phase3: result.phase3_errors.clone(),
+                custom: result.custom_errors.clone(),
+            },
+        );
 
         result
     }
@@ -813,15 +813,23 @@ impl SkillValidator {
         // Valida campos obrigatórios não cobertos pelo schema
         if manifest.name.trim().is_empty() {
             errors.push(
-                ValidationError::new("/name", ValidationCode::MissingRequiredField, "nome da skill não pode ser vazio")
-                    .with_suggestion("Use um nome em kebab-case como 'my-skill'"),
+                ValidationError::new(
+                    "/name",
+                    ValidationCode::MissingRequiredField,
+                    "nome da skill não pode ser vazio",
+                )
+                .with_suggestion("Use um nome em kebab-case como 'my-skill'"),
             );
         }
 
         if manifest.description.trim().is_empty() {
             errors.push(
-                ValidationError::new("/description", ValidationCode::MissingRequiredField, "descrição não pode ser vazia")
-                    .with_suggestion("Adicione uma descrição entre 10 e 200 caracteres"),
+                ValidationError::new(
+                    "/description",
+                    ValidationCode::MissingRequiredField,
+                    "descrição não pode ser vazia",
+                )
+                .with_suggestion("Adicione uma descrição entre 10 e 200 caracteres"),
             );
         }
 
@@ -974,9 +982,7 @@ impl SkillValidator {
             .map(|v| {
                 let validator = Arc::clone(v);
                 let manifest_clone = manifest.clone();
-                tokio::task::spawn_blocking(move || {
-                    validator.validate(&manifest_clone)
-                })
+                tokio::task::spawn_blocking(move || validator.validate(&manifest_clone))
             })
             .collect();
 
@@ -1002,7 +1008,10 @@ fn classify_schema_error(path: &str, msg: &str) -> (ValidationCode, Option<Strin
     if msg_lower.contains("required") || msg_lower.contains("missing") {
         (
             ValidationCode::MissingRequiredField,
-            Some(format!("Adicione o campo obrigatório '{}'", path.trim_start_matches('/'))),
+            Some(format!(
+                "Adicione o campo obrigatório '{}'",
+                path.trim_start_matches('/')
+            )),
         )
     } else if msg_lower.contains("pattern") || msg_lower.contains("format") {
         (
@@ -1063,10 +1072,7 @@ pub struct CiSkillResult {
 
 /// Executa validação CI e retorna (exit_code, json_report)
 /// exit_code: 0 = tudo válido, 1 = erros encontrados
-pub async fn validate_ci(
-    validator: &SkillValidator,
-    manifests: &[SkillManifest],
-) -> (i32, String) {
+pub async fn validate_ci(validator: &SkillValidator, manifests: &[SkillManifest]) -> (i32, String) {
     let mut results = Vec::new();
     let mut invalid_count = 0;
 
@@ -1128,10 +1134,10 @@ mod tests {
 
     fn valid_manifest() -> SkillManifest {
         // Variante SkillManifest.
-         SkillManifest {
-         name: "test-skill".to_string(),
-         description: "Uma skill de teste para validação".to_string(),
-         version: "1.0.0".to_string(),
+        SkillManifest {
+            name: "test-skill".to_string(),
+            description: "Uma skill de teste para validação".to_string(),
+            version: "1.0.0".to_string(),
             path: "test-skill/SKILL.md".to_string(),
             category: Some("devops".to_string()),
             tags: vec!["rust".to_string(), "testing".to_string()],
@@ -1303,7 +1309,11 @@ mod tests {
             .with_hermes_version("1.0.0");
         let manifest = valid_manifest();
         let result = validator.validate_manifest(&manifest).await;
-        assert!(result.is_valid(), "Expected valid, got errors: {:?}", result.all_errors());
+        assert!(
+            result.is_valid(),
+            "Expected valid, got errors: {:?}",
+            result.all_errors()
+        );
         assert!(!result.cached);
     }
 
@@ -1314,7 +1324,10 @@ mod tests {
         manifest.trigger = Some("".to_string());
         let result = validator.validate_manifest(&manifest).await;
         assert!(!result.is_valid());
-        assert!(result.phase2_errors.iter().any(|e| e.code == ValidationCode::EmptyTrigger));
+        assert!(result
+            .phase2_errors
+            .iter()
+            .any(|e| e.code == ValidationCode::EmptyTrigger));
     }
 
     #[tokio::test]
@@ -1324,7 +1337,10 @@ mod tests {
         manifest.depends_on = vec!["test-skill".to_string()];
         let result = validator.validate_manifest(&manifest).await;
         assert!(!result.is_valid());
-        assert!(result.phase2_errors.iter().any(|e| e.code == ValidationCode::CyclicDependency));
+        assert!(result
+            .phase2_errors
+            .iter()
+            .any(|e| e.code == ValidationCode::CyclicDependency));
     }
 
     #[tokio::test]
@@ -1336,7 +1352,10 @@ mod tests {
         manifest.min_hermes_version = Some("2.0.0".to_string());
         let result = validator.validate_manifest(&manifest).await;
         assert!(!result.is_valid());
-        assert!(result.phase3_errors.iter().any(|e| e.code == ValidationCode::IncompatibleHermesVersion));
+        assert!(result
+            .phase3_errors
+            .iter()
+            .any(|e| e.code == ValidationCode::IncompatibleHermesVersion));
     }
 
     #[tokio::test]
@@ -1359,7 +1378,10 @@ mod tests {
         manifest.compatibility_tags = vec!["windows-only".to_string()];
         let result = validator.validate_manifest(&manifest).await;
         assert!(!result.is_valid());
-        assert!(result.phase3_errors.iter().any(|e| e.code == ValidationCode::IncompatibleTag));
+        assert!(result
+            .phase3_errors
+            .iter()
+            .any(|e| e.code == ValidationCode::IncompatibleTag));
     }
 
     #[tokio::test]
@@ -1383,7 +1405,10 @@ mod tests {
         manifest.depends_on = vec!["nonexistent-skill".to_string()];
         let result = validator.validate_manifest(&manifest).await;
         assert!(!result.is_valid());
-        assert!(result.phase2_errors.iter().any(|e| e.code == ValidationCode::DependencyNotFound));
+        assert!(result
+            .phase2_errors
+            .iter()
+            .any(|e| e.code == ValidationCode::DependencyNotFound));
     }
 
     // -- New tests: Custom Validators --
@@ -1434,7 +1459,10 @@ mod tests {
         let result = validator.validate_manifest(&manifest).await;
         assert!(!result.is_valid());
         assert_eq!(result.custom_errors.len(), 1);
-        assert_eq!(result.custom_errors[0].code, ValidationCode::CustomValidatorError);
+        assert_eq!(
+            result.custom_errors[0].code,
+            ValidationCode::CustomValidatorError
+        );
     }
 
     #[tokio::test]
@@ -1492,7 +1520,15 @@ mod tests {
         let cache = ValidationCache::new("v1");
         assert_eq!(cache.stats().hit_rate(), 0.0);
 
-        cache.put("abc", CachedResult { phase1: vec![], phase2: vec![], phase3: vec![], custom: vec![] });
+        cache.put(
+            "abc",
+            CachedResult {
+                phase1: vec![],
+                phase2: vec![],
+                phase3: vec![],
+                custom: vec![],
+            },
+        );
         cache.get("abc"); // hit
         cache.get("xyz"); // miss
 
@@ -1507,17 +1543,29 @@ mod tests {
     #[test]
     fn test_schema_version_parsing() {
         assert_eq!(SchemaVersion::parse("v1"), Some(SchemaVersion::V1));
-                assert_eq!(SchemaVersion::parse("draft-7"), Some(SchemaVersion::V1));
-                assert_eq!(SchemaVersion::parse("v2"), Some(SchemaVersion::V2));
-                assert_eq!(SchemaVersion::parse("v99"), None);
+        assert_eq!(SchemaVersion::parse("draft-7"), Some(SchemaVersion::V1));
+        assert_eq!(SchemaVersion::parse("v2"), Some(SchemaVersion::V2));
+        assert_eq!(SchemaVersion::parse("v99"), None);
     }
 
     #[test]
     fn test_backward_compat() {
-        assert!(check_backward_compat(&SchemaVersion::V1, &SchemaVersion::V1));
-        assert!(check_backward_compat(&SchemaVersion::V1, &SchemaVersion::V2));
-        assert!(check_backward_compat(&SchemaVersion::V2, &SchemaVersion::V2));
-        assert!(!check_backward_compat(&SchemaVersion::V2, &SchemaVersion::V1));
+        assert!(check_backward_compat(
+            &SchemaVersion::V1,
+            &SchemaVersion::V1
+        ));
+        assert!(check_backward_compat(
+            &SchemaVersion::V1,
+            &SchemaVersion::V2
+        ));
+        assert!(check_backward_compat(
+            &SchemaVersion::V2,
+            &SchemaVersion::V2
+        ));
+        assert!(!check_backward_compat(
+            &SchemaVersion::V2,
+            &SchemaVersion::V1
+        ));
     }
 
     // -- New tests: CI Gate --
@@ -1554,9 +1602,13 @@ mod tests {
 
     #[test]
     fn test_validation_error_display() {
-        let err = ValidationError::new("/name", ValidationCode::MissingRequiredField, "nome ausente")
-            .with_suggestion("Adicione um nome em kebab-case")
-            .with_docs_url("https://example.com/docs");
+        let err = ValidationError::new(
+            "/name",
+            ValidationCode::MissingRequiredField,
+            "nome ausente",
+        )
+        .with_suggestion("Adicione um nome em kebab-case")
+        .with_docs_url("https://example.com/docs");
         let display = format!("{}", err);
         assert!(display.contains("MISSING_REQUIRED_FIELD"));
         assert!(display.contains("nome ausente"));
@@ -1566,7 +1618,11 @@ mod tests {
 
     #[test]
     fn test_validation_error_serialization() {
-        let err = ValidationError::new("/version", ValidationCode::InvalidFormat, "formato inválido");
+        let err = ValidationError::new(
+            "/version",
+            ValidationCode::InvalidFormat,
+            "formato inválido",
+        );
         let json = serde_json::to_string(&err).unwrap();
         assert!(json.contains("INVALID_FORMAT"));
         assert!(json.contains("/version"));

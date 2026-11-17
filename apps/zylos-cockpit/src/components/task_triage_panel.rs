@@ -40,8 +40,6 @@ pub struct TriageData {
     pub updated_at: String,
 }
 
-
-
 /// Estado do componente
 #[derive(Debug, Clone, PartialEq)]
 enum TriageState {
@@ -272,8 +270,8 @@ pub fn TaskTriagePanel() -> impl IntoView {
 // === Helpers ===
 
 fn js_timestamp() -> String {
- let date = js_sys::Date::new_0();
- date.to_iso_string().as_string().unwrap_or_default()
+    let date = js_sys::Date::new_0();
+    date.to_iso_string().as_string().unwrap_or_default()
 }
 
 // === Funções de fetch ===

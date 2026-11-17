@@ -84,7 +84,11 @@ impl SpacesStore {
     // === Pages ===
 
     /// Cria nova Page em um Space
-    pub async fn create_page(&self, space_id: &str, req: CreatePageRequest) -> Result<Page, sqlx::Error> {
+    pub async fn create_page(
+        &self,
+        space_id: &str,
+        req: CreatePageRequest,
+    ) -> Result<Page, sqlx::Error> {
         let id = Uuid::new_v4().to_string();
         let now = chrono::Utc::now().to_rfc3339();
         let content = req.content_markdown.unwrap_or_default();
@@ -121,7 +125,7 @@ impl SpacesStore {
     /// Lista páginas de um Space (plana + árvore)
     pub async fn list_pages(&self, space_id: &str) -> Result<PagesListResponse, sqlx::Error> {
         let pages = sqlx::query_as::<_, Page>(
-            "SELECT * FROM pages WHERE space_id = ? ORDER BY position, created_at"
+            "SELECT * FROM pages WHERE space_id = ? ORDER BY position, created_at",
         )
         .bind(space_id)
         .fetch_all(&self.pool)
@@ -142,7 +146,11 @@ impl SpacesStore {
     }
 
     /// Atualiza Page (título, conteúdo, parent, posição)
-    pub async fn update_page(&self, page_id: &str, req: UpdatePageRequest) -> Result<Page, sqlx::Error> {
+    pub async fn update_page(
+        &self,
+        page_id: &str,
+        req: UpdatePageRequest,
+    ) -> Result<Page, sqlx::Error> {
         let existing = sqlx::query_as::<_, Page>("SELECT * FROM pages WHERE id = ?")
             .bind(page_id)
             .fetch_optional(&self.pool)
@@ -189,12 +197,11 @@ impl SpacesStore {
 
         while idx < to_delete.len() {
             let current_id = &to_delete[idx];
-            let children: Vec<(String,)> = sqlx::query_as(
-                "SELECT id FROM pages WHERE parent_id = ?"
-            )
-            .bind(current_id)
-            .fetch_all(&self.pool)
-            .await?;
+            let children: Vec<(String,)> =
+                sqlx::query_as("SELECT id FROM pages WHERE parent_id = ?")
+                    .bind(current_id)
+                    .fetch_all(&self.pool)
+                    .await?;
 
             for (child_id,) in children {
                 to_delete.push(child_id);
@@ -218,17 +225,17 @@ impl SpacesStore {
     }
 
     /// Retorna outline (headings) de uma página
-     pub async fn get_outline(&self, page_id: &str) -> Result<Vec<OutlineNode>, sqlx::Error> {
-     let page = sqlx::query_as::<_, Page>("SELECT * FROM pages WHERE id = ?")
-     .bind(page_id)
-     .fetch_optional(&self.pool)
-     .await?;
+    pub async fn get_outline(&self, page_id: &str) -> Result<Vec<OutlineNode>, sqlx::Error> {
+        let page = sqlx::query_as::<_, Page>("SELECT * FROM pages WHERE id = ?")
+            .bind(page_id)
+            .fetch_optional(&self.pool)
+            .await?;
 
-     match page {
-     Some(p) => Ok(extract_outline(&p.content_markdown)),
-     None => Ok(vec![]),
-     }
-     }
+        match page {
+            Some(p) => Ok(extract_outline(&p.content_markdown)),
+            None => Ok(vec![]),
+        }
+    }
 
     /// Aplica migrations SQL (statements individuais para sqlx SQLite)
     pub async fn run_migrations(&self) -> Result<(), sqlx::Error> {
@@ -240,7 +247,7 @@ impl SpacesStore {
                 owner_id TEXT NOT NULL,
                 created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
                 updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-            )"
+            )",
         )
         .execute(&self.pool)
         .await?;
@@ -255,22 +262,18 @@ impl SpacesStore {
                 position INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
                 updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-            )"
+            )",
         )
         .execute(&self.pool)
         .await?;
 
-        sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_pages_space ON pages(space_id, position)"
-        )
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_pages_space ON pages(space_id, position)")
+            .execute(&self.pool)
+            .await?;
 
-        sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_pages_parent ON pages(parent_id)"
-        )
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_pages_parent ON pages(parent_id)")
+            .execute(&self.pool)
+            .await?;
 
         tracing::info!("Spaces migrations applied successfully");
         Ok(())
@@ -313,11 +316,14 @@ mod tests {
     async fn test_list_spaces() {
         let store = setup_test_store().await;
         store.create_space(sample_space()).await.unwrap();
-        store.create_space(CreateSpaceRequest {
-            name: "Second Space".into(),
-            description: None,
-            owner_id: "user-2".into(),
-        }).await.unwrap();
+        store
+            .create_space(CreateSpaceRequest {
+                name: "Second Space".into(),
+                description: None,
+                owner_id: "user-2".into(),
+            })
+            .await
+            .unwrap();
 
         let spaces = store.list_spaces().await.unwrap();
         assert_eq!(spaces.len(), 2);
@@ -328,12 +334,18 @@ mod tests {
         let store = setup_test_store().await;
         let space = store.create_space(sample_space()).await.unwrap();
 
-        store.create_page(&space.id, CreatePageRequest {
-            title: "Page 1".into(),
-            content_markdown: Some("# Hello".into()),
-            parent_id: None,
-            position: None,
-        }).await.unwrap();
+        store
+            .create_page(
+                &space.id,
+                CreatePageRequest {
+                    title: "Page 1".into(),
+                    content_markdown: Some("# Hello".into()),
+                    parent_id: None,
+                    position: None,
+                },
+            )
+            .await
+            .unwrap();
 
         store.delete_space(&space.id).await.unwrap();
 
@@ -347,19 +359,28 @@ mod tests {
         let store = setup_test_store().await;
         let space = store.create_space(sample_space()).await.unwrap();
 
-        let page = store.create_page(&space.id, CreatePageRequest {
-            title: "My Page".into(),
-            content_markdown: Some("# Title\n## Section\nContent here.".into()),
-            parent_id: None,
-            position: Some(0),
-        }).await.unwrap();
+        let page = store
+            .create_page(
+                &space.id,
+                CreatePageRequest {
+                    title: "My Page".into(),
+                    content_markdown: Some("# Title\n## Section\nContent here.".into()),
+                    parent_id: None,
+                    position: Some(0),
+                },
+            )
+            .await
+            .unwrap();
 
         assert_eq!(page.title, "My Page");
         assert_eq!(page.space_id, space.id);
         assert!(page.parent_id.is_none());
 
         let retrieved = store.get_page(&page.id).await.unwrap().unwrap();
-        assert_eq!(retrieved.content_markdown, "# Title\n## Section\nContent here.");
+        assert_eq!(
+            retrieved.content_markdown,
+            "# Title\n## Section\nContent here."
+        );
     }
 
     #[tokio::test]
@@ -367,19 +388,31 @@ mod tests {
         let store = setup_test_store().await;
         let space = store.create_space(sample_space()).await.unwrap();
 
-        let root = store.create_page(&space.id, CreatePageRequest {
-            title: "Root".into(),
-            content_markdown: None,
-            parent_id: None,
-            position: Some(0),
-        }).await.unwrap();
+        let root = store
+            .create_page(
+                &space.id,
+                CreatePageRequest {
+                    title: "Root".into(),
+                    content_markdown: None,
+                    parent_id: None,
+                    position: Some(0),
+                },
+            )
+            .await
+            .unwrap();
 
-        store.create_page(&space.id, CreatePageRequest {
-            title: "Child".into(),
-            content_markdown: None,
-            parent_id: Some(root.id.clone()),
-            position: Some(0),
-        }).await.unwrap();
+        store
+            .create_page(
+                &space.id,
+                CreatePageRequest {
+                    title: "Child".into(),
+                    content_markdown: None,
+                    parent_id: Some(root.id.clone()),
+                    position: Some(0),
+                },
+            )
+            .await
+            .unwrap();
 
         let response = store.list_pages(&space.id).await.unwrap();
         assert_eq!(response.total, 2);
@@ -393,19 +426,31 @@ mod tests {
         let store = setup_test_store().await;
         let space = store.create_space(sample_space()).await.unwrap();
 
-        let page = store.create_page(&space.id, CreatePageRequest {
-            title: "Original".into(),
-            content_markdown: Some("Old content".into()),
-            parent_id: None,
-            position: None,
-        }).await.unwrap();
+        let page = store
+            .create_page(
+                &space.id,
+                CreatePageRequest {
+                    title: "Original".into(),
+                    content_markdown: Some("Old content".into()),
+                    parent_id: None,
+                    position: None,
+                },
+            )
+            .await
+            .unwrap();
 
-        let updated = store.update_page(&page.id, UpdatePageRequest {
-            title: Some("Updated Title".into()),
-            content_markdown: Some("New content".into()),
-            parent_id: None,
-            position: None,
-        }).await.unwrap();
+        let updated = store
+            .update_page(
+                &page.id,
+                UpdatePageRequest {
+                    title: Some("Updated Title".into()),
+                    content_markdown: Some("New content".into()),
+                    parent_id: None,
+                    position: None,
+                },
+            )
+            .await
+            .unwrap();
 
         assert_eq!(updated.title, "Updated Title");
         assert_eq!(updated.content_markdown, "New content");
@@ -417,20 +462,32 @@ mod tests {
         let store = setup_test_store().await;
         let space = store.create_space(sample_space()).await.unwrap();
 
-        let page = store.create_page(&space.id, CreatePageRequest {
-            title: "Original".into(),
-            content_markdown: Some("Content".into()),
-            parent_id: None,
-            position: None,
-        }).await.unwrap();
+        let page = store
+            .create_page(
+                &space.id,
+                CreatePageRequest {
+                    title: "Original".into(),
+                    content_markdown: Some("Content".into()),
+                    parent_id: None,
+                    position: None,
+                },
+            )
+            .await
+            .unwrap();
 
         // Atualizar apenas título
-        let updated = store.update_page(&page.id, UpdatePageRequest {
-            title: Some("New Title".into()),
-            content_markdown: None,
-            parent_id: None,
-            position: None,
-        }).await.unwrap();
+        let updated = store
+            .update_page(
+                &page.id,
+                UpdatePageRequest {
+                    title: Some("New Title".into()),
+                    content_markdown: None,
+                    parent_id: None,
+                    position: None,
+                },
+            )
+            .await
+            .unwrap();
 
         assert_eq!(updated.title, "New Title");
         assert_eq!(updated.content_markdown, "Content"); // Preserved
@@ -441,26 +498,44 @@ mod tests {
         let store = setup_test_store().await;
         let space = store.create_space(sample_space()).await.unwrap();
 
-        let root = store.create_page(&space.id, CreatePageRequest {
-            title: "Root".into(),
-            content_markdown: None,
-            parent_id: None,
-            position: None,
-        }).await.unwrap();
+        let root = store
+            .create_page(
+                &space.id,
+                CreatePageRequest {
+                    title: "Root".into(),
+                    content_markdown: None,
+                    parent_id: None,
+                    position: None,
+                },
+            )
+            .await
+            .unwrap();
 
-        let child = store.create_page(&space.id, CreatePageRequest {
-            title: "Child".into(),
-            content_markdown: None,
-            parent_id: Some(root.id.clone()),
-            position: None,
-        }).await.unwrap();
+        let child = store
+            .create_page(
+                &space.id,
+                CreatePageRequest {
+                    title: "Child".into(),
+                    content_markdown: None,
+                    parent_id: Some(root.id.clone()),
+                    position: None,
+                },
+            )
+            .await
+            .unwrap();
 
-        store.create_page(&space.id, CreatePageRequest {
-            title: "Grandchild".into(),
-            content_markdown: None,
-            parent_id: Some(child.id.clone()),
-            position: None,
-        }).await.unwrap();
+        store
+            .create_page(
+                &space.id,
+                CreatePageRequest {
+                    title: "Grandchild".into(),
+                    content_markdown: None,
+                    parent_id: Some(child.id.clone()),
+                    position: None,
+                },
+            )
+            .await
+            .unwrap();
 
         // Deletar root deve deletar child e grandchild também
         let deleted = store.delete_page(&root.id).await.unwrap();
@@ -475,12 +550,20 @@ mod tests {
         let store = setup_test_store().await;
         let space = store.create_space(sample_space()).await.unwrap();
 
-        let page = store.create_page(&space.id, CreatePageRequest {
-            title: "Doc".into(),
-            content_markdown: Some("# Intro\n## Setup\n### Step 1\nText\n## Usage\n".into()),
-            parent_id: None,
-            position: None,
-        }).await.unwrap();
+        let page = store
+            .create_page(
+                &space.id,
+                CreatePageRequest {
+                    title: "Doc".into(),
+                    content_markdown: Some(
+                        "# Intro\n## Setup\n### Step 1\nText\n## Usage\n".into(),
+                    ),
+                    parent_id: None,
+                    position: None,
+                },
+            )
+            .await
+            .unwrap();
 
         let outline = store.get_outline(&page.id).await.unwrap();
         assert_eq!(outline.len(), 4);
@@ -504,12 +587,17 @@ mod tests {
     #[tokio::test]
     async fn test_update_nonexistent_page_returns_error() {
         let store = setup_test_store().await;
-        let result = store.update_page("nonexistent", UpdatePageRequest {
-            title: Some("X".into()),
-            content_markdown: None,
-            parent_id: None,
-            position: None,
-        }).await;
+        let result = store
+            .update_page(
+                "nonexistent",
+                UpdatePageRequest {
+                    title: Some("X".into()),
+                    content_markdown: None,
+                    parent_id: None,
+                    position: None,
+                },
+            )
+            .await;
         assert!(result.is_err());
     }
 }

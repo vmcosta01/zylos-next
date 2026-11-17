@@ -88,8 +88,9 @@ async fn fetch_pending_approvals() -> Result<u64, String> {
     let opts = RequestInit::new();
     opts.set_method("GET");
 
-    let request = Request::new_with_str_and_init("http://localhost:3000/api/v1/phase2/status", &opts)
-        .map_err(|e| format!("{:?}", e))?;
+    let request =
+        Request::new_with_str_and_init("http://localhost:3000/api/v1/phase2/status", &opts)
+            .map_err(|e| format!("{:?}", e))?;
 
     let window = web_sys::window().ok_or("no window")?;
     let resp_value = window
@@ -103,11 +104,16 @@ async fn fetch_pending_approvals() -> Result<u64, String> {
         return Err(format!("HTTP {}", response.status()));
     }
 
-    let text_js = response.text().map_err(|e| format!("{:?}", e))?.await.map_err(|e| format!("{:?}", e))?;
+    let text_js = response
+        .text()
+        .map_err(|e| format!("{:?}", e))?
+        .await
+        .map_err(|e| format!("{:?}", e))?;
     let text: String = text_js.as_string().ok_or("response text is not a string")?;
 
     let v: serde_json::Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
-    let pending = v.get("subsystems")
+    let pending = v
+        .get("subsystems")
         .and_then(|s| s.get("browser_takeover"))
         .and_then(|s| s.get("pending_sessions"))
         .and_then(|v| v.as_u64())

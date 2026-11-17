@@ -378,16 +378,29 @@ mod tests {
 
         let colors: Vec<&str> = divisions.iter().map(|d| d.color()).collect();
         let unique: std::collections::HashSet<&str> = colors.iter().copied().collect();
-        assert_eq!(colors.len(), unique.len(), "All divisions must have unique colors");
+        assert_eq!(
+            colors.len(),
+            unique.len(),
+            "All divisions must have unique colors"
+        );
         assert_eq!(colors.len(), 20, "Must have exactly 20 divisions");
     }
 
     #[test]
     fn test_from_label_case_insensitive() {
-        assert_eq!(AgentDivision::from_label("ENGINEERING"), AgentDivision::Engineering);
-        assert_eq!(AgentDivision::from_label("segurança"), AgentDivision::Security);
+        assert_eq!(
+            AgentDivision::from_label("ENGINEERING"),
+            AgentDivision::Engineering
+        );
+        assert_eq!(
+            AgentDivision::from_label("segurança"),
+            AgentDivision::Security
+        );
         assert_eq!(AgentDivision::from_label("DevOps"), AgentDivision::DevOps);
-        assert_eq!(AgentDivision::from_label("unknown"), AgentDivision::Custom("unknown".into()));
+        assert_eq!(
+            AgentDivision::from_label("unknown"),
+            AgentDivision::Custom("unknown".into())
+        );
     }
 
     #[test]
@@ -400,7 +413,12 @@ mod tests {
             AgentDivision::HR,
         ];
         for d in divisions {
-            assert_eq!(d.initials().len(), 2, "Initials must be exactly 2 chars for {:?}", d);
+            assert_eq!(
+                d.initials().len(),
+                2,
+                "Initials must be exactly 2 chars for {:?}",
+                d
+            );
         }
     }
 

@@ -17,7 +17,10 @@ pub enum ScreenshotVerdict {
     Valid,
     Tampered(String),
     Truncated(String),
-    FormatMismatch { expected: ImageFormat, actual: Option<ImageFormat> },
+    FormatMismatch {
+        expected: ImageFormat,
+        actual: Option<ImageFormat>,
+    },
     PlaceholderDetected(String),
 }
 
@@ -28,7 +31,11 @@ impl fmt::Display for ScreenshotVerdict {
             Self::Tampered(reason) => write!(f, "Tampered: {}", reason),
             Self::Truncated(reason) => write!(f, "Truncated: {}", reason),
             Self::FormatMismatch { expected, actual } => {
-                write!(f, "FormatMismatch: expected {:?}, got {:?}", expected, actual)
+                write!(
+                    f,
+                    "FormatMismatch: expected {:?}, got {:?}",
+                    expected, actual
+                )
             }
             Self::PlaceholderDetected(text) => write!(f, "PlaceholderDetected: {}", text),
         }
@@ -121,7 +128,12 @@ pub fn detect_format(data: &[u8]) -> ImageFormat {
         return ImageFormat::WebP;
     }
     // GIF: GIF87a or GIF89a
-    if data.len() >= 6 && &data[..3] == b"GIF" && (data[3] == b'8') && (data[4] == b'7' || data[4] == b'9') && data[5] == b'a' {
+    if data.len() >= 6
+        && &data[..3] == b"GIF"
+        && (data[3] == b'8')
+        && (data[4] == b'7' || data[4] == b'9')
+        && data[5] == b'a'
+    {
         return ImageFormat::Gif;
     }
     // BMP: BM
@@ -286,7 +298,8 @@ pub fn compute_dhash_rgba_9x8(rgba: &[u8]) -> u64 {
     for chunk in rgba.chunks(4) {
         if chunk.len() >= 3 {
             // ITU-R BT.601 luminance
-            let g = ((chunk[0] as u32 * 299 + chunk[1] as u32 * 587 + chunk[2] as u32 * 114) / 1000) as u8;
+            let g = ((chunk[0] as u32 * 299 + chunk[1] as u32 * 587 + chunk[2] as u32 * 114) / 1000)
+                as u8;
             gray.push(g);
         }
     }
@@ -309,7 +322,13 @@ pub fn hamming_distance(a: u64, b: u64) -> u32 {
 /// Classify the difference between two grayscale images of equal dimensions.
 ///
 /// Returns a `DiffClass` based on the percentage and spatial distribution of changed pixels.
-pub fn classify_diff(gray_a: &[u8], gray_b: &[u8], width: u32, height: u32, threshold: u8) -> DiffClass {
+pub fn classify_diff(
+    gray_a: &[u8],
+    gray_b: &[u8],
+    width: u32,
+    height: u32,
+    threshold: u8,
+) -> DiffClass {
     let total = (width * height) as usize;
     if total == 0 || gray_a.len() < total || gray_b.len() < total {
         return DiffClass::Structural;
@@ -341,7 +360,11 @@ pub fn classify_diff(gray_a: &[u8], gray_b: &[u8], width: u32, height: u32, thre
         DiffClass::Cosmetic
     } else if pct < 0.05 {
         // Check if changes are concentrated in one region → Layout
-        let top_ratio = if changed > 0 { top_changed as f64 / changed as f64 } else { 0.5 };
+        let top_ratio = if changed > 0 {
+            top_changed as f64 / changed as f64
+        } else {
+            0.5
+        };
         if top_ratio > 0.8 || top_ratio < 0.2 {
             DiffClass::Layout
         } else {
@@ -402,7 +425,10 @@ pub fn check_tampering(data: &[u8], format: ImageFormat) -> Vec<String> {
             }
         }
         if app1_count > 1 {
-            warnings.push(format!("Multiple EXIF (APP1) segments detected ({})", app1_count));
+            warnings.push(format!(
+                "Multiple EXIF (APP1) segments detected ({})",
+                app1_count
+            ));
         }
 
         // Check for software tag indicating re-save
@@ -466,7 +492,10 @@ pub fn verify_screenshot(data: &[u8], config: &VerificationConfig) -> Verificati
     let dims = extract_dimensions(data, format);
     if let Some((w, h)) = dims {
         if w < config.min_dimension || h < config.min_dimension {
-            details.push(format!("Dimensions {}x{} below minimum {}", w, h, config.min_dimension));
+            details.push(format!(
+                "Dimensions {}x{} below minimum {}",
+                w, h, config.min_dimension
+            ));
             return VerificationResult {
                 verdict: ScreenshotVerdict::Truncated(format!("Image too small: {}x{}", w, h)),
                 format: Some(format),
@@ -478,9 +507,15 @@ pub fn verify_screenshot(data: &[u8], config: &VerificationConfig) -> Verificati
             };
         }
         if w > config.max_dimension || h > config.max_dimension {
-            details.push(format!("Dimensions {}x{} exceed maximum {}", w, h, config.max_dimension));
+            details.push(format!(
+                "Dimensions {}x{} exceed maximum {}",
+                w, h, config.max_dimension
+            ));
             return VerificationResult {
-                verdict: ScreenshotVerdict::Tampered(format!("Image exceeds max resolution: {}x{}", w, h)),
+                verdict: ScreenshotVerdict::Tampered(format!(
+                    "Image exceeds max resolution: {}x{}",
+                    w, h
+                )),
                 format: Some(format),
                 dimensions: Some((w, h)),
                 dhash: None,
@@ -535,6 +570,7 @@ pub mod ocr_assisted {
     //! OCR-assisted screenshot verification using VlmOcrClient.
 
     use super::*;
+    #[allow(unused_imports)]
     use zylos_vlm_ocr::client::{OcrConfig, VlmOcrClient};
 
     /// Verify screenshot text content via OCR.
@@ -554,7 +590,10 @@ pub mod ocr_assisted {
             target_types: vec![],
         };
 
-        let response = client.ocr(request).await.map_err(|e| format!("OCR failed: {}", e))?;
+        let response = client
+            .ocr(request)
+            .await
+            .map_err(|e| format!("OCR failed: {}", e))?;
 
         let extracted = &response.full_text;
 
@@ -639,7 +678,9 @@ mod tests {
 
     #[test]
     fn test_truncated_png_no_iend() {
-        let png_header = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0, 0, 0, 0, 0];
+        let png_header = [
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0, 0, 0, 0, 0,
+        ];
         let result = check_completeness(&png_header, ImageFormat::Png);
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("IEND"));
@@ -731,7 +772,10 @@ mod tests {
 
     #[test]
     fn test_phash_tolerance_within_threshold() {
-        let config = VerificationConfig { dhash_tolerance: 5, ..Default::default() };
+        let config = VerificationConfig {
+            dhash_tolerance: 5,
+            ..Default::default()
+        };
         let a = 0b1111_0000_1111_0000u64;
         let b = 0b1111_0000_1111_0001u64; // 1 bit diff
         assert!(compare_hashes(a, b, &config));
@@ -739,7 +783,10 @@ mod tests {
 
     #[test]
     fn test_phash_tolerance_exceeds_threshold() {
-        let config = VerificationConfig { dhash_tolerance: 2, ..Default::default() };
+        let config = VerificationConfig {
+            dhash_tolerance: 2,
+            ..Default::default()
+        };
         let a = 0u64;
         let b = 0b1111u64; // 4 bits diff
         assert!(!compare_hashes(a, b, &config));
@@ -750,19 +797,28 @@ mod tests {
     #[test]
     fn test_detect_lorem_ipsum() {
         let config = VerificationConfig::default();
-        assert_eq!(detect_placeholder("This is Lorem Ipsum text", &config), Some("lorem ipsum".into()));
+        assert_eq!(
+            detect_placeholder("This is Lorem Ipsum text", &config),
+            Some("lorem ipsum".into())
+        );
     }
 
     #[test]
     fn test_detect_todo() {
         let config = VerificationConfig::default();
-        assert_eq!(detect_placeholder("TODO: implement this", &config), Some("todo".into()));
+        assert_eq!(
+            detect_placeholder("TODO: implement this", &config),
+            Some("todo".into())
+        );
     }
 
     #[test]
     fn test_no_placeholder() {
         let config = VerificationConfig::default();
-        assert_eq!(detect_placeholder("Real production content here", &config), None);
+        assert_eq!(
+            detect_placeholder("Real production content here", &config),
+            None
+        );
     }
 
     // -- Diff classification --
@@ -793,7 +849,10 @@ mod tests {
     fn test_verify_unknown_format() {
         let config = VerificationConfig::default();
         let result = verify_screenshot(&[0, 1, 2, 3, 4, 5, 6, 7], &config);
-        assert!(matches!(result.verdict, ScreenshotVerdict::FormatMismatch { .. }));
+        assert!(matches!(
+            result.verdict,
+            ScreenshotVerdict::FormatMismatch { .. }
+        ));
     }
 
     #[test]

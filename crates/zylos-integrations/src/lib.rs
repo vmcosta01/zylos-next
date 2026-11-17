@@ -3,22 +3,22 @@
 //! SaaS OAuth integration catalog for zylos-gateway.
 //! Provides encrypted token storage, auto-refresh, and declarative provider specs.
 
-pub mod oauth;
-pub mod manifest;
-pub mod error;
-pub mod db;
-pub mod executor;
-pub mod composio;
 pub mod channel;
-pub mod slack;
-pub mod notion;
+pub mod composio;
+pub mod db;
+pub mod error;
+pub mod executor;
 pub mod linear;
+pub mod manifest;
+pub mod notion;
+pub mod oauth;
+pub mod slack;
 
-pub use error::{IntegrationError, Result};
 pub use channel::{ChannelAdapter, ChannelRegistry, MessageId, OutboundMessage, SendResult};
+pub use error::{IntegrationError, Result};
+pub use executor::ActionExecutor;
 pub use manifest::IntegrationSpec;
 pub use oauth::{OAuthFlow, OAuthSession, TokenBundle};
-pub use executor::ActionExecutor;
 
 use std::path::Path;
 use std::sync::Arc;
@@ -61,12 +61,10 @@ impl IntegrationRegistry {
     }
 
     /// Initiate an OAuth2 PKCE flow for the given provider.
-    pub async fn initiate_oauth(
-        &self,
-        slug: &str,
-        redirect_uri: &str,
-    ) -> Result<OAuthSession> {
-        let spec = self.get(slug).await
+    pub async fn initiate_oauth(&self, slug: &str, redirect_uri: &str) -> Result<OAuthSession> {
+        let spec = self
+            .get(slug)
+            .await
             .ok_or_else(|| IntegrationError::UnknownProvider(slug.to_string()))?;
 
         self.oauth.initiate(&spec, redirect_uri).await
@@ -97,15 +95,18 @@ impl IntegrationRegistry {
         action: &str,
         params: serde_json::Value,
     ) -> Result<serde_json::Value> {
-        let spec = self.get(slug).await
+        let spec = self
+            .get(slug)
+            .await
             .ok_or_else(|| IntegrationError::UnknownProvider(slug.to_string()))?;
 
         // Get or refresh tokens
-        let mut bundle = self.db.get_tokens(user_id, slug).await?
-            .ok_or_else(|| IntegrationError::NoTokensStored {
+        let mut bundle = self.db.get_tokens(user_id, slug).await?.ok_or_else(|| {
+            IntegrationError::NoTokensStored {
                 user_id: user_id.to_string(),
                 provider: slug.to_string(),
-            })?;
+            }
+        })?;
 
         if bundle.is_expired() {
             bundle = self.oauth.refresh(&spec, &bundle).await?;
@@ -113,7 +114,9 @@ impl IntegrationRegistry {
         }
 
         // Find the action spec
-        let action_spec = spec.actions.iter()
+        let action_spec = spec
+            .actions
+            .iter()
             .find(|a| a.id == action)
             .ok_or_else(|| IntegrationError::ProviderExecution {
                 provider: slug.to_string(),
@@ -123,10 +126,14 @@ impl IntegrationRegistry {
 
         // Dispatch to provider implementation via ActionExecutor
         let executor = ActionExecutor::new(self.db.clone(), self.oauth.clone());
-        let result = executor.execute(user_id, &spec, action_spec, &params).await?;
+        let result = executor
+            .execute(user_id, &spec, action_spec, &params)
+            .await?;
 
         // Audit log
-        self.db.log_action(user_id, slug, action, "auto", &result).await?;
+        self.db
+            .log_action(user_id, slug, action, "auto", &result)
+            .await?;
 
         Ok(result)
     }
@@ -141,10 +148,12 @@ impl IntegrationRegistry {
     /// Initialize the channel registry with all available platform adapters.
     /// Reads credentials from environment variables or token store.
     pub fn init_channel_registry(&self) -> crate::channel::ChannelRegistry {
-        use crate::channel::{ChannelRegistry, wechat_work::WeChatWorkAdapter, feishu::FeishuAdapter};
-        
+        use crate::channel::{
+            feishu::FeishuAdapter, wechat_work::WeChatWorkAdapter, ChannelRegistry,
+        };
+
         let mut registry = ChannelRegistry::new();
-        
+
         // WeChat Work adapter
         if let (Ok(corp_id), Ok(agent_id)) = (
             std::env::var("WECHAT_CORP_ID"),
@@ -154,7 +163,7 @@ impl IntegrationRegistry {
             registry.register(Box::new(adapter));
             tracing::info!("Registered WeChat Work channel adapter");
         }
-        
+
         // Feishu adapter
         if let (Ok(app_id), Ok(app_secret)) = (
             std::env::var("FEISHU_APP_ID"),
@@ -164,7 +173,7 @@ impl IntegrationRegistry {
             registry.register(Box::new(adapter));
             tracing::info!("Registered Feishu channel adapter");
         }
-        
+
         registry
     }
 }

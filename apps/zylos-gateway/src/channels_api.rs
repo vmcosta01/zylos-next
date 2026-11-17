@@ -304,13 +304,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_list_messages_empty() {
+    async fn test_list_messages_nonexistent_channel() {
         let app = test_app().await;
+        // Listing messages for a channel that doesn't exist should return 404
         let req = Request::builder()
-            .uri("/channels/ch-geral/messages")
+            .uri("/channels/nonexistent-channel/messages")
             .body(Body::empty())
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 }

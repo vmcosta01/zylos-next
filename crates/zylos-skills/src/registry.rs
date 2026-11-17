@@ -473,7 +473,12 @@ impl SkillRegistry {
     }
 
     /// Registra uso de uma skill
-    pub fn record_usage(&mut self, name: &str, success: bool, latency_ms: f64) -> RegistryResult<()> {
+    pub fn record_usage(
+        &mut self,
+        name: &str,
+        success: bool,
+        latency_ms: f64,
+    ) -> RegistryResult<()> {
         if self.dry_run {
             return Ok(());
         }
@@ -719,7 +724,8 @@ impl SkillRegistry {
             .map(|(n, r)| (n.clone(), r))
             .collect();
 
-        let all_names: std::collections::HashSet<&str> = self.entries.keys().map(|s| s.as_str()).collect();
+        let all_names: std::collections::HashSet<&str> =
+            self.entries.keys().map(|s| s.as_str()).collect();
         let depended_on: std::collections::HashSet<&str> = self
             .entries
             .values()
@@ -822,10 +828,10 @@ mod tests {
 
     fn make_entry(name: &str) -> SkillEntry {
         // Variante SkillEntry.
-         SkillEntry {
-         name: name.to_string(),
-         description: format!("{} skill", name),
-         version: "1.0.0".to_string(),
+        SkillEntry {
+            name: name.to_string(),
+            description: format!("{} skill", name),
+            version: "1.0.0".to_string(),
             path: format!("{}.md", name),
             category: None,
             tags: vec![],
@@ -1115,4 +1121,3 @@ mod tests {
         assert_eq!(e.usage.use_count, 0); // not recorded in dry run
     }
 }
-

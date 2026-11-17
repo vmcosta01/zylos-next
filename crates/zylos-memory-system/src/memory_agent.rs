@@ -162,7 +162,9 @@ impl MemoryAgent {
         // 1. Detect contradictions across all scopes
         let contradictions = self.detect_conflicts().await?;
         if contradictions > 0 {
-            let _ = self.event_tx.send(AgentEvent::ContradictionsFound(contradictions));
+            let _ = self
+                .event_tx
+                .send(AgentEvent::ContradictionsFound(contradictions));
         }
 
         // 2. Apply temporal decay

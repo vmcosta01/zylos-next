@@ -20,13 +20,9 @@ impl YamlRunbook {
     /// Execute a shell command and return (exit_code, stdout, stderr).
     fn run_command(cmd: &str, _timeout_secs: Option<u32>) -> Result<(i32, String, String)> {
         let output = if cfg!(target_os = "windows") {
-            Command::new("cmd")
-                .args(["/C", cmd])
-                .output()
+            Command::new("cmd").args(["/C", cmd]).output()
         } else {
-            Command::new("sh")
-                .args(["-c", cmd])
-                .output()
+            Command::new("sh").args(["-c", cmd]).output()
         };
 
         match output {
@@ -55,8 +51,7 @@ impl SoarRunnable for YamlRunbook {
     ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async {
             for precondition in &self.spec.preconditions {
-                let (exit_code, stdout, _stderr) =
-                    Self::run_command(&precondition.command, None)?;
+                let (exit_code, stdout, _stderr) = Self::run_command(&precondition.command, None)?;
 
                 let passed = if let Some(ref expected) = precondition.expected {
                     if expected.starts_with("exit_code:") {
@@ -102,14 +97,20 @@ impl SoarRunnable for YamlRunbook {
                         Ok((exit_code, stdout, stderr)) => {
                             all_output.push_str(&format!(
                                 "[{}] exit={} stdout={} stderr={}\n",
-                                step.id, exit_code, stdout.trim(), stderr.trim()
+                                step.id,
+                                exit_code,
+                                stdout.trim(),
+                                stderr.trim()
                             ));
 
                             if exit_code != 0 {
                                 let on_failure = step.on_failure.as_deref().unwrap_or("abort");
                                 if on_failure == "abort" {
                                     return Ok(RunbookResult::fail(
-                                        format!("Step {} failed with exit code {}", step.id, exit_code),
+                                        format!(
+                                            "Step {} failed with exit code {}",
+                                            step.id, exit_code
+                                        ),
                                         start.elapsed().as_millis() as u64,
                                     ));
                                 }
@@ -127,8 +128,7 @@ impl SoarRunnable for YamlRunbook {
 
             // Run validation checks
             for validation in &self.spec.validation {
-                let (exit_code, _stdout, _stderr) =
-                    Self::run_command(&validation.command, None)?;
+                let (exit_code, _stdout, _stderr) = Self::run_command(&validation.command, None)?;
 
                 if exit_code != 0 {
                     return Ok(RunbookResult::fail(

@@ -40,7 +40,6 @@ pub enum AgentAwarenessState {
     Completed,
 }
 
-
 impl fmt::Display for AgentAwarenessState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -106,7 +105,10 @@ impl AgentAwarenessState {
 
     /// Verifica se o estado indica que o agente está ativo (não idle/completed).
     pub fn is_active(&self) -> bool {
-        matches!(self, Self::Thinking | Self::Executing | Self::WaitingApproval)
+        matches!(
+            self,
+            Self::Thinking | Self::Executing | Self::WaitingApproval
+        )
     }
 
     /// Verifica se o estado requer atenção do usuário.
@@ -313,25 +315,64 @@ mod tests {
         assert_eq!(format!("{}", AgentAwarenessState::Idle), "idle");
         assert_eq!(format!("{}", AgentAwarenessState::Thinking), "thinking");
         assert_eq!(format!("{}", AgentAwarenessState::Executing), "executing");
-        assert_eq!(format!("{}", AgentAwarenessState::WaitingApproval), "waiting_approval");
+        assert_eq!(
+            format!("{}", AgentAwarenessState::WaitingApproval),
+            "waiting_approval"
+        );
         assert_eq!(format!("{}", AgentAwarenessState::Error), "error");
         assert_eq!(format!("{}", AgentAwarenessState::Completed), "completed");
     }
 
     #[test]
     fn test_state_from_str() {
-        assert_eq!(AgentAwarenessState::parse("idle"), Some(AgentAwarenessState::Idle));
-        assert_eq!(AgentAwarenessState::parse("THINKING"), Some(AgentAwarenessState::Thinking));
-        assert_eq!(AgentAwarenessState::parse("reasoning"), Some(AgentAwarenessState::Thinking));
-        assert_eq!(AgentAwarenessState::parse("executing"), Some(AgentAwarenessState::Executing));
-        assert_eq!(AgentAwarenessState::parse("running"), Some(AgentAwarenessState::Executing));
-        assert_eq!(AgentAwarenessState::parse("working"), Some(AgentAwarenessState::Executing));
-        assert_eq!(AgentAwarenessState::parse("waiting_approval"), Some(AgentAwarenessState::WaitingApproval));
-        assert_eq!(AgentAwarenessState::parse("blocked"), Some(AgentAwarenessState::WaitingApproval));
-        assert_eq!(AgentAwarenessState::parse("error"), Some(AgentAwarenessState::Error));
-        assert_eq!(AgentAwarenessState::parse("failed"), Some(AgentAwarenessState::Error));
-        assert_eq!(AgentAwarenessState::parse("completed"), Some(AgentAwarenessState::Completed));
-        assert_eq!(AgentAwarenessState::parse("done"), Some(AgentAwarenessState::Completed));
+        assert_eq!(
+            AgentAwarenessState::parse("idle"),
+            Some(AgentAwarenessState::Idle)
+        );
+        assert_eq!(
+            AgentAwarenessState::parse("THINKING"),
+            Some(AgentAwarenessState::Thinking)
+        );
+        assert_eq!(
+            AgentAwarenessState::parse("reasoning"),
+            Some(AgentAwarenessState::Thinking)
+        );
+        assert_eq!(
+            AgentAwarenessState::parse("executing"),
+            Some(AgentAwarenessState::Executing)
+        );
+        assert_eq!(
+            AgentAwarenessState::parse("running"),
+            Some(AgentAwarenessState::Executing)
+        );
+        assert_eq!(
+            AgentAwarenessState::parse("working"),
+            Some(AgentAwarenessState::Executing)
+        );
+        assert_eq!(
+            AgentAwarenessState::parse("waiting_approval"),
+            Some(AgentAwarenessState::WaitingApproval)
+        );
+        assert_eq!(
+            AgentAwarenessState::parse("blocked"),
+            Some(AgentAwarenessState::WaitingApproval)
+        );
+        assert_eq!(
+            AgentAwarenessState::parse("error"),
+            Some(AgentAwarenessState::Error)
+        );
+        assert_eq!(
+            AgentAwarenessState::parse("failed"),
+            Some(AgentAwarenessState::Error)
+        );
+        assert_eq!(
+            AgentAwarenessState::parse("completed"),
+            Some(AgentAwarenessState::Completed)
+        );
+        assert_eq!(
+            AgentAwarenessState::parse("done"),
+            Some(AgentAwarenessState::Completed)
+        );
         assert_eq!(AgentAwarenessState::parse("unknown"), None);
         assert_eq!(AgentAwarenessState::parse(""), None);
     }
@@ -421,7 +462,11 @@ mod tests {
         tracker.update_state("a1", AgentAwarenessState::Thinking, None);
         assert_eq!(tracker.get_state("a1"), AgentAwarenessState::Thinking);
 
-        tracker.update_state("a1", AgentAwarenessState::Executing, Some("Running tests".into()));
+        tracker.update_state(
+            "a1",
+            AgentAwarenessState::Executing,
+            Some("Running tests".into()),
+        );
         assert_eq!(tracker.get_state("a1"), AgentAwarenessState::Executing);
     }
 
@@ -490,9 +535,21 @@ mod tests {
         assert_eq!(stats.total_agents, 3);
         assert_eq!(stats.attention_required, 1);
         assert_eq!(stats.history_size, 3);
-        assert_eq!(*stats.state_counts.get(&AgentAwarenessState::Thinking).unwrap(), 1);
-        assert_eq!(*stats.state_counts.get(&AgentAwarenessState::Error).unwrap(), 1);
-        assert_eq!(*stats.state_counts.get(&AgentAwarenessState::Idle).unwrap(), 1);
+        assert_eq!(
+            *stats
+                .state_counts
+                .get(&AgentAwarenessState::Thinking)
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            *stats.state_counts.get(&AgentAwarenessState::Error).unwrap(),
+            1
+        );
+        assert_eq!(
+            *stats.state_counts.get(&AgentAwarenessState::Idle).unwrap(),
+            1
+        );
     }
 
     #[test]

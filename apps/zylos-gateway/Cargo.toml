@@ -14,12 +14,9 @@ name = "zylos-gateway"
 path = "src/main.rs"
 
 [dependencies]
-zylos-core = { workspace = true }
-zylos-bot-system = { workspace = true }
 zylos-memory-system = { workspace = true }
 zylos-live-comm = { workspace = true }
 zylos-verification = { workspace = true }
-zylos-sandbox = { workspace = true }
 zylos-skills = { workspace = true }
 zylos-soar = { path = "../../crates/zylos-soar" }
 zylos-adapters = { workspace = true }
@@ -43,18 +40,13 @@ tracing-subscriber = { workspace = true }
 anyhow = { workspace = true }
 tokio-util = "0.7"
 toml = "0.8"
-jsonwebtoken = "9"
-tower_governor = "0.4"
-governor = "0.7"
-utoipa = { version = "5", features = ["axum_extras"] }
-utoipa-axum = "0.1"
+
 dashmap = "6.2.1"
 futures-util = "0.3"
 zylos-channels = { path = "../../crates/zylos-channels" }
 zylos-auth = { path = "../../crates/zylos-auth" }
 zylos-computer-view = { version = "0.1.0", path = "../../crates/zylos-computer-view" }
 sentry = { version = "0.46.2", features = ["backtrace", "contexts", "panic", "log"] }
-sentry-tracing = "0.46.2"
 zylos-sentinel = { version = "0.1.0", path = "../../crates/zylos-sentinel" }
 serde_yaml = "0.9.34"
 

@@ -11,15 +11,15 @@
 //! `EventBus` e chegam ao cockpit via SSE/WS (`/api/v1/events`).
 
 use axum::{
-    Json, Router,
     extract::{Path, Request, State},
-    http::{StatusCode, header},
+    http::{header, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::post,
+    Json, Router,
 };
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::sync::Arc;
 use zylos_live_comm::hermes_bridge::{HermesBridge, HermesEnvelope};
 use zylos_swarm_orchestrator::{SwarmAgent, Task as SwarmTask};
@@ -28,7 +28,14 @@ use crate::AppState;
 
 /// Sistemas Zylos que aceitam chamadas vindas do Hermes.
 const KNOWN_SYSTEMS: &[&str] = &[
-    "bot", "kanban", "memory", "skills", "soar", "verification", "sandbox", "live-comm",
+    "bot",
+    "kanban",
+    "memory",
+    "skills",
+    "soar",
+    "verification",
+    "sandbox",
+    "live-comm",
 ];
 
 fn problem(
@@ -234,8 +241,10 @@ enum DispatchTaskRequest {
 #[allow(clippy::type_complexity)]
 fn normalize_dispatch_request(
     req: DispatchTaskRequest,
-) -> Result<(String, String, bool, Vec<crate::orchestrate_api::DagNode>), (StatusCode, &'static str, String)>
-{
+) -> Result<
+    (String, String, bool, Vec<crate::orchestrate_api::DagNode>),
+    (StatusCode, &'static str, String),
+> {
     match req {
         DispatchTaskRequest::Single {
             task_id,
@@ -409,13 +418,12 @@ async fn post_dispatch_task(
         }
     };
 
-    let (task_id, label, rollback_on_failure, dag_nodes) =
-        match normalize_dispatch_request(req) {
-            Ok(v) => v,
-            Err((status, slug, detail)) => {
-                return problem(status, slug, "Invalid Dispatch Task", detail, instance);
-            }
-        };
+    let (task_id, label, rollback_on_failure, dag_nodes) = match normalize_dispatch_request(req) {
+        Ok(v) => v,
+        Err((status, slug, detail)) => {
+            return problem(status, slug, "Invalid Dispatch Task", detail, instance);
+        }
+    };
 
     let mut resp =
         crate::orchestrate_api::execute_dag(&state, &dag_nodes, rollback_on_failure).await;
@@ -594,10 +602,8 @@ async fn post_spawn_crew(
         }
 
         // Detecção de ciclo (Kahn) sobre nomes das tasks.
-        let mut adj: std::collections::HashMap<&str, Vec<&str>> =
-            std::collections::HashMap::new();
-        let mut indeg: std::collections::HashMap<&str, usize> =
-            std::collections::HashMap::new();
+        let mut adj: std::collections::HashMap<&str, Vec<&str>> = std::collections::HashMap::new();
+        let mut indeg: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
         for name in &names {
             adj.entry(name.as_str()).or_default();
             indeg.entry(name.as_str()).or_insert(0);
@@ -609,8 +615,7 @@ async fn post_spawn_crew(
                 *indeg.entry(target).or_insert(0) += 1;
             }
         }
-        let mut queue: std::collections::VecDeque<&str> =
-            std::collections::VecDeque::new();
+        let mut queue: std::collections::VecDeque<&str> = std::collections::VecDeque::new();
         for (&name, &deg) in &indeg {
             if deg == 0 {
                 queue.push_back(name);
@@ -672,10 +677,8 @@ async fn post_spawn_crew(
     // de ciclo acima já garante que não há ciclos, então a ordenação sempre
     // produz uma sequência válida.
     let ordered_tasks: Vec<&CrewTask> = {
-        let mut adj: std::collections::HashMap<&str, Vec<&str>> =
-            std::collections::HashMap::new();
-        let mut indeg: std::collections::HashMap<&str, usize> =
-            std::collections::HashMap::new();
+        let mut adj: std::collections::HashMap<&str, Vec<&str>> = std::collections::HashMap::new();
+        let mut indeg: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
         let name_set: std::collections::HashSet<&str> =
             req.tasks.iter().map(|t| t.name.as_str()).collect();
         for t in &req.tasks {
@@ -690,8 +693,7 @@ async fn post_spawn_crew(
                 }
             }
         }
-        let mut queue: std::collections::VecDeque<&str> =
-            std::collections::VecDeque::new();
+        let mut queue: std::collections::VecDeque<&str> = std::collections::VecDeque::new();
         for (&name, &deg) in &indeg {
             if deg == 0 {
                 queue.push_back(name);
@@ -773,11 +775,14 @@ async fn post_spawn_crew(
 
     // Filtra atribuições desta crew usando a capacidade injetada.
     // schedule.assignments é Vec<(TaskId, AgentId)>.
-    let crew_task_ids: std::collections::HashSet<&str> = name_to_id.values().map(|s| s.as_str()).collect();
+    let crew_task_ids: std::collections::HashSet<&str> =
+        name_to_id.values().map(|s| s.as_str()).collect();
     let crew_assignments: Vec<Value> = schedule
         .assignments
         .iter()
-        .filter(|(task_id, agent_id)| agent_ids.contains(agent_id) && crew_task_ids.contains(task_id.as_str()))
+        .filter(|(task_id, agent_id)| {
+            agent_ids.contains(agent_id) && crew_task_ids.contains(task_id.as_str())
+        })
         .map(|(task_id, agent_id)| {
             json!({
                 "task_id": task_id,
@@ -852,7 +857,10 @@ pub fn create_hermes_router(token: Option<String>) -> Router<AppState> {
         .route("/hermes/bot/dispatch-task", post(post_dispatch_task))
         .route("/hermes/bot/spawn-crew", post(post_spawn_crew))
         .route("/hermes/:system/:action", post(post_system_action))
-        .layer(middleware::from_fn_with_state(Arc::new(token), require_token))
+        .layer(middleware::from_fn_with_state(
+            Arc::new(token),
+            require_token,
+        ))
 }
 
 #[cfg(test)]
@@ -885,10 +893,15 @@ mod tests {
     #[test]
     fn deserialize_single_without_nodes_chooses_single_variant() {
         let json = r#"{"task_id":"t1","subsystem":"sandbox","action":"wasm_check"}"#;
-        let req: DispatchTaskRequest = serde_json::from_str(json)
-            .expect("JSON sem nodes deve desserializar como Single");
+        let req: DispatchTaskRequest =
+            serde_json::from_str(json).expect("JSON sem nodes deve desserializar como Single");
         match req {
-            DispatchTaskRequest::Single { task_id, subsystem, action, .. } => {
+            DispatchTaskRequest::Single {
+                task_id,
+                subsystem,
+                action,
+                ..
+            } => {
                 assert_eq!(task_id.as_deref(), Some("t1"));
                 assert_eq!(subsystem.as_deref(), Some("sandbox"));
                 assert_eq!(action.as_deref(), Some("wasm_check"));

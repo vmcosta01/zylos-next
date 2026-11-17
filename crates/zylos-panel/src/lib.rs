@@ -6,7 +6,11 @@ use serde::{Deserialize, Serialize};
 
 /// Confidence level of a panel decision.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Confidencia { Alta, Media, Baixa }
+pub enum Confidencia {
+    Alta,
+    Media,
+    Baixa,
+}
 
 /// Canonical evaluation lens used by adversarial judges.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -110,7 +114,10 @@ pub fn filtrar_auto_julgamento(votos: &[JudgeVote]) -> (Vec<JudgeVote>, usize) {
     let mut count = 0;
     for v in votos {
         if let Some(ref gid) = &v.gerador_id {
-            if &v.judge_id == gid { count += 1; continue; }
+            if &v.judge_id == gid {
+                count += 1;
+                continue;
+            }
         }
         filtrados.push(v.clone());
     }
@@ -121,7 +128,9 @@ pub fn filtrar_auto_julgamento(votos: &[JudgeVote]) -> (Vec<JudgeVote>, usize) {
 /// Returns `true` when the total vestigios across approved votes is below the threshold.
 pub fn detector_falso_sucesso(votos: &[JudgeVote], min_vestigios: usize) -> bool {
     let aprovados: Vec<&JudgeVote> = votos.iter().filter(|v| v.aprovado).collect();
-    if aprovados.is_empty() { return false; }
+    if aprovados.is_empty() {
+        return false;
+    }
     let total_vestigios: usize = aprovados.iter().map(|v| v.vestigios.len()).sum();
     total_vestigios < min_vestigios
 }
@@ -130,7 +139,9 @@ pub fn detector_falso_sucesso(votos: &[JudgeVote], min_vestigios: usize) -> bool
 /// Returns a reason string when the content should be blocked, or `None` if acceptable.
 pub fn guardrail_deterministico(conteudo: &str) -> Option<String> {
     let trimmed = conteudo.trim().to_lowercase();
-    if trimmed.is_empty() { return Some("conteudo vazio".into()); }
+    if trimmed.is_empty() {
+        return Some("conteudo vazio".into());
+    }
     if trimmed == "ok" || trimmed == "yes" || trimmed == "true" || trimmed == "sim" {
         return Some("resposta obviamente ruim (sem analise)".into());
     }
@@ -147,101 +158,218 @@ pub fn aggregate_votes(config: &PanelConfig, votos: &[JudgeVote]) -> PanelDecisi
     let falso_sucesso = detector_falso_sucesso(&filtrados, config.falso_sucesso_min_vestigios);
     let total = filtrados.len();
     let aprovados = filtrados.iter().filter(|v| v.aprovado).count();
-    let refutacoes = filtrados.iter().filter(|v| !v.aprovado && v.refutacao_aterrada.is_some()).count();
+    let refutacoes = filtrados
+        .iter()
+        .filter(|v| !v.aprovado && v.refutacao_aterrada.is_some())
+        .count();
     let lentes_cobertas: Vec<LenteCanonica> = filtrados.iter().map(|v| v.lente.clone()).collect();
     let aprovado = refutacoes == 0 && !falso_sucesso && aprovados > 0;
     let confianca = vote_confidence(total, aprovados, refutacoes);
     PanelDecision {
-        aprovado, confianca, votos_totais: total, votos_aprovados: aprovados,
-        refutacoes_aterradas: refutacoes, filtrados_auto_julgamento: auto_filtrados,
-        guardrail_ativo: guard.is_some(), falso_sucesso_detectado: falso_sucesso, lentes_cobertas,
+        aprovado,
+        confianca,
+        votos_totais: total,
+        votos_aprovados: aprovados,
+        refutacoes_aterradas: refutacoes,
+        filtrados_auto_julgamento: auto_filtrados,
+        guardrail_ativo: guard.is_some(),
+        falso_sucesso_detectado: falso_sucesso,
+        lentes_cobertas,
     }
 }
 
 /// Compute confidence level from vote counts and refutation presence.
 pub fn vote_confidence(total: usize, aprovados: usize, refutacoes: usize) -> Confidencia {
-    if total == 0 { return Confidencia::Baixa; }
-    if refutacoes > 0 { return Confidencia::Alta; }
+    if total == 0 {
+        return Confidencia::Baixa;
+    }
+    if refutacoes > 0 {
+        return Confidencia::Alta;
+    }
     let ratio = aprovados as f64 / total as f64;
-    if ratio >= 0.75 { Confidencia::Alta } else if ratio >= 0.5 { Confidencia::Media } else { Confidencia::Baixa }
+    if ratio >= 0.75 {
+        Confidencia::Alta
+    } else if ratio >= 0.5 {
+        Confidencia::Media
+    } else {
+        Confidencia::Baixa
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn mk_vote(id: &str, gen: Option<&str>, apr: bool, reff: Option<&str>, lente: LenteCanonica, vest: usize) -> JudgeVote {
+    fn mk_vote(
+        id: &str,
+        gen: Option<&str>,
+        apr: bool,
+        reff: Option<&str>,
+        lente: LenteCanonica,
+        vest: usize,
+    ) -> JudgeVote {
         JudgeVote {
-            judge_id: id.into(), gerador_id: gen.map(Into::into), aprovado: apr,
-            refutacao_aterrada: reff.map(Into::into), lente,
+            judge_id: id.into(),
+            gerador_id: gen.map(Into::into),
+            aprovado: apr,
+            refutacao_aterrada: reff.map(Into::into),
+            lente,
             vestigios: (0..vest).map(|i| format!("v{}", i)).collect(),
         }
     }
-    #[test] fn test_guardrail_empty() { assert!(guardrail_deterministico("").is_some()); }
-    #[test] fn test_guardrail_obvious_bad() {
+    #[test]
+    fn test_guardrail_empty() {
+        assert!(guardrail_deterministico("").is_some());
+    }
+    #[test]
+    fn test_guardrail_obvious_bad() {
         assert!(guardrail_deterministico("ok").is_some());
         assert!(guardrail_deterministico("sim").is_some());
     }
-    #[test] fn test_guardrail_error_content() { assert!(guardrail_deterministico("has error here").is_some()); }
-    #[test] fn test_guardrail_substantial() { assert!(guardrail_deterministico("analise detalhada do modulo X").is_none()); }
-    #[test] fn test_falso_sucesso_sem_vestigios() {
-        let v = vec![mk_vote("a1", None, true, None, LenteCanonica::Funcionalidade, 0)];
+    #[test]
+    fn test_guardrail_error_content() {
+        assert!(guardrail_deterministico("has error here").is_some());
+    }
+    #[test]
+    fn test_guardrail_substantial() {
+        assert!(guardrail_deterministico("analise detalhada do modulo X").is_none());
+    }
+    #[test]
+    fn test_falso_sucesso_sem_vestigios() {
+        let v = vec![mk_vote(
+            "a1",
+            None,
+            true,
+            None,
+            LenteCanonica::Funcionalidade,
+            0,
+        )];
         assert!(detector_falso_sucesso(&v, 1));
     }
-    #[test] fn test_falso_sucesso_com_vestigios() {
-        let v = vec![mk_vote("a1", None, true, None, LenteCanonica::Funcionalidade, 2)];
+    #[test]
+    fn test_falso_sucesso_com_vestigios() {
+        let v = vec![mk_vote(
+            "a1",
+            None,
+            true,
+            None,
+            LenteCanonica::Funcionalidade,
+            2,
+        )];
         assert!(!detector_falso_sucesso(&v, 1));
     }
-    #[test] fn test_filtrar_auto_julgamento() {
+    #[test]
+    fn test_filtrar_auto_julgamento() {
         let v = vec![
-            mk_vote("j1", Some("j1"), true, None, LenteCanonica::Funcionalidade, 1),
-            mk_vote("j2", Some("j1"), true, None, LenteCanonica::Funcionalidade, 1),
+            mk_vote(
+                "j1",
+                Some("j1"),
+                true,
+                None,
+                LenteCanonica::Funcionalidade,
+                1,
+            ),
+            mk_vote(
+                "j2",
+                Some("j1"),
+                true,
+                None,
+                LenteCanonica::Funcionalidade,
+                1,
+            ),
         ];
         let (filtrados, count) = filtrar_auto_julgamento(&v);
-        assert_eq!(count, 1); assert_eq!(filtrados.len(), 1); assert_eq!(filtrados[0].judge_id, "j2");
+        assert_eq!(count, 1);
+        assert_eq!(filtrados.len(), 1);
+        assert_eq!(filtrados[0].judge_id, "j2");
     }
-    #[test] fn test_aggregate_refutacao_vence() {
+    #[test]
+    fn test_aggregate_refutacao_vence() {
         let v = vec![
             mk_vote("j1", None, true, None, LenteCanonica::Funcionalidade, 1),
             mk_vote("j2", None, true, None, LenteCanonica::Funcionalidade, 1),
-            mk_vote("j3", None, false, Some("bug"), LenteCanonica::Funcionalidade, 1),
+            mk_vote(
+                "j3",
+                None,
+                false,
+                Some("bug"),
+                LenteCanonica::Funcionalidade,
+                1,
+            ),
         ];
         let d = aggregate_votes(&PanelConfig::default(), &v);
-        assert!(!d.aprovado); assert_eq!(d.refutacoes_aterradas, 1);
+        assert!(!d.aprovado);
+        assert_eq!(d.refutacoes_aterradas, 1);
     }
-    #[test] fn test_aggregate_unanime_aprovado() {
-            let v = vec![mk_vote("j1", None, true, None, LenteCanonica::Funcionalidade, 1)];
-            let d = aggregate_votes(&PanelConfig::default(), &v);
-            assert!(d.aprovado); assert_eq!(d.confianca, Confidencia::Alta);
-        }
-    #[test] fn test_aggregate_falso_sucesso_blocks() {
-        let v = vec![mk_vote("j1", None, true, None, LenteCanonica::Funcionalidade, 0)];
+    #[test]
+    fn test_aggregate_unanime_aprovado() {
+        let v = vec![mk_vote(
+            "j1",
+            None,
+            true,
+            None,
+            LenteCanonica::Funcionalidade,
+            1,
+        )];
         let d = aggregate_votes(&PanelConfig::default(), &v);
-        assert!(!d.aprovado); assert!(d.falso_sucesso_detectado);
+        assert!(d.aprovado);
+        assert_eq!(d.confianca, Confidencia::Alta);
     }
-    #[test] fn test_vote_confidence_alta() {
+    #[test]
+    fn test_aggregate_falso_sucesso_blocks() {
+        let v = vec![mk_vote(
+            "j1",
+            None,
+            true,
+            None,
+            LenteCanonica::Funcionalidade,
+            0,
+        )];
+        let d = aggregate_votes(&PanelConfig::default(), &v);
+        assert!(!d.aprovado);
+        assert!(d.falso_sucesso_detectado);
+    }
+    #[test]
+    fn test_vote_confidence_alta() {
         assert_eq!(vote_confidence(4, 4, 0), Confidencia::Alta);
         assert_eq!(vote_confidence(3, 3, 1), Confidencia::Alta);
     }
-    #[test] fn test_vote_confidence_media() { assert_eq!(vote_confidence(4, 2, 0), Confidencia::Media); }
-    #[test] fn test_vote_confidence_baixa() {
+    #[test]
+    fn test_vote_confidence_media() {
+        assert_eq!(vote_confidence(4, 2, 0), Confidencia::Media);
+    }
+    #[test]
+    fn test_vote_confidence_baixa() {
         assert_eq!(vote_confidence(4, 1, 0), Confidencia::Baixa);
         assert_eq!(vote_confidence(0, 0, 0), Confidencia::Baixa);
     }
-    #[test] fn test_lente_alcane() {
+    #[test]
+    fn test_lente_alcane() {
         assert_eq!(LenteCanonica::Funcionalidade.alcane(), "funcionalidade");
         assert_eq!(LenteCanonica::Seguranca.alcane(), "seguranca");
     }
-    #[test] fn test_lente_todas() { assert_eq!(LenteCanonica::todas().len(), 6); }
-    #[test] fn test_panel_config_default() {
-        let c = PanelConfig::default(); assert_eq!(c.min_votos, 3); assert_eq!(c.falso_sucesso_min_vestigios, 1);
+    #[test]
+    fn test_lente_todas() {
+        assert_eq!(LenteCanonica::todas().len(), 6);
     }
-    #[test] fn test_aggregate_empty() {
+    #[test]
+    fn test_panel_config_default() {
+        let c = PanelConfig::default();
+        assert_eq!(c.min_votos, 3);
+        assert_eq!(c.falso_sucesso_min_vestigios, 1);
+    }
+    #[test]
+    fn test_aggregate_empty() {
         let d = aggregate_votes(&PanelConfig::default(), &[]);
-        assert!(!d.aprovado); assert_eq!(d.votos_totais, 0);
+        assert!(!d.aprovado);
+        assert_eq!(d.votos_totais, 0);
     }
-    #[test] fn test_guardrail_english() {
+    #[test]
+    fn test_guardrail_english() {
         assert!(guardrail_deterministico("YES").is_some());
         assert!(guardrail_deterministico("TRUE").is_some());
     }
-    #[test] fn test_guardrail_portuguese() { assert!(guardrail_deterministico("SIM").is_some()); }
+    #[test]
+    fn test_guardrail_portuguese() {
+        assert!(guardrail_deterministico("SIM").is_some());
+    }
 }

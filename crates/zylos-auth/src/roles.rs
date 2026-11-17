@@ -56,7 +56,10 @@ mod tests {
     fn test_role_roundtrip() {
         assert_eq!(Role::parse("admin"), Role::Admin);
         assert_eq!(Role::parse("editor"), Role::Editor);
-        assert_eq!(Role::parse("custom_role"), Role::Custom("custom_role".into()));
+        assert_eq!(
+            Role::parse("custom_role"),
+            Role::Custom("custom_role".into())
+        );
         assert_eq!(Role::Admin.as_str(), "admin");
     }
 }

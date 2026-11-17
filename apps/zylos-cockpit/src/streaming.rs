@@ -18,7 +18,10 @@ pub enum AgUiStreamEvent {
     Heartbeat { timestamp: String },
 
     #[serde(rename = "text_start")]
-    TextStart { message_id: String, agent_id: String },
+    TextStart {
+        message_id: String,
+        agent_id: String,
+    },
 
     #[serde(rename = "text_delta")]
     TextDelta { message_id: String, delta: String },
@@ -214,7 +217,9 @@ impl StreamContext {
         let mut attempt: u32 = 0;
 
         loop {
-            if self.state.get() == StreamState::Disconnected { return }
+            if self.state.get() == StreamState::Disconnected {
+                return;
+            }
 
             if attempt > 0 {
                 let retry_ms = self.backoff_ms(attempt);
@@ -361,7 +366,9 @@ impl StreamContext {
                 message_id: text("message_id"),
                 delta: text("delta"),
             }),
-            "TextMessageEnd" => Some(AgUiStreamEvent::TextEnd { message_id: text("message_id") }),
+            "TextMessageEnd" => Some(AgUiStreamEvent::TextEnd {
+                message_id: text("message_id"),
+            }),
             _ => None,
         }
     }
@@ -515,10 +522,18 @@ mod tests {
         });
         // With jitter, we can only test bounds
         let b0 = ctx.backoff_ms(0);
-        assert!((1000..=1250).contains(&b0), "attempt 0: {} not in [1000, 1250]", b0);
+        assert!(
+            (1000..=1250).contains(&b0),
+            "attempt 0: {} not in [1000, 1250]",
+            b0
+        );
 
         let b3 = ctx.backoff_ms(3);
-        assert!((8000..=10000).contains(&b3), "attempt 3: {} not in [8000, 10000]", b3);
+        assert!(
+            (8000..=10000).contains(&b3),
+            "attempt 3: {} not in [8000, 10000]",
+            b3
+        );
     }
 
     #[test]
@@ -529,7 +544,11 @@ mod tests {
             ..Default::default()
         });
         let b10 = ctx.backoff_ms(10);
-        assert!(b10 <= 6250, "attempt 10 should be capped near 5000+25%: {}", b10);
+        assert!(
+            b10 <= 6250,
+            "attempt 10 should be capped near 5000+25%: {}",
+            b10
+        );
     }
 
     #[test]
@@ -587,7 +606,7 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = StreamConfig::default();
-        assert_eq!(config.endpoint, "/events");
+        assert_eq!(config.endpoint, "http://localhost:3000/api/v1/events");
         assert_eq!(config.max_reconnect_attempts, 10);
         assert_eq!(config.base_retry_ms, 1000);
         assert_eq!(config.max_retry_ms, 30000);

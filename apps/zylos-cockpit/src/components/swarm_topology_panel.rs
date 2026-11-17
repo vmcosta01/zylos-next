@@ -377,12 +377,7 @@ pub fn SwarmTopologyPanel() -> impl IntoView {
         };
         let rect = svg_el.get_bounding_client_rect();
         let t = transform.get();
-        let (svg_x, svg_y) = screen_to_svg(
-            ev.client_x() as f64,
-            ev.client_y() as f64,
-            &rect,
-            &t,
-        );
+        let (svg_x, svg_y) = screen_to_svg(ev.client_x() as f64, ev.client_y() as f64, &rect, &t);
 
         if let Some(ref d) = data.get() {
             if let Some(node) = d.nodes.iter().find(|n| n.id == node_id) {
@@ -409,12 +404,8 @@ pub fn SwarmTopologyPanel() -> impl IntoView {
             };
             let rect = svg_el.get_bounding_client_rect();
             let t = transform.get();
-            let (svg_x, svg_y) = screen_to_svg(
-                ev.client_x() as f64,
-                ev.client_y() as f64,
-                &rect,
-                &t,
-            );
+            let (svg_x, svg_y) =
+                screen_to_svg(ev.client_x() as f64, ev.client_y() as f64, &rect, &t);
 
             let d = drag.get();
             if let Some(ref node_id) = d.node_id {
@@ -814,7 +805,10 @@ mod tests {
     #[test]
     fn test_node_type_descriptions() {
         assert_eq!(NodeType::Agent.description(), "Agente executor de tarefas");
-        assert_eq!(NodeType::Orchestrator.description(), "Orquestrador de workflow");
+        assert_eq!(
+            NodeType::Orchestrator.description(),
+            "Orquestrador de workflow"
+        );
         assert_eq!(NodeType::Gateway.description(), "Gateway de comunicação");
     }
 

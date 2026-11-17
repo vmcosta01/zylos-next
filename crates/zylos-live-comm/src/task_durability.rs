@@ -233,8 +233,9 @@ impl TaskStore {
         let lease_id = Uuid::new_v4().to_string();
         let conn = self.conn.lock().unwrap();
         let now = Self::db_now(&conn)?;
-        let lease_until = now + chrono::Duration::from_std(self.config.lease_duration)
-            .map_err(|e| TaskError::Database(e.to_string()))?;
+        let lease_until = now
+            + chrono::Duration::from_std(self.config.lease_duration)
+                .map_err(|e| TaskError::Database(e.to_string()))?;
 
         // CAS: atomically claim one task that is either:
         // 1. queued with no lease
@@ -309,11 +310,9 @@ impl TaskStore {
             .optional()?
             .ok_or(TaskError::NotFound)?;
 
-        let current_state =
-            TaskState::from_db(&current_state_str).ok_or(TaskError::Database(format!(
-                "unknown state: {}",
-                current_state_str
-            )))?;
+        let current_state = TaskState::from_db(&current_state_str).ok_or(TaskError::Database(
+            format!("unknown state: {}", current_state_str),
+        ))?;
 
         if !Self::is_valid_transition(&current_state, &new_state) {
             return Err(TaskError::InvalidTransition {
@@ -322,7 +321,11 @@ impl TaskStore {
             });
         }
 
-        let lease_clear = new_state.is_terminal() || matches!(new_state, TaskState::WaitingApproval | TaskState::WaitingInput);
+        let lease_clear = new_state.is_terminal()
+            || matches!(
+                new_state,
+                TaskState::WaitingApproval | TaskState::WaitingInput
+            );
 
         if lease_clear {
             conn.execute(
@@ -337,7 +340,7 @@ impl TaskStore {
         }
 
         let _next_retry: Option<DateTime<Utc>> = None; // reserved for future use
-        // Variante Ok.
+                                                       // Variante Ok.
         Ok(())
     }
 
@@ -384,8 +387,14 @@ impl TaskStore {
     }
 
     /// Compute exponential backoff: base * 2^failures, capped at max_backoff.
-    fn compute_next_retry(now: DateTime<Utc>, failures: u32, config: &TaskWorkerConfig) -> DateTime<Utc> {
-        let backoff_secs = config.backoff_base_secs.saturating_mul(2u64.saturating_pow(failures));
+    fn compute_next_retry(
+        now: DateTime<Utc>,
+        failures: u32,
+        config: &TaskWorkerConfig,
+    ) -> DateTime<Utc> {
+        let backoff_secs = config
+            .backoff_base_secs
+            .saturating_mul(2u64.saturating_pow(failures));
         let backoff = Duration::from_secs(backoff_secs).min(config.max_backoff);
         now + chrono::Duration::from_std(backoff).unwrap_or(chrono::Duration::hours(1))
     }
@@ -423,7 +432,11 @@ impl TaskStore {
                 state = 'queued',
                 updated_at = ?1
              WHERE id = ?2 AND consecutive_failures >= ?3",
-            params![now.to_rfc3339(), task_id, self.config.max_consecutive_failures],
+            params![
+                now.to_rfc3339(),
+                task_id,
+                self.config.max_consecutive_failures
+            ],
         )?;
 
         if rows == 0 {
@@ -585,7 +598,9 @@ mod tests {
         let lease = claimed.lease_id.unwrap();
 
         // Running → Queued is invalid
-        let err = store.transition(&id, &lease, TaskState::Queued).unwrap_err();
+        let err = store
+            .transition(&id, &lease, TaskState::Queued)
+            .unwrap_err();
         assert!(matches!(err, TaskError::InvalidTransition { .. }));
     }
 
@@ -607,7 +622,9 @@ mod tests {
         let new_lease = re_claimed.lease_id.unwrap();
 
         // Running → Succeeded
-        store.transition(&id, &new_lease, TaskState::Succeeded).unwrap();
+        store
+            .transition(&id, &new_lease, TaskState::Succeeded)
+            .unwrap();
     }
 
     #[test]

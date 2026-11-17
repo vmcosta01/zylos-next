@@ -181,9 +181,7 @@ impl ScreenShareManager {
 
         // Spawn VNC server based on sandbox type
         let vnc_process = match sandbox_type {
-            SandboxType::Docker => {
-                self.spawn_docker_vnc(workspace_id, vnc_port).await?
-            }
+            SandboxType::Docker => self.spawn_docker_vnc(workspace_id, vnc_port).await?,
             SandboxType::Wasm => {
                 // WASM sandboxes use a virtual framebuffer approach
                 self.spawn_wasm_vnc(workspace_id, vnc_port).await?
@@ -211,11 +209,7 @@ impl ScreenShareManager {
     }
 
     /// Validate a one-time access token for a session.
-    pub async fn validate_token(
-        &self,
-        workspace_id: &str,
-        token: &str,
-    ) -> Result<SessionInfo> {
+    pub async fn validate_token(&self, workspace_id: &str, token: &str) -> Result<SessionInfo> {
         let mut sessions = self.sessions.write().await;
         let session = sessions
             .get_mut(workspace_id)
@@ -310,35 +304,26 @@ impl ScreenShareManager {
 
     // -- Private helpers --
 
-    async fn spawn_docker_vnc(
-        &self,
-        workspace_id: &str,
-        port: u16,
-    ) -> Result<Child> {
+    async fn spawn_docker_vnc(&self, workspace_id: &str, port: u16) -> Result<Child> {
         // In production, this would exec into the Docker container and start
         // Xvfb + x11vnc. For now, we spawn a placeholder that represents
         // the VNC server process.
         let child = Command::new("echo")
-            .args([
-                &format!("VNC server for {} on port {}", workspace_id, port),
-            ])
+            .args([&format!("VNC server for {} on port {}", workspace_id, port)])
             .spawn()
             .map_err(|e| ScreenShareError::ServerStartFailed(e.to_string()))?;
 
         Ok(child)
     }
 
-    async fn spawn_wasm_vnc(
-        &self,
-        workspace_id: &str,
-        port: u16,
-    ) -> Result<Child> {
+    async fn spawn_wasm_vnc(&self, workspace_id: &str, port: u16) -> Result<Child> {
         // WASM sandboxes use a virtual display rendered via canvas.
         // The VNC server bridges the virtual framebuffer to the noVNC client.
         let child = Command::new("echo")
-            .args([
-                &format!("WASM VNC bridge for {} on port {}", workspace_id, port),
-            ])
+            .args([&format!(
+                "WASM VNC bridge for {} on port {}",
+                workspace_id, port
+            )])
             .spawn()
             .map_err(|e| ScreenShareError::ServerStartFailed(e.to_string()))?;
 
@@ -381,7 +366,10 @@ mod tests {
     #[tokio::test]
     async fn test_start_session() {
         let mgr = test_manager();
-        let (info, token) = mgr.start_session("ws-1", SandboxType::Docker).await.unwrap();
+        let (info, token) = mgr
+            .start_session("ws-1", SandboxType::Docker)
+            .await
+            .unwrap();
 
         assert_eq!(info.workspace_id, "ws-1");
         assert_eq!(info.sandbox_type, SandboxType::Docker);
@@ -394,7 +382,9 @@ mod tests {
     #[tokio::test]
     async fn test_duplicate_session_rejected() {
         let mgr = test_manager();
-        mgr.start_session("ws-dup", SandboxType::Docker).await.unwrap();
+        mgr.start_session("ws-dup", SandboxType::Docker)
+            .await
+            .unwrap();
 
         let result = mgr.start_session("ws-dup", SandboxType::Docker).await;
         assert!(matches!(result, Err(ScreenShareError::AlreadyActive(_))));
@@ -403,7 +393,10 @@ mod tests {
     #[tokio::test]
     async fn test_validate_token() {
         let mgr = test_manager();
-        let (info, token) = mgr.start_session("ws-auth", SandboxType::Docker).await.unwrap();
+        let (info, token) = mgr
+            .start_session("ws-auth", SandboxType::Docker)
+            .await
+            .unwrap();
 
         let validated = mgr.validate_token("ws-auth", &token).await.unwrap();
         assert_eq!(validated.session_id, info.session_id);
@@ -417,7 +410,9 @@ mod tests {
     #[tokio::test]
     async fn test_invalid_token_rejected() {
         let mgr = test_manager();
-        mgr.start_session("ws-bad", SandboxType::Docker).await.unwrap();
+        mgr.start_session("ws-bad", SandboxType::Docker)
+            .await
+            .unwrap();
 
         let result = mgr.validate_token("ws-bad", "wrong-token").await;
         assert!(matches!(result, Err(ScreenShareError::InvalidToken)));
@@ -426,7 +421,9 @@ mod tests {
     #[tokio::test]
     async fn test_stop_session() {
         let mgr = test_manager();
-        mgr.start_session("ws-stop", SandboxType::Docker).await.unwrap();
+        mgr.start_session("ws-stop", SandboxType::Docker)
+            .await
+            .unwrap();
 
         mgr.stop_session("ws-stop").await.unwrap();
         let result = mgr.get_session("ws-stop").await;
@@ -436,7 +433,9 @@ mod tests {
     #[tokio::test]
     async fn test_record_activity() {
         let mgr = test_manager();
-        mgr.start_session("ws-act", SandboxType::Docker).await.unwrap();
+        mgr.start_session("ws-act", SandboxType::Docker)
+            .await
+            .unwrap();
 
         mgr.record_activity("ws-act").await.unwrap();
 
@@ -447,7 +446,9 @@ mod tests {
     #[tokio::test]
     async fn test_list_sessions() {
         let mgr = test_manager();
-        mgr.start_session("ws-a", SandboxType::Docker).await.unwrap();
+        mgr.start_session("ws-a", SandboxType::Docker)
+            .await
+            .unwrap();
         mgr.start_session("ws-b", SandboxType::Wasm).await.unwrap();
         let sessions = mgr.list_sessions().await;
         assert_eq!(sessions.len(), 2);
@@ -458,7 +459,9 @@ mod tests {
         let mgr = test_manager();
         assert_eq!(mgr.active_count().await, 0);
 
-        mgr.start_session("ws-cnt", SandboxType::Docker).await.unwrap();
+        mgr.start_session("ws-cnt", SandboxType::Docker)
+            .await
+            .unwrap();
         assert_eq!(mgr.active_count().await, 1);
 
         mgr.stop_session("ws-cnt").await.unwrap();
@@ -468,7 +471,10 @@ mod tests {
     #[tokio::test]
     async fn test_wasm_sandbox_session() {
         let mgr = test_manager();
-        let (info, _token) = mgr.start_session("ws-wasm", SandboxType::Wasm).await.unwrap();
+        let (info, _token) = mgr
+            .start_session("ws-wasm", SandboxType::Wasm)
+            .await
+            .unwrap();
 
         assert_eq!(info.sandbox_type, SandboxType::Wasm);
     }
@@ -481,7 +487,9 @@ mod tests {
             ..Default::default()
         });
 
-        mgr.start_session("ws-idle", SandboxType::Docker).await.unwrap();
+        mgr.start_session("ws-idle", SandboxType::Docker)
+            .await
+            .unwrap();
         // Small delay to ensure idle time exceeds 0
         tokio::time::sleep(Duration::from_millis(10)).await;
 

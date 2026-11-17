@@ -76,11 +76,14 @@ fn nome_simples(s: &str) -> bool {
     !s.is_empty()
         && s.len() <= 64
         && !s.starts_with('-')
-        && s.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+        && s.bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
 }
 
 fn nome_de_chave(s: &str) -> bool {
-    !s.is_empty() && s.bytes().all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_')
+    !s.is_empty()
+        && s.bytes()
+            .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_')
 }
 
 /// Só `https://`, ou `http://` para esta máquina (proxy local, testes).
@@ -101,16 +104,23 @@ impl Catalogo {
     pub fn carregar(extra_toml: Option<&str>) -> Result<Self, String> {
         let mut provedores = de_fabrica();
         if let Some(txt) = extra_toml {
-            let extra: ArquivoExtra =
-                toml::from_str(txt).map_err(|e| format!("provedores.toml inválido: {}", e.message()))?;
+            let extra: ArquivoExtra = toml::from_str(txt)
+                .map_err(|e| format!("provedores.toml inválido: {}", e.message()))?;
             provedores.extend(extra.provedor);
         }
         for (i, p) in provedores.iter_mut().enumerate() {
             if !nome_simples(&p.nome) {
-                return Err(format!("ficha {}: nome \"{}\" inválido (use a-z, 0-9 e -)", i + 1, p.nome));
+                return Err(format!(
+                    "ficha {}: nome \"{}\" inválido (use a-z, 0-9 e -)",
+                    i + 1,
+                    p.nome
+                ));
             }
             if !nome_de_chave(&p.nome_chave) {
-                return Err(format!("ficha \"{}\": nome_chave \"{}\" inválido (use A-Z, 0-9 e _)", p.nome, p.nome_chave));
+                return Err(format!(
+                    "ficha \"{}\": nome_chave \"{}\" inválido (use A-Z, 0-9 e _)",
+                    p.nome, p.nome_chave
+                ));
             }
             let end = p.endereco.trim_end_matches('/').to_string();
             if !endereco_aceito(&end) {
@@ -143,12 +153,27 @@ mod testes {
     fn tres_de_fabrica_com_enderecos_completos() {
         let c = Catalogo::carregar(None).unwrap();
         assert_eq!(c.nomes(), vec!["openai-api", "nvidia", "anthropic"]);
-        assert_eq!(c.achar("openai-api").unwrap().endereco, "https://api.openai.com/v1");
-        assert_eq!(c.achar("nvidia").unwrap().endereco, "https://integrate.api.nvidia.com/v1");
-        assert_eq!(c.achar("anthropic").unwrap().endereco, "https://api.anthropic.com/v1");
-        assert_eq!(c.achar("anthropic").unwrap().lingua, Lingua::AnthropicMessages);
+        assert_eq!(
+            c.achar("openai-api").unwrap().endereco,
+            "https://api.openai.com/v1"
+        );
+        assert_eq!(
+            c.achar("nvidia").unwrap().endereco,
+            "https://integrate.api.nvidia.com/v1"
+        );
+        assert_eq!(
+            c.achar("anthropic").unwrap().endereco,
+            "https://api.anthropic.com/v1"
+        );
+        assert_eq!(
+            c.achar("anthropic").unwrap().lingua,
+            Lingua::AnthropicMessages
+        );
         assert_eq!(c.achar("nvidia").unwrap().nome_chave, "NVIDIA_API_KEY");
-        assert!(c.achar("openai").is_none(), "openai sozinho é o OpenRouter no Hermes");
+        assert!(
+            c.achar("openai").is_none(),
+            "openai sozinho é o OpenRouter no Hermes"
+        );
     }
 
     #[test]
@@ -165,14 +190,21 @@ mod testes {
     #[test]
     fn recusa_repetido_lingua_ruim_e_endereco_ruim() {
         let rep = "[[provedor]]\nnome = \"nvidia\"\nlingua = \"openai_chat\"\nendereco = \"https://a\"\nnome_chave = \"A\"\n";
-        assert!(Catalogo::carregar(Some(rep)).unwrap_err().contains("mais de uma vez"));
+        assert!(Catalogo::carregar(Some(rep))
+            .unwrap_err()
+            .contains("mais de uma vez"));
         let lingua = "[[provedor]]\nnome = \"x\"\nlingua = \"klingon\"\nendereco = \"https://a\"\nnome_chave = \"A\"\n";
         assert!(Catalogo::carregar(Some(lingua)).is_err());
         let http = "[[provedor]]\nnome = \"x\"\nlingua = \"openai_chat\"\nendereco = \"http://exemplo.com/v1\"\nnome_chave = \"A\"\n";
-        assert!(Catalogo::carregar(Some(http)).unwrap_err().contains("https://"));
+        assert!(Catalogo::carregar(Some(http))
+            .unwrap_err()
+            .contains("https://"));
         let local = "[[provedor]]\nnome = \"x\"\nlingua = \"openai_chat\"\nendereco = \"http://127.0.0.1:9/v1\"\nnome_chave = \"A\"\n";
         assert!(Catalogo::carregar(Some(local)).is_ok());
         let campo = "[[provedor]]\nnome = \"x\"\nlingua = \"openai_chat\"\nendereco = \"https://a\"\nnome_chave = \"A\"\nchave = \"sk-123\"\n";
-        assert!(Catalogo::carregar(Some(campo)).is_err(), "campo desconhecido (ex.: a chave em si) é recusado");
+        assert!(
+            Catalogo::carregar(Some(campo)).is_err(),
+            "campo desconhecido (ex.: a chave em si) é recusado"
+        );
     }
 }

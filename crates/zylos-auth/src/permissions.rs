@@ -40,10 +40,9 @@ impl Permission {
                         | Permission::CrdtCollaborate
                 ),
                 "viewer" => matches!(self, Permission::SkillsRead),
-                "service_account" => matches!(
-                    self,
-                    Permission::SkillsRead | Permission::CrdtCollaborate
-                ),
+                "service_account" => {
+                    matches!(self, Permission::SkillsRead | Permission::CrdtCollaborate)
+                }
                 _ => false,
             };
             if granted {

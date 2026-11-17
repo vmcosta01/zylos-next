@@ -1,11 +1,11 @@
 //! Docker container sandbox for per-agent isolation.
 
-use bollard::Docker;
 use bollard::container::{
     Config, CreateContainerOptions, RemoveContainerOptions, StartContainerOptions,
     StopContainerOptions,
 };
 use bollard::models::HostConfig;
+use bollard::Docker;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -306,7 +306,10 @@ impl DockerSandbox {
             .map_err(|e| DockerError::ExecutionFailed(e.to_string()))?;
 
         let mut stdout = String::new();
-        if let StartExecResults::Attached { output: mut stream, .. } = output {
+        if let StartExecResults::Attached {
+            output: mut stream, ..
+        } = output
+        {
             while let Some(chunk) = stream.next().await {
                 match chunk {
                     Ok(log) => {
@@ -392,8 +395,7 @@ mod tests {
         ];
         for status in statuses {
             let json = serde_json::to_string(&status).expect("serialize");
-            let deserialized: ContainerStatus =
-                serde_json::from_str(&json).expect("deserialize");
+            let deserialized: ContainerStatus = serde_json::from_str(&json).expect("deserialize");
             assert_eq!(status, deserialized);
         }
     }
@@ -432,6 +434,9 @@ mod tests {
         };
         assert!(!wf.requires_approval(RiskLevel::Medium));
         assert!(wf.requires_approval(RiskLevel::Low));
-        assert_eq!(wf.auto_approve_after, Some(std::time::Duration::from_secs(30)));
+        assert_eq!(
+            wf.auto_approve_after,
+            Some(std::time::Duration::from_secs(30))
+        );
     }
 }

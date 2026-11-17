@@ -2,10 +2,10 @@
 //! dual SSE/WebSocket transport support, persistence replay, filtering, DLQ,
 //! schema registry and observability metrics.
 
+use crate::error::LiveCommError;
 use crate::event_filter::{topic_matches, CompiledFilter, FilterCache};
 use crate::event_persistence::EventStore;
 use crate::event_types::{EventEnvelope, SchemaRegistry, ZylosEvent};
-use crate::error::LiveCommError;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -27,8 +27,6 @@ pub enum BackpressureStrategy {
     BlockProducer,
     SlowConsumerAlert,
 }
-
-
 
 // ---------------------------------------------------------------------------
 // Subscriber descriptor
@@ -136,7 +134,9 @@ impl EventBus {
 
     /// Função with max retries.
     pub fn with_max_retries(mut self, n: u32) -> Self {
-        Arc::get_mut(&mut self.inner).unwrap().max_retries_before_dlq = n;
+        Arc::get_mut(&mut self.inner)
+            .unwrap()
+            .max_retries_before_dlq = n;
         self
     }
 
@@ -161,8 +161,8 @@ impl EventBus {
                 ZylosEvent::SkillInvoked(_) => "SkillInvoked",
                 ZylosEvent::Custom(c) => c.name.as_str(),
             };
-            let payload_value = serde_json::to_value(&event)
-                .map_err(LiveCommError::Serialization)?;
+            let payload_value =
+                serde_json::to_value(&event).map_err(LiveCommError::Serialization)?;
             self.inner
                 .schema_registry
                 .validate(event_type_name, schema_version, &payload_value)
@@ -345,9 +345,10 @@ impl EventBus {
             }),
             1,
         );
-        self.inner.global_tx.send(envelope).map_err(|e| {
-            LiveCommError::BroadcastSend(format!("no active receivers: {}", e))
-        })
+        self.inner
+            .global_tx
+            .send(envelope)
+            .map_err(|e| LiveCommError::BroadcastSend(format!("no active receivers: {}", e)))
     }
 
     /// Subscribe to the raw global broadcast stream (legacy AgUiEvent consumers).
@@ -361,8 +362,9 @@ impl EventBus {
     pub fn subscribe_filtered_legacy<F>(
         &self,
         filter: F,
-    ) -> impl futures::Stream<Item = Result<EventEnvelope, tokio_stream::wrappers::errors::BroadcastStreamRecvError>>
-           + Send
+    ) -> impl futures::Stream<
+        Item = Result<EventEnvelope, tokio_stream::wrappers::errors::BroadcastStreamRecvError>,
+    > + Send
            + 'static
     where
         F: Fn(&EventEnvelope) -> bool + Clone + Send + 'static,
@@ -475,8 +477,7 @@ mod tests {
         .await
         .unwrap();
 
-        let result =
-            tokio::time::timeout(std::time::Duration::from_millis(50), rx.recv()).await;
+        let result = tokio::time::timeout(std::time::Duration::from_millis(50), rx.recv()).await;
         assert!(result.is_err());
     }
 
@@ -521,8 +522,7 @@ mod tests {
         let env = rx.recv().await.unwrap();
         assert_eq!(env.topic, "agents.a1.state");
 
-        let result =
-            tokio::time::timeout(std::time::Duration::from_millis(50), rx.recv()).await;
+        let result = tokio::time::timeout(std::time::Duration::from_millis(50), rx.recv()).await;
         assert!(result.is_err());
     }
 
@@ -610,6 +610,9 @@ mod tests {
         // After unsubscribe, the per-subscriber sender is dropped,
         // so recv() returns RecvError::Closed immediately.
         let result = rx.recv().await;
-        assert!(result.is_err(), "Expected RecvError::Closed after unsubscribe");
+        assert!(
+            result.is_err(),
+            "Expected RecvError::Closed after unsubscribe"
+        );
     }
 }

@@ -4,12 +4,12 @@
 //! continues to start with that subsystem disabled (logged as a warning).
 //! This ensures graceful degradation in development and test environments.
 
-use std::sync::Arc;
-use axum::{Router, routing::get};
+use axum::{routing::get, Router};
 use serde_json::json;
+use std::sync::Arc;
 
-use zylos_agent_shield::{AgentShield, ShieldConfig};
 use zylos_adapters::AdapterRegistry;
+use zylos_agent_shield::{AgentShield, ShieldConfig};
 use zylos_browser_takeover::{CdpProxy, TakeoverStore};
 use zylos_evidence_ledger::EvidenceLedger;
 use zylos_memory_sync::MemoryStore;
@@ -52,7 +52,9 @@ impl Phase2State {
             .await
             .map_err(|e| anyhow::anyhow!("personalities init: {}", e))?;
         // Seed default divisions
-        personalities.seed_defaults().await
+        personalities
+            .seed_defaults()
+            .await
             .map_err(|e| anyhow::anyhow!("personalities seed: {}", e))?;
 
         // Swarm Orchestrator — task DAG scheduling
@@ -66,8 +68,8 @@ impl Phase2State {
             .map_err(|e| anyhow::anyhow!("evidence-ledger init: {}", e))?;
 
         // CDP Proxy — browser takeover with HITL
-        let store = TakeoverStore::in_memory()
-            .map_err(|e| anyhow::anyhow!("cdp-store init: {}", e))?;
+        let store =
+            TakeoverStore::in_memory().map_err(|e| anyhow::anyhow!("cdp-store init: {}", e))?;
         let takeover_store = Arc::new(store);
         let cdp_proxy = CdpProxy::new(takeover_store.clone(), "gateway".to_string());
 

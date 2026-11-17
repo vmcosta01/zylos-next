@@ -165,8 +165,8 @@ impl NotificationManager {
         }
 
         info!(
-         "Notification sent: [{}] {} (urgency={:?})",
-         notification.id, notification.title, notification.urgency
+            "Notification sent: [{}] {} (urgency={:?})",
+            notification.id, notification.title, notification.urgency
         );
 
         // Send native OS notification via Tauri plugin (gui feature only)
@@ -179,7 +179,8 @@ impl NotificationManager {
                 notification.body.clone()
             };
 
-            if let Err(e) = handle.notification()
+            if let Err(e) = handle
+                .notification()
                 .builder()
                 .title(&notification.title)
                 .body(&body_text)

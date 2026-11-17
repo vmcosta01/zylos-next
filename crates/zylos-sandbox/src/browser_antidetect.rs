@@ -82,7 +82,11 @@ fn xorshift64(mut state: u64) -> u64 {
     state ^= state << 13;
     state ^= state >> 7;
     state ^= state << 17;
-    if state == 0 { 1 } else { state }
+    if state == 0 {
+        1
+    } else {
+        state
+    }
 }
 
 fn hash_seed(seed: u64, salt: &[u8]) -> u64 {
@@ -122,9 +126,7 @@ const LOCALES: &[&str] = &[
     "en-US", "en-GB", "de-DE", "fr-FR", "ja-JP", "zh-CN", "pt-BR", "es-ES",
 ];
 
-const PLATFORMS: &[&str] = &[
-    "Win32", "MacIntel", "Linux x86_64",
-];
+const PLATFORMS: &[&str] = &["Win32", "MacIntel", "Linux x86_64"];
 
 const WEBGL_VENDORS: &[&str] = &[
     "Google Inc. (NVIDIA)",
@@ -135,7 +137,13 @@ const WEBGL_VENDORS: &[&str] = &[
 ];
 
 const FONT_SETS: &[&[&str]] = &[
-    &["Arial", "Helvetica", "Times New Roman", "Georgia", "Verdana"],
+    &[
+        "Arial",
+        "Helvetica",
+        "Times New Roman",
+        "Georgia",
+        "Verdana",
+    ],
     &["Arial", "Calibri", "Segoe UI", "Tahoma", "Verdana"],
     &["Helvetica Neue", "Arial", "Courier New", "Georgia", "Times"],
     &["Roboto", "Arial", "Noto Sans", "Droid Sans", "sans-serif"],
@@ -179,7 +187,7 @@ impl BrowserSandbox {
 
         BrowserProfile {
             user_agent: USER_AGENTS[(s1 as usize) % USER_AGENTS.len()].to_string(),
-            viewport_width: 1280 + ((s2 % 640) as u32),   // 1280–1919
+            viewport_width: 1280 + ((s2 % 640) as u32), // 1280–1919
             viewport_height: 720 + ((s2 >> 16) % 360) as u32, // 720–1079
             timezone: TIMEZONES[(s3 as usize) % TIMEZONES.len()].to_string(),
             locale: LOCALES[(s4 as usize) % LOCALES.len()].to_string(),
@@ -222,7 +230,7 @@ impl BrowserSandbox {
 
         // 1. Override navigator.webdriver
         patches.push(
-            r#"Object.defineProperty(navigator, 'webdriver', { get: () => false });"#.to_string()
+            r#"Object.defineProperty(navigator, 'webdriver', { get: () => false });"#.to_string(),
         );
 
         // 2. Patch navigator properties
@@ -231,10 +239,7 @@ impl BrowserSandbox {
 Object.defineProperty(navigator, 'deviceMemory', {{ get: () => {} }});
 Object.defineProperty(navigator, 'platform', {{ get: () => '{}' }});
 Object.defineProperty(navigator, 'languages', {{ get: () => ['{}'] }});"#,
-            p.navigator_hardware_concurrency,
-            p.navigator_device_memory,
-            p.platform,
-            p.locale,
+            p.navigator_hardware_concurrency, p.navigator_device_memory, p.platform, p.locale,
         ));
 
         // 3. Canvas fingerprint noise injection
@@ -253,7 +258,8 @@ Object.defineProperty(navigator, 'languages', {{ get: () => ['{}'] }});"#,
     }
     return origToDataURL.apply(this, arguments);
   };
-})();"#.to_string()
+})();"#
+                .to_string(),
         );
 
         // 4. WebGL vendor/renderer override
@@ -278,7 +284,8 @@ Object.defineProperty(navigator, 'languages', {{ get: () => ['{}'] }});"#,
     osc._zylos_stable = true;
     return osc;
   };
-})();"#.to_string()
+})();"#
+                .to_string(),
         );
 
         // 6. ClientRects micro-variation
@@ -359,8 +366,7 @@ Object.defineProperty(navigator, 'mimeTypes', { get: () => ['application/pdf', '
 
         // Advance proxy round-robin
         if !self.config.proxy_pool.is_empty() {
-            self.config.proxy_index =
-                (self.config.proxy_index + 1) % self.config.proxy_pool.len();
+            self.config.proxy_index = (self.config.proxy_index + 1) % self.config.proxy_pool.len();
         }
     }
 
@@ -373,8 +379,7 @@ Object.defineProperty(navigator, 'mimeTypes', { get: () => ['application/pdf', '
             return None;
         }
         let proxy = &self.config.proxy_pool[self.config.proxy_index];
-        self.config.proxy_index =
-            (self.config.proxy_index + 1) % self.config.proxy_pool.len();
+        self.config.proxy_index = (self.config.proxy_index + 1) % self.config.proxy_pool.len();
         Some(proxy.as_str())
     }
 
@@ -461,7 +466,11 @@ mod tests {
         sandbox.config.headless_mode = HeadlessMode::Disabled;
         sandbox.config.stealth_scripts = true;
         let risk = sandbox.detect_bot_risk();
-        assert!(risk < 0.1, "disabled headless + stealth should be very low risk: got {}", risk);
+        assert!(
+            risk < 0.1,
+            "disabled headless + stealth should be very low risk: got {}",
+            risk
+        );
     }
 
     #[test]
@@ -469,7 +478,12 @@ mod tests {
         for seed in 0..100 {
             let sandbox = BrowserSandbox::new(seed);
             let risk = sandbox.detect_bot_risk();
-            assert!((0.0..=1.0).contains(&risk), "risk out of range for seed {}: {}", seed, risk);
+            assert!(
+                (0.0..=1.0).contains(&risk),
+                "risk out of range for seed {}: {}",
+                seed,
+                risk
+            );
         }
     }
 
@@ -482,7 +496,10 @@ mod tests {
         // Profile should have changed (very high probability with different seed)
         let changed = sandbox.profile.user_agent != original_ua
             || sandbox.profile.canvas_hash != original_canvas;
-        assert!(changed, "rotate_identity should produce a different profile");
+        assert!(
+            changed,
+            "rotate_identity should produce a different profile"
+        );
     }
 
     #[test]

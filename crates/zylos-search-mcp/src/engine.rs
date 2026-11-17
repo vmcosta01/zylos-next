@@ -90,8 +90,8 @@ impl SearchEngine {
                 let timeout = std::time::Duration::from_millis(self.config.provider_timeout_ms);
                 async move {
                     let t = Instant::now();
-                    let result = tokio::time::timeout(timeout, provider.search(&q, per_provider_max))
-                        .await;
+                    let result =
+                        tokio::time::timeout(timeout, provider.search(&q, per_provider_max)).await;
                     let elapsed = t.elapsed().as_millis() as u64;
                     match result {
                         Ok(Ok(results)) => (provider.name().to_string(), Ok(results), elapsed),
@@ -135,7 +135,11 @@ impl SearchEngine {
 
         // Sort by score descending
         let mut sorted = deduped;
-        sorted.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        sorted.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         // Truncate to max_results
         sorted.truncate(self.config.max_results);
@@ -164,7 +168,11 @@ fn deduplicate_results(results: Vec<SearchResult>) -> Vec<SearchResult> {
 
     // Sort by score first so we keep the best version
     let mut sorted = results;
-    sorted.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    sorted.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     for result in sorted {
         let url_hash = url_hash(&result.url);
@@ -213,9 +221,12 @@ mod tests {
         ));
         let p2 = Arc::new(MockProvider::new(
             "provider-b",
-            vec![
-                make_result("Result B1", "https://b.com/1", 0.8, "provider-b"),
-            ],
+            vec![make_result(
+                "Result B1",
+                "https://b.com/1",
+                0.8,
+                "provider-b",
+            )],
             0,
         ));
 
@@ -236,12 +247,22 @@ mod tests {
 
         let p1 = Arc::new(MockProvider::new(
             "provider-a",
-            vec![make_result("Title A", "https://same.com/page", 0.9, "provider-a")],
+            vec![make_result(
+                "Title A",
+                "https://same.com/page",
+                0.9,
+                "provider-a",
+            )],
             0,
         ));
         let p2 = Arc::new(MockProvider::new(
             "provider-b",
-            vec![make_result("Title B", "https://same.com/page", 0.5, "provider-b")],
+            vec![make_result(
+                "Title B",
+                "https://same.com/page",
+                0.5,
+                "provider-b",
+            )],
             0,
         ));
 

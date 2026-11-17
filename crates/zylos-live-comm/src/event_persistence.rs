@@ -280,7 +280,9 @@ mod tests {
             }),
             1,
         );
-        store.enqueue_dead_letter(&env, "delivery failed", 3).unwrap();
+        store
+            .enqueue_dead_letter(&env, "delivery failed", 3)
+            .unwrap();
         let dl = store.list_dead_letters(10).unwrap();
         assert_eq!(dl.len(), 1);
         assert_eq!(dl[0].retries, 3);

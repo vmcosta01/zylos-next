@@ -3,7 +3,7 @@
 //! Provides both **rendering** (OcrElement → SVG string) and **parsing**
 //! (SVG string → structured SvgDocument) to support the full VLM OCR pipeline.
 
-use crate::types::{OcrElement, ElementType};
+use crate::types::{ElementType, OcrElement};
 use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
@@ -158,21 +158,29 @@ fn extract_nodes(svg: &str) -> Vec<SvgNode> {
             let abs = pos + idx;
             if let Some(end) = svg[abs..].find('>') {
                 let elem = &svg[abs..abs + end + 1];
-                let x = extract_attr(elem, "x").and_then(|v| v.parse().ok()).unwrap_or(0.0);
-                let y = extract_attr(elem, "y").and_then(|v| v.parse().ok()).unwrap_or(0.0);
+                let x = extract_attr(elem, "x")
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(0.0);
+                let y = extract_attr(elem, "y")
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(0.0);
                 let w = extract_attr(elem, "width")
-                    .or_else(|| extract_attr(elem, "r").map(|r| {
-                        let r: f64 = r.parse().unwrap_or(0.0);
-                        (r * 2.0).to_string()
-                    }))
+                    .or_else(|| {
+                        extract_attr(elem, "r").map(|r| {
+                            let r: f64 = r.parse().unwrap_or(0.0);
+                            (r * 2.0).to_string()
+                        })
+                    })
                     .or_else(|| extract_attr(elem, "rx"))
                     .and_then(|v| v.parse().ok())
                     .unwrap_or(0.0);
                 let h = extract_attr(elem, "height")
-                    .or_else(|| extract_attr(elem, "r").map(|r| {
-                        let r: f64 = r.parse().unwrap_or(0.0);
-                        (r * 2.0).to_string()
-                    }))
+                    .or_else(|| {
+                        extract_attr(elem, "r").map(|r| {
+                            let r: f64 = r.parse().unwrap_or(0.0);
+                            (r * 2.0).to_string()
+                        })
+                    })
                     .or_else(|| extract_attr(elem, "ry"))
                     .and_then(|v| v.parse().ok())
                     .unwrap_or(0.0);
@@ -204,8 +212,12 @@ fn extract_texts(svg: &str) -> Vec<SvgText> {
             let elem = &svg[abs..abs + close + 7];
             if let Some(gt) = elem.find('>') {
                 let content = elem[gt + 1..elem.len() - 7].trim().to_string();
-                let x = extract_attr(elem, "x").and_then(|v| v.parse().ok()).unwrap_or(0.0);
-                let y = extract_attr(elem, "y").and_then(|v| v.parse().ok()).unwrap_or(0.0);
+                let x = extract_attr(elem, "x")
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(0.0);
+                let y = extract_attr(elem, "y")
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(0.0);
                 let font_size = extract_attr(elem, "font-size").and_then(|v| v.parse().ok());
                 let font_family = extract_attr(elem, "font-family");
                 let font_style = extract_attr(elem, "font-style");
@@ -253,11 +265,13 @@ fn extract_formulas(_svg: &str, texts: &[SvgText]) -> Vec<SvgFormula> {
     texts
         .iter()
         .filter(|t| {
-            let is_serif = t.font_family
+            let is_serif = t
+                .font_family
                 .as_ref()
                 .map(|f| f.contains("serif"))
                 .unwrap_or(false);
-            let is_italic = t.font_style
+            let is_italic = t
+                .font_style
                 .as_ref()
                 .map(|s| s.contains("italic"))
                 .unwrap_or(false);
@@ -266,7 +280,9 @@ fn extract_formulas(_svg: &str, texts: &[SvgText]) -> Vec<SvgFormula> {
         .map(|t| {
             let raw = format!(
                 r##"<text x="{}" y="{}" font-family="serif" font-style="italic">{}</text>"##,
-                t.x, t.y, html_escape(&t.content)
+                t.x,
+                t.y,
+                html_escape(&t.content)
             );
             SvgFormula {
                 content: t.content.clone(),
@@ -330,7 +346,12 @@ mod tests {
         OcrElement {
             element_type: etype,
             content: content.to_string(),
-            bbox: Some(BBox { x: 0, y: 0, width: 100, height: 50 }),
+            bbox: Some(BBox {
+                x: 0,
+                y: 0,
+                width: 100,
+                height: 50,
+            }),
             confidence: 0.9,
             metadata: HashMap::new(),
         }

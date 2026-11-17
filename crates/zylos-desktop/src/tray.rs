@@ -36,10 +36,10 @@ impl TrayStatus {
     /// Get a color hint for the status indicator.
     pub fn color_hint(&self) -> &'static str {
         match self {
-            Self::Healthy => "#22c55e",   // green
-            Self::Warning => "#eab308",   // yellow
-            Self::Error => "#ef4444",     // red
-            Self::Unknown => "#6b7280",   // gray
+            Self::Healthy => "#22c55e", // green
+            Self::Warning => "#eab308", // yellow
+            Self::Error => "#ef4444",   // red
+            Self::Unknown => "#6b7280", // gray
         }
     }
 }
@@ -48,13 +48,13 @@ impl TrayStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrayMenuItem {
     /// Unique identifier for this menu item (e.g., `"show"`, `"quit"`).
-   pub id: String,
+    pub id: String,
     /// Human-readable label displayed in the tray context menu.
-   pub label: String,
+    pub label: String,
     /// Whether this menu item is clickable (grayed out when `false`).
-   pub enabled: bool,
+    pub enabled: bool,
     /// Whether to draw a separator line above this item in the menu.
-   pub separator_before: bool,
+    pub separator_before: bool,
 }
 
 /// Default tray menu structure.

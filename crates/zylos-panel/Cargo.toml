@@ -10,11 +10,8 @@ description = "Painel adversarial determinístico com guardrail, filtro de auto-
 
 [dependencies]
 serde = { workspace = true }
-serde_json = { workspace = true }
-thiserror = { workspace = true }
-sha2 = "0.10"
-chrono = { version = "0.4", features = ["serde"] }
-tokio = { workspace = true, features = ["sync"] }
-zylos-proof = { path = "../zylos-proof" }
 
 [dev-dependencies]
+
+[lints]
+workspace = true

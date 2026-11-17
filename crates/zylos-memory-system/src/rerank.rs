@@ -6,10 +6,10 @@
 //!
 //! Target: <100ms p95 for rerank of 1k memories (per EVALUATION.md)
 
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
 use crate::error::Result;
 use crate::types::ContextNode;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 /// Research brief representing the current objective/context for reranking
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -172,7 +172,8 @@ impl BriefAwareReranker {
                     + (1.0 - brief.semantic_weight) * keyword_score;
 
                 // Apply tag boost and recency
-                let combined = content_score * (0.8 + 0.2 * tag_score)
+                let combined = content_score
+                    * (0.8 + 0.2 * tag_score)
                     * (1.0 - self.config.recency_weight
                         + self.config.recency_weight * recency_factor);
 
@@ -208,9 +209,7 @@ impl BriefAwareReranker {
     /// Compute semantic similarity between brief embedding and node embedding
     fn compute_semantic_score(&self, brief: &ResearchBrief, node: &ContextNode) -> f64 {
         match (&brief.embedding, &node.embedding) {
-            (Some(brief_emb), Some(node_emb)) => {
-                cosine_similarity(brief_emb, node_emb) as f64
-            }
+            (Some(brief_emb), Some(node_emb)) => cosine_similarity(brief_emb, node_emb) as f64,
             _ => 0.0, // No embeddings available, fall back to keyword
         }
     }
@@ -221,7 +220,9 @@ impl BriefAwareReranker {
             return 0.0;
         }
 
-        let content_str = serde_json::to_string(&node.content).unwrap_or_default().to_lowercase();
+        let content_str = serde_json::to_string(&node.content)
+            .unwrap_or_default()
+            .to_lowercase();
         let matched = brief
             .key_concepts
             .iter()
@@ -259,7 +260,10 @@ impl BriefAwareReranker {
             Err(_) => return 0.5, // Parse error, neutral score
         };
 
-        let age_days = Utc::now().signed_duration_since(created).num_seconds().max(0) as f64
+        let age_days = Utc::now()
+            .signed_duration_since(created)
+            .num_seconds()
+            .max(0) as f64
             / 86400.0;
 
         // Exponential decay: score = 2^(-age/half_life)
@@ -276,18 +280,17 @@ impl BriefAwareReranker {
 /// Extract key concepts from text (simple heuristic: words > 3 chars, lowercase)
 fn extract_key_concepts(text: &str) -> Vec<String> {
     let stop_words: std::collections::HashSet<&str> = [
-        "the", "and", "for", "are", "but", "not", "you", "all", "can", "had",
-        "her", "was", "one", "our", "out", "has", "have", "from", "this", "that",
-        "with", "they", "been", "will", "each", "which", "their", "would", "there",
-        "what", "about", "know", "time", "could", "than", "other", "were", "then",
-        "into", "some", "when", "make", "like", "just", "over", "such", "take",
-        "year", "only", "also", "more", "most", "home", "same", "back", "much",
-        "well", "even", "here", "where", "after", "before", "between", "through",
-        "during", "being", "under", "does", "did", "how", "any", "these", "those",
-        "para", "com", "uma", "por", "não", "que", "dos", "das", "nos", "nas",
-        "como", "mais", "mas", "seu", "sua", "aos", "ter", "ser", "quando", "muito",
-        "ainda", "já", "está", "estão", "foi", "foram", "esse", "essa", "este",
-        "esta", "pelo", "pela", "pelos", "pelas", "num", "numa", "neste", "nesta",
+        "the", "and", "for", "are", "but", "not", "you", "all", "can", "had", "her", "was", "one",
+        "our", "out", "has", "have", "from", "this", "that", "with", "they", "been", "will",
+        "each", "which", "their", "would", "there", "what", "about", "know", "time", "could",
+        "than", "other", "were", "then", "into", "some", "when", "make", "like", "just", "over",
+        "such", "take", "year", "only", "also", "more", "most", "home", "same", "back", "much",
+        "well", "even", "here", "where", "after", "before", "between", "through", "during",
+        "being", "under", "does", "did", "how", "any", "these", "those", "para", "com", "uma",
+        "por", "não", "que", "dos", "das", "nos", "nas", "como", "mais", "mas", "seu", "sua",
+        "aos", "ter", "ser", "quando", "muito", "ainda", "já", "está", "estão", "foi", "foram",
+        "esse", "essa", "este", "esta", "pelo", "pela", "pelos", "pelas", "num", "numa", "neste",
+        "nesta",
     ]
     .iter()
     .copied()
@@ -323,7 +326,8 @@ mod tests {
 
     #[test]
     fn test_extract_key_concepts() {
-        let concepts = extract_key_concepts("Machine learning algorithms for natural language processing");
+        let concepts =
+            extract_key_concepts("Machine learning algorithms for natural language processing");
         assert!(concepts.contains(&"machine".to_string()));
         assert!(concepts.contains(&"learning".to_string()));
         assert!(concepts.contains(&"algorithms".to_string()));
@@ -349,7 +353,11 @@ mod tests {
     fn test_keyword_scoring() {
         let reranker = BriefAwareReranker::with_default_config();
         let brief = ResearchBrief::new("b1", "Rust async runtime performance");
-        let node = make_node("Tokio provides an async runtime for Rust applications", vec![], 0);
+        let node = make_node(
+            "Tokio provides an async runtime for Rust applications",
+            vec![],
+            0,
+        );
 
         let score = reranker.compute_keyword_score(&brief, &node);
         assert!(score > 0.0, "Should have some keyword overlap");
@@ -358,7 +366,8 @@ mod tests {
     #[test]
     fn test_tag_scoring() {
         let reranker = BriefAwareReranker::with_default_config();
-        let brief = ResearchBrief::new("b1", "test").with_tags(vec!["rust".to_string(), "async".to_string()]);
+        let brief = ResearchBrief::new("b1", "test")
+            .with_tags(vec!["rust".to_string(), "async".to_string()]);
 
         let node_match = make_node("content", vec!["rust", "async"], 0);
         let node_partial = make_node("content", vec!["rust"], 0);
@@ -387,42 +396,68 @@ mod tests {
 
         assert!(score_recent > score_old, "Recent nodes should score higher");
         assert!(score_recent > 0.9, "Very recent should be near 1.0");
-        assert!(score_old < 0.2, "90 days old with 30-day half-life should be low");
+        assert!(
+            score_old < 0.2,
+            "90 days old with 30-day half-life should be low"
+        );
     }
 
     #[tokio::test]
-        async fn test_rerank_filters_below_threshold() {
-            let reranker = BriefAwareReranker::with_default_config();
-            let brief = ResearchBrief::new("b1", "Rust memory systems ownership borrowing")
-                .with_tags(vec!["rust".to_string(), "memory".to_string()])
-                .with_min_relevance(0.3);
+    async fn test_rerank_filters_below_threshold() {
+        let reranker = BriefAwareReranker::with_default_config();
+        let brief = ResearchBrief::new("b1", "Rust memory systems ownership borrowing")
+            .with_tags(vec!["rust".to_string(), "memory".to_string()])
+            .with_min_relevance(0.3);
 
-            let candidates = vec![
-                make_node("Rust memory management with ownership and borrowing rules", vec!["rust", "memory"], 0),
-                make_node("Python garbage collection basics explained", vec!["python"], 0),
-                make_node("Completely unrelated cooking recipe for pasta", vec!["food"], 0),
-            ];
+        let candidates = vec![
+            make_node(
+                "Rust memory management with ownership and borrowing rules",
+                vec!["rust", "memory"],
+                0,
+            ),
+            make_node(
+                "Python garbage collection basics explained",
+                vec!["python"],
+                0,
+            ),
+            make_node(
+                "Completely unrelated cooking recipe for pasta",
+                vec!["food"],
+                0,
+            ),
+        ];
 
-            let results = reranker.rerank(&brief, candidates).unwrap();
-            // At least the Rust-related one should pass; unrelated ones should be filtered
-            assert!(!results.is_empty(), "Expected at least one result above threshold");
-            for r in &results {
-                assert!(r.relevance_score >= 0.3, "Score {} below min_relevance 0.3", r.relevance_score);
-            }
-            // The Rust node should rank first
-            let first_text = serde_json::to_string(&results[0].node.content).unwrap_or_default();
-            assert!(first_text.contains("Rust") || first_text.contains("ownership"));
+        let results = reranker.rerank(&brief, candidates).unwrap();
+        // At least the Rust-related one should pass; unrelated ones should be filtered
+        assert!(
+            !results.is_empty(),
+            "Expected at least one result above threshold"
+        );
+        for r in &results {
+            assert!(
+                r.relevance_score >= 0.3,
+                "Score {} below min_relevance 0.3",
+                r.relevance_score
+            );
         }
+        // The Rust node should rank first
+        let first_text = serde_json::to_string(&results[0].node.content).unwrap_or_default();
+        assert!(first_text.contains("Rust") || first_text.contains("ownership"));
+    }
 
     #[tokio::test]
     async fn test_rerank_sorts_by_relevance() {
         let reranker = BriefAwareReranker::with_default_config();
-        let brief = ResearchBrief::new("b1", "Rust async performance optimization")
-            .with_min_relevance(0.0); // Accept all
+        let brief =
+            ResearchBrief::new("b1", "Rust async performance optimization").with_min_relevance(0.0); // Accept all
 
         let candidates = vec![
             make_node("Cooking pasta al dente", vec!["food"], 0),
-            make_node("Rust async runtime tokio performance tuning", vec!["rust", "async"], 0),
+            make_node(
+                "Rust async runtime tokio performance tuning",
+                vec!["rust", "async"],
+                0,
+            ),
             make_node("General programming tips", vec![], 0),
         ];
 
@@ -453,8 +488,7 @@ mod tests {
     #[test]
     fn test_semantic_scoring_with_embeddings() {
         let reranker = BriefAwareReranker::with_default_config();
-        let brief = ResearchBrief::new("b1", "test")
-            .with_embedding(vec![1.0, 0.0, 0.0]);
+        let brief = ResearchBrief::new("b1", "test").with_embedding(vec![1.0, 0.0, 0.0]);
 
         let mut node_similar = make_node("similar", vec![], 0);
         node_similar.embedding = Some(vec![0.9, 0.1, 0.0]);

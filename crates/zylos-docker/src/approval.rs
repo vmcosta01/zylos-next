@@ -103,11 +103,7 @@ impl ApprovalWorkflow {
     /// # Arguments
     /// * `level` — risk classification of the operation.
     /// * `operation` — human-readable operation name for audit logging.
-    pub fn evaluate(
-        &self,
-        level: RiskLevel,
-        operation: &str,
-    ) -> ApprovalDecision {
+    pub fn evaluate(&self, level: RiskLevel, operation: &str) -> ApprovalDecision {
         if !self.requires_approval(level) {
             return ApprovalDecision::Approved {
                 reason: format!("Risk level '{}' does not require approval", level),
@@ -246,9 +242,15 @@ mod tests {
     #[test]
     fn test_approval_decision_serialization_roundtrip() {
         let decisions = vec![
-            ApprovalDecision::Approved { reason: "ok".to_string() },
-            ApprovalDecision::Denied { reason: "nope".to_string() },
-            ApprovalDecision::Pending { requested_at: chrono::Utc::now() },
+            ApprovalDecision::Approved {
+                reason: "ok".to_string(),
+            },
+            ApprovalDecision::Denied {
+                reason: "nope".to_string(),
+            },
+            ApprovalDecision::Pending {
+                requested_at: chrono::Utc::now(),
+            },
         ];
         for d in decisions {
             let json = serde_json::to_string(&d).expect("serialize");
@@ -282,17 +284,17 @@ mod tests {
     }
 
     #[test]
-     fn test_auto_approve_zero_timeout() {
-     let wf = ApprovalWorkflow {
-     auto_approve_after: Some(std::time::Duration::ZERO),
-     ..Default::default()
-     };
-     let decision = wf.evaluate(RiskLevel::High, "mount /host");
-     assert!(matches!(decision, ApprovalDecision::Approved { .. }));
-     if let ApprovalDecision::Approved { reason } = &decision {
-     assert!(reason.contains("zero-timeout"));
-     }
-     }
+    fn test_auto_approve_zero_timeout() {
+        let wf = ApprovalWorkflow {
+            auto_approve_after: Some(std::time::Duration::ZERO),
+            ..Default::default()
+        };
+        let decision = wf.evaluate(RiskLevel::High, "mount /host");
+        assert!(matches!(decision, ApprovalDecision::Approved { .. }));
+        if let ApprovalDecision::Approved { reason } = &decision {
+            assert!(reason.contains("zero-timeout"));
+        }
+    }
 
     #[test]
     fn test_re_evaluate_after_timeout() {

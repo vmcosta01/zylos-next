@@ -104,8 +104,13 @@ pub fn procurar_no_env(conteudo: &str, nome: &str) -> Option<String> {
         if linha.is_empty() || linha.starts_with('#') {
             continue;
         }
-        let linha = linha.strip_prefix("export ").map(str::trim_start).unwrap_or(linha);
-        let Some((k, v)) = linha.split_once('=') else { continue };
+        let linha = linha
+            .strip_prefix("export ")
+            .map(str::trim_start)
+            .unwrap_or(linha);
+        let Some((k, v)) = linha.split_once('=') else {
+            continue;
+        };
         if k.trim() != nome {
             continue;
         }
@@ -139,14 +144,24 @@ pub fn ler_chave(
     let do_arquivo = match texto::ler(arquivo_env, None) {
         Ok(conteudo) => procurar_no_env(&conteudo, nome),
         Err(texto::ErroTexto::Inexistente) => None,
-        Err(e) => return Err(ErroChave::ArquivoIlegivel { motivo: e.to_string() }),
+        Err(e) => {
+            return Err(ErroChave::ArquivoIlegivel {
+                motivo: e.to_string(),
+            })
+        }
     };
-    let valor = do_arquivo
-        .filter(|v| !v.is_empty())
-        .or_else(|| ambiente(nome).map(|v| v.trim().to_string()).filter(|v| !v.is_empty()));
+    let valor = do_arquivo.filter(|v| !v.is_empty()).or_else(|| {
+        ambiente(nome)
+            .map(|v| v.trim().to_string())
+            .filter(|v| !v.is_empty())
+    });
     match valor {
-        None => Err(ErroChave::Faltando { nome: nome.to_string() }),
-        Some(v) if v.contains("${") => Err(ErroChave::ComExpansao { nome: nome.to_string() }),
+        None => Err(ErroChave::Faltando {
+            nome: nome.to_string(),
+        }),
+        Some(v) if v.contains("${") => Err(ErroChave::ComExpansao {
+            nome: nome.to_string(),
+        }),
         Some(v) => Ok(Segredo(v)),
     }
 }
@@ -172,48 +187,83 @@ mod testes {
         let env = env.trim_start_matches('\u{feff}');
         assert_eq!(procurar_no_env(env, "A").as_deref(), Some("ultimo"));
         assert_eq!(procurar_no_env(env, "B").as_deref(), Some("dois"));
-        assert_eq!(procurar_no_env(env, "C").as_deref(), Some("tres # nao e comentario"));
+        assert_eq!(
+            procurar_no_env(env, "C").as_deref(),
+            Some("tres # nao e comentario")
+        );
         assert_eq!(procurar_no_env(env, "D").as_deref(), Some("quatro"));
         assert_eq!(procurar_no_env(env, "E").as_deref(), Some("cinco"));
         assert_eq!(procurar_no_env(env, "F").as_deref(), Some(""));
         assert_eq!(procurar_no_env(env, "G"), None);
-        assert_eq!(procurar_no_env("AB=x\n", "A"), None, "prefixo do nome não conta");
+        assert_eq!(
+            procurar_no_env("AB=x\n", "A"),
+            None,
+            "prefixo do nome não conta"
+        );
     }
 
     #[test]
     fn bom_e_crlf_no_arquivo_nao_viram_valor() {
         let (_d, p) = arquivo(b"\xEF\xBB\xBFNVIDIA_API_KEY=nv-123\r\n");
-        assert_eq!(ler_chave(&p, "NVIDIA_API_KEY", &sem_ambiente).unwrap().expor(), "nv-123");
+        assert_eq!(
+            ler_chave(&p, "NVIDIA_API_KEY", &sem_ambiente)
+                .unwrap()
+                .expor(),
+            "nv-123"
+        );
     }
 
     #[test]
     fn arquivo_vence_o_ambiente() {
         let (_d, p) = arquivo(b"OPENAI_API_KEY=do-arquivo\n");
         let ambiente = |n: &str| (n == "OPENAI_API_KEY").then(|| "do-ambiente".to_string());
-        assert_eq!(ler_chave(&p, "OPENAI_API_KEY", &ambiente).unwrap().expor(), "do-arquivo");
+        assert_eq!(
+            ler_chave(&p, "OPENAI_API_KEY", &ambiente).unwrap().expor(),
+            "do-arquivo"
+        );
     }
 
     #[test]
     fn ambiente_so_quando_o_arquivo_nao_tem() {
         let (_d, p) = arquivo(b"OUTRA=x\nOPENAI_API_KEY=\n");
         let ambiente = |n: &str| (n == "OPENAI_API_KEY").then(|| "do-ambiente".to_string());
-        assert_eq!(ler_chave(&p, "OPENAI_API_KEY", &ambiente).unwrap().expor(), "do-ambiente");
+        assert_eq!(
+            ler_chave(&p, "OPENAI_API_KEY", &ambiente).unwrap().expor(),
+            "do-ambiente"
+        );
         let inexistente = p.with_file_name("nao-existe.env");
-        assert_eq!(ler_chave(&inexistente, "OPENAI_API_KEY", &ambiente).unwrap().expor(), "do-ambiente");
+        assert_eq!(
+            ler_chave(&inexistente, "OPENAI_API_KEY", &ambiente)
+                .unwrap()
+                .expor(),
+            "do-ambiente"
+        );
     }
 
     #[test]
     fn faltando_e_expansao_citam_so_o_nome() {
         let (_d, p) = arquivo(b"A=${B}\nV=\n");
-        assert_eq!(ler_chave(&p, "A", &sem_ambiente), Err(ErroChave::ComExpansao { nome: "A".into() }));
-        assert_eq!(ler_chave(&p, "V", &sem_ambiente), Err(ErroChave::Faltando { nome: "V".into() }));
-        assert_eq!(ler_chave(&p, "Z", &sem_ambiente), Err(ErroChave::Faltando { nome: "Z".into() }));
+        assert_eq!(
+            ler_chave(&p, "A", &sem_ambiente),
+            Err(ErroChave::ComExpansao { nome: "A".into() })
+        );
+        assert_eq!(
+            ler_chave(&p, "V", &sem_ambiente),
+            Err(ErroChave::Faltando { nome: "V".into() })
+        );
+        assert_eq!(
+            ler_chave(&p, "Z", &sem_ambiente),
+            Err(ErroChave::Faltando { nome: "Z".into() })
+        );
     }
 
     #[test]
     fn utf16_e_ilegivel() {
         let (_d, p) = arquivo(b"\xFF\xFEA\0=\0x\0");
-        assert!(matches!(ler_chave(&p, "A", &sem_ambiente), Err(ErroChave::ArquivoIlegivel { .. })));
+        assert!(matches!(
+            ler_chave(&p, "A", &sem_ambiente),
+            Err(ErroChave::ArquivoIlegivel { .. })
+        ));
     }
 
     #[test]
@@ -231,7 +281,10 @@ mod testes {
             "LOCALAPPDATA" => Some("C:\\L".to_string()),
             _ => None,
         };
-        assert_eq!(pasta_hermes(&amb).unwrap(), PathBuf::from("C:\\L\\hermes-teste"));
+        assert_eq!(
+            pasta_hermes(&amb).unwrap(),
+            PathBuf::from("C:\\L\\hermes-teste")
+        );
         let til = |n: &str| match n {
             "HERMES_HOME" => Some("~\\h".to_string()),
             "USERPROFILE" => Some("C:\\U".to_string()),
@@ -239,6 +292,9 @@ mod testes {
         };
         assert_eq!(pasta_hermes(&til).unwrap(), PathBuf::from("C:\\U\\h"));
         let padrao = |n: &str| (n == "LOCALAPPDATA").then(|| "C:\\L".to_string());
-        assert_eq!(pasta_hermes(&padrao).unwrap(), PathBuf::from("C:\\L").join("hermes"));
+        assert_eq!(
+            pasta_hermes(&padrao).unwrap(),
+            PathBuf::from("C:\\L").join("hermes")
+        );
     }
 }

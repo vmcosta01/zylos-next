@@ -47,3 +47,4 @@ gateway.*.log
 
 # Scratch/reference repos
 scratch/
+docs/reverse-engineering/_tmp_lifecycle_workshop/

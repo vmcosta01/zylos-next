@@ -168,11 +168,26 @@ fn render_highlighted_yaml(yaml: &str) -> String {
     for line_tokens in tokens {
         for token in line_tokens {
             match token {
-                YamlToken::Key(k) => html.push_str(&format!("<span class=\"yaml-key\">{}</span>", html_escape(&k))),
-                YamlToken::StringLit(s) => html.push_str(&format!("<span class=\"yaml-string\">{}</span>", html_escape(&s))),
-                YamlToken::Number(n) => html.push_str(&format!("<span class=\"yaml-number\">{}</span>", html_escape(&n))),
-                YamlToken::Bool(b) => html.push_str(&format!("<span class=\"yaml-bool\">{}</span>", html_escape(&b))),
-                YamlToken::Comment(c) => html.push_str(&format!("<span class=\"yaml-comment\">{}</span>", html_escape(&c))),
+                YamlToken::Key(k) => html.push_str(&format!(
+                    "<span class=\"yaml-key\">{}</span>",
+                    html_escape(&k)
+                )),
+                YamlToken::StringLit(s) => html.push_str(&format!(
+                    "<span class=\"yaml-string\">{}</span>",
+                    html_escape(&s)
+                )),
+                YamlToken::Number(n) => html.push_str(&format!(
+                    "<span class=\"yaml-number\">{}</span>",
+                    html_escape(&n)
+                )),
+                YamlToken::Bool(b) => html.push_str(&format!(
+                    "<span class=\"yaml-bool\">{}</span>",
+                    html_escape(&b)
+                )),
+                YamlToken::Comment(c) => html.push_str(&format!(
+                    "<span class=\"yaml-comment\">{}</span>",
+                    html_escape(&c)
+                )),
                 YamlToken::Dash => html.push_str("<span class=\"yaml-dash\">-</span>"),
                 YamlToken::Colon => html.push_str("<span class=\"yaml-colon\">:</span>"),
                 YamlToken::Plain(p) => html.push_str(&html_escape(&p)),
@@ -184,7 +199,9 @@ fn render_highlighted_yaml(yaml: &str) -> String {
 }
 
 fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 /// Gera preview YAML de uma skill.
@@ -256,21 +273,29 @@ pub fn SkillEditorPanel() -> impl IntoView {
 
     // Carregar skills do Hermes
     spawn_local(async move {
-        match fetch_json::<serde_json::Value>("http://localhost:3000/api/v1/hermes/skill-evolution/contracts").await {
+        match fetch_json::<serde_json::Value>(
+            "http://localhost:3000/api/v1/hermes/skill-evolution/contracts",
+        )
+        .await
+        {
             Ok(val) => {
                 if let Some(arr) = val.get("contracts").and_then(|v| v.as_array()) {
-                    let mapped: Vec<SkillDef> = arr.iter().filter_map(|c| {
-                        let contract: HermesContract = serde_json::from_value(c.clone()).ok()?;
-                        Some(SkillDef {
-                            id: contract.name.clone(),
-                            name: contract.name,
-                            description: contract.description,
-                            category: contract.category,
-                            triggers: vec![],
-                            steps: vec![],
-                            validators: vec![],
+                    let mapped: Vec<SkillDef> = arr
+                        .iter()
+                        .filter_map(|c| {
+                            let contract: HermesContract =
+                                serde_json::from_value(c.clone()).ok()?;
+                            Some(SkillDef {
+                                id: contract.name.clone(),
+                                name: contract.name,
+                                description: contract.description,
+                                category: contract.category,
+                                triggers: vec![],
+                                steps: vec![],
+                                validators: vec![],
+                            })
                         })
-                    }).collect();
+                        .collect();
                     if !mapped.is_empty() {
                         skills.set(mapped);
                     } else {
@@ -306,7 +331,9 @@ pub fn SkillEditorPanel() -> impl IntoView {
             if let Some(mut skill) = current.get(idx).cloned() {
                 undo_stack.update(|stack| {
                     stack.push(skill.clone());
-                    if stack.len() > 20 { stack.remove(0); }
+                    if stack.len() > 20 {
+                        stack.remove(0);
+                    }
                 });
                 redo_stack.set(vec![]);
                 let new_step = SkillStep {
@@ -340,7 +367,9 @@ pub fn SkillEditorPanel() -> impl IntoView {
                 let yaml = generate_yaml_preview(prev);
                 preview_yaml.set(yaml.clone());
                 highlighted_html.set(render_highlighted_yaml(&yaml));
-                undo_stack.update(|s| { s.pop(); });
+                undo_stack.update(|s| {
+                    s.pop();
+                });
             }
         }
     };
@@ -360,7 +389,9 @@ pub fn SkillEditorPanel() -> impl IntoView {
                 preview_yaml.set(yaml.clone());
                 highlighted_html.set(render_highlighted_yaml(&yaml));
                 validation_errors.set(validate_yaml_preview(&yaml));
-                redo_stack.update(|s| { s.pop(); });
+                redo_stack.update(|s| {
+                    s.pop();
+                });
             }
         }
     };
@@ -383,17 +414,22 @@ pub fn SkillEditorPanel() -> impl IntoView {
                     }
 
                     // POST para o endpoint de contratos (não /validate)
-                    match gloo_net::http::Request::post("http://localhost:3000/api/v1/hermes/skill-evolution/contracts")
-                        .header("Content-Type", "application/json")
-                        .body(serde_json::json!({
+                    match gloo_net::http::Request::post(
+                        "http://localhost:3000/api/v1/hermes/skill-evolution/contracts",
+                    )
+                    .header("Content-Type", "application/json")
+                    .body(
+                        serde_json::json!({
                             "name": skill.name,
                             "description": skill.description,
                             "category": skill.category,
                             "yaml": yaml
-                        }).to_string())
-                        .unwrap_or_else(|_| panic!("invalid body"))
-                        .send()
-                        .await
+                        })
+                        .to_string(),
+                    )
+                    .unwrap_or_else(|_| panic!("invalid body"))
+                    .send()
+                    .await
                     {
                         Ok(resp) if resp.ok() => status.set(Some("✅ Salvo com sucesso".into())),
                         Ok(resp) => status.set(Some(format!("❌ Erro HTTP {}", resp.status()))),

@@ -115,13 +115,21 @@ pub fn FleetAuditorPanel() -> impl IntoView {
 
     let _sorted_by_cost = Memo::new(move |_| {
         let mut b = bots.get();
-        b.sort_by(|a, b| b.estimated_cost_usd.partial_cmp(&a.estimated_cost_usd).unwrap_or(std::cmp::Ordering::Equal));
+        b.sort_by(|a, b| {
+            b.estimated_cost_usd
+                .partial_cmp(&a.estimated_cost_usd)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         b
     });
 
     let _sorted_by_effectiveness = Memo::new(move |_| {
         let mut b = bots.get();
-        b.sort_by(|a, b| b.success_rate_pct.partial_cmp(&a.success_rate_pct).unwrap_or(std::cmp::Ordering::Equal));
+        b.sort_by(|a, b| {
+            b.success_rate_pct
+                .partial_cmp(&a.success_rate_pct)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         b
     });
 
@@ -363,7 +371,10 @@ async fn fetch_fleet_metrics() -> Result<FleetData, String> {
                 avg_response_ms: 2800,
                 total_actions: 234,
                 failed_actions: 65,
-                alerts: vec!["Eficácia baixa: 72.1% < threshold 80%".into(), "Failed actions spike".into()],
+                alerts: vec![
+                    "Eficácia baixa: 72.1% < threshold 80%".into(),
+                    "Failed actions spike".into(),
+                ],
             },
         ],
         ledger: WeeklyLedger {

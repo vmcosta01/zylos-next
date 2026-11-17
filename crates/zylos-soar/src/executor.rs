@@ -77,17 +77,20 @@ impl<'a> PlaybookExecutor<'a> {
         cursor: &mut PlaybookCursor,
         context: &mut IncidentContext,
     ) -> Result<StateExecutionResult> {
-        let state = playbook
-            .find_state(&cursor.current_state)
-            .ok_or_else(|| {
-                SoarError::PlaybookParse(format!(
-                    "state '{}' not found in playbook '{}'",
-                    cursor.current_state, playbook.name
-                ))
-            })?;
+        let state = playbook.find_state(&cursor.current_state).ok_or_else(|| {
+            SoarError::PlaybookParse(format!(
+                "state '{}' not found in playbook '{}'",
+                cursor.current_state, playbook.name
+            ))
+        })?;
 
         let start = Utc::now();
-        let state_hash = format!("{}:{}:{}", playbook.name, cursor.current_state, start.timestamp_millis());
+        let state_hash = format!(
+            "{}:{}:{}",
+            playbook.name,
+            cursor.current_state,
+            start.timestamp_millis()
+        );
 
         // If state has a runbook, look it up and execute
         let (runbook_result, audit_result) = if let Some(ref runbook_name) = state.runbook {
@@ -197,14 +200,12 @@ impl<'a> PlaybookExecutor<'a> {
         let mut results = Vec::new();
 
         loop {
-            let state = playbook
-                .find_state(&cursor.current_state)
-                .ok_or_else(|| {
-                    SoarError::PlaybookParse(format!(
-                        "state '{}' not found in playbook '{}'",
-                        cursor.current_state, playbook.name
-                    ))
-                })?;
+            let state = playbook.find_state(&cursor.current_state).ok_or_else(|| {
+                SoarError::PlaybookParse(format!(
+                    "state '{}' not found in playbook '{}'",
+                    cursor.current_state, playbook.name
+                ))
+            })?;
 
             let result = self.execute_state(playbook, cursor, context).await?;
             results.push(result.clone());
@@ -258,10 +259,7 @@ states:
             Box::pin(async { Ok(()) })
         }
 
-        fn execute<'a>(
-            &'a self,
-            _ctx: IncidentContext,
-        ) -> BoxFuture<'a, Result<RunbookResult>> {
+        fn execute<'a>(&'a self, _ctx: IncidentContext) -> BoxFuture<'a, Result<RunbookResult>> {
             Box::pin(async { Ok(RunbookResult::ok("mock done", 5)) })
         }
     }

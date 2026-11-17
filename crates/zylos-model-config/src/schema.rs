@@ -43,7 +43,6 @@ impl TierStrategy {
     }
 }
 
-
 /// Nível de esforço de raciocínio do modelo
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -77,14 +76,13 @@ impl ReasoningEffort {
     }
 }
 
-
 /// Configuração de modelo para um bot ou contexto global
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct ModelConfig {
     pub id: String,
-    pub bot_id: String,       // "__global__" para config global
-    pub provider: String,     // openai, anthropic, ollama, etc.
-    pub model_id: String,     // gpt-4o, claude-3.5-sonnet, etc.
+    pub bot_id: String,   // "__global__" para config global
+    pub provider: String, // openai, anthropic, ollama, etc.
+    pub model_id: String, // gpt-4o, claude-3.5-sonnet, etc.
     pub tier_strategy: String,
     pub reasoning_effort: String,
     pub max_tokens: Option<i64>,

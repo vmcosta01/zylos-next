@@ -229,11 +229,11 @@ pub enum TakeoverError {
     #[error("Invalid initiator: {0}")]
     InvalidInitiator(String),
     /// WebSocket transport error.
-         #[error("WebSocket error: {0}")]
-         WebSocket(Box<tokio_tungstenite::tungstenite::Error>),
-         /// File-system or I/O error.
-         #[error("IO error: {0}")]
-         Io(#[from] std::io::Error),
+    #[error("WebSocket error: {0}")]
+    WebSocket(Box<tokio_tungstenite::tungstenite::Error>),
+    /// File-system or I/O error.
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
     /// JSON serialization/deserialization error.
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
@@ -331,7 +331,10 @@ impl TakeoverStore {
     }
 
     async fn send(&self, cmd: DbCommand) -> Result<(), TakeoverError> {
-        self.tx.send(cmd).await.map_err(|_| TakeoverError::ChannelClosed)
+        self.tx
+            .send(cmd)
+            .await
+            .map_err(|_| TakeoverError::ChannelClosed)
     }
 
     // -- Sessions --
@@ -339,9 +342,16 @@ impl TakeoverStore {
     /// Creates a new takeover session in [`TakeoverStatus::PendingApproval`] state.
     ///
     /// Returns the created session with a generated UUID and current timestamp.
-    pub async fn create_session(&self, req: &TakeoverRequest) -> Result<TakeoverSession, TakeoverError> {
+    pub async fn create_session(
+        &self,
+        req: &TakeoverRequest,
+    ) -> Result<TakeoverSession, TakeoverError> {
         let (reply, rx) = oneshot::channel();
-        self.send(DbCommand::CreateSession { req: req.clone(), reply }).await?;
+        self.send(DbCommand::CreateSession {
+            req: req.clone(),
+            reply,
+        })
+        .await?;
         rx.await.map_err(|_| TakeoverError::ChannelClosed)?
     }
 
@@ -351,7 +361,11 @@ impl TakeoverStore {
     /// On rejection it transitions to [`TakeoverStatus::Rejected`] and `ended_at` is set.
     pub async fn approve_session(&self, decision: &TakeoverDecision) -> Result<(), TakeoverError> {
         let (reply, rx) = oneshot::channel();
-        self.send(DbCommand::ApproveSession { decision: decision.clone(), reply }).await?;
+        self.send(DbCommand::ApproveSession {
+            decision: decision.clone(),
+            reply,
+        })
+        .await?;
         rx.await.map_err(|_| TakeoverError::ChannelClosed)?
     }
 
@@ -359,9 +373,18 @@ impl TakeoverStore {
     ///
     /// Sets `ended_at` to the current time. Only sessions in [`TakeoverStatus::Active`]
     /// can be ended; returns [`TakeoverError::NotFound`] otherwise.
-    pub async fn end_session(&self, session_id: &str, status: TakeoverStatus) -> Result<(), TakeoverError> {
+    pub async fn end_session(
+        &self,
+        session_id: &str,
+        status: TakeoverStatus,
+    ) -> Result<(), TakeoverError> {
         let (reply, rx) = oneshot::channel();
-        self.send(DbCommand::EndSession { session_id: session_id.to_string(), status, reply }).await?;
+        self.send(DbCommand::EndSession {
+            session_id: session_id.to_string(),
+            status,
+            reply,
+        })
+        .await?;
         rx.await.map_err(|_| TakeoverError::ChannelClosed)?
     }
 
@@ -370,21 +393,33 @@ impl TakeoverStore {
     /// Returns [`TakeoverError::NotFound`] if no session exists with the given ID.
     pub async fn get_session(&self, id: &str) -> Result<TakeoverSession, TakeoverError> {
         let (reply, rx) = oneshot::channel();
-        self.send(DbCommand::GetSession { id: id.to_string(), reply }).await?;
+        self.send(DbCommand::GetSession {
+            id: id.to_string(),
+            reply,
+        })
+        .await?;
         rx.await.map_err(|_| TakeoverError::ChannelClosed)?
     }
 
     /// Lists all sessions currently in [`TakeoverStatus::Active`] state.
     pub async fn list_active_sessions(&self) -> Result<Vec<TakeoverSession>, TakeoverError> {
         let (reply, rx) = oneshot::channel();
-        self.send(DbCommand::ListByStatus { status: TakeoverStatus::Active, reply }).await?;
+        self.send(DbCommand::ListByStatus {
+            status: TakeoverStatus::Active,
+            reply,
+        })
+        .await?;
         rx.await.map_err(|_| TakeoverError::ChannelClosed)?
     }
 
     /// Lists all sessions currently in [`TakeoverStatus::PendingApproval`] state.
     pub async fn list_pending_sessions(&self) -> Result<Vec<TakeoverSession>, TakeoverError> {
         let (reply, rx) = oneshot::channel();
-        self.send(DbCommand::ListByStatus { status: TakeoverStatus::PendingApproval, reply }).await?;
+        self.send(DbCommand::ListByStatus {
+            status: TakeoverStatus::PendingApproval,
+            reply,
+        })
+        .await?;
         rx.await.map_err(|_| TakeoverError::ChannelClosed)?
     }
 
@@ -393,23 +428,40 @@ impl TakeoverStore {
     /// Records an audited CDP message and increments the session's message counter.
     pub async fn record_message(&self, msg: &AuditedMessage) -> Result<(), TakeoverError> {
         let (reply, rx) = oneshot::channel();
-        self.send(DbCommand::RecordMessage { msg: msg.clone(), reply }).await?;
+        self.send(DbCommand::RecordMessage {
+            msg: msg.clone(),
+            reply,
+        })
+        .await?;
         rx.await.map_err(|_| TakeoverError::ChannelClosed)?
     }
 
     /// Retrieves audited messages for a session, ordered by timestamp ascending.
     ///
     /// Returns at most `limit` messages.
-    pub async fn get_messages(&self, session_id: &str, limit: usize) -> Result<Vec<AuditedMessage>, TakeoverError> {
+    pub async fn get_messages(
+        &self,
+        session_id: &str,
+        limit: usize,
+    ) -> Result<Vec<AuditedMessage>, TakeoverError> {
         let (reply, rx) = oneshot::channel();
-        self.send(DbCommand::GetMessages { session_id: session_id.to_string(), limit, reply }).await?;
+        self.send(DbCommand::GetMessages {
+            session_id: session_id.to_string(),
+            limit,
+            reply,
+        })
+        .await?;
         rx.await.map_err(|_| TakeoverError::ChannelClosed)?
     }
 
     /// Returns the total number of audited messages recorded for a session.
     pub async fn get_message_count(&self, session_id: &str) -> Result<u64, TakeoverError> {
         let (reply, rx) = oneshot::channel();
-        self.send(DbCommand::GetMessageCount { session_id: session_id.to_string(), reply }).await?;
+        self.send(DbCommand::GetMessageCount {
+            session_id: session_id.to_string(),
+            reply,
+        })
+        .await?;
         rx.await.map_err(|_| TakeoverError::ChannelClosed)?
     }
 
@@ -455,7 +507,11 @@ fn writer_loop(conn: Connection, mut rx: mpsc::Receiver<DbCommand>) {
                 let result = sync_approve_session(&conn, &decision);
                 let _ = reply.send(result);
             }
-            DbCommand::EndSession { session_id, status, reply } => {
+            DbCommand::EndSession {
+                session_id,
+                status,
+                reply,
+            } => {
                 let result = sync_end_session(&conn, &session_id, status);
                 let _ = reply.send(result);
             }
@@ -471,7 +527,11 @@ fn writer_loop(conn: Connection, mut rx: mpsc::Receiver<DbCommand>) {
                 let result = sync_record_message(&conn, &msg);
                 let _ = reply.send(result);
             }
-            DbCommand::GetMessages { session_id, limit, reply } => {
+            DbCommand::GetMessages {
+                session_id,
+                limit,
+                reply,
+            } => {
                 let result = sync_get_messages(&conn, &session_id, limit);
                 let _ = reply.send(result);
             }
@@ -527,7 +587,10 @@ fn run_migrations(conn: &Connection) -> Result<(), rusqlite::Error> {
     Ok(())
 }
 
-fn sync_create_session(conn: &Connection, req: &TakeoverRequest) -> Result<TakeoverSession, TakeoverError> {
+fn sync_create_session(
+    conn: &Connection,
+    req: &TakeoverRequest,
+) -> Result<TakeoverSession, TakeoverError> {
     let id = Uuid::new_v4().to_string();
     let now = Utc::now();
     let session = TakeoverSession {
@@ -563,7 +626,10 @@ fn sync_create_session(conn: &Connection, req: &TakeoverRequest) -> Result<Takeo
     Ok(session)
 }
 
-fn sync_approve_session(conn: &Connection, decision: &TakeoverDecision) -> Result<(), TakeoverError> {
+fn sync_approve_session(
+    conn: &Connection,
+    decision: &TakeoverDecision,
+) -> Result<(), TakeoverError> {
     let status = if decision.approved {
         TakeoverStatus::Active
     } else {
@@ -586,7 +652,11 @@ fn sync_approve_session(conn: &Connection, decision: &TakeoverDecision) -> Resul
     Ok(())
 }
 
-fn sync_end_session(conn: &Connection, session_id: &str, status: TakeoverStatus) -> Result<(), TakeoverError> {
+fn sync_end_session(
+    conn: &Connection,
+    session_id: &str,
+    status: TakeoverStatus,
+) -> Result<(), TakeoverError> {
     let now = Utc::now().to_rfc3339();
     let affected = conn.execute(
         "UPDATE takeover_sessions SET status = ?1, ended_at = ?2 WHERE id = ?3 AND status = 'active'",
@@ -608,7 +678,10 @@ fn sync_get_session(conn: &Connection, id: &str) -> Result<TakeoverSession, Take
     .ok_or_else(|| TakeoverError::NotFound(id.to_string()))
 }
 
-fn sync_list_by_status(conn: &Connection, status: TakeoverStatus) -> Result<Vec<TakeoverSession>, TakeoverError> {
+fn sync_list_by_status(
+    conn: &Connection,
+    status: TakeoverStatus,
+) -> Result<Vec<TakeoverSession>, TakeoverError> {
     let mut stmt = conn.prepare(
         "SELECT id, agent_id, browser_target_url, cdp_ws_url, status, initiated_by, approved_by, reason, started_at, ended_at, message_count FROM takeover_sessions WHERE status = ?1 ORDER BY started_at DESC",
     )?;
@@ -636,7 +709,11 @@ fn sync_record_message(conn: &Connection, msg: &AuditedMessage) -> Result<(), Ta
     Ok(())
 }
 
-fn sync_get_messages(conn: &Connection, session_id: &str, limit: usize) -> Result<Vec<AuditedMessage>, TakeoverError> {
+fn sync_get_messages(
+    conn: &Connection,
+    session_id: &str,
+    limit: usize,
+) -> Result<Vec<AuditedMessage>, TakeoverError> {
     let mut stmt = conn.prepare(
         "SELECT id, session_id, direction, method, payload_size, timestamp, payload FROM takeover_messages WHERE session_id = ?1 ORDER BY timestamp ASC LIMIT ?2",
     )?;
@@ -654,12 +731,33 @@ fn sync_get_message_count(conn: &Connection, session_id: &str) -> Result<u64, Ta
 }
 
 fn sync_dashboard_summary(conn: &Connection) -> Result<TakeoverDashboard, TakeoverError> {
-    let total_sessions: usize = conn.query_row("SELECT COUNT(*) FROM takeover_sessions", [], |r| r.get(0))?;
-    let active_sessions: usize = conn.query_row("SELECT COUNT(*) FROM takeover_sessions WHERE status = 'active'", [], |r| r.get(0))?;
-    let pending_sessions: usize = conn.query_row("SELECT COUNT(*) FROM takeover_sessions WHERE status = 'pending_approval'", [], |r| r.get(0))?;
-    let completed_sessions: usize = conn.query_row("SELECT COUNT(*) FROM takeover_sessions WHERE status = 'completed'", [], |r| r.get(0))?;
-    let rejected_sessions: usize = conn.query_row("SELECT COUNT(*) FROM takeover_sessions WHERE status = 'rejected'", [], |r| r.get(0))?;
-    let total_messages: u64 = conn.query_row("SELECT COALESCE(SUM(message_count), 0) FROM takeover_sessions", [], |r| r.get(0))?;
+    let total_sessions: usize =
+        conn.query_row("SELECT COUNT(*) FROM takeover_sessions", [], |r| r.get(0))?;
+    let active_sessions: usize = conn.query_row(
+        "SELECT COUNT(*) FROM takeover_sessions WHERE status = 'active'",
+        [],
+        |r| r.get(0),
+    )?;
+    let pending_sessions: usize = conn.query_row(
+        "SELECT COUNT(*) FROM takeover_sessions WHERE status = 'pending_approval'",
+        [],
+        |r| r.get(0),
+    )?;
+    let completed_sessions: usize = conn.query_row(
+        "SELECT COUNT(*) FROM takeover_sessions WHERE status = 'completed'",
+        [],
+        |r| r.get(0),
+    )?;
+    let rejected_sessions: usize = conn.query_row(
+        "SELECT COUNT(*) FROM takeover_sessions WHERE status = 'rejected'",
+        [],
+        |r| r.get(0),
+    )?;
+    let total_messages: u64 = conn.query_row(
+        "SELECT COALESCE(SUM(message_count), 0) FROM takeover_sessions",
+        [],
+        |r| r.get(0),
+    )?;
     Ok(TakeoverDashboard {
         total_sessions,
         active_sessions,
@@ -713,12 +811,15 @@ impl CdpProxy {
     /// ended with [`TakeoverStatus::Completed`].
     pub async fn run(
         self,
-        client_ws: tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
+        client_ws: tokio_tungstenite::WebSocketStream<
+            tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+        >,
         upstream_url: &str,
     ) -> Result<(), TakeoverError> {
         use tokio_tungstenite::connect_async;
 
-        let (upstream_ws, _) = connect_async(upstream_url).await
+        let (upstream_ws, _) = connect_async(upstream_url)
+            .await
             .map_err(|e| TakeoverError::WebSocket(Box::new(e)))?;
         let (mut client_sink, mut client_stream) = client_ws.split();
         let (mut upstream_sink, mut upstream_stream) = upstream_ws.split();
@@ -820,7 +921,10 @@ impl CdpProxy {
             _ = outgoing_handle => {},
         }
 
-        let _ = self.store.end_session(&self.session_id, TakeoverStatus::Completed).await;
+        let _ = self
+            .store
+            .end_session(&self.session_id, TakeoverStatus::Completed)
+            .await;
         Ok(())
     }
 }
@@ -828,7 +932,10 @@ impl CdpProxy {
 fn extract_cdp_method(json: &str) -> Option<String> {
     serde_json::from_str::<serde_json::Value>(json)
         .ok()
-        .and_then(|v| v.get("method").and_then(|m| m.as_str().map(|s| s.to_string())))
+        .and_then(|v| {
+            v.get("method")
+                .and_then(|m| m.as_str().map(|s| s.to_string()))
+        })
 }
 
 // ---------------------------------------------------------------------------
@@ -845,7 +952,8 @@ fn row_to_session(row: &rusqlite::Row) -> Result<TakeoverSession, rusqlite::Erro
         agent_id: row.get(1)?,
         browser_target_url: row.get(2)?,
         cdp_ws_url: row.get(3)?,
-        status: TakeoverStatus::parse(&row.get::<_, String>(4)?).unwrap_or(TakeoverStatus::Terminated),
+        status: TakeoverStatus::parse(&row.get::<_, String>(4)?)
+            .unwrap_or(TakeoverStatus::Terminated),
         initiated_by: Initiator::parse(&row.get::<_, String>(5)?).unwrap_or(Initiator::System),
         approved_by: row.get(6)?,
         reason: row.get(7)?,
@@ -949,7 +1057,8 @@ mod tests {
             method: Some("Page.navigate".into()),
             payload_size: 128,
             timestamp: Utc::now(),
-            payload: r#"{"id":1,"method":"Page.navigate","params":{"url":"https://example.com"}}"#.into(),
+            payload: r#"{"id":1,"method":"Page.navigate","params":{"url":"https://example.com"}}"#
+                .into(),
         };
         store.record_message(&msg).await.unwrap();
 

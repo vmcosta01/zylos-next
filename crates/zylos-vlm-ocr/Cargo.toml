@@ -7,16 +7,12 @@ license.workspace = true
 description = "VLM OCR Sidecar for Zylos-Next — dots.mocr integration with structured output"
 
 [dependencies]
-zylos-core = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 reqwest = { version = "0.12", features = ["json", "multipart"] }
-base64 = "0.22"
-image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
-tempfile = "3"
 
 [dev-dependencies]
 tokio-test = "0.4"

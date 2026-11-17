@@ -22,7 +22,7 @@ use std::time::Duration;
 #[cfg(feature = "p2p-network")]
 use blake3;
 #[cfg(feature = "p2p-network")]
-use quinn::{Endpoint, Incoming, Connection, RecvStream};
+use quinn::{Connection, Endpoint, Incoming, RecvStream};
 #[cfg(feature = "p2p-network")]
 use rcgen::{generate_simple_self_signed, CertifiedKey};
 #[cfg(feature = "p2p-network")]
@@ -30,7 +30,7 @@ use rustls::pki_types::{CertificateDer, PrivatePkcs8KeyDer};
 #[cfg(feature = "p2p-network")]
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "p2p-network")]
-use tokio::sync::{Mutex, RwLock, mpsc};
+use tokio::sync::{mpsc, Mutex, RwLock};
 #[cfg(feature = "p2p-network")]
 use tracing::{debug, info, warn};
 
@@ -69,8 +69,8 @@ impl WireEnvelope {
 
     /// Serialize to bytes and compute blake3 integrity hash
     pub fn encode(&self) -> Result<Vec<u8>, NetworkError> {
-        let payload = serde_json::to_vec(self)
-            .map_err(|e| NetworkError::Serialization(e.to_string()))?;
+        let payload =
+            serde_json::to_vec(self).map_err(|e| NetworkError::Serialization(e.to_string()))?;
 
         if payload.len() > MAX_MESSAGE_SIZE as usize {
             return Err(NetworkError::MessageTooLarge(payload.len()));
@@ -96,8 +96,7 @@ impl WireEnvelope {
             return Err(NetworkError::IntegrityMismatch);
         }
 
-        serde_json::from_slice(payload)
-            .map_err(|e| NetworkError::Deserialization(e.to_string()))
+        serde_json::from_slice(payload).map_err(|e| NetworkError::Deserialization(e.to_string()))
     }
 }
 
@@ -190,7 +189,9 @@ impl NetworkTransport {
     }
 
     /// Generate self-signed TLS certificate for QUIC
-    fn generate_tls_config(&self) -> Result<(quinn::ServerConfig, quinn::ClientConfig), NetworkError> {
+    fn generate_tls_config(
+        &self,
+    ) -> Result<(quinn::ServerConfig, quinn::ClientConfig), NetworkError> {
         let subject_alt_names = vec!["localhost".to_string(), self.config.node_id.clone()];
         let CertifiedKey { cert, key_pair } = generate_simple_self_signed(subject_alt_names)
             .map_err(|e| NetworkError::Endpoint(format!("cert generation: {}", e)))?;
@@ -347,9 +348,8 @@ impl NetworkTransport {
         }
 
         // Parse length
-        let len = u32::from_be_bytes([
-            header_buf[0], header_buf[1], header_buf[2], header_buf[3],
-        ]) as usize;
+        let len = u32::from_be_bytes([header_buf[0], header_buf[1], header_buf[2], header_buf[3]])
+            as usize;
 
         if len > MAX_MESSAGE_SIZE as usize {
             warn!(size = len, "Rejecting oversized message");
@@ -559,7 +559,10 @@ impl NetworkBridge {
     /// Publish a message both locally AND to all remote peers.
     pub async fn publish_federated(&self, msg: Message) -> Result<(usize, usize), NetworkError> {
         // Local delivery first
-        let local_count = self.messenger.publish(msg.clone()).await
+        let local_count = self
+            .messenger
+            .publish(msg.clone())
+            .await
             .map_err(|e| NetworkError::Connection(format!("local publish: {}", e)))?;
 
         // Remote broadcast
@@ -575,7 +578,9 @@ impl NetworkBridge {
         msg: Message,
     ) -> Result<usize, NetworkError> {
         // Local delivery
-        self.messenger.publish(msg.clone()).await
+        self.messenger
+            .publish(msg.clone())
+            .await
             .map_err(|e| NetworkError::Connection(format!("local publish: {}", e)))?;
 
         // Remote targeted send
@@ -657,7 +662,10 @@ mod tests {
 
         let result = WireEnvelope::decode(&header, &payload);
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), NetworkError::IntegrityMismatch));
+        assert!(matches!(
+            result.unwrap_err(),
+            NetworkError::IntegrityMismatch
+        ));
     }
 
     #[test]

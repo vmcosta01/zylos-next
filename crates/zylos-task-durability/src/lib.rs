@@ -24,7 +24,9 @@ pub use approval_hash::{
     ApprovalContext, ApprovalDigest, ExecutionAuthority, PolicyTier, PolicyTierEvaluator,
     RefusalReason, StepCall, TierDecision,
 };
-pub use outcome::{Outcome, OperationError, OutcomeTracker, NotificationDedupKey, OutcomeAuditEntry};
+pub use outcome::{
+    NotificationDedupKey, OperationError, Outcome, OutcomeAuditEntry, OutcomeTracker,
+};
 
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
@@ -149,7 +151,9 @@ pub enum TaskDurabilityError {
     #[error("active task cap reached ({cap}): cannot create new task")]
     ActiveCapReached { cap: u32 },
 
-    #[error("circuit breaker open: {consecutive_failures} consecutive failures, manual reset required")]
+    #[error(
+        "circuit breaker open: {consecutive_failures} consecutive failures, manual reset required"
+    )]
     CircuitBreakerOpen { consecutive_failures: u32 },
 
     #[error("serialization error: {0}")]
@@ -295,7 +299,7 @@ impl TaskDurabilityEngine {
     pub fn new(conn: Connection, config: TaskDurabilityConfig) -> Result<Self> {
         // Initialize schema BEFORE wrapping in async Mutex to avoid blocking_lock in runtime
         conn.execute_batch(
-                "CREATE TABLE IF NOT EXISTS tasks (
+            "CREATE TABLE IF NOT EXISTS tasks (
                     id TEXT PRIMARY KEY,
                     status INTEGER NOT NULL DEFAULT 0,
                     lease_id TEXT,
@@ -347,11 +351,7 @@ impl TaskDurabilityEngine {
     }
 
     /// Create a new task. Enforces active cap (OpenMuse pattern).
-    pub async fn create_task(
-        &self,
-        id: String,
-        payload: serde_json::Value,
-    ) -> Result<()> {
+    pub async fn create_task(&self, id: String, payload: serde_json::Value) -> Result<()> {
         // Check circuit breaker
         let failures = self.consecutive_failures.load(Ordering::Relaxed);
         if failures >= self.config.circuit_breaker_threshold {
@@ -483,13 +483,16 @@ impl TaskDurabilityEngine {
     /// Throws `LostLeaseError` if the lease has been stolen.
     pub async fn guard(&self, lease: &Lease) -> Result<()> {
         let conn = self.conn.lock().await;
-        let valid: bool = conn.query_row(
-            "SELECT CASE WHEN lease_id = ?1 AND status = 1 AND lease_until > datetime('now')
+        let valid: bool = conn
+            .query_row(
+                "SELECT CASE WHEN lease_id = ?1 AND status = 1 AND lease_until > datetime('now')
              THEN 1 ELSE 0 END
              FROM tasks WHERE id = ?2",
-            params![lease.lease_id.to_string(), lease.task_id],
-            |row| row.get::<_, i32>(0).map(|v| v != 0),
-        ).optional()?.unwrap_or(false);
+                params![lease.lease_id.to_string(), lease.task_id],
+                |row| row.get::<_, i32>(0).map(|v| v != 0),
+            )
+            .optional()?
+            .unwrap_or(false);
 
         if !valid {
             self.metrics.leases_lost.fetch_add(1, Ordering::Relaxed);
@@ -505,11 +508,7 @@ impl TaskDurabilityEngine {
     /// Checkpoint: persist intermediate state within a lease.
     ///
     /// Throws `LostLeaseError` if lease is stale.
-    pub async fn checkpoint(
-        &self,
-        lease: &Lease,
-        state: &serde_json::Value,
-    ) -> Result<()> {
+    pub async fn checkpoint(&self, lease: &Lease, state: &serde_json::Value) -> Result<()> {
         self.guard(lease).await?;
 
         let conn = self.conn.lock().await;
@@ -620,7 +619,9 @@ impl TaskDurabilityEngine {
         // Track consecutive failures for circuit breaker
         let prev = self.consecutive_failures.fetch_add(1, Ordering::Relaxed);
         if prev + 1 >= self.config.circuit_breaker_threshold {
-            self.metrics.circuit_breaker_trips.fetch_add(1, Ordering::Relaxed);
+            self.metrics
+                .circuit_breaker_trips
+                .fetch_add(1, Ordering::Relaxed);
             warn!(failures = prev + 1, "circuit breaker opened");
         }
 
@@ -629,12 +630,7 @@ impl TaskDurabilityEngine {
     }
 
     /// Preserve Q&A history. Appends a new pair (never replaces).
-    pub async fn answer(
-        &self,
-        task_id: &str,
-        question: &str,
-        response: &str,
-    ) -> Result<()> {
+    pub async fn answer(&self, task_id: &str, question: &str, response: &str) -> Result<()> {
         let conn = self.conn.lock().await;
         let now = Utc::now().to_rfc3339();
         conn.execute(
@@ -670,20 +666,19 @@ impl TaskDurabilityEngine {
     }
 
     /// Control: pause/resume/cancel/retry with CAS precondition.
-    pub async fn control(
-        &self,
-        task_id: &str,
-        action: ControlAction,
-    ) -> Result<()> {
+    pub async fn control(&self, task_id: &str, action: ControlAction) -> Result<()> {
         let conn = self.conn.lock().await;
-        let (current_status, current_lease): (u8, Option<String>) = conn.query_row(
-            "SELECT status, lease_id FROM tasks WHERE id = ?1",
-            params![task_id],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        ).optional()?.ok_or_else(|| TaskDurabilityError::NotFound(task_id.into()))?;
+        let (current_status, current_lease): (u8, Option<String>) = conn
+            .query_row(
+                "SELECT status, lease_id FROM tasks WHERE id = ?1",
+                params![task_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?
+            .ok_or_else(|| TaskDurabilityError::NotFound(task_id.into()))?;
 
-        let current = TaskStatus::try_from(current_status)
-            .map_err(TaskDurabilityError::NotFound)?;
+        let current =
+            TaskStatus::try_from(current_status).map_err(TaskDurabilityError::NotFound)?;
 
         let (target, require_no_lease) = match action {
             ControlAction::Pause => (TaskStatus::Paused, false),
@@ -758,7 +753,9 @@ impl TaskDurabilityEngine {
     /// Compute exponential backoff with jitter for retry scheduling.
     pub fn compute_backoff(&self, failure_count: u32) -> Duration {
         let max_cap = self.config.max_backoff_minutes * 60;
-        let base_secs = 2u64.saturating_pow(failure_count.min(30)).saturating_mul(60);
+        let base_secs = 2u64
+            .saturating_pow(failure_count.min(30))
+            .saturating_mul(60);
         let capped = base_secs.min(max_cap).min(3600);
         let jitter_range = capped * self.config.backoff_jitter_pct as u64 / 100;
         let jitter = if jitter_range > 0 {
@@ -908,9 +905,7 @@ mod tests {
             .await
             .unwrap();
 
-        let result = engine
-            .create_task("t3".into(), serde_json::json!({}))
-            .await;
+        let result = engine.create_task("t3".into(), serde_json::json!({})).await;
         assert!(matches!(
             result,
             Err(TaskDurabilityError::ActiveCapReached { cap: 2 })
@@ -971,7 +966,10 @@ mod tests {
             .unwrap();
         let lease = engine.claim_task("w1").await.unwrap().unwrap();
 
-        engine.control(&lease.task_id, ControlAction::Pause).await.unwrap();
+        engine
+            .control(&lease.task_id, ControlAction::Pause)
+            .await
+            .unwrap();
 
         // Should not be claimable while paused
         let lease2 = engine.claim_task("w2").await.unwrap();

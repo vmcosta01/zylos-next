@@ -309,7 +309,10 @@ mod tests {
         let json = serde_json::to_string_pretty(&config).unwrap();
         let restored: LifecycleConfig = serde_json::from_str(&json).unwrap();
 
-        assert_eq!(restored.retain.max_age, Duration::from_secs(7 * 24 * 60 * 60));
+        assert_eq!(
+            restored.retain.max_age,
+            Duration::from_secs(7 * 24 * 60 * 60)
+        );
         assert!(!restored.auto_run);
         assert!(restored.schedule.is_none());
     }
@@ -327,6 +330,9 @@ mod tests {
 
         // entries_removed + kept_* deve igualar entries_evaluated
         let total_kept = report.kept_recent + report.kept_relevant + report.kept_pinned;
-        assert_eq!(report.entries_removed + total_kept, report.entries_evaluated);
+        assert_eq!(
+            report.entries_removed + total_kept,
+            report.entries_evaluated
+        );
     }
 }

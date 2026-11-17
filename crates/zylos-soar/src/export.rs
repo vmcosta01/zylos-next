@@ -192,11 +192,7 @@ impl From<&Playbook> for ExportablePlaybook {
             .map(|s| s.name.clone())
             .collect();
 
-        let triggers: Vec<String> = pb
-            .triggers
-            .iter()
-            .map(|t| t.expression.clone())
-            .collect();
+        let triggers: Vec<String> = pb.triggers.iter().map(|t| t.expression.clone()).collect();
 
         let description = format!(
             "SOAR Playbook '{}': {} states, {} triggers, terminal states: [{}]",
@@ -304,11 +300,7 @@ impl SoarExporter {
 
     // ── Cursor Rules (.cursor/rules/*.mdc) ──────────────────────────
 
-    fn export_cursor_rule(
-        &self,
-        pb: &ExportablePlaybook,
-        output_dir: &Path,
-    ) -> ExportResult<()> {
+    fn export_cursor_rule(&self, pb: &ExportablePlaybook, output_dir: &Path) -> ExportResult<()> {
         let rules_dir = output_dir.join(".cursor").join("rules");
         std::fs::create_dir_all(&rules_dir)?;
 
@@ -695,9 +687,13 @@ mod tests {
         assert!(report.errors.is_empty());
 
         let rules_dir = tmp.join(".cursor").join("rules");
-        assert!(rules_dir.join("soar-playbook-security-incident-response.mdc").exists());
+        assert!(rules_dir
+            .join("soar-playbook-security-incident-response.mdc")
+            .exists());
 
-        let content = fs::read_to_string(rules_dir.join("soar-playbook-security-incident-response.mdc")).unwrap();
+        let content =
+            fs::read_to_string(rules_dir.join("soar-playbook-security-incident-response.mdc"))
+                .unwrap();
         assert!(content.contains("SOAR Playbook: security-incident-response"));
         assert!(content.contains("triage"));
         assert!(content.contains("containment"));
@@ -758,10 +754,9 @@ mod tests {
             .join("security-incident-response.json")
             .exists());
 
-        let manifest: serde_json::Value = serde_json::from_str(
-            &fs::read_to_string(plugin_dir.join("manifest.json")).unwrap(),
-        )
-        .unwrap();
+        let manifest: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(plugin_dir.join("manifest.json")).unwrap())
+                .unwrap();
         assert_eq!(manifest["name"], "zylos-soar-playbooks");
         assert_eq!(manifest["playbooks"].as_array().unwrap().len(), 1);
 
@@ -786,7 +781,10 @@ mod tests {
     #[test]
     fn test_sanitize_filename() {
         assert_eq!(sanitize_filename("my-playbook_v2"), "my-playbook_v2");
-        assert_eq!(sanitize_filename("playbook/with:special"), "playbook_with_special");
+        assert_eq!(
+            sanitize_filename("playbook/with:special"),
+            "playbook_with_special"
+        );
         assert_eq!(sanitize_filename("normal-name"), "normal-name");
     }
 

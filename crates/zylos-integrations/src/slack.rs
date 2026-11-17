@@ -9,7 +9,7 @@ use reqwest::Client;
 use std::collections::HashMap;
 
 use crate::channel::{
-    CalendarEvent, ChatInfo, ChannelAdapter, DepartmentInfo, MessageId, OutboundMessage,
+    CalendarEvent, ChannelAdapter, ChatInfo, DepartmentInfo, MessageId, OutboundMessage,
     SendResult, UserInfo,
 };
 use crate::error::{IntegrationError, Result};
@@ -65,13 +65,14 @@ impl SlackAdapter {
                 detail: format!("HTTP request failed: {}", e),
             })?;
 
-        let body: serde_json::Value = resp.json().await.map_err(|e| {
-            IntegrationError::ProviderExecution {
-                provider: "slack".to_string(),
-                action: method.to_string(),
-                detail: format!("JSON parse failed: {}", e),
-            }
-        })?;
+        let body: serde_json::Value =
+            resp.json()
+                .await
+                .map_err(|e| IntegrationError::ProviderExecution {
+                    provider: "slack".to_string(),
+                    action: method.to_string(),
+                    detail: format!("JSON parse failed: {}", e),
+                })?;
 
         if body.get("ok").and_then(|v| v.as_bool()) != Some(true) {
             let error = body
@@ -108,13 +109,14 @@ impl SlackAdapter {
                 detail: format!("HTTP request failed: {}", e),
             })?;
 
-        let body: serde_json::Value = resp.json().await.map_err(|e| {
-            IntegrationError::ProviderExecution {
-                provider: "slack".to_string(),
-                action: method.to_string(),
-                detail: format!("JSON parse failed: {}", e),
-            }
-        })?;
+        let body: serde_json::Value =
+            resp.json()
+                .await
+                .map_err(|e| IntegrationError::ProviderExecution {
+                    provider: "slack".to_string(),
+                    action: method.to_string(),
+                    detail: format!("JSON parse failed: {}", e),
+                })?;
 
         if body.get("ok").and_then(|v| v.as_bool()) != Some(true) {
             let error = body
@@ -166,9 +168,7 @@ impl ChannelAdapter for SlackAdapter {
         page_size: Option<u32>,
     ) -> Result<Vec<UserInfo>> {
         let limit = page_size.unwrap_or(200).to_string();
-        let body = self
-            .api_get("users.list", &[("limit", &limit)])
-            .await?;
+        let body = self.api_get("users.list", &[("limit", &limit)]).await?;
 
         let members = body
             .get("members")
@@ -211,9 +211,7 @@ impl ChannelAdapter for SlackAdapter {
     }
 
     async fn get_user_info(&self, user_id: &str) -> Result<UserInfo> {
-        let body = self
-            .api_get("users.info", &[("user", user_id)])
-            .await?;
+        let body = self.api_get("users.info", &[("user", user_id)]).await?;
 
         let user = body.get("user").cloned().unwrap_or_default();
         let profile = user.get("profile").cloned().unwrap_or_default();
@@ -330,6 +328,6 @@ mod tests {
         let adapter = SlackAdapter::new("xoxb-invalid".to_string());
         let result = adapter.health_check().await;
         // Should return Ok(false) rather than Err when token is invalid
-        assert_eq!(result.unwrap(), false);
+        assert!(!result.unwrap());
     }
 }

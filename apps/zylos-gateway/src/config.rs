@@ -153,10 +153,7 @@ impl GatewayConfig {
                 info!("Loaded gateway config from {}", path.display());
                 parsed
             } else {
-                info!(
-                    "Config file {} not found, using defaults",
-                    path.display()
-                );
+                info!("Config file {} not found, using defaults", path.display());
                 GatewayConfig::default()
             }
         } else {

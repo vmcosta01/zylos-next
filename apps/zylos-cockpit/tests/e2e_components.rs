@@ -17,26 +17,19 @@ wasm_bindgen_test_configure!(run_in_browser);
 fn test_channel_panel_module_loads() {
     // Se este teste compila e roda, o módulo está corretamente integrado.
     // A renderização real requer DOM completo; aqui validamos apenas linkage.
-    assert!(true, "channel_panel module loaded successfully");
 }
 
 /// Valida que o módulo phone_relay_panel compila e exporta PhoneRelayPanel.
 #[wasm_bindgen_test]
-fn test_phone_relay_panel_module_loads() {
-    assert!(true, "phone_relay_panel module loaded successfully");
-}
+fn test_phone_relay_panel_module_loads() {}
 
 /// Valida que o módulo skill_editor_panel compila e exporta SkillEditorPanel.
 #[wasm_bindgen_test]
-fn test_skill_editor_panel_module_loads() {
-    assert!(true, "skill_editor_panel module loaded successfully");
-}
+fn test_skill_editor_panel_module_loads() {}
 
 /// Valida que o módulo swarm_topology_panel compila e exporta SwarmTopologyPanel.
 #[wasm_bindgen_test]
-fn test_swarm_topology_panel_module_loads() {
-    assert!(true, "swarm_topology_panel module loaded successfully");
-}
+fn test_swarm_topology_panel_module_loads() {}
 
 /// Valida serialização/deserialização de Channel (usado pelo fetch do gateway).
 #[wasm_bindgen_test]
@@ -103,12 +96,12 @@ fn test_skill_def_serialization_roundtrip() {
 /// Valida serialização/deserialização de TopologyNode.
 #[wasm_bindgen_test]
 fn test_topology_node_serialization_roundtrip() {
-    use zylos_cockpit::components::swarm_topology_panel::{NodeType, NodeStatus, TopologyNode};
-     let node = TopologyNode {
-     id: "node-1".to_string(),
-     label: "Agent Alpha".to_string(),
-     node_type: NodeType::Agent,
-     status: NodeStatus::Online,
+    use zylos_cockpit::components::swarm_topology_panel::{NodeStatus, NodeType, TopologyNode};
+    let node = TopologyNode {
+        id: "node-1".to_string(),
+        label: "Agent Alpha".to_string(),
+        node_type: NodeType::Agent,
+        status: NodeStatus::Online,
         x: 100.0,
         y: 200.0,
     };

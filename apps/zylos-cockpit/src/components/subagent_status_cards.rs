@@ -102,7 +102,11 @@ impl SubagentInfo {
         if self.duration_seconds < 60 {
             format!("{}s", self.duration_seconds)
         } else if self.duration_seconds < 3600 {
-            format!("{}m {}s", self.duration_seconds / 60, self.duration_seconds % 60)
+            format!(
+                "{}m {}s",
+                self.duration_seconds / 60,
+                self.duration_seconds % 60
+            )
         } else {
             format!(
                 "{}h {}m",

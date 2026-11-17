@@ -53,7 +53,7 @@ pub struct ResourceLimits {
 impl Default for ResourceLimits {
     fn default() -> Self {
         Self {
-            cpu_quota_us: 100_000,       // 100ms per 1s period
+            cpu_quota_us: 100_000,           // 100ms per 1s period
             memory_bytes: 512 * 1024 * 1024, // 512 MB
             pids_max: 64,
         }
@@ -98,7 +98,6 @@ pub enum LimiterBackend {
     Noop,
 }
 
-
 /// Resultado da verificação de limites.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct LimitCheckResult {
@@ -128,7 +127,11 @@ pub enum ResourceLimiter {
 
 impl ResourceLimiter {
     /// Aplica limites a um target (container ID, cgroup path, etc.).
-    pub async fn apply(&self, target_id: &str, limits: &ResourceLimits) -> Result<(), ResourceLimitError> {
+    pub async fn apply(
+        &self,
+        target_id: &str,
+        limits: &ResourceLimits,
+    ) -> Result<(), ResourceLimitError> {
         match self {
             Self::Noop(l) => l.apply(target_id, limits).await,
             Self::Cgroups(l) => l.apply(target_id, limits).await,
@@ -137,7 +140,11 @@ impl ResourceLimiter {
     }
 
     /// Verifica se os limites estão sendo respeitados.
-    pub async fn verify(&self, target_id: &str, limits: &ResourceLimits) -> Result<LimitCheckResult, ResourceLimitError> {
+    pub async fn verify(
+        &self,
+        target_id: &str,
+        limits: &ResourceLimits,
+    ) -> Result<LimitCheckResult, ResourceLimitError> {
         match self {
             Self::Noop(l) => l.verify(target_id, limits).await,
             Self::Cgroups(l) => l.verify(target_id, limits).await,
@@ -242,9 +249,8 @@ impl CgroupsLimiter {
         {
             if !std::path::Path::new(&path).exists() {
                 // Tentar criar o diretório do cgroup
-                std::fs::create_dir_all(&path).map_err(|_| {
-                    ResourceLimitError::CgroupsNotAvailable
-                })?;
+                std::fs::create_dir_all(&path)
+                    .map_err(|_| ResourceLimitError::CgroupsNotAvailable)?;
             }
             Ok(Self { base_path: path })
         }
@@ -287,10 +293,7 @@ impl CgroupsLimiter {
             )?;
 
             // PID limit: pids.max
-            std::fs::write(
-                format!("{}/pids.max", cg_path),
-                limits.pids_max.to_string(),
-            )?;
+            std::fs::write(format!("{}/pids.max", cg_path), limits.pids_max.to_string())?;
 
             tracing::info!(
                 target = target_id,
@@ -327,18 +330,15 @@ impl CgroupsLimiter {
                 .ok()
                 .and_then(|s| s.trim().parse::<u64>().ok());
 
-            let mem_ok = memory_current.map_or(true, |m| m <= limits.memory_bytes);
-            let pid_ok = pid_current.map_or(true, |p| p <= limits.pids_max);
+            let mem_ok = memory_current.is_none_or(|m| m <= limits.memory_bytes);
+            let pid_ok = pid_current.is_none_or(|p| p <= limits.pids_max);
 
             Ok(LimitCheckResult {
                 within_limits: mem_ok && pid_ok,
                 cpu_usage_us: None, // CPU usage requires more complex accounting
                 memory_usage_bytes: memory_current,
                 pid_count: pid_current,
-                details: format!(
-                    "cgroup={}, mem_ok={}, pid_ok={}",
-                    cg_path, mem_ok, pid_ok
-                ),
+                details: format!("cgroup={}, mem_ok={}, pid_ok={}", cg_path, mem_ok, pid_ok),
             })
         }
 
@@ -547,26 +547,26 @@ impl DockerLimiter {
 
 /// Cria o limiter apropriado baseado na configuração e plataforma.
 pub fn create_limiter(backend: LimiterBackend) -> Result<ResourceLimiter, ResourceLimitError> {
- match backend {
- LimiterBackend::Noop => Ok(ResourceLimiter::Noop(NoopLimiter)),
- LimiterBackend::Cgroups => Ok(ResourceLimiter::Cgroups(CgroupsLimiter::new(None)?)),
- LimiterBackend::Docker => Ok(ResourceLimiter::Docker(DockerLimiter::new()?)),
- LimiterBackend::Auto => {
- // Tentar cgroups primeiro (Linux only)
- if let Ok(cg) = CgroupsLimiter::new(None) {
- tracing::info!("ResourceLimiter: using cgroups v2 backend");
- return Ok(ResourceLimiter::Cgroups(cg));
- }
- // Tentar Docker
- if let Ok(dk) = DockerLimiter::new() {
- tracing::info!("ResourceLimiter: using Docker backend");
- return Ok(ResourceLimiter::Docker(dk));
- }
- // Fallback para noop
- tracing::warn!("ResourceLimiter: no real backend available, using noop");
- Ok(ResourceLimiter::Noop(NoopLimiter))
- }
- }
+    match backend {
+        LimiterBackend::Noop => Ok(ResourceLimiter::Noop(NoopLimiter)),
+        LimiterBackend::Cgroups => Ok(ResourceLimiter::Cgroups(CgroupsLimiter::new(None)?)),
+        LimiterBackend::Docker => Ok(ResourceLimiter::Docker(DockerLimiter::new()?)),
+        LimiterBackend::Auto => {
+            // Tentar cgroups primeiro (Linux only)
+            if let Ok(cg) = CgroupsLimiter::new(None) {
+                tracing::info!("ResourceLimiter: using cgroups v2 backend");
+                return Ok(ResourceLimiter::Cgroups(cg));
+            }
+            // Tentar Docker
+            if let Ok(dk) = DockerLimiter::new() {
+                tracing::info!("ResourceLimiter: using Docker backend");
+                return Ok(ResourceLimiter::Docker(dk));
+            }
+            // Fallback para noop
+            tracing::warn!("ResourceLimiter: no real backend available, using noop");
+            Ok(ResourceLimiter::Noop(NoopLimiter))
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -645,38 +645,41 @@ mod tests {
     }
 
     #[test]
-     fn test_create_limiter_noop() {
-     let limiter = create_limiter(LimiterBackend::Noop).unwrap();
-     assert_eq!(limiter.name(), "noop");
-     assert!(matches!(limiter, ResourceLimiter::Noop(_)));
-     }
+    fn test_create_limiter_noop() {
+        let limiter = create_limiter(LimiterBackend::Noop).unwrap();
+        assert_eq!(limiter.name(), "noop");
+        assert!(matches!(limiter, ResourceLimiter::Noop(_)));
+    }
 
-     #[test]
-     fn test_create_limiter_auto_fallback() {
-     // Em CI/test environments sem cgroups ou Docker, auto deve fallback para noop
-     let limiter = create_limiter(LimiterBackend::Auto);
-     // Deve sempre succeeder (fallback para noop)
-     assert!(limiter.is_ok());
-     let limiter = limiter.unwrap();
-     // Em Windows/CI sem Docker, deve ser Noop
-     assert!(matches!(limiter, ResourceLimiter::Noop(_) | ResourceLimiter::Docker(_)));
-     }
+    #[test]
+    fn test_create_limiter_auto_fallback() {
+        // Em CI/test environments sem cgroups ou Docker, auto deve fallback para noop
+        let limiter = create_limiter(LimiterBackend::Auto);
+        // Deve sempre succeeder (fallback para noop)
+        assert!(limiter.is_ok());
+        let limiter = limiter.unwrap();
+        // Em Windows/CI sem Docker, deve ser Noop
+        assert!(matches!(
+            limiter,
+            ResourceLimiter::Noop(_) | ResourceLimiter::Docker(_)
+        ));
+    }
 
-     #[tokio::test]
-     async fn test_enum_dispatch_apply_verify_remove() {
-     let limiter = create_limiter(LimiterBackend::Noop).unwrap();
-     let limits = ResourceLimits::default();
+    #[tokio::test]
+    async fn test_enum_dispatch_apply_verify_remove() {
+        let limiter = create_limiter(LimiterBackend::Noop).unwrap();
+        let limits = ResourceLimits::default();
 
-     // apply via enum dispatch
-     assert!(limiter.apply("test-target", &limits).await.is_ok());
+        // apply via enum dispatch
+        assert!(limiter.apply("test-target", &limits).await.is_ok());
 
-     // verify via enum dispatch
-     let result = limiter.verify("test-target", &limits).await.unwrap();
-     assert!(result.within_limits);
+        // verify via enum dispatch
+        let result = limiter.verify("test-target", &limits).await.unwrap();
+        assert!(result.within_limits);
 
-     // remove via enum dispatch
-     assert!(limiter.remove("test-target").await.is_ok());
-     }
+        // remove via enum dispatch
+        assert!(limiter.remove("test-target").await.is_ok());
+    }
 
     #[test]
     fn test_resource_limits_serialization() {

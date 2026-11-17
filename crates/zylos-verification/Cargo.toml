@@ -7,10 +7,8 @@ license.workspace = true
 description = "VERIFICATION_PROOF: Ground enum, Proof engine, Guardrail short-circuit, Adversarial panel, ToT reasoning"
 
 [dependencies]
-zylos-core = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-jsonschema = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 chrono = { version = "0.4", features = ["serde"] }
@@ -33,3 +31,6 @@ tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"
 [[bench]]
 name = "verification"
 harness = false
+
+[lints]
+workspace = true

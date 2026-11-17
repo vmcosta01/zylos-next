@@ -31,7 +31,6 @@ sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
 
 # Error handling
 thiserror = "1"
-anyhow = "1"
 
 # Logging
 tracing = "0.1"
@@ -46,7 +45,6 @@ chrono = { version = "0.4", features = ["serde"] }
 dirs = "5"
 hex = "0.4"
 sha2 = "0.10"
-base64 = "0.22"
 regex = "1"
 
 [dev-dependencies]

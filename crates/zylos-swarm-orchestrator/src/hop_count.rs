@@ -99,9 +99,12 @@ impl HopCountGuard {
     /// garantir que o contador reflita a profundidade real.
     /// Saturating sub previne underflow em cenários de erro.
     pub fn exit(&self) {
-        self.inner.current.try_update(Ordering::SeqCst, Ordering::SeqCst, |v| {
-            Some(v.saturating_sub(1))
-        }).ok();
+        self.inner
+            .current
+            .try_update(Ordering::SeqCst, Ordering::SeqCst, |v| {
+                Some(v.saturating_sub(1))
+            })
+            .ok();
     }
 
     /// Retorna o valor atual do contador.

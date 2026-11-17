@@ -51,7 +51,11 @@ pub struct ExecutionAuthority {
 }
 
 impl ExecutionAuthority {
-    pub fn new(approval_id: impl Into<String>, digest: impl Into<String>, owner: impl Into<String>) -> Self {
+    pub fn new(
+        approval_id: impl Into<String>,
+        digest: impl Into<String>,
+        owner: impl Into<String>,
+    ) -> Self {
         Self {
             approval_id: approval_id.into(),
             digest: digest.into(),
@@ -92,7 +96,8 @@ pub struct VerifySpec {
 impl VerifySpec {
     /// Execute the verification command and return the outcome.
     pub async fn execute(&self) -> OutcomeUncertainty {
-        let span = tracing::info_span!("verify", cmd = %self.cmd, expected_exit = self.expected_exit);
+        let span =
+            tracing::info_span!("verify", cmd = %self.cmd, expected_exit = self.expected_exit);
         let _guard = span.enter();
 
         let timeout = Duration::from_millis(self.timeout_ms);
@@ -214,7 +219,8 @@ impl ExecutorBackend for LocalBackend {
         &self,
         task_spec: serde_json::Value,
         auth: ExecutionAuthority,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<ExecutionOutcome>> + Send + '_>> {
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<ExecutionOutcome>> + Send + '_>>
+    {
         Box::pin(async move {
             let span = tracing::info_span!("local_backend", owner = %auth.owner, approval = %auth.approval_id);
             let _guard = span.enter();
@@ -261,11 +267,11 @@ impl ExecutorBackend for LocalBackend {
 
 /// Docker backend — executa task_spec via `docker run` com sandboxing.
 pub struct DockerBackend {
- /// Imagem base para execução (ex: "zylos-runtime:latest")
- image: String,
- /// Timeout máximo em segundos (usado como argumento --stop-timeout)
- #[allow(dead_code)]
- timeout_secs: u64,
+    /// Imagem base para execução (ex: "zylos-runtime:latest")
+    image: String,
+    /// Timeout máximo em segundos (usado como argumento --stop-timeout)
+    #[allow(dead_code)]
+    timeout_secs: u64,
 }
 
 impl DockerBackend {
@@ -282,7 +288,8 @@ impl ExecutorBackend for DockerBackend {
         &self,
         task_spec: serde_json::Value,
         _auth: ExecutionAuthority,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<ExecutionOutcome>> + Send + '_>> {
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<ExecutionOutcome>> + Send + '_>>
+    {
         Box::pin(async move {
             use tokio::process::Command;
 
@@ -293,11 +300,13 @@ impl ExecutorBackend for DockerBackend {
 
             let output = Command::new("docker")
                 .args([
-                    "run", "--rm",
+                    "run",
+                    "--rm",
                     "--network=none",
                     "--memory=256m",
                     "--cpus=1",
-                    "-e", &format!("TASK_SPEC={}", spec_json),
+                    "-e",
+                    &format!("TASK_SPEC={}", spec_json),
                     &self.image,
                 ])
                 .stdout(Stdio::piped())
@@ -321,9 +330,9 @@ impl ExecutorBackend for DockerBackend {
                 warn!(stderr = %stderr, "DockerBackend task failed");
                 Ok(ExecutionOutcome {
                     status: OutcomeUncertainty::Uncertain(format!(
-                     "Docker exited with code {:?}: {}",
-                     output.status.code(),
-                     stderr.trim()
+                        "Docker exited with code {:?}: {}",
+                        output.status.code(),
+                        stderr.trim()
                     )),
                     output: Some(serde_json::Value::String(stdout)),
                     artifacts: vec![],
@@ -355,7 +364,8 @@ impl ExecutorBackend for WasmBackend {
         &self,
         task_spec: serde_json::Value,
         _auth: ExecutionAuthority,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<ExecutionOutcome>> + Send + '_>> {
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<ExecutionOutcome>> + Send + '_>>
+    {
         Box::pin(async move {
             let module_path = match &self.wasm_module_path {
                 Some(p) => p.clone(),
@@ -373,8 +383,8 @@ impl ExecutorBackend for WasmBackend {
             if !module_path.exists() {
                 return Ok(ExecutionOutcome {
                     status: OutcomeUncertainty::Uncertain(format!(
-                     "WASM module not found: {}",
-                     module_path.display()
+                        "WASM module not found: {}",
+                        module_path.display()
                     )),
                     output: None,
                     artifacts: vec![],
@@ -395,8 +405,10 @@ impl ExecutorBackend for WasmBackend {
             let output = Command::new("wasmtime")
                 .args([
                     "run",
-                    "--max-memory-size", &format!("{}", self.max_memory_pages * 65536),
-                    "--env", &format!("TASK_SPEC={}", spec_json),
+                    "--max-memory-size",
+                    &format!("{}", self.max_memory_pages * 65536),
+                    "--env",
+                    &format!("TASK_SPEC={}", spec_json),
                     &module_path.to_string_lossy(),
                 ])
                 .stdout(Stdio::piped())
@@ -420,9 +432,9 @@ impl ExecutorBackend for WasmBackend {
                 warn!(stderr = %stderr, "WasmBackend task failed");
                 Ok(ExecutionOutcome {
                     status: OutcomeUncertainty::Uncertain(format!(
-                     "Wasmtime exited with code {:?}: {}",
-                     output.status.code(),
-                     stderr.trim()
+                        "Wasmtime exited with code {:?}: {}",
+                        output.status.code(),
+                        stderr.trim()
                     )),
                     output: Some(serde_json::Value::String(stdout)),
                     artifacts: vec![],
@@ -735,8 +747,11 @@ impl CerebeloExecutor {
     pub fn new(cancel: CancellationToken) -> Self {
         let mut backends: HashMap<BackendKind, Arc<dyn ExecutorBackend>> = HashMap::new();
         backends.insert(BackendKind::Local, Arc::new(LocalBackend));
-        backends.insert(BackendKind::Docker, Arc::new(DockerBackend::new("zylos-runtime:latest", 300)));
-         backends.insert(BackendKind::Wasm, Arc::new(WasmBackend::new(None, 256)));
+        backends.insert(
+            BackendKind::Docker,
+            Arc::new(DockerBackend::new("zylos-runtime:latest", 300)),
+        );
+        backends.insert(BackendKind::Wasm, Arc::new(WasmBackend::new(None, 256)));
 
         Self {
             dag_executor: DagExecutor::new(cancel.clone()),
@@ -792,17 +807,15 @@ impl CerebeloExecutor {
                 let _wg = MemoryWriteGate::new();
 
                 async move {
-                    let node_span = tracing::info_span!("cerebelo_node", node_id = %node_id, run_id = %rid);
+                    let node_span =
+                        tracing::info_span!("cerebelo_node", node_id = %node_id, run_id = %rid);
                     let _ng = node_span.enter();
 
                     // Signal heartbeat
                     let _ = hb.send(()).await;
 
                     // Get config for this node
-                    let config = configs
-                        .get(&node_id)
-                        .cloned()
-                        .unwrap_or_default();
+                    let config = configs.get(&node_id).cloned().unwrap_or_default();
 
                     // Idempotency check
                     {
@@ -876,13 +889,12 @@ impl CerebeloExecutor {
                     }
 
                     // Create artifact provenance
-                    let _provenance = ArtifactProvenance::new(
-                        &node_id,
-                        &rid,
-                        OutcomeUncertainty::Succeeded,
-                    );
+                    let _provenance =
+                        ArtifactProvenance::new(&node_id, &rid, OutcomeUncertainty::Succeeded);
 
-                    Ok(outcome.output.unwrap_or(serde_json::json!({"status": "ok"})))
+                    Ok(outcome
+                        .output
+                        .unwrap_or(serde_json::json!({"status": "ok"})))
                 }
             })
             .await?;
@@ -1119,10 +1131,7 @@ mod tests {
     async fn test_docker_backend_returns_uncertain() {
         let backend = DockerBackend::new("test-image:latest", 60);
         let auth = ExecutionAuthority::new("test", "digest", "tester");
-        let result = backend
-            .execute(serde_json::json!({}), auth)
-            .await
-            .unwrap();
+        let result = backend.execute(serde_json::json!({}), auth).await.unwrap();
         assert!(matches!(result.status, OutcomeUncertainty::Uncertain(_)));
     }
 
@@ -1130,10 +1139,7 @@ mod tests {
     async fn test_wasm_backend_returns_uncertain() {
         let backend = WasmBackend::new(None, 256);
         let auth = ExecutionAuthority::new("test", "digest", "tester");
-        let result = backend
-            .execute(serde_json::json!({}), auth)
-            .await
-            .unwrap();
+        let result = backend.execute(serde_json::json!({}), auth).await.unwrap();
         assert!(matches!(result.status, OutcomeUncertainty::Uncertain(_)));
     }
 
@@ -1143,16 +1149,22 @@ mod tests {
         let mut cerebelo = CerebeloExecutor::new(cancel);
 
         // Configure nodes with local backend
-        cerebelo.set_node_config("step1", ExecutionConfig {
-            idempotent: true,
-            verify: None,
-            backend: BackendKind::Local,
-        });
-        cerebelo.set_node_config("step2", ExecutionConfig {
-            idempotent: true,
-            verify: None,
-            backend: BackendKind::Local,
-        });
+        cerebelo.set_node_config(
+            "step1",
+            ExecutionConfig {
+                idempotent: true,
+                verify: None,
+                backend: BackendKind::Local,
+            },
+        );
+        cerebelo.set_node_config(
+            "step2",
+            ExecutionConfig {
+                idempotent: true,
+                verify: None,
+                backend: BackendKind::Local,
+            },
+        );
 
         let def = make_test_dag();
         let auth = ExecutionAuthority::new("approval-1", "sha256:test", "operator");
@@ -1167,16 +1179,19 @@ mod tests {
         let cancel = CancellationToken::new();
         let mut cerebelo = CerebeloExecutor::new(cancel);
 
-        cerebelo.set_node_config("step1", ExecutionConfig {
-            idempotent: true,
-            verify: Some(VerifySpec {
-                cmd: "echo verified".to_string(),
-                expected_exit: 0,
-                output_pattern: Some("verified".to_string()),
-                timeout_ms: 5000,
-            }),
-            backend: BackendKind::Local,
-        });
+        cerebelo.set_node_config(
+            "step1",
+            ExecutionConfig {
+                idempotent: true,
+                verify: Some(VerifySpec {
+                    cmd: "echo verified".to_string(),
+                    expected_exit: 0,
+                    output_pattern: Some("verified".to_string()),
+                    timeout_ms: 5000,
+                }),
+                backend: BackendKind::Local,
+            },
+        );
 
         let def = DagDefinition {
             id: DagId::new(),

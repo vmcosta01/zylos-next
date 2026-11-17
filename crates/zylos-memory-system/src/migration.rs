@@ -103,7 +103,8 @@ impl MigrationAdapter {
         let entries = Self::load_entries(source_path, &mut report)?;
 
         // Track content_hash -> NodeId for edge resolution
-        let mut hash_to_id: std::collections::HashMap<String, NodeId> = std::collections::HashMap::new();
+        let mut hash_to_id: std::collections::HashMap<String, NodeId> =
+            std::collections::HashMap::new();
 
         // Phase 1: Insert all nodes
         for entry in &entries {
@@ -144,8 +145,8 @@ impl MigrationAdapter {
 
                 match target_id {
                     Some(tid) => {
-                        let edge = ContextEdge::new(source_id, tid, &rel.relation)
-                            .with_weight(rel.weight);
+                        let edge =
+                            ContextEdge::new(source_id, tid, &rel.relation).with_weight(rel.weight);
                         match graph.add_edge(edge).await {
                             Ok(()) => report.edges_migrated += 1,
                             Err(e) => {
@@ -210,9 +211,8 @@ impl MigrationAdapter {
                 MemoryError::Migration(format!("Cannot read directory {:?}: {}", path, e))
             })?;
             for dir_entry in read_dir {
-                let dir_entry = dir_entry.map_err(|e| {
-                    MemoryError::Migration(format!("Directory entry error: {}", e))
-                })?;
+                let dir_entry = dir_entry
+                    .map_err(|e| MemoryError::Migration(format!("Directory entry error: {}", e)))?;
                 let file_path = dir_entry.path();
                 if file_path.extension().and_then(|e| e.to_str()) == Some("json")
                     || file_path.extension().and_then(|e| e.to_str()) == Some("jsonl")
@@ -220,10 +220,9 @@ impl MigrationAdapter {
                     match Self::load_file(&file_path) {
                         Ok(mut file_entries) => entries.append(&mut file_entries),
                         Err(e) => {
-                            report.errors.push(format!(
-                                "Failed to load {:?}: {}",
-                                file_path, e
-                            ));
+                            report
+                                .errors
+                                .push(format!("Failed to load {:?}: {}", file_path, e));
                         }
                     }
                 }
@@ -242,9 +241,8 @@ impl MigrationAdapter {
 
     /// Load entries from a single JSON or JSONL file
     fn load_file(path: &Path) -> Result<Vec<HermesEntry>> {
-        let content = std::fs::read_to_string(path).map_err(|e| {
-            MemoryError::Migration(format!("Cannot read file {:?}: {}", path, e))
-        })?;
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| MemoryError::Migration(format!("Cannot read file {:?}: {}", path, e)))?;
 
         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
@@ -366,8 +364,15 @@ mod tests {
     async fn test_migrate_nonexistent_path() {
         let graph = ContextGraph::in_memory().unwrap();
         // Use a path that cannot exist on any platform (invalid chars on Windows)
-        let result =
-            MigrationAdapter::migrate_from_hermes(Path::new("Z:\\this\\path\\does\\not\\exist\\<<>>"), &graph).await;
-        assert!(result.is_err(), "Expected error for nonexistent path, got: {:?}", result);
+        let result = MigrationAdapter::migrate_from_hermes(
+            Path::new("Z:\\this\\path\\does\\not\\exist\\<<>>"),
+            &graph,
+        )
+        .await;
+        assert!(
+            result.is_err(),
+            "Expected error for nonexistent path, got: {:?}",
+            result
+        );
     }
 }

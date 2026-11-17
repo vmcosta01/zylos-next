@@ -5,12 +5,12 @@
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use arrow_array::Array;
-use tokio_stream::StreamExt;
-use lancedb::connection::{Connection, ConnectBuilder};
+use async_trait::async_trait;
+use lancedb::connection::{ConnectBuilder, Connection};
 use lancedb::query::{ExecutableQuery, QueryBase};
 use lancedb::table::Table;
+use tokio_stream::StreamExt;
 
 use crate::error::{MemoryError, Result};
 use crate::vector_store::{SearchParams, SearchResult, VectorDocument, VectorId, VectorStore};
@@ -24,10 +24,9 @@ pub struct LanceDbVectorStore {
 impl LanceDbVectorStore {
     /// Create a new LanceDbVectorStore at the given URI (file path or s3://)
     pub async fn new(uri: &str, table_name: impl Into<String>) -> Result<Self> {
-        let connection = ConnectBuilder::new(uri)
-            .execute()
-            .await
-            .map_err(|e| MemoryError::VectorStore(format!("Failed to connect to LanceDB: {}", e)))?;
+        let connection = ConnectBuilder::new(uri).execute().await.map_err(|e| {
+            MemoryError::VectorStore(format!("Failed to connect to LanceDB: {}", e))
+        })?;
 
         Ok(Self {
             connection: Arc::new(connection),
@@ -45,8 +44,8 @@ impl LanceDbVectorStore {
             .map_err(|e| MemoryError::VectorStore(format!("Failed to list tables: {}", e)))?;
 
         if !table_names.iter().any(|n| n == &self.table_name) {
-            use arrow_array::{ArrayRef, FixedSizeListArray, RecordBatch, StringArray};
             use arrow_array::RecordBatchIterator;
+            use arrow_array::{ArrayRef, FixedSizeListArray, RecordBatch, StringArray};
             use arrow_schema::{DataType, Field, Schema};
 
             let field = Arc::new(Field::new("item", DataType::Float32, true));
@@ -70,7 +69,9 @@ impl LanceDbVectorStore {
                     Arc::new(StringArray::from(Vec::<Option<&str>>::new())) as ArrayRef,
                 ],
             )
-            .map_err(|e| MemoryError::VectorStore(format!("Failed to create empty batch: {}", e)))?;
+            .map_err(|e| {
+                MemoryError::VectorStore(format!("Failed to create empty batch: {}", e))
+            })?;
 
             let reader = RecordBatchIterator::new(vec![Ok(empty_batch)], schema);
 
@@ -78,9 +79,7 @@ impl LanceDbVectorStore {
                 .create_table(&self.table_name, Box::new(reader))
                 .execute()
                 .await
-                .map_err(|e| {
-                    MemoryError::VectorStore(format!("Failed to create table: {}", e))
-                })?;
+                .map_err(|e| MemoryError::VectorStore(format!("Failed to create table: {}", e)))?;
         }
 
         Ok(())
@@ -91,7 +90,12 @@ impl LanceDbVectorStore {
             .open_table(&self.table_name)
             .execute()
             .await
-            .map_err(|e| MemoryError::VectorStore(format!("Failed to open table '{}': {}", self.table_name, e)))
+            .map_err(|e| {
+                MemoryError::VectorStore(format!(
+                    "Failed to open table '{}': {}",
+                    self.table_name, e
+                ))
+            })
     }
 }
 
@@ -102,18 +106,19 @@ impl VectorStore for LanceDbVectorStore {
             return Ok(vec![]);
         }
 
-        use arrow_array::{ArrayRef, FixedSizeListArray, Float32Array, RecordBatch, StringArray};
         use arrow_array::RecordBatchIterator;
+        use arrow_array::{ArrayRef, FixedSizeListArray, Float32Array, RecordBatch, StringArray};
         use arrow_schema::{DataType, Field, Schema};
 
         let ids: Vec<VectorId> = documents.iter().map(|d| d.id).collect();
         let dim = documents[0].embedding.len() as i32;
 
-        let id_values: Vec<String> = documents.iter().map(|d| d.id.as_str().to_string()).collect();
-        let content_values: Vec<Option<String>> = documents
+        let id_values: Vec<String> = documents
             .iter()
-            .map(|d| d.content.clone())
+            .map(|d| d.id.as_str().to_string())
             .collect();
+        let content_values: Vec<Option<String>> =
+            documents.iter().map(|d| d.content.clone()).collect();
         let metadata_values: Vec<Option<String>> = documents
             .iter()
             .map(|d| d.metadata.as_ref().map(|m| m.to_string()))
@@ -126,12 +131,18 @@ impl VectorStore for LanceDbVectorStore {
         }
         let float_array = Arc::new(Float32Array::from(embedding_data));
         let field = Arc::new(Field::new("item", DataType::Float32, true));
-        let embedding_array = FixedSizeListArray::try_new(field, dim, float_array, None)
-            .map_err(|e| MemoryError::VectorStore(format!("Failed to build embedding array: {}", e)))?;
+        let embedding_array =
+            FixedSizeListArray::try_new(field, dim, float_array, None).map_err(|e| {
+                MemoryError::VectorStore(format!("Failed to build embedding array: {}", e))
+            })?;
 
         let schema = Arc::new(Schema::new(vec![
             Field::new("id", DataType::Utf8, false),
-            Field::new("embedding", DataType::FixedSizeList(Arc::new(Field::new("item", DataType::Float32, true)), dim), false),
+            Field::new(
+                "embedding",
+                DataType::FixedSizeList(Arc::new(Field::new("item", DataType::Float32, true)), dim),
+                false,
+            ),
             Field::new("content", DataType::Utf8, true),
             Field::new("metadata", DataType::Utf8, true),
         ]));
@@ -163,7 +174,8 @@ impl VectorStore for LanceDbVectorStore {
         let table = self.get_table().await?;
 
         let query_vec = params.query_embedding;
-        let search = table.vector_search(query_vec)
+        let search = table
+            .vector_search(query_vec)
             .map_err(|e| MemoryError::VectorStore(format!("LanceDB search setup failed: {}", e)))?
             .limit(params.limit);
 
@@ -194,15 +206,23 @@ impl VectorStore for LanceDbVectorStore {
             let id_col = batch
                 .column_by_name("id")
                 .and_then(|c| c.as_string_opt::<i32>())
-                .ok_or_else(|| MemoryError::VectorStore("Missing 'id' column in results".to_string()))?;
+                .ok_or_else(|| {
+                    MemoryError::VectorStore("Missing 'id' column in results".to_string())
+                })?;
 
             let score_col = batch
                 .column_by_name("_distance")
                 .and_then(|c| c.as_primitive_opt::<arrow_array::types::Float32Type>())
-                .ok_or_else(|| MemoryError::VectorStore("Missing '_distance' column in results".to_string()))?;
+                .ok_or_else(|| {
+                    MemoryError::VectorStore("Missing '_distance' column in results".to_string())
+                })?;
 
-            let content_col = batch.column_by_name("content").and_then(|c| c.as_string_opt::<i32>());
-            let metadata_col = batch.column_by_name("metadata").and_then(|c| c.as_string_opt::<i32>());
+            let content_col = batch
+                .column_by_name("content")
+                .and_then(|c| c.as_string_opt::<i32>());
+            let metadata_col = batch
+                .column_by_name("metadata")
+                .and_then(|c| c.as_string_opt::<i32>());
 
             let embedding_col = batch.column_by_name("embedding");
 
@@ -241,7 +261,9 @@ impl VectorStore for LanceDbVectorStore {
                     if let Some(fsl) = col.as_fixed_size_list_opt() {
                         if !fsl.is_null(i) {
                             let list = fsl.value(i);
-                            if let Some(floats) = list.as_primitive_opt::<arrow_array::types::Float32Type>() {
+                            if let Some(floats) =
+                                list.as_primitive_opt::<arrow_array::types::Float32Type>()
+                            {
                                 floats.values().to_vec()
                             } else {
                                 vec![]
@@ -288,7 +310,11 @@ impl VectorStore for LanceDbVectorStore {
             }
         }
 
-        search_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        search_results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         search_results.truncate(params.limit);
 
         Ok(search_results)
@@ -353,8 +379,12 @@ impl VectorStore for LanceDbVectorStore {
                 .and_then(|c| c.as_string_opt::<i32>())
                 .ok_or_else(|| MemoryError::VectorStore("Missing 'id' column".to_string()))?;
 
-            let content_col = batch.column_by_name("content").and_then(|c| c.as_string_opt::<i32>());
-            let metadata_col = batch.column_by_name("metadata").and_then(|c| c.as_string_opt::<i32>());
+            let content_col = batch
+                .column_by_name("content")
+                .and_then(|c| c.as_string_opt::<i32>());
+            let metadata_col = batch
+                .column_by_name("metadata")
+                .and_then(|c| c.as_string_opt::<i32>());
             let embedding_col = batch.column_by_name("embedding");
 
             let content = content_col.and_then(|c| {
@@ -377,7 +407,9 @@ impl VectorStore for LanceDbVectorStore {
                 if let Some(fsl) = col.as_fixed_size_list_opt() {
                     if !fsl.is_null(0) {
                         let list = fsl.value(0);
-                        if let Some(floats) = list.as_primitive_opt::<arrow_array::types::Float32Type>() {
+                        if let Some(floats) =
+                            list.as_primitive_opt::<arrow_array::types::Float32Type>()
+                        {
                             floats.values().to_vec()
                         } else {
                             vec![]

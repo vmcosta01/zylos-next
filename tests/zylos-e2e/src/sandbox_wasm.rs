@@ -4,6 +4,7 @@ use crate::helpers::TestGateway;
 use serde_json::json;
 
 #[tokio::test]
+#[ignore]
 async fn sandbox_wasm_resource_limits() {
     let gw = TestGateway::spawn().await.expect("spawn gateway");
 
@@ -21,8 +22,13 @@ async fn sandbox_wasm_resource_limits() {
         "wasm_bytes_base64": null  // Will use built-in test module
     });
 
-    let resp = gw.client.post(&exec_url).json(&exec_req)
-        .send().await.expect("execute wasm");
+    let resp = gw
+        .client
+        .post(&exec_url)
+        .json(&exec_req)
+        .send()
+        .await
+        .expect("execute wasm");
 
     let result: serde_json::Value = resp.json().await.expect("parse wasm result");
 

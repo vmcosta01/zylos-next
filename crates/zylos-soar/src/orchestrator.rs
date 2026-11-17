@@ -10,8 +10,8 @@ use serde::Serialize;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
-use zylos_live_comm::EventBus;
 use zylos_live_comm::soar_bridge;
+use zylos_live_comm::EventBus;
 
 /// Outcome of processing a single event through the full SOAR pipeline.
 #[derive(Debug, Clone, Serialize)]
@@ -162,7 +162,10 @@ impl SoarOrchestrator {
                 state.executor_config.clone(),
             );
 
-            match executor.execute_full(playbook, &mut cursor, &mut context).await {
+            match executor
+                .execute_full(playbook, &mut cursor, &mut context)
+                .await
+            {
                 // Variante Ok.
                 Ok(results) => {
                     let summary = PlaybookExecutionSummary {
@@ -215,10 +218,8 @@ impl SoarOrchestrator {
             }
         }
 
-        let playbook_names: Vec<String> = dispatched
-            .iter()
-            .map(|d| d.playbook.name.clone())
-            .collect();
+        let playbook_names: Vec<String> =
+            dispatched.iter().map(|d| d.playbook.name.clone()).collect();
 
         // Variante Ok.
         Ok(PipelineResult {
@@ -234,8 +235,8 @@ mod tests {
     use super::*;
     use crate::event::{EventCategory, Severity};
     use crate::playbook::Playbook;
-    use crate::runnable::{BoxFuture, RunbookResult, SoarRunnable};
     use crate::router::EventRouter;
+    use crate::runnable::{BoxFuture, RunbookResult, SoarRunnable};
 
     const SIMPLE_PLAYBOOK_YAML: &str = r#"
 name: test-orchestration

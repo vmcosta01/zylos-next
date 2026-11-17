@@ -202,4 +202,3 @@ async fn create_thread(name: &str) -> Result<Thread, String> {
         is_active: false,
     })
 }
-

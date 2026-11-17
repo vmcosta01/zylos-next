@@ -1,13 +1,11 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use std::sync::Arc;
 use tokio::runtime::Runtime;
-use zylos_memory_system::{ContextGraph, ContextNode, ContextEdge, MemoryScope};
+use zylos_memory_system::{ContextEdge, ContextGraph, ContextNode, MemoryScope};
 
 fn bench_add_node(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
-    let graph = Arc::new(rt.block_on(async {
-        ContextGraph::in_memory().unwrap()
-    }));
+    let graph = Arc::new(rt.block_on(async { ContextGraph::in_memory().unwrap() }));
 
     let mut group = c.benchmark_group("add_node");
     group.throughput(Throughput::Elements(1));
@@ -44,11 +42,14 @@ fn bench_get_node(c: &mut Criterion) {
 
     // Get first node ID for lookup
     let first_id = rt.block_on(async {
-        let results = graph.query(
-            zylos_memory_system::ContextQuery::new()
-                .with_scope(MemoryScope::Agent)
-                .with_limit(1)
-        ).await.unwrap();
+        let results = graph
+            .query(
+                zylos_memory_system::ContextQuery::new()
+                    .with_scope(MemoryScope::Agent)
+                    .with_limit(1),
+            )
+            .await
+            .unwrap();
         results[0].id
     });
 
@@ -56,9 +57,8 @@ fn bench_get_node(c: &mut Criterion) {
     group.throughput(Throughput::Elements(1));
 
     group.bench_function("lookup_by_id", |b| {
-        b.to_async(&rt).iter(|| async {
-            graph.get_node(first_id).await.unwrap()
-        })
+        b.to_async(&rt)
+            .iter(|| async { graph.get_node(first_id).await.unwrap() })
     });
 
     group.finish();
@@ -93,10 +93,10 @@ fn bench_query_by_scope(c: &mut Criterion) {
 
     group.bench_function("filter_agent_scope", |b| {
         b.to_async(&rt).iter(|| async {
-            graph.query(
-                zylos_memory_system::ContextQuery::new()
-                    .with_scope(MemoryScope::Agent)
-            ).await.unwrap()
+            graph
+                .query(zylos_memory_system::ContextQuery::new().with_scope(MemoryScope::Agent))
+                .await
+                .unwrap()
         })
     });
 
@@ -132,9 +132,8 @@ fn bench_get_neighbors(c: &mut Criterion) {
     group.throughput(Throughput::Elements(20));
 
     group.bench_function("hub_20_edges", |b| {
-        b.to_async(&rt).iter(|| async {
-            graph.get_neighbors(center_id).await.unwrap()
-        })
+        b.to_async(&rt)
+            .iter(|| async { graph.get_neighbors(center_id).await.unwrap() })
     });
 
     group.finish();
@@ -150,16 +149,18 @@ fn bench_cosine_similarity(c: &mut Criterion) {
         let b: Vec<f32> = (0..dim).map(|i| (i as f32) * 0.002 + 0.1).collect();
 
         group.throughput(Throughput::Elements(dim as u64));
-        group.bench_with_input(BenchmarkId::from_parameter(dim), &(a, b), |bencher, (a, b)| {
-            bencher.iter(|| cosine_similarity(a, b))
-        });
+        group.bench_with_input(
+            BenchmarkId::from_parameter(dim),
+            &(a, b),
+            |bencher, (a, b)| bencher.iter(|| cosine_similarity(a, b)),
+        );
     }
 
     group.finish();
 }
 
 fn bench_vector_store_search(c: &mut Criterion) {
-    use zylos_memory_system::{InMemoryVectorStore, VectorDocument, VectorStore, SearchParams};
+    use zylos_memory_system::{InMemoryVectorStore, SearchParams, VectorDocument, VectorStore};
 
     let rt = Runtime::new().unwrap();
     let store = Arc::new(InMemoryVectorStore::new());
@@ -168,9 +169,9 @@ fn bench_vector_store_search(c: &mut Criterion) {
     rt.block_on(async {
         let docs: Vec<VectorDocument> = (0..10_000)
             .map(|i| {
-                let embedding: Vec<f32> = (0..384).map(|d| ((i * 384 + d) as f32) * 0.0001).collect();
-                VectorDocument::new(embedding)
-                    .with_content(format!("document {}", i))
+                let embedding: Vec<f32> =
+                    (0..384).map(|d| ((i * 384 + d) as f32) * 0.0001).collect();
+                VectorDocument::new(embedding).with_content(format!("document {}", i))
             })
             .collect();
         store.insert(docs).await.unwrap();
@@ -192,7 +193,9 @@ fn bench_vector_store_search(c: &mut Criterion) {
 }
 
 fn bench_brief_aware_reranker(c: &mut Criterion) {
-    use zylos_memory_system::{BriefAwareReranker, ResearchBrief, RerankConfig, ContextNode, MemoryScope};
+    use zylos_memory_system::{
+        BriefAwareReranker, ContextNode, MemoryScope, RerankConfig, ResearchBrief,
+    };
 
     let reranker = BriefAwareReranker::new(RerankConfig {
         max_results: 50,

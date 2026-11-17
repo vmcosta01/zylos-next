@@ -23,7 +23,12 @@ use tracing_subscriber::EnvFilter;
 #[command(name = "zylos", version, about = "Zylos-Next CLI")]
 struct Cli {
     /// Gateway URL (overrides ZYLOS_GATEWAY_URL)
-    #[arg(long, global = true, env = "ZYLOS_GATEWAY_URL", default_value = "http://localhost:3000")]
+    #[arg(
+        long,
+        global = true,
+        env = "ZYLOS_GATEWAY_URL",
+        default_value = "http://localhost:3000"
+    )]
     gateway_url: String,
 
     /// Output format: json or table
@@ -135,9 +140,7 @@ enum ConfigAction {
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| "warn".into()),
-        )
+        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "warn".into()))
         .init();
 
     let cli = Cli::parse();
@@ -151,7 +154,9 @@ async fn main() -> Result<()> {
             AgentAction::List => cmd_agent_list(&client, &cli.gateway_url).await?,
             AgentAction::Start { id } => cmd_agent_start(&client, &cli.gateway_url, &id).await?,
             AgentAction::Stop { id } => cmd_agent_stop(&client, &cli.gateway_url, &id).await?,
-            AgentAction::Inspect { id } => cmd_agent_inspect(&client, &cli.gateway_url, &id).await?,
+            AgentAction::Inspect { id } => {
+                cmd_agent_inspect(&client, &cli.gateway_url, &id).await?
+            }
         },
         Commands::Task { action } => match action {
             TaskAction::Submit { spec_path } => {
@@ -166,15 +171,21 @@ async fn main() -> Result<()> {
         },
         Commands::Soar { action } => match action {
             SoarAction::ListPlaybooks => cmd_soar_list_playbooks(&client, &cli.gateway_url).await?,
-            SoarAction::SubmitEvent { event_path } => cmd_soar_submit_event(&client, &cli.gateway_url, &event_path).await?,
+            SoarAction::SubmitEvent { event_path } => {
+                cmd_soar_submit_event(&client, &cli.gateway_url, &event_path).await?
+            }
         },
         Commands::Bot { action } => match action {
-            BotAction::Perguntar { nome, pergunta } => cmd_bot_perguntar(&cli.gateway_url, &nome, &pergunta).await?,
+            BotAction::Perguntar { nome, pergunta } => {
+                cmd_bot_perguntar(&cli.gateway_url, &nome, &pergunta).await?
+            }
         },
         Commands::Provedores { action } => {
             let (caminho, formatar): (String, fn(&Value) -> String) = match action {
                 ProvedoresAction::Listar => ("provedores".into(), texto_dos_provedores),
-                ProvedoresAction::Modelos { nome } => (format!("provedores/{nome}/modelos"), texto_dos_modelos),
+                ProvedoresAction::Modelos { nome } => {
+                    (format!("provedores/{nome}/modelos"), texto_dos_modelos)
+                }
             };
             cmd_provedores(&cli.gateway_url, &caminho, formatar).await?
         }
@@ -187,7 +198,11 @@ async fn main() -> Result<()> {
 async fn cmd_provedores(base: &str, caminho: &str, formatar: fn(&Value) -> String) -> Result<()> {
     let client = reqwest::Client::builder().timeout(TEMPO_BOT).build()?;
     let url = format!("{}/api/v1/{}", base.trim_end_matches('/'), caminho);
-    let resp = client.get(&url).send().await.context("não deu para falar com o gateway")?;
+    let resp = client
+        .get(&url)
+        .send()
+        .await
+        .context("não deu para falar com o gateway")?;
     let ok = resp.status().is_success();
     let txt = resp.text().await.context("resposta do gateway ilegível")?;
     match serde_json::from_str::<Value>(&txt) {
@@ -207,7 +222,10 @@ fn texto_dos_provedores(v: &Value) -> String {
         let estado = if p["chave_pronta"] == true {
             "chave pronta".to_string()
         } else {
-            format!("sem chave: {}", p["problema_da_chave"].as_str().unwrap_or("?"))
+            format!(
+                "sem chave: {}",
+                p["problema_da_chave"].as_str().unwrap_or("?")
+            )
         };
         linhas.push(format!(
             "{:<12} {:<20} {}",
@@ -221,13 +239,25 @@ fn texto_dos_provedores(v: &Value) -> String {
 
 /// Um modelo por linha, com o total no fim.
 fn texto_dos_modelos(v: &Value) -> String {
-    let ms: Vec<&str> = v["modelos"].as_array().map(|a| a.iter().filter_map(Value::as_str).collect()).unwrap_or_default();
-    format!("{}\n({} modelos em {})", ms.join("\n"), ms.len(), v["provedor"].as_str().unwrap_or("?"))
+    let ms: Vec<&str> = v["modelos"]
+        .as_array()
+        .map(|a| a.iter().filter_map(Value::as_str).collect())
+        .unwrap_or_default();
+    format!(
+        "{}\n({} modelos em {})",
+        ms.join("\n"),
+        ms.len(),
+        v["provedor"].as_str().unwrap_or("?")
+    )
 }
 
 async fn cmd_bot_perguntar(base: &str, nome: &str, pergunta: &str) -> Result<()> {
     let client = reqwest::Client::builder().timeout(TEMPO_BOT).build()?;
-    let url = format!("{}/api/v1/bots/{}/perguntar", base.trim_end_matches('/'), nome);
+    let url = format!(
+        "{}/api/v1/bots/{}/perguntar",
+        base.trim_end_matches('/'),
+        nome
+    );
     let resp = client
         .post(&url)
         .json(&serde_json::json!({ "pergunta": pergunta }))
@@ -279,11 +309,18 @@ async fn cmd_status(client: &reqwest::Client, base: &str) -> Result<()> {
         std::process::exit(1);
     }
 
-    let body: Value = resp.json().await.context("Invalid JSON from /gateway/health")?;
+    let body: Value = resp
+        .json()
+        .await
+        .context("Invalid JSON from /gateway/health")?;
     print_json_or_table(&body, "gateway_health");
 
     // Phase 2 subsystems
-    if let Ok(resp) = client.get(format!("{base}/api/v1/phase2/status")).send().await {
+    if let Ok(resp) = client
+        .get(format!("{base}/api/v1/phase2/status"))
+        .send()
+        .await
+    {
         if resp.status().is_success() {
             let subs: Value = resp.json().await.unwrap_or_default();
             print_json_or_table(&subs, "subsystems");
@@ -387,7 +424,11 @@ async fn cmd_task_submit(client: &reqwest::Client, base: &str, spec_path: &str) 
     handle_response(resp, "task submitted").await
 }
 
-async fn enviar_dag(client: &reqwest::Client, base: &str, payload: &Value) -> Result<reqwest::Response> {
+async fn enviar_dag(
+    client: &reqwest::Client,
+    base: &str,
+    payload: &Value,
+) -> Result<reqwest::Response> {
     client
         .post(format!("{base}/api/v1/orchestrate"))
         .json(payload)
@@ -404,21 +445,30 @@ fn resumo_dag_invalido(corpo: &Value) -> Option<(String, bool)> {
     let mut texto = String::from("O pedido tem etapas que não podem rodar (nada foi executado):\n");
     for f in fora {
         let id = f.get("node_id").and_then(Value::as_str).unwrap_or("?");
-        let motivo = f.get("motivo").and_then(Value::as_str).unwrap_or("motivo não informado");
+        let motivo = f
+            .get("motivo")
+            .and_then(Value::as_str)
+            .unwrap_or("motivo não informado");
         texto.push_str(&format!("  - {id}: {motivo}\n"));
     }
     let nomes: Vec<&str> = executaveis.iter().filter_map(Value::as_str).collect();
     if nomes.is_empty() {
         texto.push_str("Nenhuma etapa poderia rodar.");
     } else {
-        texto.push_str(&format!("Poderiam rodar, nesta ordem: {}", nomes.join(", ")));
+        texto.push_str(&format!(
+            "Poderiam rodar, nesta ordem: {}",
+            nomes.join(", ")
+        ));
     }
     Some((texto, !nomes.is_empty()))
 }
 
 /// Só "s"/"sim" (ou "y"/"yes") confirmam; o padrão é não.
 fn resposta_e_sim(linha: &str) -> bool {
-    matches!(linha.trim().to_lowercase().as_str(), "s" | "sim" | "y" | "yes")
+    matches!(
+        linha.trim().to_lowercase().as_str(),
+        "s" | "sim" | "y" | "yes"
+    )
 }
 
 /// O mesmo pedido sem a marcação de parte válida.
@@ -482,8 +532,8 @@ async fn cmd_config_show(client: &reqwest::Client, base: &str) -> Result<()> {
 }
 
 fn cmd_config_validate(path: &str) -> Result<()> {
-    let content = std::fs::read_to_string(path)
-        .with_context(|| format!("Cannot read config: {path}"))?;
+    let content =
+        std::fs::read_to_string(path).with_context(|| format!("Cannot read config: {path}"))?;
 
     if let Ok(val) = toml::from_str::<Value>(&content) {
         if val.is_object() || val.is_array() {
@@ -498,14 +548,13 @@ fn cmd_config_validate(path: &str) -> Result<()> {
         }
     }
     if let Ok(val) = serde_yaml::from_str::<Value>(&content) {
-            if val.is_object() || val.is_array() {
-                println!("Valid YAML configuration");
-                return Ok(());
-            }
+        if val.is_object() || val.is_array() {
+            println!("Valid YAML configuration");
+            return Ok(());
         }
+    }
     anyhow::bail!("File is not valid TOML, JSON, or YAML configuration");
 }
-
 
 async fn cmd_soar_list_playbooks(client: &reqwest::Client, base: &str) -> Result<()> {
     let resp = client
@@ -523,7 +572,11 @@ async fn cmd_soar_list_playbooks(client: &reqwest::Client, base: &str) -> Result
     Ok(())
 }
 
-async fn cmd_soar_submit_event(client: &reqwest::Client, base: &str, event_path: &str) -> Result<()> {
+async fn cmd_soar_submit_event(
+    client: &reqwest::Client,
+    base: &str,
+    event_path: &str,
+) -> Result<()> {
     let content = std::fs::read_to_string(event_path)
         .with_context(|| format!("Cannot read event file: {event_path}"))?;
 
@@ -597,13 +650,17 @@ mod tests {
         });
         let (texto, ha_parte) = resumo_dag_invalido(&corpo).unwrap();
         assert!(ha_parte);
-        assert!(texto.contains("x: depende de etapa inexistente: nao-existe"), "{texto}");
+        assert!(
+            texto.contains("x: depende de etapa inexistente: nao-existe"),
+            "{texto}"
+        );
         assert!(texto.contains("nesta ordem: a, b"), "{texto}");
     }
 
     #[test]
     fn resumo_sem_nada_executavel_nao_oferece_parte_valida() {
-        let corpo = serde_json::json!({"executaveis": [], "fora": [{"node_id": "x", "motivo": "ciclo"}]});
+        let corpo =
+            serde_json::json!({"executaveis": [], "fora": [{"node_id": "x", "motivo": "ciclo"}]});
         let (texto, ha_parte) = resumo_dag_invalido(&corpo).unwrap();
         assert!(!ha_parte);
         assert!(texto.contains("Nenhuma etapa poderia rodar"));
@@ -660,7 +717,10 @@ mod tests {
     #[test]
     fn cli_parses_bot_perguntar() {
         let cli = Cli::try_parse_from(["zylos", "bot", "perguntar", "vigia", "tudo bem?"]).unwrap();
-        if let Commands::Bot { action: BotAction::Perguntar { nome, pergunta } } = cli.command {
+        if let Commands::Bot {
+            action: BotAction::Perguntar { nome, pergunta },
+        } = cli.command
+        {
             assert_eq!(nome, "vigia");
             assert_eq!(pergunta, "tudo bem?");
         } else {
@@ -671,9 +731,16 @@ mod tests {
     #[test]
     fn cli_parses_provedores() {
         let cli = Cli::try_parse_from(["zylos", "provedores", "listar"]).unwrap();
-        assert!(matches!(cli.command, Commands::Provedores { action: ProvedoresAction::Listar }));
+        assert!(matches!(
+            cli.command,
+            Commands::Provedores {
+                action: ProvedoresAction::Listar
+            }
+        ));
         let cli = Cli::try_parse_from(["zylos", "provedores", "modelos", "nvidia"]).unwrap();
-        assert!(matches!(cli.command, Commands::Provedores { action: ProvedoresAction::Modelos { nome } } if nome == "nvidia"));
+        assert!(
+            matches!(cli.command, Commands::Provedores { action: ProvedoresAction::Modelos { nome } } if nome == "nvidia")
+        );
     }
 
     #[test]
@@ -684,37 +751,62 @@ mod tests {
         ]});
         let t = texto_dos_provedores(&v);
         assert!(t.lines().next().unwrap().contains("chave pronta"));
-        assert!(t.lines().nth(1).unwrap().contains("sem chave: OPENAI_API_KEY não está"));
-        let m = texto_dos_modelos(&serde_json::json!({"provedor": "nvidia", "modelos": ["a", "b"]}));
+        assert!(t
+            .lines()
+            .nth(1)
+            .unwrap()
+            .contains("sem chave: OPENAI_API_KEY não está"));
+        let m =
+            texto_dos_modelos(&serde_json::json!({"provedor": "nvidia", "modelos": ["a", "b"]}));
         assert_eq!(m, "a\nb\n(2 modelos em nvidia)");
     }
 
     #[test]
     fn bot_espera_mais_que_o_gateway() {
-        assert!(TEMPO_BOT.as_secs() > 120, "a CLI não pode cortar antes do 504 do gateway");
+        assert!(
+            TEMPO_BOT.as_secs() > 120,
+            "a CLI não pode cortar antes do 504 do gateway"
+        );
     }
 
     #[test]
     fn texto_do_bot_sucesso_e_erros() {
-        assert_eq!(texto_do_bot(true, r#"{"resposta":"olá","bot":"v"}"#), Ok("olá".to_string()));
+        assert_eq!(
+            texto_do_bot(true, r#"{"resposta":"olá","bot":"v"}"#),
+            Ok("olá".to_string())
+        );
         assert!(texto_do_bot(true, "{}").is_err());
         assert_eq!(
-            texto_do_bot(false, r#"{"status":424,"detail":"NVIDIA_API_KEY não está no arquivo"}"#),
+            texto_do_bot(
+                false,
+                r#"{"status":424,"detail":"NVIDIA_API_KEY não está no arquivo"}"#
+            ),
             Err("NVIDIA_API_KEY não está no arquivo".to_string())
         );
-        assert_eq!(texto_do_bot(false, "Failed to parse the request body\n"), Err("Failed to parse the request body".to_string()));
+        assert_eq!(
+            texto_do_bot(false, "Failed to parse the request body\n"),
+            Err("Failed to parse the request body".to_string())
+        );
     }
 
     #[test]
     fn cli_parses_agent_list() {
         let cli = Cli::try_parse_from(["zylos", "agent", "list"]).unwrap();
-        assert!(matches!(cli.command, Commands::Agent { action: AgentAction::List }));
+        assert!(matches!(
+            cli.command,
+            Commands::Agent {
+                action: AgentAction::List
+            }
+        ));
     }
 
     #[test]
     fn cli_parses_task_submit() {
         let cli = Cli::try_parse_from(["zylos", "task", "submit", "spec.yaml"]).unwrap();
-        if let Commands::Task { action: TaskAction::Submit { spec_path } } = cli.command {
+        if let Commands::Task {
+            action: TaskAction::Submit { spec_path },
+        } = cli.command
+        {
             assert_eq!(spec_path, "spec.yaml");
         } else {
             panic!("wrong variant");
@@ -739,7 +831,8 @@ mod tests {
 
     #[test]
     fn cli_custom_gateway() {
-        let cli = Cli::try_parse_from(["zylos", "--gateway-url", "http://gw:8080", "status"]).unwrap();
+        let cli =
+            Cli::try_parse_from(["zylos", "--gateway-url", "http://gw:8080", "status"]).unwrap();
         assert_eq!(cli.gateway_url, "http://gw:8080");
     }
 
@@ -751,17 +844,24 @@ mod tests {
         let _ = std::fs::remove_file(&tmp);
     }
 
-
     #[test]
     fn cli_parses_soar_list() {
         let cli = Cli::try_parse_from(["zylos", "soar", "list-playbooks"]).unwrap();
-        assert!(matches!(cli.command, Commands::Soar { action: SoarAction::ListPlaybooks }));
+        assert!(matches!(
+            cli.command,
+            Commands::Soar {
+                action: SoarAction::ListPlaybooks
+            }
+        ));
     }
 
     #[test]
     fn cli_parses_soar_submit() {
         let cli = Cli::try_parse_from(["zylos", "soar", "submit-event", "event.json"]).unwrap();
-        if let Commands::Soar { action: SoarAction::SubmitEvent { event_path } } = cli.command {
+        if let Commands::Soar {
+            action: SoarAction::SubmitEvent { event_path },
+        } = cli.command
+        {
             assert_eq!(event_path, "event.json");
         } else {
             panic!("wrong variant");

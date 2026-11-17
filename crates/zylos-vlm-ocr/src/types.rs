@@ -72,7 +72,12 @@ mod tests {
         let el = OcrElement {
             element_type: ElementType::Formula,
             content: "E = mc^2".to_string(),
-            bbox: Some(BBox { x: 10, y: 20, width: 200, height: 50 }),
+            bbox: Some(BBox {
+                x: 10,
+                y: 20,
+                width: 200,
+                height: 50,
+            }),
             confidence: 0.95,
             metadata: Default::default(),
         };

@@ -171,10 +171,7 @@ impl HeadlessBrowser {
     }
 
     /// Execute a permission-gated action on the current page.
-    pub fn request_permission(
-        &mut self,
-        permission_type: &str,
-    ) -> PermissionDecision {
+    pub fn request_permission(&mut self, permission_type: &str) -> PermissionDecision {
         let origin = match &self.current_page {
             Some(page) => page.origin.clone(),
             None => return PermissionDecision::Deny,
@@ -195,22 +192,16 @@ impl HeadlessBrowser {
     /// Record a permission decision for the current page's origin.
     pub fn grant_permission(&mut self, permission_type: &str) {
         if let Some(page) = &self.current_page {
-            self.context.record_decision(
-                &page.origin,
-                permission_type,
-                PermissionDecision::Allow,
-            );
+            self.context
+                .record_decision(&page.origin, permission_type, PermissionDecision::Allow);
         }
     }
 
     /// Deny a permission for the current page's origin.
     pub fn deny_permission(&mut self, permission_type: &str) {
         if let Some(page) = &self.current_page {
-            self.context.record_decision(
-                &page.origin,
-                permission_type,
-                PermissionDecision::Deny,
-            );
+            self.context
+                .record_decision(&page.origin, permission_type, PermissionDecision::Deny);
         }
     }
 

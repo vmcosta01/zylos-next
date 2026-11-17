@@ -66,7 +66,12 @@ impl Config {
             .filter(|s| (1..=600).contains(s))
             .map(Duration::from_secs)
             .unwrap_or(TEMPO_LIMITE_PADRAO);
-        Self { pasta_bots, arquivo_chaves, provedores_extra, tempo_limite }
+        Self {
+            pasta_bots,
+            arquivo_chaves,
+            provedores_extra,
+            tempo_limite,
+        }
     }
 
     /// Do ambiente do processo.
@@ -101,9 +106,15 @@ pub enum ErroPensar {
     #[error("fichas de provedor com problema: {0}")]
     Catalogo(String),
     #[error("o bot usa o provedor \"{provedor}\", que não existe; os que existem: {existentes}")]
-    ProvedorDesconhecido { provedor: String, existentes: String },
+    ProvedorDesconhecido {
+        provedor: String,
+        existentes: String,
+    },
     #[error("o provedor \"{provedor}\" não existe; os que existem: {existentes}")]
-    ProvedorNaoExiste { provedor: String, existentes: String },
+    ProvedorNaoExiste {
+        provedor: String,
+        existentes: String,
+    },
     #[error("o bot não diz o modelo e o provedor \"{0}\" não tem modelo padrão; ponha modelo = \"...\" no bot.toml")]
     SemModelo(String),
     #[error("{nome} não está no arquivo de chaves do Hermes ({arquivo}). Pode estar no auth.json ou num perfil do Hermes, que esta versão não lê.")]
@@ -139,19 +150,21 @@ fn chave_do_provedor(
     provedor: &Provedor,
     ambiente: &(dyn Fn(&str) -> Option<String> + Sync),
 ) -> Result<chaves::Segredo, ErroPensar> {
-    let chave = chaves::ler_chave(&cfg.arquivo_chaves, &provedor.nome_chave, &|n| ambiente(n)).map_err(|e| match e {
-        ErroChave::Faltando { nome } => {
-            ErroPensar::ChaveFaltando { nome, arquivo: cfg.arquivo_chaves.display().to_string() }
-        }
-        ErroChave::ComExpansao { nome } => ErroPensar::ChaveInvalida {
-            nome,
-            motivo: "o valor usa ${...}, e o zylos não expande variáveis".into(),
-        },
-        ErroChave::ArquivoIlegivel { motivo } => ErroPensar::ChaveInvalida {
-            nome: provedor.nome_chave.clone(),
-            motivo: format!("arquivo de chaves ilegível: {motivo}"),
-        },
-    })?;
+    let chave = chaves::ler_chave(&cfg.arquivo_chaves, &provedor.nome_chave, &|n| ambiente(n))
+        .map_err(|e| match e {
+            ErroChave::Faltando { nome } => ErroPensar::ChaveFaltando {
+                nome,
+                arquivo: cfg.arquivo_chaves.display().to_string(),
+            },
+            ErroChave::ComExpansao { nome } => ErroPensar::ChaveInvalida {
+                nome,
+                motivo: "o valor usa ${...}, e o zylos não expande variáveis".into(),
+            },
+            ErroChave::ArquivoIlegivel { motivo } => ErroPensar::ChaveInvalida {
+                nome: provedor.nome_chave.clone(),
+                motivo: format!("arquivo de chaves ilegível: {motivo}"),
+            },
+        })?;
     if provedor.lingua == Lingua::AnthropicMessages && chave.expor().starts_with("sk-ant-oat") {
         return Err(ErroPensar::ChaveInvalida {
             nome: provedor.nome_chave.clone(),
@@ -208,12 +221,16 @@ pub async fn listar_modelos(
     nome_provedor: &str,
 ) -> Result<Vec<String>, ErroPensar> {
     let catalogo = carregar_catalogo(cfg)?;
-    let provedor = catalogo.achar(nome_provedor).ok_or_else(|| ErroPensar::ProvedorNaoExiste {
-        provedor: nome_provedor.to_string(),
-        existentes: catalogo.nomes().join(", "),
-    })?;
+    let provedor = catalogo
+        .achar(nome_provedor)
+        .ok_or_else(|| ErroPensar::ProvedorNaoExiste {
+            provedor: nome_provedor.to_string(),
+            existentes: catalogo.nomes().join(", "),
+        })?;
     let chave = chave_do_provedor(cfg, provedor, ambiente)?;
-    linguas::listar_modelos(cliente, provedor, &chave, cfg.tempo_limite).await.map_err(erro_do_provedor)
+    linguas::listar_modelos(cliente, provedor, &chave, cfg.tempo_limite)
+        .await
+        .map_err(erro_do_provedor)
 }
 
 fn erro_do_provedor(e: ErroProvedor) -> ErroPensar {
@@ -245,14 +262,20 @@ pub async fn perguntar(
     let bot = bots::carregar(&cfg.pasta_bots, nome_bot).map_err(|e| match e {
         bots::ErroBot::NomeInvalido => ErroPensar::NomeInvalido,
         bots::ErroBot::Inexistente => ErroPensar::BotInexistente(nome_bot.to_string()),
-        bots::ErroBot::MalFeito(m) => ErroPensar::BotMalFeito { bot: nome_bot.to_string(), motivo: m },
+        bots::ErroBot::MalFeito(m) => ErroPensar::BotMalFeito {
+            bot: nome_bot.to_string(),
+            motivo: m,
+        },
     })?;
 
     let catalogo = carregar_catalogo(cfg)?;
-    let provedor = catalogo.achar(&bot.provedor).ok_or_else(|| ErroPensar::ProvedorDesconhecido {
-        provedor: bot.provedor.clone(),
-        existentes: catalogo.nomes().join(", "),
-    })?;
+    let provedor =
+        catalogo
+            .achar(&bot.provedor)
+            .ok_or_else(|| ErroPensar::ProvedorDesconhecido {
+                provedor: bot.provedor.clone(),
+                existentes: catalogo.nomes().join(", "),
+            })?;
     let modelo = bot
         .modelo
         .clone()

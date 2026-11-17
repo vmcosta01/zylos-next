@@ -148,13 +148,19 @@ pub struct StateDelta {
 pub enum JsonPatchOp {
     /// Add a value at the given path.
     #[serde(rename = "add")]
-    Add { path: String, value: serde_json::Value },
+    Add {
+        path: String,
+        value: serde_json::Value,
+    },
     /// Remove the value at the given path.
     #[serde(rename = "remove")]
     Remove { path: String },
     /// Replace the value at the given path.
     #[serde(rename = "replace")]
-    Replace { path: String, value: serde_json::Value },
+    Replace {
+        path: String,
+        value: serde_json::Value,
+    },
 }
 
 /// Signals the start of an agent run.
@@ -283,10 +289,7 @@ pub enum OrchestratorEvent {
         parent_message_id: String,
     },
     /// Streaming tool arguments (JSON fragment)
-    ToolArgs {
-        tool_call_id: String,
-        delta: String,
-    },
+    ToolArgs { tool_call_id: String, delta: String },
     /// Tool invocation complete
     ToolEnd {
         tool_call_id: String,
@@ -787,20 +790,62 @@ mod tests {
     #[test]
     fn test_orchestrator_event_all_variants_convert() {
         let orch_events: Vec<OrchestratorEvent> = vec![
-            OrchestratorEvent::TextStart { message_id: "m1".into(), role: "assistant".into() },
-            OrchestratorEvent::TextDelta { message_id: "m1".into(), delta: "hi".into() },
-            OrchestratorEvent::TextEnd { message_id: "m1".into() },
-            OrchestratorEvent::ToolStart { tool_call_id: "tc1".into(), tool_name: "x".into(), parent_message_id: "m1".into() },
-            OrchestratorEvent::ToolArgs { tool_call_id: "tc1".into(), delta: "{}".into() },
-            OrchestratorEvent::ToolEnd { tool_call_id: "tc1".into(), result: None },
-            OrchestratorEvent::Snapshot { state: serde_json::json!({}) },
+            OrchestratorEvent::TextStart {
+                message_id: "m1".into(),
+                role: "assistant".into(),
+            },
+            OrchestratorEvent::TextDelta {
+                message_id: "m1".into(),
+                delta: "hi".into(),
+            },
+            OrchestratorEvent::TextEnd {
+                message_id: "m1".into(),
+            },
+            OrchestratorEvent::ToolStart {
+                tool_call_id: "tc1".into(),
+                tool_name: "x".into(),
+                parent_message_id: "m1".into(),
+            },
+            OrchestratorEvent::ToolArgs {
+                tool_call_id: "tc1".into(),
+                delta: "{}".into(),
+            },
+            OrchestratorEvent::ToolEnd {
+                tool_call_id: "tc1".into(),
+                result: None,
+            },
+            OrchestratorEvent::Snapshot {
+                state: serde_json::json!({}),
+            },
             OrchestratorEvent::Delta { ops: vec![] },
-            OrchestratorEvent::Started { run_id: "r1".into(), thread_id: None, input: None },
-            OrchestratorEvent::Finished { run_id: "r1".into(), result: None },
-            OrchestratorEvent::Error { run_id: "r1".into(), code: "E".into(), message: "err".into() },
-            OrchestratorEvent::StepStart { step_id: "s1".into(), step_name: "go".into(), run_id: "r1".into() },
-            OrchestratorEvent::StepEnd { step_id: "s1".into(), run_id: "r1".into(), result: None },
-            OrchestratorEvent::Custom { name: "x".into(), value: serde_json::json!(1) },
+            OrchestratorEvent::Started {
+                run_id: "r1".into(),
+                thread_id: None,
+                input: None,
+            },
+            OrchestratorEvent::Finished {
+                run_id: "r1".into(),
+                result: None,
+            },
+            OrchestratorEvent::Error {
+                run_id: "r1".into(),
+                code: "E".into(),
+                message: "err".into(),
+            },
+            OrchestratorEvent::StepStart {
+                step_id: "s1".into(),
+                step_name: "go".into(),
+                run_id: "r1".into(),
+            },
+            OrchestratorEvent::StepEnd {
+                step_id: "s1".into(),
+                run_id: "r1".into(),
+                result: None,
+            },
+            OrchestratorEvent::Custom {
+                name: "x".into(),
+                value: serde_json::json!(1),
+            },
         ];
 
         for orch in orch_events {
@@ -822,14 +867,20 @@ mod tests {
             run_id: "r1".into(),
             thread_id: None,
             input: None,
-        }).await.unwrap();
+        })
+        .await
+        .unwrap();
         tx.send(OrchestratorEvent::TextStart {
             message_id: "m1".into(),
             role: "assistant".into(),
-        }).await.unwrap();
+        })
+        .await
+        .unwrap();
         tx.send(OrchestratorEvent::TextEnd {
             message_id: "m1".into(),
-        }).await.unwrap();
+        })
+        .await
+        .unwrap();
         drop(tx); // close channel to end stream
 
         let items: Vec<_> = stream.collect().await;
@@ -850,7 +901,9 @@ mod tests {
         assert!(json.contains("\"path\":\"/foo\""));
         assert!(json.contains("42"));
 
-        let remove = JsonPatchOp::Remove { path: "/bar".into() };
+        let remove = JsonPatchOp::Remove {
+            path: "/bar".into(),
+        };
         let json = serde_json::to_string(&remove).unwrap();
         assert!(json.contains("\"op\":\"remove\""));
 

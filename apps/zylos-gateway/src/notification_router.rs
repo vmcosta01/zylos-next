@@ -66,24 +66,15 @@ impl SeverityFilter {
 }
 
 /// Configuration for the notification router.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct NotificationRouterConfig {
     /// Routing rules evaluated in order; first match wins.
+    #[serde(default)]
     pub rules: Vec<RoutingRule>,
     /// Default platform if no rule matches (optional).
     pub default_platform: Option<String>,
     /// Default recipient for unmatched alerts (optional).
     pub default_recipient: Option<String>,
-}
-
-impl Default for NotificationRouterConfig {
-    fn default() -> Self {
-        Self {
-            rules: vec![],
-            default_platform: None,
-            default_recipient: None,
-        }
-    }
 }
 
 /// Result of a notification dispatch attempt.
@@ -123,18 +114,16 @@ impl NotificationRouter {
         &self,
         alert: &zylos_sentinel::alert_rules::TriggeredAlert,
     ) -> Option<&RoutingRule> {
-        for rule in &self.config.rules {
-            if rule.alert_rule == alert.rule_name
-                && rule.min_severity.matches(&alert.severity)
-            {
-                return Some(rule);
-            }
-        }
-        None
+        self.config.rules.iter().find(|rule| {
+            rule.alert_rule == alert.rule_name && rule.min_severity.matches(&alert.severity)
+        })
     }
 
     /// Format a notification message from a template and alert data.
-    pub fn format_message(template: &str, alert: &zylos_sentinel::alert_rules::TriggeredAlert) -> String {
+    pub fn format_message(
+        template: &str,
+        alert: &zylos_sentinel::alert_rules::TriggeredAlert,
+    ) -> String {
         let severity_str = match alert.severity {
             zylos_sentinel::alert_rules::AlertSeverity::Sev1 => "SEV-1",
             zylos_sentinel::alert_rules::AlertSeverity::Sev2 => "SEV-2",
@@ -170,8 +159,8 @@ impl Default for NotificationRouter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zylos_sentinel::alert_rules::{AlertSeverity, TriggeredAlert};
     use std::time::SystemTime;
+    use zylos_sentinel::alert_rules::{AlertSeverity, TriggeredAlert};
 
     fn make_alert(rule_name: &str, severity: AlertSeverity, value: f64) -> TriggeredAlert {
         TriggeredAlert {
@@ -233,7 +222,10 @@ rules:
         // SEV-2 alert should NOT match SEV-1-only rule
         let alert = make_alert("health-check-down", AlertSeverity::Sev2, 5.0);
         let route = router.find_route(&alert);
-        assert!(route.is_none(), "SEV-2 should not match SEV-1 min_severity rule");
+        assert!(
+            route.is_none(),
+            "SEV-2 should not match SEV-1 min_severity rule"
+        );
 
         // SEV-2 alert SHOULD match SEV-2 rule
         let alert2 = make_alert("high-error-rate", AlertSeverity::Sev2, 2.5);

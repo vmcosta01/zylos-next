@@ -6,11 +6,11 @@
 
 use leptos::prelude::*;
 
+mod app;
 mod benchmarks;
 mod components;
 mod i18n;
 mod streaming;
-mod app;
 use app::App;
 
 fn main() {

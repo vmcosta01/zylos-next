@@ -20,13 +20,17 @@ wasm_bindgen_test_configure!(run_in_browser);
 /// Este teste valida que uuid::Uuid::new_v4() funciona em ambiente WASM.
 #[wasm_bindgen_test]
 fn test_uuid_v4_works_in_wasm() {
- let id = uuid::Uuid::new_v4();
- assert!(!id.is_nil(), "UUID v4 deve gerar ID não-nulo em WASM");
- 
- // Validar formato string
- let id_str = id.to_string();
- assert_eq!(id_str.len(), 36, "UUID string deve ter 36 caracteres");
- assert_eq!(id_str.chars().filter(|c| *c == '-').count(), 4, "UUID deve ter 4 hífens");
+    let id = uuid::Uuid::new_v4();
+    assert!(!id.is_nil(), "UUID v4 deve gerar ID não-nulo em WASM");
+
+    // Validar formato string
+    let id_str = id.to_string();
+    assert_eq!(id_str.len(), 36, "UUID string deve ter 36 caracteres");
+    assert_eq!(
+        id_str.chars().filter(|c| *c == '-').count(),
+        4,
+        "UUID deve ter 4 hífens"
+    );
 }
 
 /// REGRESSÃO: UUID múltiplas chamadas não devem colidir.
@@ -34,13 +38,13 @@ fn test_uuid_v4_works_in_wasm() {
 /// Valida que o RNG do uuid funciona corretamente em chamadas consecutivas.
 #[wasm_bindgen_test]
 fn test_uuid_v4_uniqueness() {
- let id1 = uuid::Uuid::new_v4();
- let id2 = uuid::Uuid::new_v4();
- let id3 = uuid::Uuid::new_v4();
- 
- assert_ne!(id1, id2, "UUIDs consecutivos devem ser únicos");
- assert_ne!(id2, id3, "UUIDs consecutivos devem ser únicos");
- assert_ne!(id1, id3, "UUIDs consecutivos devem ser únicos");
+    let id1 = uuid::Uuid::new_v4();
+    let id2 = uuid::Uuid::new_v4();
+    let id3 = uuid::Uuid::new_v4();
+
+    assert_ne!(id1, id2, "UUIDs consecutivos devem ser únicos");
+    assert_ne!(id2, id3, "UUIDs consecutivos devem ser únicos");
+    assert_ne!(id1, id3, "UUIDs consecutivos devem ser únicos");
 }
 
 /// REGRESSÃO: js_sys::Date deve estar disponível em WASM (não usar chrono::Utc::now).
@@ -49,16 +53,19 @@ fn test_uuid_v4_uniqueness() {
 /// Fix: Usar `js_sys::Date::new_0().to_iso_string()` no cockpit.
 #[wasm_bindgen_test]
 fn test_js_sys_date_available() {
- let now = js_sys::Date::new_0();
- let iso = now.to_iso_string();
- let iso_str = iso.as_string().unwrap();
- 
- assert!(!iso_str.is_empty(), "js_sys::Date deve retornar string ISO não-vazia");
- assert!(
- iso_str.contains("T"),
- "ISO string deve conter separador T: {}",
- iso_str
- );
+    let now = js_sys::Date::new_0();
+    let iso = now.to_iso_string();
+    let iso_str = iso.as_string().unwrap();
+
+    assert!(
+        !iso_str.is_empty(),
+        "js_sys::Date deve retornar string ISO não-vazia"
+    );
+    assert!(
+        iso_str.contains("T"),
+        "ISO string deve conter separador T: {}",
+        iso_str
+    );
 }
 
 /// REGRESSÃO: js_sys::Date múltiplas chamadas devem retornar timestamps diferentes.
@@ -66,53 +73,58 @@ fn test_js_sys_date_available() {
 /// Valida que o clock do browser funciona corretamente em WASM.
 #[wasm_bindgen_test]
 fn test_js_sys_date_monotonic() {
- let t1 = js_sys::Date::now();
- // Pequena espera para garantir timestamp diferente
- for _ in 0..1000 {
- // busy wait mínimo
- }
- let t2 = js_sys::Date::now();
- 
- assert!(t2 >= t1, "Timestamps devem ser monotônicos: t1={}, t2={}", t1, t2);
+    let t1 = js_sys::Date::now();
+    // Pequena espera para garantir timestamp diferente
+    for _ in 0..1000 {
+        // busy wait mínimo
+    }
+    let t2 = js_sys::Date::now();
+
+    assert!(
+        t2 >= t1,
+        "Timestamps devem ser monotônicos: t1={}, t2={}",
+        t1,
+        t2
+    );
 }
 
-/// REGRESSÃO: Serialização de tipos com Option<T> deve funcionar corretamente.
+/// REGRESSÃO: Serialização de tipos com `Option<T>` deve funcionar corretamente.
 ///
-/// Bug original: Option<T> serializado como null causava erro de deserialização.
+/// Bug original: `Option<T>` serializado como null causava erro de deserialização.
 /// Fix: Usar `#[serde(skip_serializing_if = "Option::is_none")]` onde apropriado.
 #[wasm_bindgen_test]
 fn test_option_serialization_roundtrip() {
- use serde::{Deserialize, Serialize};
- 
- #[derive(Serialize, Deserialize, Debug, PartialEq)]
- struct TestStruct {
- required: String,
- #[serde(skip_serializing_if = "Option::is_none")]
- optional: Option<String>,
- }
- 
- let with_value = TestStruct {
- required: "test".to_string(),
- optional: Some("value".to_string()),
- };
- 
- let json = serde_json::to_string(&with_value).unwrap();
- let deserialized: TestStruct = serde_json::from_str(&json).unwrap();
- assert_eq!(with_value, deserialized);
- 
- let without_value = TestStruct {
- required: "test".to_string(),
- optional: None,
- };
- 
- let json = serde_json::to_string(&without_value).unwrap();
- assert!(
- !json.contains("null"),
- "Option None com skip_serializing_if não deve gerar null: {}",
- json
- );
- let deserialized: TestStruct = serde_json::from_str(&json).unwrap();
- assert_eq!(without_value, deserialized);
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Serialize, Deserialize, Debug, PartialEq)]
+    struct TestStruct {
+        required: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        optional: Option<String>,
+    }
+
+    let with_value = TestStruct {
+        required: "test".to_string(),
+        optional: Some("value".to_string()),
+    };
+
+    let json = serde_json::to_string(&with_value).unwrap();
+    let deserialized: TestStruct = serde_json::from_str(&json).unwrap();
+    assert_eq!(with_value, deserialized);
+
+    let without_value = TestStruct {
+        required: "test".to_string(),
+        optional: None,
+    };
+
+    let json = serde_json::to_string(&without_value).unwrap();
+    assert!(
+        !json.contains("null"),
+        "Option None com skip_serializing_if não deve gerar null: {}",
+        json
+    );
+    let deserialized: TestStruct = serde_json::from_str(&json).unwrap();
+    assert_eq!(without_value, deserialized);
 }
 
 /// REGRESSÃO: Leptos RwSignal deve funcionar em WASM (não usar create_signal tuple).
@@ -129,15 +141,27 @@ fn test_leptos_rwsignal_works() {
     let signal = RwSignal::new(42i32);
 
     // Usar get_untracked em testes (fora de contexto reativo)
-    assert_eq!(signal.get_untracked(), 42, "RwSignal deve retornar valor inicial");
+    assert_eq!(
+        signal.get_untracked(),
+        42,
+        "RwSignal deve retornar valor inicial"
+    );
 
     // Testar write
     signal.set(100);
-    assert_eq!(signal.get_untracked(), 100, "RwSignal set deve atualizar valor");
+    assert_eq!(
+        signal.get_untracked(),
+        100,
+        "RwSignal set deve atualizar valor"
+    );
 
     // Testar update
     signal.update(|v| *v += 1);
-    assert_eq!(signal.get_untracked(), 101, "RwSignal update deve modificar valor");
+    assert_eq!(
+        signal.get_untracked(),
+        101,
+        "RwSignal update deve modificar valor"
+    );
 }
 
 /// REGRESSÃO: leptos::task::spawn_local deve estar disponível (compila).
@@ -149,11 +173,10 @@ fn test_leptos_rwsignal_works() {
 /// Este teste valida apenas que o símbolo está acessível e compila.
 #[wasm_bindgen_test]
 fn test_spawn_local_available() {
- // Se leptos::task::spawn_local não existir ou mudar de assinatura,
- // esta referência falha na compilação — proteção contra regressão.
- let _fn_ptr: fn(std::pin::Pin<std::boxed::Box<dyn std::future::Future<Output = ()>>>) =
- leptos::task::spawn_local;
- assert!(true, "leptos::task::spawn_local está disponível (compila)");
+    // Se leptos::task::spawn_local não existir ou mudar de assinatura,
+    // esta referência falha na compilação — proteção contra regressão.
+    let _fn_ptr: fn(std::pin::Pin<std::boxed::Box<dyn std::future::Future<Output = ()>>>) =
+        leptos::task::spawn_local;
 }
 
 /// REGRESSÃO: gloo_net::http::Request deve compilar em WASM.
@@ -162,9 +185,8 @@ fn test_spawn_local_available() {
 /// Fix: Adicionar `features = ["http"]` no Cargo.toml.
 #[wasm_bindgen_test]
 fn test_gloo_net_request_available() {
- // Apenas valida que o tipo está disponível (compila)
- let _request_type = std::any::type_name::<gloo_net::http::Request>();
- assert!(true, "gloo_net::http::Request está disponível");
+    // Apenas valida que o tipo está disponível (compila)
+    let _request_type = std::any::type_name::<gloo_net::http::Request>();
 }
 
 /// REGRESSÃO: web_sys console::log_1 deve funcionar (não usar tracing::info em WASM).
@@ -173,9 +195,8 @@ fn test_gloo_net_request_available() {
 /// Fix: Usar `web_sys::console::log_1()` para logging em componentes WASM.
 #[wasm_bindgen_test]
 fn test_web_sys_console_available() {
- use web_sys::console;
- use wasm_bindgen::JsValue;
- 
- console::log_1(&JsValue::from_str("Test log from WASM"));
- assert!(true, "web_sys::console::log_1 está disponível");
+    use wasm_bindgen::JsValue;
+    use web_sys::console;
+
+    console::log_1(&JsValue::from_str("Test log from WASM"));
 }

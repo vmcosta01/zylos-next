@@ -12,85 +12,90 @@ use wasm_bindgen_futures::spawn_local;
 /// Estado do painel de governança de employees.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct EmployeeGovernanceState {
- pub roles: Vec<RoleEntry>,
- pub pending_plans: usize,
- pub approved_plans: usize,
- pub rejected_plans: usize,
- pub rate_limited_employees: usize,
- pub total_routines: usize,
+    pub roles: Vec<RoleEntry>,
+    pub pending_plans: usize,
+    pub approved_plans: usize,
+    pub rejected_plans: usize,
+    pub rate_limited_employees: usize,
+    pub total_routines: usize,
 }
 
 /// Entrada de um role individual.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct RoleEntry {
- pub name: String,
- pub display_name: String,
- pub employee_count: usize,
- pub routine_count: usize,
+    pub name: String,
+    pub display_name: String,
+    pub employee_count: usize,
+    pub routine_count: usize,
 }
 
 async fn fetch_json(url: &str) -> Result<serde_json::Value, String> {
- let full_url = format!("http://localhost:3000{}", url);
- let resp = gloo_net::http::Request::get(&full_url)
- .send()
- .await
- .map_err(|e| format!("fetch error: {e}"))?;
- if !resp.ok() {
- return Err(format!("HTTP {}", resp.status()));
- }
- resp.json::<serde_json::Value>()
- .await
- .map_err(|e| format!("json parse: {e}"))
+    let full_url = format!("http://localhost:3000{}", url);
+    let resp = gloo_net::http::Request::get(&full_url)
+        .send()
+        .await
+        .map_err(|e| format!("fetch error: {e}"))?;
+    if !resp.ok() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    resp.json::<serde_json::Value>()
+        .await
+        .map_err(|e| format!("json parse: {e}"))
 }
 
 /// Componente EmployeeGovernancePanel para o cockpit.
 #[component]
 pub fn EmployeeGovernancePanel() -> impl IntoView {
- let state = RwSignal::new(EmployeeGovernanceState::default());
- let loading = RwSignal::new(true);
- let error_msg = RwSignal::new(None::<String>);
+    let state = RwSignal::new(EmployeeGovernanceState::default());
+    let loading = RwSignal::new(true);
+    let error_msg = RwSignal::new(None::<String>);
 
- Effect::new(move |_| {
- spawn_local(async move {
- loading.set(true);
- error_msg.set(None);
+    Effect::new(move |_| {
+        spawn_local(async move {
+            loading.set(true);
+            error_msg.set(None);
 
- let mut s = EmployeeGovernanceState::default();
+            let mut s = EmployeeGovernanceState::default();
 
- // Fetch roles
- match fetch_json("/api/v1/hermes/employee/roles").await {
- Ok(json) => {
- if let Some(roles_arr) = json.get("roles").and_then(|v| v.as_array()) {
- s.roles = roles_arr
- .iter()
- .filter_map(|r| {
- r.as_str().map(|name| RoleEntry {
- name: name.into(),
- display_name: name.replace('_', " "),
- employee_count: 0,
- routine_count: 0,
- })
- })
- .collect();
- }
- }
- Err(e) => { error_msg.set(Some(format!("Roles: {e}"))); }
- }
+            // Fetch roles
+            match fetch_json("/api/v1/hermes/employee/roles").await {
+                Ok(json) => {
+                    if let Some(roles_arr) = json.get("roles").and_then(|v| v.as_array()) {
+                        s.roles = roles_arr
+                            .iter()
+                            .filter_map(|r| {
+                                r.as_str().map(|name| RoleEntry {
+                                    name: name.into(),
+                                    display_name: name.replace('_', " "),
+                                    employee_count: 0,
+                                    routine_count: 0,
+                                })
+                            })
+                            .collect();
+                    }
+                }
+                Err(e) => {
+                    error_msg.set(Some(format!("Roles: {e}")));
+                }
+            }
 
- // Fetch routine catalog summary
- if let Ok(json) = fetch_json("/api/v1/hermes/employee/routines").await {
- s.total_routines = json.get("total").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
- }
+            // Fetch routine catalog summary
+            if let Ok(json) = fetch_json("/api/v1/hermes/employee/routines").await {
+                s.total_routines = json.get("total").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+            }
 
- // Fetch rate limiter stats
- if let Ok(json) = fetch_json("/api/v1/hermes/employee/rate-limiter/stats").await {
- s.rate_limited_employees = json.get("throttled_count").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
- }
+            // Fetch rate limiter stats
+            if let Ok(json) = fetch_json("/api/v1/hermes/employee/rate-limiter/stats").await {
+                s.rate_limited_employees = json
+                    .get("throttled_count")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0) as usize;
+            }
 
- state.set(s);
- loading.set(false);
- });
- });
+            state.set(s);
+            loading.set(false);
+        });
+    });
 
     view! {
         <div class="employee-governance-panel p-4 space-y-4">

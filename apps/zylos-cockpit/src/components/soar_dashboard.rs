@@ -267,8 +267,14 @@ fn SoarNavButton(
 #[component]
 fn SoarOverview(playbooks: Vec<PlaybookSummary>, validation: ValidationResult) -> impl IntoView {
     let total = playbooks.len();
-    let active = playbooks.iter().filter(|p| p.state == PlaybookState::Active).count();
-    let isolated = playbooks.iter().filter(|p| p.state == PlaybookState::Isolated).count();
+    let active = playbooks
+        .iter()
+        .filter(|p| p.state == PlaybookState::Active)
+        .count();
+    let isolated = playbooks
+        .iter()
+        .filter(|p| p.state == PlaybookState::Isolated)
+        .count();
     let valid_pct = if validation.total_playbooks > 0 {
         (validation.valid_count as f64 / validation.total_playbooks as f64) * 100.0
     } else {

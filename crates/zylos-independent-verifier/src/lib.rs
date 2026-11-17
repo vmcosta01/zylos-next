@@ -583,11 +583,7 @@ mod tests {
         );
 
         assert!(result.passed);
-        let fox_check = result
-            .checks
-            .iter()
-            .find(|c| c.name == "has_fox")
-            .unwrap();
+        let fox_check = result.checks.iter().find(|c| c.name == "has_fox").unwrap();
         assert!(fox_check.passed);
     }
 
@@ -641,8 +637,22 @@ mod tests {
         );
 
         assert!(result.passed);
-        assert!(result.checks.iter().find(|c| c.name == "min_3").unwrap().passed);
-        assert!(result.checks.iter().find(|c| c.name == "max_10").unwrap().passed);
+        assert!(
+            result
+                .checks
+                .iter()
+                .find(|c| c.name == "min_3")
+                .unwrap()
+                .passed
+        );
+        assert!(
+            result
+                .checks
+                .iter()
+                .find(|c| c.name == "max_10")
+                .unwrap()
+                .passed
+        );
     }
 
     #[test]
@@ -660,9 +670,7 @@ mod tests {
                 custom_checks: vec![
                     CustomCheck {
                         name: "starts_hash".into(),
-                        check_type: CustomCheckType::StartsWith {
-                            prefix: "#".into(),
-                        },
+                        check_type: CustomCheckType::StartsWith { prefix: "#".into() },
                     },
                     CustomCheck {
                         name: "ends_footer".into(),

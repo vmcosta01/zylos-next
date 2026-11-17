@@ -16,7 +16,6 @@ sha2 = "0.10"
 sha1 = "0.10"
 chrono = { version = "0.4", features = ["serde"] }
 tokio = { workspace = true, features = ["sync"] }
-zylos-proof = { path = "../zylos-proof" }
 async-trait = "0.1"
 bytes = "1"
 reqwest = { version = "0.12", features = ["json"] }
@@ -28,3 +27,6 @@ hex = "0.4"
 uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]
+
+[lints]
+workspace = true

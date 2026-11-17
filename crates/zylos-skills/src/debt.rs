@@ -61,8 +61,6 @@ impl std::fmt::Display for DebtSeverity {
     }
 }
 
-
-
 /// Categoria da dívida técnica
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -223,7 +221,13 @@ impl DebtParser {
     }
 
     /// Faz parse de um comentário de dívida individual
-    fn parse_debt_comment(&self, comment: &str, file: &str, line: usize, context: &str) -> DebtItem {
+    fn parse_debt_comment(
+        &self,
+        comment: &str,
+        file: &str,
+        line: usize,
+        context: &str,
+    ) -> DebtItem {
         // Formato esperado: [severity] [category] descrição #tag1 #tag2 (ticket: ABC-123)
         let mut severity = DebtSeverity::default();
         let mut category = DebtCategory::default();
@@ -243,13 +247,9 @@ impl DebtParser {
                     _ => DebtSeverity::default(),
                 };
                 // Remove o trecho de severidade da descrição
-                description = format!(
-                    "{}{}",
-                    &comment[..sev_start],
-                    &comment[sev_end + 1..]
-                )
-                .trim()
-                .to_string();
+                description = format!("{}{}", &comment[..sev_start], &comment[sev_end + 1..])
+                    .trim()
+                    .to_string();
             }
         }
 
@@ -333,7 +333,10 @@ impl DebtParser {
             if path.is_dir() {
                 // Pula diretórios comuns que não devem ser escaneados
                 let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                if matches!(name, "target" | "node_modules" | ".git" | ".svn" | "__pycache__") {
+                if matches!(
+                    name,
+                    "target" | "node_modules" | ".git" | ".svn" | "__pycache__"
+                ) {
                     continue;
                 }
                 self.scan_recursive(&path, items)?;
@@ -342,7 +345,21 @@ impl DebtParser {
                 let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
                 if matches!(
                     ext,
-                    "rs" | "py" | "ts" | "tsx" | "js" | "jsx" | "go" | "java" | "c" | "cpp" | "h" | "hpp" | "md" | "yaml" | "yml" | "toml"
+                    "rs" | "py"
+                        | "ts"
+                        | "tsx"
+                        | "js"
+                        | "jsx"
+                        | "go"
+                        | "java"
+                        | "c"
+                        | "cpp"
+                        | "h"
+                        | "hpp"
+                        | "md"
+                        | "yaml"
+                        | "yml"
+                        | "toml"
                 ) {
                     let content = std::fs::read_to_string(&path)?;
                     let file_str = path.display().to_string();
@@ -462,7 +479,14 @@ pub fn report_to_markdown(report: &DebtReport) -> String {
             let tags_info = if item.tags.is_empty() {
                 String::new()
             } else {
-                format!(" ({})", item.tags.iter().map(|t| format!("#{}", t)).collect::<Vec<_>>().join(" "))
+                format!(
+                    " ({})",
+                    item.tags
+                        .iter()
+                        .map(|t| format!("#{}", t))
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                )
             };
             lines.push(format!(
                 "- **L{}** [{}] [{}] {}{}{}",
@@ -579,10 +603,10 @@ fn clean_code() {
     fn test_generate_report_with_items() {
         let items = vec![
             // Variante DebtItem.
-                        DebtItem {
-                            description: "Fix A".to_string(),
-                            severity: DebtSeverity::High,
-                            category: DebtCategory::Performance,
+            DebtItem {
+                description: "Fix A".to_string(),
+                severity: DebtSeverity::High,
+                category: DebtCategory::Performance,
                 file: "a.rs".to_string(),
                 line: 10,
                 context: "".to_string(),
@@ -590,10 +614,10 @@ fn clean_code() {
                 ticket: None,
             },
             // Variante DebtItem.
-                        DebtItem {
-                            description: "Fix B".to_string(),
-                            severity: DebtSeverity::Low,
-                            category: DebtCategory::Documentation,
+            DebtItem {
+                description: "Fix B".to_string(),
+                severity: DebtSeverity::Low,
+                category: DebtCategory::Documentation,
                 file: "b.rs".to_string(),
                 line: 20,
                 context: "".to_string(),

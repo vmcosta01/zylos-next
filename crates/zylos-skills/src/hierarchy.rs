@@ -34,7 +34,6 @@ pub enum SkillTier {
     Atomic,
 }
 
-
 impl fmt::Display for SkillTier {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -76,13 +75,16 @@ impl SkillTier {
 
     /// Retorna todos os tiers como slice ordenado.
     pub fn all() -> &'static [SkillTier] {
-        &[SkillTier::Planning, SkillTier::Functional, SkillTier::Atomic]
+        &[
+            SkillTier::Planning,
+            SkillTier::Functional,
+            SkillTier::Atomic,
+        ]
     }
 }
 
 /// Metadata de hierarquia associada a uma skill.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct SkillHierarchyMetadata {
     /// Tier da skill.
     pub tier: SkillTier,
@@ -93,7 +95,6 @@ pub struct SkillHierarchyMetadata {
     /// Tags adicionais para filtering.
     pub tags: Vec<String>,
 }
-
 
 impl SkillHierarchyMetadata {
     /// Cria metadata para uma skill de planning.
@@ -137,15 +138,13 @@ impl SkillHierarchyMetadata {
 }
 
 /// Filtro de busca por tier.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct TierFilter {
     /// Tiers incluídos na busca. Se vazio, inclui todos.
     pub include: Vec<SkillTier>,
     /// Tiers excluídos da busca.
     pub exclude: Vec<SkillTier>,
 }
-
 
 impl TierFilter {
     /// Cria filtro que inclui apenas o tier especificado.
@@ -393,8 +392,14 @@ mod tests {
     fn test_infer_tier_planning_keywords() {
         assert_eq!(infer_tier_from_name("deploy-service"), SkillTier::Planning);
         assert_eq!(infer_tier_from_name("CI Pipeline"), SkillTier::Planning);
-        assert_eq!(infer_tier_from_name("orchestrate-agents"), SkillTier::Planning);
-        assert_eq!(infer_tier_from_name("Release Workflow"), SkillTier::Planning);
+        assert_eq!(
+            infer_tier_from_name("orchestrate-agents"),
+            SkillTier::Planning
+        );
+        assert_eq!(
+            infer_tier_from_name("Release Workflow"),
+            SkillTier::Planning
+        );
         assert_eq!(infer_tier_from_name("plan-sprint"), SkillTier::Planning);
     }
 
@@ -413,7 +418,10 @@ mod tests {
         assert_eq!(infer_tier_from_name("run-tests"), SkillTier::Functional);
         assert_eq!(infer_tier_from_name("build-project"), SkillTier::Functional);
         assert_eq!(infer_tier_from_name("analyze-code"), SkillTier::Functional);
-        assert_eq!(infer_tier_from_name("generate-report"), SkillTier::Functional);
+        assert_eq!(
+            infer_tier_from_name("generate-report"),
+            SkillTier::Functional
+        );
     }
 
     #[test]

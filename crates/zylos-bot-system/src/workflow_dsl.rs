@@ -368,15 +368,10 @@ enum Color {
 
 /// Retorna Some(path) se houver ciclo, descrevendo os nós envolvidos
 fn detect_cycle(spec: &WorkflowSpec) -> Option<Vec<String>> {
-    let adj: HashMap<&str, Vec<&str>> = spec
-        .edges
-        .iter()
-        .fold(HashMap::new(), |mut map, e| {
-            map.entry(e.from.as_str())
-                .or_default()
-                .push(e.to.as_str());
-            map
-        });
+    let adj: HashMap<&str, Vec<&str>> = spec.edges.iter().fold(HashMap::new(), |mut map, e| {
+        map.entry(e.from.as_str()).or_default().push(e.to.as_str());
+        map
+    });
 
     let mut color: HashMap<&str, Color> = spec
         .nodes
@@ -549,11 +544,7 @@ edges:
         assert_eq!(dag.nodes.len(), 5);
         assert_eq!(dag.edges.len(), 6);
         // split tem 3 outgoing edges
-        let split_outgoing: Vec<_> = dag
-            .edges
-            .iter()
-            .filter(|e| e.from == "split")
-            .collect();
+        let split_outgoing: Vec<_> = dag.edges.iter().filter(|e| e.from == "split").collect();
         assert_eq!(split_outgoing.len(), 3);
     }
 

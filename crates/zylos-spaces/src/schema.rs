@@ -92,21 +92,25 @@ pub fn extract_outline(markdown: &str) -> Vec<OutlineNode> {
                 let text = trimmed[level as usize..].trim().to_string();
                 if !text.is_empty() {
                     let anchor = text
-                     .to_lowercase()
-                     .chars()
-                     .map(|c| {
-                     if c.is_alphanumeric() || c == '-' {
-                     c
-                     } else {
-                     '-'
-                     }
-                     })
-                     .collect::<String>()
-                     .split('-')
-                     .filter(|s| !s.is_empty())
-                     .collect::<Vec<_>>()
-                     .join("-");
-                    nodes.push(OutlineNode { level, text, anchor });
+                        .to_lowercase()
+                        .chars()
+                        .map(|c| {
+                            if c.is_alphanumeric() || c == '-' {
+                                c
+                            } else {
+                                '-'
+                            }
+                        })
+                        .collect::<String>()
+                        .split('-')
+                        .filter(|s| !s.is_empty())
+                        .collect::<Vec<_>>()
+                        .join("-");
+                    nodes.push(OutlineNode {
+                        level,
+                        text,
+                        anchor,
+                    });
                 }
             }
         }

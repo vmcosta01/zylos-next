@@ -179,15 +179,24 @@ impl SchemaRegistry {
 
     /// Validate a payload against the registered schema. Returns Ok(()) on
     /// success or an error description on mismatch / missing schema.
-    pub fn validate(&self, event_type: &str, version: u32, value: &serde_json::Value) -> Result<(), String> {
+    pub fn validate(
+        &self,
+        event_type: &str,
+        version: u32,
+        value: &serde_json::Value,
+    ) -> Result<(), String> {
         let map = self.schemas.read().unwrap();
-        let _schema = map.get(&(event_type.to_string(), version))
+        let _schema = map
+            .get(&(event_type.to_string(), version))
             .ok_or_else(|| format!("no schema registered for {} v{}", event_type, version))?;
         // Lightweight structural check: ensure the value is an object when expected.
         // Full JSON-Schema validation would require the `jsonschema` crate; we keep
         // deps minimal and rely on serde round-trip + compile-time types for safety.
         if !value.is_object() && event_type != "Custom" {
-            return Err(format!("expected object for {} v{}, got {}", event_type, version, value));
+            return Err(format!(
+                "expected object for {} v{}, got {}",
+                event_type, version, value
+            ));
         }
         // Variante Ok.
         Ok(())
@@ -202,13 +211,34 @@ impl SchemaRegistry {
     fn register_defaults(&mut self) {
         use schemars::schema_for;
         let pairs: Vec<(&str, serde_json::Value)> = vec![
-            ("AgentStateChanged", serde_json::to_value(schema_for!(AgentStateChanged)).unwrap()),
-            ("TaskCompleted", serde_json::to_value(schema_for!(TaskCompleted)).unwrap()),
-            ("MemoryUpdated", serde_json::to_value(schema_for!(MemoryUpdated)).unwrap()),
-            ("ApprovalRequested", serde_json::to_value(schema_for!(ApprovalRequested)).unwrap()),
-            ("DagProgressChanged", serde_json::to_value(schema_for!(DagProgressChanged)).unwrap()),
-            ("SkillInvoked", serde_json::to_value(schema_for!(SkillInvoked)).unwrap()),
-            ("Custom", serde_json::to_value(schema_for!(CustomEvent)).unwrap()),
+            (
+                "AgentStateChanged",
+                serde_json::to_value(schema_for!(AgentStateChanged)).unwrap(),
+            ),
+            (
+                "TaskCompleted",
+                serde_json::to_value(schema_for!(TaskCompleted)).unwrap(),
+            ),
+            (
+                "MemoryUpdated",
+                serde_json::to_value(schema_for!(MemoryUpdated)).unwrap(),
+            ),
+            (
+                "ApprovalRequested",
+                serde_json::to_value(schema_for!(ApprovalRequested)).unwrap(),
+            ),
+            (
+                "DagProgressChanged",
+                serde_json::to_value(schema_for!(DagProgressChanged)).unwrap(),
+            ),
+            (
+                "SkillInvoked",
+                serde_json::to_value(schema_for!(SkillInvoked)).unwrap(),
+            ),
+            (
+                "Custom",
+                serde_json::to_value(schema_for!(CustomEvent)).unwrap(),
+            ),
         ];
         let mut map = self.schemas.write().unwrap();
         for (name, schema) in pairs {

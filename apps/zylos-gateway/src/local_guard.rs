@@ -5,7 +5,7 @@
 //! `http://127.0.0.1:3000`. Esta trava responde 403 em dois casos:
 //!
 //! 1. **Pedido de navegador vindo de outro site.** O cabeçalho `Origin` está
-//!    presente e não é localhost / 127.0.0.1 / [::1]. Navegadores sempre mandam
+//!    presente e não é localhost / 127.0.0.1 / `[::1]`. Navegadores sempre mandam
 //!    `Origin` em POST e em pedidos entre sites; clientes que não são navegador
 //!    (zylos-cli, plugin do Hermes) não mandam e passam. `Origin: null`
 //!    (página aberta de arquivo, iframe isolado) também é recusado.
@@ -42,13 +42,17 @@ fn sem_porta(autoridade: &str) -> Option<&str> {
     if let Some(resto) = a.strip_prefix('[') {
         let (ip, depois) = resto.split_once(']')?;
         return match depois.strip_prefix(':') {
-            Some(porta) if !porta.is_empty() && porta.chars().all(|c| c.is_ascii_digit()) => Some(ip),
+            Some(porta) if !porta.is_empty() && porta.chars().all(|c| c.is_ascii_digit()) => {
+                Some(ip)
+            }
             None if depois.is_empty() => Some(ip),
             _ => None,
         };
     }
     match a.rsplit_once(':') {
-        Some((nome, porta)) if !porta.is_empty() && porta.chars().all(|c| c.is_ascii_digit()) => Some(nome),
+        Some((nome, porta)) if !porta.is_empty() && porta.chars().all(|c| c.is_ascii_digit()) => {
+            Some(nome)
+        }
         Some(_) => None,
         None => Some(a),
     }
@@ -62,7 +66,10 @@ pub fn autoridade_local(autoridade: &str) -> bool {
 /// `Origin` desta máquina: só `http://` ou `https://` com host local.
 pub fn origem_local(origem: &str) -> bool {
     let o = origem.trim();
-    match o.strip_prefix("http://").or_else(|| o.strip_prefix("https://")) {
+    match o
+        .strip_prefix("http://")
+        .or_else(|| o.strip_prefix("https://"))
+    {
         Some(resto) => autoridade_local(resto.split('/').next().unwrap_or("")),
         None => false,
     }
@@ -120,7 +127,15 @@ mod tests {
 
     #[test]
     fn autoridades_locais_passam() {
-        for a in ["127.0.0.1:3000", "127.0.0.1", "localhost", "LOCALHOST:3001", "localhost.:80", "[::1]:3000", "[::1]"] {
+        for a in [
+            "127.0.0.1:3000",
+            "127.0.0.1",
+            "localhost",
+            "LOCALHOST:3001",
+            "localhost.:80",
+            "[::1]:3000",
+            "[::1]",
+        ] {
             assert!(autoridade_local(a), "devia ser local: {a}");
         }
     }
@@ -146,7 +161,12 @@ mod tests {
 
     #[test]
     fn origens_locais_passam() {
-        for o in ["http://localhost:3001", "https://127.0.0.1", "http://[::1]:5173", "http://localhost"] {
+        for o in [
+            "http://localhost:3001",
+            "https://127.0.0.1",
+            "http://[::1]:5173",
+            "http://localhost",
+        ] {
             assert!(origem_local(o), "devia ser local: {o}");
         }
     }

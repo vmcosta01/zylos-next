@@ -3,14 +3,13 @@
 //! Provides automatic routing of memories to the appropriate backend based on
 //! their semantic type, with type-safe accessors and automatic provenance tracking.
 
-use std::sync::Arc;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use thiserror::Error;
 
 use crate::{
-    MemoryKind, BackendTarget, ContextNode, MemoryScope, VectorStore,
-    ContextGraph, ProvenanceTriple, ProvenanceScope, ProvenanceOrigin, Completeness,
-    VectorDocument, SearchParams,
+    BackendTarget, Completeness, ContextGraph, ContextNode, MemoryKind, MemoryScope,
+    ProvenanceOrigin, ProvenanceScope, ProvenanceTriple, SearchParams, VectorDocument, VectorStore,
 };
 
 #[derive(Debug, Error)]
@@ -314,8 +313,14 @@ mod tests {
     #[test]
     fn test_semantic_type_to_memory_kind() {
         assert_eq!(MemoryKind::from(SemanticType::Working), MemoryKind::Working);
-        assert_eq!(MemoryKind::from(SemanticType::Episodic), MemoryKind::Episodic);
-        assert_eq!(MemoryKind::from(SemanticType::Semantic), MemoryKind::Semantic);
+        assert_eq!(
+            MemoryKind::from(SemanticType::Episodic),
+            MemoryKind::Episodic
+        );
+        assert_eq!(
+            MemoryKind::from(SemanticType::Semantic),
+            MemoryKind::Semantic
+        );
         assert_eq!(
             MemoryKind::from(SemanticType::Procedural),
             MemoryKind::Procedural

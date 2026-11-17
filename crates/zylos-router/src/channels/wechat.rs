@@ -5,9 +5,9 @@
 //! verification, rate limit enforcement, and template message quotas.
 
 use super::{ChannelAdapter, ChannelError, InboundMessage, MessageContent, OutboundMessage};
+use aes::cipher::{BlockDecryptMut, KeyIvInit};
 use async_trait::async_trait;
 use bytes::Bytes;
-use aes::cipher::{BlockDecryptMut, KeyIvInit};
 use sha1::Digest;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -93,8 +93,8 @@ impl WechatAdapter {
     /// Decrypt AES-CBC encrypted message body
     fn decrypt_message(&self, encrypted: &str) -> Result<String, ChannelError> {
         use aes::Aes256;
-        use cbc::Decryptor;
         use base64::Engine;
+        use cbc::Decryptor;
 
         let key_bytes = base64::engine::general_purpose::STANDARD
             .decode(&self.config.encoding_aes_key)
@@ -122,14 +122,18 @@ impl WechatAdapter {
 
         // Skip 16-byte random prefix, read 4-byte length, extract message
         if plaintext.len() < 20 {
-            return Err(ChannelError::Encryption("plaintext too short after decrypt".into()));
+            return Err(ChannelError::Encryption(
+                "plaintext too short after decrypt".into(),
+            ));
         }
-        let msg_len = u32::from_be_bytes([
-            plaintext[16], plaintext[17], plaintext[18], plaintext[19],
-        ]) as usize;
+        let msg_len =
+            u32::from_be_bytes([plaintext[16], plaintext[17], plaintext[18], plaintext[19]])
+                as usize;
 
         if plaintext.len() < 20 + msg_len {
-            return Err(ChannelError::Encryption("message length exceeds plaintext".into()));
+            return Err(ChannelError::Encryption(
+                "message length exceeds plaintext".into(),
+            ));
         }
 
         String::from_utf8(plaintext[20..20 + msg_len].to_vec())
@@ -147,7 +151,7 @@ impl WechatAdapter {
             let raw = &xml[start..end];
             // Strip CDATA wrapper if present
             let value = if raw.starts_with("<![CDATA[") && raw.ends_with("]]>") {
-                &raw[9..raw.len()-3]
+                &raw[9..raw.len() - 3]
             } else {
                 raw
             };

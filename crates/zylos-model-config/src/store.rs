@@ -19,19 +19,26 @@ impl ModelConfigStore {
     }
 
     /// Cria ou atualiza config de modelo para um bot (ou "__global__")
-    pub async fn upsert(&self, bot_id: &str, config: UpsertModelConfig) -> Result<String, sqlx::Error> {
+    pub async fn upsert(
+        &self,
+        bot_id: &str,
+        config: UpsertModelConfig,
+    ) -> Result<String, sqlx::Error> {
         let now = chrono::Utc::now().to_rfc3339();
-        let tier = config.tier_strategy.unwrap_or_else(|| TierStrategy::default().as_str().to_string());
-        let effort = config.reasoning_effort.unwrap_or_else(|| ReasoningEffort::default().as_str().to_string());
+        let tier = config
+            .tier_strategy
+            .unwrap_or_else(|| TierStrategy::default().as_str().to_string());
+        let effort = config
+            .reasoning_effort
+            .unwrap_or_else(|| ReasoningEffort::default().as_str().to_string());
         let is_default = config.is_default.unwrap_or(false);
 
         // Verificar se já existe config para este bot
-        let existing: Option<(String,)> = sqlx::query_as(
-            "SELECT id FROM model_configs WHERE bot_id = ?"
-        )
-        .bind(bot_id)
-        .fetch_optional(&self.pool)
-        .await?;
+        let existing: Option<(String,)> =
+            sqlx::query_as("SELECT id FROM model_configs WHERE bot_id = ?")
+                .bind(bot_id)
+                .fetch_optional(&self.pool)
+                .await?;
 
         let id = if let Some((existing_id,)) = existing {
             // Atualizar existente
@@ -81,12 +88,10 @@ impl ModelConfigStore {
 
     /// Busca config específica de um bot (sem herança)
     pub async fn get_bot_config(&self, bot_id: &str) -> Result<Option<ModelConfig>, sqlx::Error> {
-        sqlx::query_as::<_, ModelConfig>(
-            "SELECT * FROM model_configs WHERE bot_id = ?"
-        )
-        .bind(bot_id)
-        .fetch_optional(&self.pool)
-        .await
+        sqlx::query_as::<_, ModelConfig>("SELECT * FROM model_configs WHERE bot_id = ?")
+            .bind(bot_id)
+            .fetch_optional(&self.pool)
+            .await
     }
 
     /// Resolve config efetiva com herança: bot > global > default hardcoded
@@ -161,16 +166,14 @@ impl ModelConfigStore {
                 is_default BOOLEAN NOT NULL DEFAULT FALSE,
                 created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
                 updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-            )"
+            )",
         )
         .execute(&self.pool)
         .await?;
 
-        sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_model_bot ON model_configs(bot_id)"
-        )
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_model_bot ON model_configs(bot_id)")
+            .execute(&self.pool)
+            .await?;
 
         tracing::info!("Model config migrations applied successfully");
         Ok(())

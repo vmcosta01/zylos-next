@@ -244,8 +244,8 @@ impl AutoImprovementLoop {
         // 2. Detectar entradas stale
         let stale = self.tracker.stale_entries(self.config.stale_threshold);
         if !stale.is_empty() {
-            let avg_age: u64 = stale.iter().map(|(_, age)| age.as_secs()).sum::<u64>()
-                / stale.len() as u64;
+            let avg_age: u64 =
+                stale.iter().map(|(_, age)| age.as_secs()).sum::<u64>() / stale.len() as u64;
             events.push(ImprovementEvent::StaleEntries {
                 count: stale.len(),
                 avg_age_secs: avg_age,
@@ -352,9 +352,10 @@ mod tests {
         // Registrar acesso "antigo" (simulado manipulando last_access diretamente)
         tracker.record_access("old-entry");
         // Substituir timestamp por um antigo
-        tracker
-            .last_access
-            .insert("old-entry".to_string(), Instant::now() - Duration::from_secs(100));
+        tracker.last_access.insert(
+            "old-entry".to_string(),
+            Instant::now() - Duration::from_secs(100),
+        );
 
         tracker.record_access("new-entry");
 
@@ -449,9 +450,10 @@ mod tests {
 
         // Simular entrada antiga
         tracker.record_access("old-entry");
-        tracker
-            .last_access
-            .insert("old-entry".to_string(), Instant::now() - Duration::from_secs(60));
+        tracker.last_access.insert(
+            "old-entry".to_string(),
+            Instant::now() - Duration::from_secs(60),
+        );
 
         let events = loop_instance.run_analysis_cycle();
 

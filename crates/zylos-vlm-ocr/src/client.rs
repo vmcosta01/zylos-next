@@ -79,9 +79,10 @@ impl VlmOcrClient {
                 message: body,
             });
         }
-        let ocr_resp: OcrResponse = resp.json().await.map_err(|e| {
-            OcrError::ParseError(format!("Failed to parse OCR response: {}", e))
-        })?;
+        let ocr_resp: OcrResponse = resp
+            .json()
+            .await
+            .map_err(|e| OcrError::ParseError(format!("Failed to parse OCR response: {}", e)))?;
         Ok(ocr_resp)
     }
 }

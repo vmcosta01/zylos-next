@@ -17,7 +17,10 @@ async fn subir_falso() -> String {
         .route(
             "/v1/chat/completions",
             post(|Json(c): Json<Value>| async move {
-                let sys = c["messages"][0]["content"].as_str().unwrap_or("").to_string();
+                let sys = c["messages"][0]["content"]
+                    .as_str()
+                    .unwrap_or("")
+                    .to_string();
                 Json(json!({"choices": [{"message": {"content": format!("[{sys}] ok")}}]}))
             }),
         )
@@ -50,8 +53,13 @@ async fn roteador() -> (tempfile::TempDir, Router) {
     };
     std::fs::write(
         d.path().join("provedores.toml"),
-        [ficha("falso", "v1", "FALSA_KEY"), ficha("recusa", "recusa", "FALSA_KEY"), ficha("lento", "lento", "FALSA_KEY"), ficha("sem", "v1", "SEM_KEY")]
-            .join("\n"),
+        [
+            ficha("falso", "v1", "FALSA_KEY"),
+            ficha("recusa", "recusa", "FALSA_KEY"),
+            ficha("lento", "lento", "FALSA_KEY"),
+            ficha("sem", "v1", "SEM_KEY"),
+        ]
+        .join("\n"),
     )
     .unwrap();
     std::fs::write(d.path().join(".env"), format!("FALSA_KEY={CHAVE}\n")).unwrap();
@@ -64,7 +72,9 @@ async fn roteador() -> (tempfile::TempDir, Router) {
     ] {
         let b = d.path().join("bots").join(nome);
         std::fs::create_dir_all(&b).unwrap();
-        let m = modelo.map(|m| format!("modelo = \"{m}\"\n")).unwrap_or_default();
+        let m = modelo
+            .map(|m| format!("modelo = \"{m}\"\n"))
+            .unwrap_or_default();
         std::fs::write(b.join("bot.toml"), format!("provedor = \"{prov}\"\n{m}")).unwrap();
         std::fs::write(b.join("ALMA.md"), format!("Sou o {nome}")).unwrap();
     }
@@ -86,18 +96,34 @@ async fn perguntar(app: &Router, nome: &str, corpo: &str) -> (StatusCode, String
         .unwrap();
     let resp = app.clone().oneshot(req).await.unwrap();
     let st = resp.status();
-    let tipo = resp.headers().get(header::CONTENT_TYPE).map(|v| v.to_str().unwrap().to_string()).unwrap_or_default();
-    let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
+    let tipo = resp
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .map(|v| v.to_str().unwrap().to_string())
+        .unwrap_or_default();
+    let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20)
+        .await
+        .unwrap();
     let txt = String::from_utf8(bytes.to_vec()).unwrap();
     assert!(!txt.contains(CHAVE), "a chave vazou na resposta: {txt}");
-    (st, tipo, serde_json::from_str(&txt).unwrap_or(json!({"cru": txt})))
+    (
+        st,
+        tipo,
+        serde_json::from_str(&txt).unwrap_or(json!({"cru": txt})),
+    )
 }
 
 async fn pegar(app: &Router, uri: &str) -> (StatusCode, Value) {
-    let req = Request::builder().method(Method::GET).uri(uri).body(Body::empty()).unwrap();
+    let req = Request::builder()
+        .method(Method::GET)
+        .uri(uri)
+        .body(Body::empty())
+        .unwrap();
     let resp = app.clone().oneshot(req).await.unwrap();
     let st = resp.status();
-    let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
+    let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20)
+        .await
+        .unwrap();
     let txt = String::from_utf8(bytes.to_vec()).unwrap();
     assert!(!txt.contains(CHAVE), "a chave vazou: {txt}");
     (st, serde_json::from_str(&txt).unwrap())
@@ -112,7 +138,10 @@ async fn lista_provedores_e_modelos() {
     let achar = |n: &str| lista.iter().find(|p| p["nome"] == n).unwrap().clone();
     assert_eq!(achar("falso")["chave_pronta"], true);
     assert_eq!(achar("sem")["chave_pronta"], false);
-    assert!(achar("sem")["problema_da_chave"].as_str().unwrap().contains("SEM_KEY"));
+    assert!(achar("sem")["problema_da_chave"]
+        .as_str()
+        .unwrap()
+        .contains("SEM_KEY"));
     assert_eq!(achar("anthropic")["lingua"], "anthropic_messages");
 
     let (st, v) = pegar(&app, "/api/v1/provedores/falso/modelos").await;
@@ -141,22 +170,59 @@ async fn responde_200_com_personalidade() {
 async fn cada_erro_tem_seu_status_em_problem_json() {
     let (_d, app) = roteador().await;
     let casos = [
-        ("ninguem", r#"{"pergunta":"oi"}"#, StatusCode::NOT_FOUND, "bot-inexistente"),
-        ("vigia", r#"{"pergunta":"  "}"#, StatusCode::UNPROCESSABLE_ENTITY, "pergunta-invalida"),
-        ("sem-modelo", r#"{"pergunta":"oi"}"#, StatusCode::UNPROCESSABLE_ENTITY, "bot-sem-modelo"),
-        ("sem-chave", r#"{"pergunta":"oi"}"#, StatusCode::FAILED_DEPENDENCY, "chave-faltando"),
-        ("recusado", r#"{"pergunta":"oi"}"#, StatusCode::BAD_GATEWAY, "provedor-recusou"),
-        ("lerdo", r#"{"pergunta":"oi"}"#, StatusCode::GATEWAY_TIMEOUT, "tempo-esgotado"),
+        (
+            "ninguem",
+            r#"{"pergunta":"oi"}"#,
+            StatusCode::NOT_FOUND,
+            "bot-inexistente",
+        ),
+        (
+            "vigia",
+            r#"{"pergunta":"  "}"#,
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "pergunta-invalida",
+        ),
+        (
+            "sem-modelo",
+            r#"{"pergunta":"oi"}"#,
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "bot-sem-modelo",
+        ),
+        (
+            "sem-chave",
+            r#"{"pergunta":"oi"}"#,
+            StatusCode::FAILED_DEPENDENCY,
+            "chave-faltando",
+        ),
+        (
+            "recusado",
+            r#"{"pergunta":"oi"}"#,
+            StatusCode::BAD_GATEWAY,
+            "provedor-recusou",
+        ),
+        (
+            "lerdo",
+            r#"{"pergunta":"oi"}"#,
+            StatusCode::GATEWAY_TIMEOUT,
+            "tempo-esgotado",
+        ),
     ];
     for (nome, corpo, esperado, tipo) in casos {
         let (st, ct, v) = perguntar(&app, nome, corpo).await;
         assert_eq!(st, esperado, "{nome}: {v}");
         assert_eq!(ct, "application/problem+json", "{nome}");
-        assert_eq!(v["type"], format!("https://zylos.dev/errors/{tipo}"), "{nome}");
+        assert_eq!(
+            v["type"],
+            format!("https://zylos.dev/errors/{tipo}"),
+            "{nome}"
+        );
         assert_eq!(v["status"], esperado.as_u16(), "{nome}");
     }
     let (_, _, v) = perguntar(&app, "sem-chave", r#"{"pergunta":"oi"}"#).await;
-    assert!(v["detail"].as_str().unwrap().contains("SEM_KEY"), "o detalhe cita o nome da chave: {v}");
+    assert!(
+        v["detail"].as_str().unwrap().contains("SEM_KEY"),
+        "o detalhe cita o nome da chave: {v}"
+    );
     let (_, _, v) = perguntar(&app, "recusado", r#"{"pergunta":"oi"}"#).await;
     assert!(v["detail"].as_str().unwrap().contains("bad key ***"), "{v}");
 }

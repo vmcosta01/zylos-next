@@ -300,7 +300,7 @@ mod tests {
         assert_eq!(prog.state, ProgramState::Created);
         assert_eq!(prog.iteration_count, 0);
         assert!(prog.best_metric.is_none());
-        assert_eq!(prog.evaluation.higher_is_better, true);
+        assert!(prog.evaluation.higher_is_better);
     }
 
     #[test]

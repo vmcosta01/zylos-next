@@ -48,8 +48,8 @@ pub struct HermesAdapter {
 impl HermesAdapter {
     /// Creates a new adapter instance with the given MCP endpoint and auth token.
     ///
-    /// The adapter starts with no registered profiles; call [`register_profile`]
-    /// or [`load_default_profiles`] before exposing skills.
+    /// The adapter starts with no registered profiles; call \[`register_profile`\]
+    /// or \[`load_default_profiles`\] before exposing skills.
     pub fn new(mcp_endpoint: String, auth_token: String) -> Self {
         Self {
             profiles: HashMap::new(),
@@ -62,7 +62,8 @@ impl HermesAdapter {
     ///
     /// If a profile with the same `hermes_profile_id` already exists, it is replaced.
     pub fn register_profile(&mut self, mapping: HermesProfileMapping) {
-        self.profiles.insert(mapping.hermes_profile_id.clone(), mapping);
+        self.profiles
+            .insert(mapping.hermes_profile_id.clone(), mapping);
     }
 
     /// Loads the 65 built-in default Hermes profile mappings.
@@ -91,7 +92,11 @@ impl HermesAdapter {
             ("translator-en", "agent-translator-en", "localization"),
             ("support-l1", "agent-support-l1", "support"),
             ("support-l2", "agent-support-l2", "support"),
-            ("incident-responder", "agent-incident-responder", "operations"),
+            (
+                "incident-responder",
+                "agent-incident-responder",
+                "operations",
+            ),
             ("soar-dispatcher", "agent-soar-dispatcher", "orchestration"),
             ("memory-consolidator", "agent-memory-consolidator", "memory"),
             ("sentinel-scanner", "agent-sentinel-scanner", "monitoring"),
@@ -102,7 +107,11 @@ impl HermesAdapter {
             ("triage-stage1", "agent-triage-stage1", "triage"),
             ("triage-stage2", "agent-triage-stage2", "triage"),
             ("hitl-approver", "agent-hitl-approver", "approval"),
-            ("equivalence-hasher", "agent-equivalence-hasher", "optimization"),
+            (
+                "equivalence-hasher",
+                "agent-equivalence-hasher",
+                "optimization",
+            ),
             ("proof-verifier", "agent-proof-verifier", "verification"),
             ("panel-judge", "agent-panel-judge", "adversarial"),
             ("sandbox-wasm", "agent-sandbox-wasm", "isolation"),
@@ -110,12 +119,20 @@ impl HermesAdapter {
             ("skill-evaluator", "agent-skill-evaluator", "skills"),
             ("cockpit-streamer", "agent-cockpit-streamer", "ui"),
             ("roster-manager", "agent-roster-manager", "ui"),
-            ("dag-orchestrator", "agent-dag-orchestrator", "orchestration"),
+            (
+                "dag-orchestrator",
+                "agent-dag-orchestrator",
+                "orchestration",
+            ),
             ("checkpoint-saver", "agent-checkpoint-saver", "persistence"),
             ("lease-manager", "agent-lease-manager", "durability"),
             ("maintenance-loop", "agent-maintenance-loop", "recovery"),
             ("event-router", "agent-event-router", "routing"),
-            ("outcome-classifier", "agent-outcome-classifier", "classification"),
+            (
+                "outcome-classifier",
+                "agent-outcome-classifier",
+                "classification",
+            ),
             ("secret-masker", "agent-secret-masker", "security"),
             ("pii-redactor", "agent-pii-redactor", "privacy"),
             ("otel-exporter", "agent-otel-exporter", "observability"),
@@ -123,14 +140,22 @@ impl HermesAdapter {
             ("doc-generator", "agent-doc-generator", "documentation"),
             ("api-validator", "agent-api-validator", "testing"),
             ("schema-migrator", "agent-schema-migrator", "database"),
-            ("config-hotloader", "agent-config-hotloader", "configuration"),
+            (
+                "config-hotloader",
+                "agent-config-hotloader",
+                "configuration",
+            ),
             ("health-checker", "agent-health-checker", "monitoring"),
             ("rate-limiter", "agent-rate-limiter", "governance"),
             ("circuit-breaker", "agent-circuit-breaker", "resilience"),
             ("retry-handler", "agent-retry-handler", "resilience"),
             ("backoff-jitter", "agent-backoff-jitter", "resilience"),
             ("dedup-detector", "agent-dedup-detector", "optimization"),
-            ("cache-invalidator", "agent-cache-invalidator", "performance"),
+            (
+                "cache-invalidator",
+                "agent-cache-invalidator",
+                "performance",
+            ),
             ("queue-processor", "agent-queue-processor", "async"),
             ("webhook-sender", "agent-webhook-sender", "integration"),
             ("slack-notifier", "agent-slack-notifier", "notification"),
@@ -144,7 +169,11 @@ impl HermesAdapter {
                 hermes_profile_id: hermes_id.to_string(),
                 zylos_agent_id: zylos_id.to_string(),
                 tenant: tenant.to_string(),
-                capabilities: vec!["mcp".to_string(), "skills".to_string(), "memory".to_string()],
+                capabilities: vec![
+                    "mcp".to_string(),
+                    "skills".to_string(),
+                    "memory".to_string(),
+                ],
                 model_provider: "anthropic".to_string(),
                 model_name: "claude-sonnet-4-20250514".to_string(),
                 max_concurrent_tasks: 5,
@@ -213,10 +242,14 @@ impl HermesAdapter {
 
     /// Computes aggregate integration metrics across all registered profiles.
     pub fn integration_metrics(&self) -> IntegrationMetrics {
-        let approval_required_count = self.profiles.values()
+        let approval_required_count = self
+            .profiles
+            .values()
             .filter(|p| p.approval_required)
             .count();
-        let equivalence_enabled_count = self.profiles.values()
+        let equivalence_enabled_count = self
+            .profiles
+            .values()
             .filter(|p| p.equivalence_hash_enabled)
             .count();
 
@@ -224,7 +257,9 @@ impl HermesAdapter {
             total_profiles: self.profiles.len(),
             approval_required_profiles: approval_required_count,
             equivalence_hash_profiles: equivalence_enabled_count,
-            unique_tenants: self.profiles.values()
+            unique_tenants: self
+                .profiles
+                .values()
                 .map(|p| p.tenant.clone())
                 .collect::<std::collections::HashSet<_>>()
                 .len(),
@@ -298,7 +333,11 @@ mod tests {
         );
         adapter.load_default_profiles();
 
-        assert_eq!(adapter.profiles.len(), 65, "Should load exactly 65 default profiles");
+        assert_eq!(
+            adapter.profiles.len(),
+            65,
+            "Should load exactly 65 default profiles"
+        );
         assert!(adapter.validate_profile_count().is_ok());
     }
 
@@ -312,7 +351,10 @@ mod tests {
 
         let metrics = adapter.integration_metrics();
         assert_eq!(metrics.total_profiles, 65);
-        assert!(metrics.approval_required_profiles > 0, "Some profiles should require approval");
+        assert!(
+            metrics.approval_required_profiles > 0,
+            "Some profiles should require approval"
+        );
         assert!(metrics.unique_tenants > 10, "Should have diverse tenants");
     }
 
@@ -324,7 +366,10 @@ mod tests {
         );
         adapter.load_default_profiles();
 
-        let config = adapter.expose_skills_via_mcp().await.expect("should expose MCP config");
+        let config = adapter
+            .expose_skills_via_mcp()
+            .await
+            .expect("should expose MCP config");
         assert_eq!(config.tools.len(), 4, "Should expose 4 MCP tools");
         assert!(config.endpoint.contains("/mcp/v1/skills"));
     }
@@ -385,8 +430,15 @@ mod tests {
         };
 
         adapter.register_profile(mapping);
-        assert_eq!(adapter.profiles.len(), original_count, "Overwrite should not change count");
-        assert_eq!(adapter.profiles["default"].zylos_agent_id, "agent-default-v2");
+        assert_eq!(
+            adapter.profiles.len(),
+            original_count,
+            "Overwrite should not change count"
+        );
+        assert_eq!(
+            adapter.profiles["default"].zylos_agent_id,
+            "agent-default-v2"
+        );
         assert_eq!(adapter.profiles["default"].max_concurrent_tasks, 20);
     }
 
@@ -471,8 +523,14 @@ mod tests {
         let err = HermesAdapterError::NoProfilesRegistered;
         assert_eq!(format!("{}", err), "No profiles registered in adapter");
 
-        let err = HermesAdapterError::InsufficientProfiles { expected: 65, actual: 10 };
-        assert_eq!(format!("{}", err), "Insufficient profiles: expected 65, got 10");
+        let err = HermesAdapterError::InsufficientProfiles {
+            expected: 65,
+            actual: 10,
+        };
+        assert_eq!(
+            format!("{}", err),
+            "Insufficient profiles: expected 65, got 10"
+        );
 
         let err = HermesAdapterError::McpConnectionFailed("timeout".to_string());
         assert_eq!(format!("{}", err), "MCP connection failed: timeout");

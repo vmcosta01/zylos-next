@@ -101,12 +101,11 @@ impl AuditStore {
         let since = chrono::Utc::now() - chrono::Duration::days(period_days);
         let since_str = since.to_rfc3339();
 
-        let total: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM action_audit_log WHERE created_at >= ?"
-        )
-        .bind(&since_str)
-        .fetch_one(&self.pool)
-        .await?;
+        let total: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM action_audit_log WHERE created_at >= ?")
+                .bind(&since_str)
+                .fetch_one(&self.pool)
+                .await?;
 
         let approved: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM action_audit_log WHERE created_at >= ? AND approval_status = 'approved'"
@@ -170,7 +169,7 @@ impl AuditStore {
                 created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
                 decided_at TEXT,
                 executed_at TEXT
-            )"
+            )",
         )
         .execute(&self.pool)
         .await?;
@@ -182,7 +181,7 @@ impl AuditStore {
         .await?;
 
         sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_audit_approval ON action_audit_log(approval_status)"
+            "CREATE INDEX IF NOT EXISTS idx_audit_approval ON action_audit_log(approval_status)",
         )
         .execute(&self.pool)
         .await?;

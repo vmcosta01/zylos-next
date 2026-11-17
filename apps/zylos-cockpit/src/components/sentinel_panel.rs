@@ -128,8 +128,9 @@ async fn fetch_sentinel_stats() -> Result<SentinelStats, String> {
     let opts = RequestInit::new();
     opts.set_method("GET");
 
-    let request = Request::new_with_str_and_init("http://localhost:3000/api/v1/phase2/status", &opts)
-        .map_err(|e| format!("{:?}", e))?;
+    let request =
+        Request::new_with_str_and_init("http://localhost:3000/api/v1/phase2/status", &opts)
+            .map_err(|e| format!("{:?}", e))?;
 
     let window = web_sys::window().ok_or("no window")?;
     let resp_value = window
@@ -143,7 +144,11 @@ async fn fetch_sentinel_stats() -> Result<SentinelStats, String> {
         return Err(format!("HTTP {}", response.status()));
     }
 
-    let text_js = response.text().map_err(|e| format!("{:?}", e))?.await.map_err(|e| format!("{:?}", e))?;
+    let text_js = response
+        .text()
+        .map_err(|e| format!("{:?}", e))?
+        .await
+        .map_err(|e| format!("{:?}", e))?;
     let text: String = text_js.as_string().ok_or("response text is not a string")?;
 
     let v: serde_json::Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
@@ -153,11 +158,29 @@ async fn fetch_sentinel_stats() -> Result<SentinelStats, String> {
     let cdp = subs.get("browser_takeover");
 
     Ok(SentinelStats {
-        total_audit_events: shield.and_then(|s| s.get("total_audit_events")).and_then(|v| v.as_u64()).unwrap_or(0),
-        critical_events: shield.and_then(|s| s.get("critical_events")).and_then(|v| v.as_u64()).unwrap_or(0),
-        high_events: shield.and_then(|s| s.get("high_events")).and_then(|v| v.as_u64()).unwrap_or(0),
-        outbound_blocked: shield.and_then(|s| s.get("outbound_blocked")).and_then(|v| v.as_u64()).unwrap_or(0),
-        active_cdp_sessions: cdp.and_then(|s| s.get("active_sessions")).and_then(|v| v.as_u64()).unwrap_or(0),
-        pending_cdp_sessions: cdp.and_then(|s| s.get("pending_sessions")).and_then(|v| v.as_u64()).unwrap_or(0),
+        total_audit_events: shield
+            .and_then(|s| s.get("total_audit_events"))
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0),
+        critical_events: shield
+            .and_then(|s| s.get("critical_events"))
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0),
+        high_events: shield
+            .and_then(|s| s.get("high_events"))
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0),
+        outbound_blocked: shield
+            .and_then(|s| s.get("outbound_blocked"))
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0),
+        active_cdp_sessions: cdp
+            .and_then(|s| s.get("active_sessions"))
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0),
+        pending_cdp_sessions: cdp
+            .and_then(|s| s.get("pending_sessions"))
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0),
     })
 }

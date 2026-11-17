@@ -27,7 +27,11 @@ use crate::roles::EmployeeRole;
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 pub enum RateLimitError {
     #[error("Rate limit excedido: {used}/{limit} em {window_secs}s")]
-    LimitExceeded { used: u64, limit: u64, window_secs: u64 },
+    LimitExceeded {
+        used: u64,
+        limit: u64,
+        window_secs: u64,
+    },
     #[error("Configuração inválida: {0}")]
     InvalidConfig(String),
 }
@@ -182,11 +186,20 @@ impl EmployeeRateLimiter {
         role_configs.insert(EmployeeRole::Developer, RateLimitConfig::per_minute(30));
         role_configs.insert(EmployeeRole::Researcher, RateLimitConfig::per_minute(20));
         role_configs.insert(EmployeeRole::DevOps, RateLimitConfig::per_minute(15));
-        role_configs.insert(EmployeeRole::SecurityAuditor, RateLimitConfig::per_minute(10));
+        role_configs.insert(
+            EmployeeRole::SecurityAuditor,
+            RateLimitConfig::per_minute(10),
+        );
         role_configs.insert(EmployeeRole::Designer, RateLimitConfig::per_minute(20));
-        role_configs.insert(EmployeeRole::ProjectManager, RateLimitConfig::per_minute(25));
+        role_configs.insert(
+            EmployeeRole::ProjectManager,
+            RateLimitConfig::per_minute(25),
+        );
         role_configs.insert(EmployeeRole::SupportAgent, RateLimitConfig::per_minute(40));
-        role_configs.insert(EmployeeRole::ContentCreator, RateLimitConfig::per_minute(15));
+        role_configs.insert(
+            EmployeeRole::ContentCreator,
+            RateLimitConfig::per_minute(15),
+        );
 
         Self {
             role_configs,
@@ -243,11 +256,7 @@ impl EmployeeRateLimiter {
     }
 
     /// Verifica status atual sem consumir token.
-    pub async fn status(
-        &self,
-        employee_id: &str,
-        role: &EmployeeRole,
-    ) -> RateLimitStatus {
+    pub async fn status(&self, employee_id: &str, role: &EmployeeRole) -> RateLimitStatus {
         let config = self.get_effective_config(employee_id, role).await;
 
         let mut buckets = self.buckets.write().await;
@@ -304,13 +313,13 @@ impl EmployeeRateLimiter {
         let overrides = self.individual_overrides.read().await;
 
         let limited_count = buckets
- .values()
- .filter(|b| {
- // Calcular fração restante sem mutabilidade:
- // tokens / capacity (sem refill, apenas snapshot atual)
- b.tokens / b.capacity < 0.1
- })
- .count();
+            .values()
+            .filter(|b| {
+                // Calcular fração restante sem mutabilidade:
+                // tokens / capacity (sem refill, apenas snapshot atual)
+                b.tokens / b.capacity < 0.1
+            })
+            .count();
 
         RateLimiterStats {
             active_buckets: buckets.len(),
@@ -404,9 +413,18 @@ mod tests {
         let role = EmployeeRole::Developer;
 
         // 3 requisições devem passar
-        assert!(limiter.check_and_consume("dev-limited", &role).await.is_ok());
-        assert!(limiter.check_and_consume("dev-limited", &role).await.is_ok());
-        assert!(limiter.check_and_consume("dev-limited", &role).await.is_ok());
+        assert!(limiter
+            .check_and_consume("dev-limited", &role)
+            .await
+            .is_ok());
+        assert!(limiter
+            .check_and_consume("dev-limited", &role)
+            .await
+            .is_ok());
+        assert!(limiter
+            .check_and_consume("dev-limited", &role)
+            .await
+            .is_ok());
 
         // 4ª deve falhar
         let result = limiter.check_and_consume("dev-limited", &role).await;
@@ -453,8 +471,14 @@ mod tests {
             )
             .await;
 
-        assert!(limiter.check_and_consume("special-dev", &role).await.is_ok());
-        assert!(limiter.check_and_consume("special-dev", &role).await.is_err());
+        assert!(limiter
+            .check_and_consume("special-dev", &role)
+            .await
+            .is_ok());
+        assert!(limiter
+            .check_and_consume("special-dev", &role)
+            .await
+            .is_err());
 
         // Outro dev usa limite do role (30/min)
         assert!(limiter.check_and_consume("normal-dev", &role).await.is_ok());
@@ -487,9 +511,18 @@ mod tests {
         let role = EmployeeRole::Developer;
 
         // Esgotar limite
-        limiter.check_and_consume("reset-test", &role).await.unwrap();
-        limiter.check_and_consume("reset-test", &role).await.unwrap();
-        assert!(limiter.check_and_consume("reset-test", &role).await.is_err());
+        limiter
+            .check_and_consume("reset-test", &role)
+            .await
+            .unwrap();
+        limiter
+            .check_and_consume("reset-test", &role)
+            .await
+            .unwrap();
+        assert!(limiter
+            .check_and_consume("reset-test", &role)
+            .await
+            .is_err());
 
         // Resetar
         limiter.reset("reset-test").await;
@@ -554,7 +587,10 @@ mod tests {
         }
 
         // 11ª deve falhar
-        assert!(limiter.check_and_consume("burst-test", &role).await.is_err());
+        assert!(limiter
+            .check_and_consume("burst-test", &role)
+            .await
+            .is_err());
     }
 
     #[test]

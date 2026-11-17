@@ -579,8 +579,7 @@ impl TriageOrchestrator {
         verdict: &TriageVerdict,
     ) -> Result<Option<String>, String> {
         // Validate schema before submission
-        validate_verdict_schema(verdict)
-            .map_err(|e| format!("schema validation failed: {}", e))?;
+        validate_verdict_schema(verdict).map_err(|e| format!("schema validation failed: {}", e))?;
 
         // Cache the verdict
         let mut cache = self.cache.lock().await;
@@ -749,7 +748,8 @@ mod tests {
     #[test]
     fn test_parse_no_json_throws() {
         let input = sample_input("test");
-        let err = parse_model_response("I cannot classify this message.", "gpt-4o", &input).unwrap_err();
+        let err =
+            parse_model_response("I cannot classify this message.", "gpt-4o", &input).unwrap_err();
         assert!(matches!(err, TriageError::ParseFailure(_)));
     }
 
@@ -757,15 +757,10 @@ mod tests {
     fn test_full_triage_rule_wins_over_model() {
         let input = sample_input("Please unsubscribe me from this mailing list");
         let model_called = std::cell::Cell::new(false);
-        let verdict = triage(
-            &input,
-            &sample_rules(),
-            "gpt-4o",
-            |_prompt| {
-                model_called.set(true);
-                Ok(r#"{"urgency": "needs_you", "summary": "should not reach"}"#.into())
-            },
-        )
+        let verdict = triage(&input, &sample_rules(), "gpt-4o", |_prompt| {
+            model_called.set(true);
+            Ok(r#"{"urgency": "needs_you", "summary": "should not reach"}"#.into())
+        })
         .unwrap();
         assert_eq!(verdict.urgency, Urgency::Skip);
         assert_eq!(verdict.decided_by, DecidedBy::Rule("promo-detect".into()));
@@ -775,12 +770,9 @@ mod tests {
     #[test]
     fn test_full_triage_model_fallback() {
         let input = sample_input("Server is down, need immediate help");
-        let verdict = triage(
-            &input,
-            &sample_rules(),
-            "gpt-4o",
-            |_prompt| Ok(r#"{"urgency": "needs_you", "summary": "Server outage reported"}"#.into()),
-        )
+        let verdict = triage(&input, &sample_rules(), "gpt-4o", |_prompt| {
+            Ok(r#"{"urgency": "needs_you", "summary": "Server outage reported"}"#.into())
+        })
         .unwrap();
         assert_eq!(verdict.urgency, Urgency::NeedsYou);
         assert_eq!(verdict.decided_by, DecidedBy::Model("gpt-4o".into()));
@@ -789,12 +781,9 @@ mod tests {
     #[test]
     fn test_full_triage_model_failure_throws() {
         let input = sample_input("Some message");
-        let result = triage(
-            &input,
-            &sample_rules(),
-            "gpt-4o",
-            |_prompt| Err("API rate limited".into()),
-        );
+        let result = triage(&input, &sample_rules(), "gpt-4o", |_prompt| {
+            Err("API rate limited".into())
+        });
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), TriageError::ModelFailure(_)));
     }
@@ -802,7 +791,10 @@ mod tests {
     #[test]
     fn test_initiator_display() {
         assert_eq!(Initiator::Person("bob".into()).to_string(), "person:bob");
-        assert_eq!(Initiator::Routine("daily-report".into()).to_string(), "routine:daily-report");
+        assert_eq!(
+            Initiator::Routine("daily-report".into()).to_string(),
+            "routine:daily-report"
+        );
         assert_eq!(
             Initiator::Handoff {
                 from: "agent-a".into(),

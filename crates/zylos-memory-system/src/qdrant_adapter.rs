@@ -9,9 +9,8 @@ use std::collections::HashMap;
 
 use async_trait::async_trait;
 use qdrant_client::qdrant::{
-    Condition, CreateCollectionBuilder, DeletePointsBuilder, Distance, Filter,
-    GetPointsBuilder, PointStruct, SearchPointsBuilder, UpsertPointsBuilder, VectorParams,
-    VectorsConfig,
+    Condition, CreateCollectionBuilder, DeletePointsBuilder, Distance, Filter, GetPointsBuilder,
+    PointStruct, SearchPointsBuilder, UpsertPointsBuilder, VectorParams, VectorsConfig,
 };
 use qdrant_client::Qdrant;
 
@@ -27,9 +26,9 @@ pub struct QdrantVectorStore {
 impl QdrantVectorStore {
     /// Create a new QdrantVectorStore connected to the given URL
     pub async fn new(url: &str, collection_name: impl Into<String>) -> Result<Self> {
-        let client = Qdrant::from_url(url)
-            .build()
-            .map_err(|e| MemoryError::VectorStore(format!("Failed to create Qdrant client: {}", e)))?;
+        let client = Qdrant::from_url(url).build().map_err(|e| {
+            MemoryError::VectorStore(format!("Failed to create Qdrant client: {}", e))
+        })?;
 
         Ok(Self {
             client,
@@ -48,8 +47,8 @@ impl QdrantVectorStore {
         if !exists {
             self.client
                 .create_collection(
-                    CreateCollectionBuilder::new(&self.collection_name)
-                        .vectors_config(VectorsConfig {
+                    CreateCollectionBuilder::new(&self.collection_name).vectors_config(
+                        VectorsConfig {
                             config: Some(qdrant_client::qdrant::vectors_config::Config::Params(
                                 VectorParams {
                                     size: dimension,
@@ -57,7 +56,8 @@ impl QdrantVectorStore {
                                     ..Default::default()
                                 },
                             )),
-                        }),
+                        },
+                    ),
                 )
                 .await
                 .map_err(|e| {
@@ -77,17 +77,14 @@ impl QdrantVectorStore {
         }
 
         if let Some(ref metadata) = doc.metadata {
-            let meta_str = serde_json::to_string(metadata)
-                .map_err(MemoryError::Serialization)?;
+            let meta_str = serde_json::to_string(metadata).map_err(MemoryError::Serialization)?;
             payload.insert("metadata".to_string(), meta_str.into());
         }
 
         Ok(PointStruct::new(id_str, doc.embedding.clone(), payload))
     }
 
-    fn scored_point_to_result(
-        scored: &qdrant_client::qdrant::ScoredPoint,
-    ) -> Result<SearchResult> {
+    fn scored_point_to_result(scored: &qdrant_client::qdrant::ScoredPoint) -> Result<SearchResult> {
         let id = scored
             .id
             .as_ref()
@@ -112,23 +109,17 @@ impl QdrantVectorStore {
             })
             .unwrap_or_default();
 
-        let content = scored
-            .payload
-            .get("content")
-            .and_then(|v| match &v.kind {
-                Some(qdrant_client::qdrant::value::Kind::StringValue(s)) => Some(s.clone()),
-                _ => None,
-            });
+        let content = scored.payload.get("content").and_then(|v| match &v.kind {
+            Some(qdrant_client::qdrant::value::Kind::StringValue(s)) => Some(s.clone()),
+            _ => None,
+        });
 
-        let metadata = scored
-            .payload
-            .get("metadata")
-            .and_then(|v| match &v.kind {
-                Some(qdrant_client::qdrant::value::Kind::StringValue(s)) => {
-                    serde_json::from_str(s).ok()
-                }
-                _ => None,
-            });
+        let metadata = scored.payload.get("metadata").and_then(|v| match &v.kind {
+            Some(qdrant_client::qdrant::value::Kind::StringValue(s)) => {
+                serde_json::from_str(s).ok()
+            }
+            _ => None,
+        });
 
         Ok(SearchResult {
             document: VectorDocument {
@@ -145,9 +136,7 @@ impl QdrantVectorStore {
         params.metadata_filter.as_ref().map(|filter| {
             let conditions: Vec<Condition> = filter
                 .iter()
-                .map(|(key, value)| {
-                    Condition::matches(format!("metadata_{}", key), value.clone())
-                })
+                .map(|(key, value)| Condition::matches(format!("metadata_{}", key), value.clone()))
                 .collect();
             Filter {
                 must: conditions,
@@ -177,9 +166,13 @@ impl VectorStore for QdrantVectorStore {
     async fn search(&self, params: SearchParams) -> Result<Vec<SearchResult>> {
         let filter = Self::build_filter(&params);
 
-        let mut request = SearchPointsBuilder::new(&self.collection_name, params.query_embedding, params.limit as u64)
-            .with_payload(true)
-            .with_vectors(true);
+        let mut request = SearchPointsBuilder::new(
+            &self.collection_name,
+            params.query_embedding,
+            params.limit as u64,
+        )
+        .with_payload(true)
+        .with_vectors(true);
 
         if let Some(f) = filter {
             request = request.filter(f);
@@ -210,16 +203,14 @@ impl VectorStore for QdrantVectorStore {
         let point_ids: Vec<qdrant_client::qdrant::PointId> = ids
             .iter()
             .map(|id| qdrant_client::qdrant::PointId {
-                point_id_options: Some(
-                    qdrant_client::qdrant::point_id::PointIdOptions::Uuid(id.as_str().to_string()),
-                ),
+                point_id_options: Some(qdrant_client::qdrant::point_id::PointIdOptions::Uuid(
+                    id.as_str().to_string(),
+                )),
             })
             .collect();
 
         self.client
-            .delete_points(
-                DeletePointsBuilder::new(&self.collection_name).points(point_ids),
-            )
+            .delete_points(DeletePointsBuilder::new(&self.collection_name).points(point_ids))
             .await
             .map_err(|e| MemoryError::VectorStore(format!("Qdrant delete failed: {}", e)))?;
 
@@ -238,9 +229,9 @@ impl VectorStore for QdrantVectorStore {
 
     async fn get(&self, id: VectorId) -> Result<Option<VectorDocument>> {
         let point_id = qdrant_client::qdrant::PointId {
-            point_id_options: Some(
-                qdrant_client::qdrant::point_id::PointIdOptions::Uuid(id.as_str().to_string()),
-            ),
+            point_id_options: Some(qdrant_client::qdrant::point_id::PointIdOptions::Uuid(
+                id.as_str().to_string(),
+            )),
         };
 
         let response = self

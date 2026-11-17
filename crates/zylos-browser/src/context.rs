@@ -101,12 +101,7 @@ impl BrowserContext {
     }
 
     /// Record a permission decision in the persistent inbox.
-    pub fn record_decision(
-        &mut self,
-        domain: &str,
-        perm_type: &str,
-        decision: PermissionDecision,
-    ) {
+    pub fn record_decision(&mut self, domain: &str, perm_type: &str, decision: PermissionDecision) {
         let key = format!("{}:{}", domain, perm_type);
         let entry = InboxEntry {
             id: Uuid::new_v4().to_string(),

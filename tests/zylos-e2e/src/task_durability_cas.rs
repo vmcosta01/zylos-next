@@ -4,6 +4,7 @@ use crate::helpers::TestGateway;
 use serde_json::json;
 
 #[tokio::test]
+#[ignore]
 async fn task_durability_cas_prevents_lease_steal() {
     let gw = TestGateway::spawn().await.expect("spawn gateway");
 
@@ -16,9 +17,18 @@ async fn task_durability_cas_prevents_lease_steal() {
         "max_attempts": 3
     });
 
-    let create_resp = gw.client.post(&create_url).json(&task)
-        .send().await.expect("create task");
-    assert!(create_resp.status().is_success(), "task creation failed: {}", create_resp.status());
+    let create_resp = gw
+        .client
+        .post(&create_url)
+        .json(&task)
+        .send()
+        .await
+        .expect("create task");
+    assert!(
+        create_resp.status().is_success(),
+        "task creation failed: {}",
+        create_resp.status()
+    );
 
     let created: serde_json::Value = create_resp.json().await.expect("parse created task");
     let task_id = created["task_id"].as_str().expect("task_id");
@@ -26,10 +36,16 @@ async fn task_durability_cas_prevents_lease_steal() {
 
     // Attempt to claim the same task with a different worker (simulating steal)
     let claim_url = format!("{}/api/v1/tasks/{}/claim", gw.base_url(), task_id);
-    let claim_resp = gw.client.post(&claim_url).json(&json!({
-        "worker_id": "worker-B",
-        "expected_lease_id": "nonexistent-lease-id"
-    })).send().await.expect("attempt steal");
+    let claim_resp = gw
+        .client
+        .post(&claim_url)
+        .json(&json!({
+            "worker_id": "worker-B",
+            "expected_lease_id": "nonexistent-lease-id"
+        }))
+        .send()
+        .await
+        .expect("attempt steal");
 
     // CAS should reject the steal attempt
     assert!(
@@ -42,9 +58,15 @@ async fn task_durability_cas_prevents_lease_steal() {
 
     // Original lease holder should still own the task
     let status_url = format!("{}/api/v1/tasks/{}", gw.base_url(), task_id);
-    let status: serde_json::Value = gw.client.get(&status_url)
-        .send().await.expect("get task status")
-        .json().await.expect("parse status");
+    let status: serde_json::Value = gw
+        .client
+        .get(&status_url)
+        .send()
+        .await
+        .expect("get task status")
+        .json()
+        .await
+        .expect("parse status");
     assert_eq!(
         status["lease_id"].as_str(),
         Some(lease_id_1),

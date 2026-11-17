@@ -11,8 +11,8 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use uuid::Uuid;
 
-use crate::types::MemoryScope;
 use crate::error::{MemoryError, Result};
+use crate::types::MemoryScope;
 
 /// Unique identifier for a document space.
 pub type SpaceId = String;
@@ -153,13 +153,18 @@ impl DocumentStore {
     }
 
     /// List all spaces visible to a given scope/owner.
-    pub fn list_spaces(&self, scope: Option<MemoryScope>, owner_id: Option<&str>) -> Result<Vec<DocumentSpace>> {
+    pub fn list_spaces(
+        &self,
+        scope: Option<MemoryScope>,
+        owner_id: Option<&str>,
+    ) -> Result<Vec<DocumentSpace>> {
         let spaces = self.spaces.read().map_err(|_| MemoryError::LockPoisoned)?;
         Ok(spaces
             .values()
             .filter(|s| {
                 let scope_match = scope.is_none_or(|sc| s.scope == sc);
-                let owner_match = owner_id.is_none_or(|oid| s.owner_id == oid || s.scope == MemoryScope::Global);
+                let owner_match =
+                    owner_id.is_none_or(|oid| s.owner_id == oid || s.scope == MemoryScope::Global);
                 scope_match && owner_match
             })
             .cloned()
@@ -194,7 +199,9 @@ impl DocumentStore {
 
         if let Some(page_id) = existing_id {
             // Update existing page — bump version
-            let page = pages.get_mut(&page_id).ok_or_else(|| MemoryError::NotFound(page_id.clone()))?;
+            let page = pages
+                .get_mut(&page_id)
+                .ok_or_else(|| MemoryError::NotFound(page_id.clone()))?;
 
             // Skip if content unchanged
             if page.content_hash == content_hash {
@@ -256,7 +263,7 @@ impl DocumentStore {
             .values()
             .filter(|p| {
                 let space_match = query.space_id.as_ref().is_none_or(|sid| p.space_id == *sid);
-                 let author_match = query.author.as_ref().is_none_or(|a| p.created_by == *a);
+                let author_match = query.author.as_ref().is_none_or(|a| p.created_by == *a);
                 space_match && author_match
             })
             .cloned()
@@ -274,10 +281,14 @@ impl DocumentStore {
     /// Get statistics for a space.
     pub fn space_stats(&self, space_id: &str) -> Result<SpaceStats> {
         let pages = self.pages.read().map_err(|_| MemoryError::LockPoisoned)?;
-        let space_pages: Vec<&SpacePage> = pages.values().filter(|p| p.space_id == space_id).collect();
+        let space_pages: Vec<&SpacePage> =
+            pages.values().filter(|p| p.space_id == space_id).collect();
 
         let total_pages = space_pages.len();
-        let total_versions: usize = space_pages.iter().map(|p| p.version_history.len() + 1).sum();
+        let total_versions: usize = space_pages
+            .iter()
+            .map(|p| p.version_history.len() + 1)
+            .sum();
         let total_bytes: usize = space_pages.iter().map(|p| p.content.len()).sum();
         let last_updated = space_pages.iter().map(|p| p.updated_at).max();
 
@@ -380,7 +391,14 @@ mod tests {
     fn test_page_versioning() {
         let store = test_store();
         let space = store
-            .create_space("Docs".into(), "".into(), MemoryScope::Agent, "agent-1".into(), None, vec![])
+            .create_space(
+                "Docs".into(),
+                "".into(),
+                MemoryScope::Agent,
+                "agent-1".into(),
+                None,
+                vec![],
+            )
             .unwrap();
 
         // v1
@@ -433,7 +451,14 @@ mod tests {
     fn test_list_pages_with_pagination() {
         let store = test_store();
         let space = store
-            .create_space("Blog".into(), "".into(), MemoryScope::Global, "system".into(), None, vec![])
+            .create_space(
+                "Blog".into(),
+                "".into(),
+                MemoryScope::Global,
+                "system".into(),
+                None,
+                vec![],
+            )
             .unwrap();
 
         for i in 0..5 {
@@ -450,13 +475,33 @@ mod tests {
                 .unwrap();
         }
 
-        let all = store.list_pages(PageQuery { space_id: Some(space.id.clone()), limit: 10, ..Default::default() }).unwrap();
+        let all = store
+            .list_pages(PageQuery {
+                space_id: Some(space.id.clone()),
+                limit: 10,
+                ..Default::default()
+            })
+            .unwrap();
         assert_eq!(all.len(), 5);
 
-        let page = store.list_pages(PageQuery { space_id: Some(space.id.clone()), limit: 2, offset: 0, ..Default::default() }).unwrap();
+        let page = store
+            .list_pages(PageQuery {
+                space_id: Some(space.id.clone()),
+                limit: 2,
+                offset: 0,
+                ..Default::default()
+            })
+            .unwrap();
         assert_eq!(page.len(), 2);
 
-        let page2 = store.list_pages(PageQuery { space_id: Some(space.id.clone()), limit: 2, offset: 3, ..Default::default() }).unwrap();
+        let page2 = store
+            .list_pages(PageQuery {
+                space_id: Some(space.id.clone()),
+                limit: 2,
+                offset: 3,
+                ..Default::default()
+            })
+            .unwrap();
         assert_eq!(page2.len(), 2);
     }
 
@@ -464,7 +509,14 @@ mod tests {
     fn test_space_stats() {
         let store = test_store();
         let space = store
-            .create_space("Stats".into(), "".into(), MemoryScope::Agent, "a1".into(), None, vec![])
+            .create_space(
+                "Stats".into(),
+                "".into(),
+                MemoryScope::Agent,
+                "a1".into(),
+                None,
+                vec![],
+            )
             .unwrap();
 
         store
@@ -517,7 +569,14 @@ mod tests {
     fn test_delete_page() {
         let store = test_store();
         let space = store
-            .create_space("Del".into(), "".into(), MemoryScope::Task, "t1".into(), None, vec![])
+            .create_space(
+                "Del".into(),
+                "".into(),
+                MemoryScope::Task,
+                "t1".into(),
+                None,
+                vec![],
+            )
             .unwrap();
 
         let page = store
@@ -541,9 +600,36 @@ mod tests {
     #[test]
     fn test_list_spaces_by_scope() {
         let store = test_store();
-        store.create_space("Global".into(), "".into(), MemoryScope::Global, "sys".into(), None, vec![]).unwrap();
-        store.create_space("Team".into(), "".into(), MemoryScope::Team, "t1".into(), None, vec![]).unwrap();
-        store.create_space("Agent".into(), "".into(), MemoryScope::Agent, "a1".into(), None, vec![]).unwrap();
+        store
+            .create_space(
+                "Global".into(),
+                "".into(),
+                MemoryScope::Global,
+                "sys".into(),
+                None,
+                vec![],
+            )
+            .unwrap();
+        store
+            .create_space(
+                "Team".into(),
+                "".into(),
+                MemoryScope::Team,
+                "t1".into(),
+                None,
+                vec![],
+            )
+            .unwrap();
+        store
+            .create_space(
+                "Agent".into(),
+                "".into(),
+                MemoryScope::Agent,
+                "a1".into(),
+                None,
+                vec![],
+            )
+            .unwrap();
 
         let global = store.list_spaces(Some(MemoryScope::Global), None).unwrap();
         assert_eq!(global.len(), 1);

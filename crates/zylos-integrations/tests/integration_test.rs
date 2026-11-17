@@ -3,12 +3,12 @@
 //! Covers: token encryption round-trip, audit logging, manifest loading,
 //! OAuth session lifecycle, executor URL building, and error paths.
 
+use chrono::{Duration, Utc};
 use std::path::Path;
-use zylos_integrations::manifest::{load_specs, SpecRegistry};
-use zylos_integrations::oauth::TokenBundle;
 use zylos_integrations::db::TokenStore;
 use zylos_integrations::error::IntegrationError;
-use chrono::{Duration, Utc};
+use zylos_integrations::manifest::{load_specs, SpecRegistry};
+use zylos_integrations::oauth::TokenBundle;
 
 // ---------------------------------------------------------------------------
 // Manifest / Spec Loading Tests
@@ -18,12 +18,26 @@ use chrono::{Duration, Utc};
 fn test_load_all_11_specs() {
     let specs_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("specs");
     let specs = load_specs(&specs_dir).expect("should load all specs");
-    assert_eq!(specs.len(), 11, "Expected 11 provider specs, got {}", specs.len());
+    assert_eq!(
+        specs.len(),
+        11,
+        "Expected 11 provider specs, got {}",
+        specs.len()
+    );
 
     let slugs: Vec<&str> = specs.iter().map(|s| s.slug.as_str()).collect();
     for expected in &[
-        "gmail", "slack", "notion", "linear", "jira",
-        "github", "feishu", "wechat_work", "figma", "stripe", "shopify",
+        "gmail",
+        "slack",
+        "notion",
+        "linear",
+        "jira",
+        "github",
+        "feishu",
+        "wechat_work",
+        "figma",
+        "stripe",
+        "shopify",
     ] {
         assert!(slugs.contains(expected), "Missing spec: {}", expected);
     }
@@ -41,7 +55,10 @@ fn test_spec_registry_lookup() {
 
     let figma = registry.get("figma").expect("figma spec should exist");
     assert_eq!(figma.display_name, "Figma");
-    assert!(!figma.requires_approval, "figma should not require global approval");
+    assert!(
+        !figma.requires_approval,
+        "figma should not require global approval"
+    );
 
     let stripe = registry.get("stripe").expect("stripe spec should exist");
     assert!(stripe.requires_approval, "stripe should require approval");
@@ -57,14 +74,30 @@ fn test_spec_has_valid_actions() {
 
     for spec in &specs {
         for action in &spec.actions {
-            assert!(!action.id.is_empty(), "Action id empty in spec {}", spec.slug);
-            assert!(!action.method.is_empty(), "Action method empty in spec {}::{}", spec.slug, action.id);
-            assert!(!action.url_template.is_empty(), "URL template empty in spec {}::{}", spec.slug, action.id);
+            assert!(
+                !action.id.is_empty(),
+                "Action id empty in spec {}",
+                spec.slug
+            );
+            assert!(
+                !action.method.is_empty(),
+                "Action method empty in spec {}::{}",
+                spec.slug,
+                action.id
+            );
+            assert!(
+                !action.url_template.is_empty(),
+                "URL template empty in spec {}::{}",
+                spec.slug,
+                action.id
+            );
             let valid_methods = ["GET", "POST", "PUT", "PATCH", "DELETE"];
             assert!(
                 valid_methods.contains(&action.method.to_uppercase().as_str()),
                 "Invalid HTTP method '{}' in spec {}::{}",
-                action.method, spec.slug, action.id
+                action.method,
+                spec.slug,
+                action.id
             );
         }
     }
@@ -124,7 +157,10 @@ fn test_token_bundle_expires_within_buffer() {
         scopes: vec![],
         token_type: "Bearer".into(),
     };
-    assert!(bundle.is_expired(), "Token expiring within 60s buffer should be considered expired");
+    assert!(
+        bundle.is_expired(),
+        "Token expiring within 60s buffer should be considered expired"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -232,10 +268,18 @@ async fn test_token_store_delete_tokens() {
         token_type: "Bearer".into(),
     };
     store.store_tokens("user-del", &bundle).await.unwrap();
-    assert!(store.get_tokens("user-del", "to-delete").await.unwrap().is_some());
+    assert!(store
+        .get_tokens("user-del", "to-delete")
+        .await
+        .unwrap()
+        .is_some());
 
     store.delete_tokens("user-del", "to-delete").await.unwrap();
-    assert!(store.get_tokens("user-del", "to-delete").await.unwrap().is_none());
+    assert!(store
+        .get_tokens("user-del", "to-delete")
+        .await
+        .unwrap()
+        .is_none());
 
     std::env::remove_var("ZYLOS_DATA_DIR");
     std::env::remove_var("ZYLOS_VAULT_KEY");
@@ -305,7 +349,10 @@ async fn test_audit_log_records_action() {
 fn test_unknown_provider_error_display() {
     let err = IntegrationError::UnknownProvider("nonexistent".into());
     let msg = format!("{}", err);
-    assert!(msg.contains("nonexistent"), "Error should contain provider name");
+    assert!(
+        msg.contains("nonexistent"),
+        "Error should contain provider name"
+    );
 }
 
 #[test]

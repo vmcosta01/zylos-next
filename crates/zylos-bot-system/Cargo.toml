@@ -6,7 +6,6 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-zylos-core = { workspace = true }
 tokio = { workspace = true, features = ["full", "sync", "rt-multi-thread", "macros", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 serde = { workspace = true }
@@ -36,3 +35,6 @@ p2p-network = ["dep:quinn", "dep:rustls", "dep:rcgen", "dep:blake3"]
 [dev-dependencies]
 tokio-test = "0.4"
 tempfile = "3"
+
+[lints]
+workspace = true

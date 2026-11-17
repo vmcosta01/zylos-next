@@ -115,7 +115,11 @@ async fn create_session(
         metadata: Some(body.metadata),
     };
     let session = handle.manager.create_session(req);
-    (StatusCode::CREATED, Json(serde_json::json!({ "session": session }))).into_response()
+    (
+        StatusCode::CREATED,
+        Json(serde_json::json!({ "session": session })),
+    )
+        .into_response()
 }
 
 /// `DELETE /computer-view/sessions/:id` — encerra uma sessão.
@@ -125,8 +129,9 @@ async fn terminate_session(
 ) -> impl IntoResponse {
     match handle.manager.update_state(&id, SessionState::Terminated) {
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
-        Err(e) => error_response(StatusCode::NOT_FOUND, "session_not_found", Some(e))
-            .into_response(),
+        Err(e) => {
+            error_response(StatusCode::NOT_FOUND, "session_not_found", Some(e)).into_response()
+        }
     }
 }
 
@@ -137,10 +142,14 @@ async fn take_control(
     Json(req): Json<TakeControlRequest>,
 ) -> impl IntoResponse {
     match handle.manager.take_control(&id, req) {
-        Ok(session) => (StatusCode::OK, Json(serde_json::json!({ "session": session })))
+        Ok(session) => (
+            StatusCode::OK,
+            Json(serde_json::json!({ "session": session })),
+        )
             .into_response(),
-        Err(e) => error_response(StatusCode::CONFLICT, "control_unavailable", Some(e))
-            .into_response(),
+        Err(e) => {
+            error_response(StatusCode::CONFLICT, "control_unavailable", Some(e)).into_response()
+        }
     }
 }
 
@@ -158,8 +167,7 @@ async fn release_control(
 ) -> impl IntoResponse {
     match handle.manager.release_control(&id, &body.user_id) {
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
-        Err(e) => error_response(StatusCode::CONFLICT, "release_failed", Some(e))
-            .into_response(),
+        Err(e) => error_response(StatusCode::CONFLICT, "release_failed", Some(e)).into_response(),
     }
 }
 

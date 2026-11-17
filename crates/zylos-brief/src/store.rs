@@ -19,8 +19,8 @@ impl BriefStore {
 
     /// Salva um brief gerado (upsert por user_id + date)
     pub async fn save(&self, brief: &MorningBrief) -> Result<(), sqlx::Error> {
-        let content_json = serde_json::to_string(brief)
-            .map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
+        let content_json =
+            serde_json::to_string(brief).map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
 
         sqlx::query(
             "INSERT INTO morning_briefs (id, user_id, date, content_json, delivered_at, items_count, needs_you_count)
@@ -54,9 +54,13 @@ impl BriefStore {
     }
 
     /// Busca brief do dia para um usuário
-    pub async fn get_today(&self, user_id: &str, date: &str) -> Result<Option<MorningBrief>, sqlx::Error> {
+    pub async fn get_today(
+        &self,
+        user_id: &str,
+        date: &str,
+    ) -> Result<Option<MorningBrief>, sqlx::Error> {
         let row = sqlx::query_as::<_, BriefRow>(
-            "SELECT * FROM morning_briefs WHERE user_id = ? AND date = ?"
+            "SELECT * FROM morning_briefs WHERE user_id = ? AND date = ?",
         )
         .bind(user_id)
         .bind(date)
@@ -87,7 +91,7 @@ impl BriefStore {
     /// Lista histórico de briefs (mais recentes primeiro)
     pub async fn history(&self, user_id: &str, limit: i64) -> Result<Vec<BriefRow>, sqlx::Error> {
         let rows = sqlx::query_as::<_, BriefRow>(
-            "SELECT * FROM morning_briefs WHERE user_id = ? ORDER BY date DESC LIMIT ?"
+            "SELECT * FROM morning_briefs WHERE user_id = ? ORDER BY date DESC LIMIT ?",
         )
         .bind(user_id)
         .bind(limit)
@@ -120,13 +124,13 @@ impl BriefStore {
                 items_count INTEGER NOT NULL DEFAULT 0,
                 needs_you_count INTEGER NOT NULL DEFAULT 0,
                 UNIQUE(user_id, date)
-            )"
+            )",
         )
         .execute(&self.pool)
         .await?;
 
         sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_brief_user_date ON morning_briefs(user_id, date DESC)"
+            "CREATE INDEX IF NOT EXISTS idx_brief_user_date ON morning_briefs(user_id, date DESC)",
         )
         .execute(&self.pool)
         .await?;
@@ -188,7 +192,11 @@ mod tests {
         brief.finalize();
         store.save(&brief).await.unwrap();
 
-        let retrieved = store.get_today("user-1", "2026-11-11").await.unwrap().unwrap();
+        let retrieved = store
+            .get_today("user-1", "2026-11-11")
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(retrieved.total_items, 1);
         assert_eq!(retrieved.needs_you_count, 1);
     }
