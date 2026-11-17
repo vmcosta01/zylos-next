@@ -1,0 +1,57 @@
+name: Integrations Sandbox
+
+# T11.8.7 — testes de integração Slack/Notion/Linear.
+# - Testes `mock_*` (servidor HTTP local) rodam sempre.
+# - Testes `sandbox_*` (#[ignore]) chamam as APIs reais com chamadas SOMENTE LEITURA
+#   (Slack auth.test/conversations.list, Notion /users/me + /search, Linear viewer/teams).
+#   Sem o secret correspondente, cada teste faz skip gracioso.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 9 * * 1" # segunda-feira 09:00 UTC
+  push:
+    paths:
+      - "crates/zylos-integrations/**"
+      - "apps/zylos-gateway/src/integrations_api.rs"
+      - ".github/workflows/integrations-sandbox.yml"
+
+concurrency:
+  group: integrations-sandbox-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  integrations:
+    name: Integrations (mock + sandbox)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Mock-server tests (sempre)
+        run: cargo test -p zylos-integrations --test integration_slack --test integration_notion --test integration_linear
+
+      - name: Report token presence (sem valores)
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          LINEAR_TOKEN: ${{ secrets.LINEAR_TOKEN }}
+        run: |
+          for v in SLACK_BOT_TOKEN NOTION_TOKEN LINEAR_TOKEN; do
+            if [ -n "${!v}" ]; then echo "$v: presente"; else echo "$v: ausente (sandbox será skip)"; fi
+          done
+
+      - name: Sandbox tests (APIs reais, somente leitura)
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          LINEAR_TOKEN: ${{ secrets.LINEAR_TOKEN }}
+        run: >
+          cargo test -p zylos-integrations
+          --test integration_slack --test integration_notion --test integration_linear
+          -- --ignored --nocapture --test-threads=1

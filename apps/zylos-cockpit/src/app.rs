@@ -12,10 +12,11 @@ use crate::benchmarks::BenchmarkPanel;
 use crate::components::{
     provide_theme, AgentAvatarsGrid, AgentAwarenessPanel, AgentInfo, AgentStatus, ChannelPanel,
     ChatPanel, EmojiReactions, EmployeeGovernancePanel, EvidenceLedgerPanel, FederationDashboard,
-    FileManager, FleetAuditorPanel, GoalsPanel, HitlApprovalPanel, LazyRoster, MemoryTimeline,
-    PersonalitiesPanel, PhoneRelayPanel, SecurityPanel, SentinelPanel, SkillEditorPanel,
-    SkillEvolutionPanel, SkinThemesPanel, SoarDashboard, SubagentStatusCards, SwarmDagPanel,
-    SwarmTopologyPanel, TaskTriagePanel, TasksDag, ThemeToggle, ThreadManager, VoicePanel,
+    FileManager, FleetAuditorPanel, GoalsPanel, HitlApprovalPanel, IntegrationsPanel, LazyRoster,
+    MemoryTimeline, PersonalitiesPanel, PhoneRelayPanel, SecurityPanel, SentinelPanel,
+    SkillEditorPanel, SkillEvolutionPanel, SkinThemesPanel, SoarDashboard, SubagentStatusCards,
+    SwarmDagPanel, SwarmTopologyPanel, TaskTriagePanel, TasksDag, ThemeToggle, ThreadManager,
+    VoicePanel,
 };
 use crate::i18n::{provide_i18n, use_i18n, Locale};
 use crate::streaming::{provide_stream, LiveEventFeed, StreamConfig};
@@ -71,6 +72,7 @@ pub enum Tab {
     Chat,
     Channels,
     PhoneRelay,
+    Integrations,
     SwarmTopology,
     SkillEditor,
 }
@@ -107,6 +109,7 @@ impl Tab {
             Tab::Chat => "tab-chat",
             Tab::Channels => "tab-channels",
             Tab::PhoneRelay => "tab-phone-relay",
+            Tab::Integrations => "tab-integrations",
             Tab::SwarmTopology => "tab-swarm-topology",
             Tab::SkillEditor => "tab-skill-editor",
         }
@@ -143,6 +146,7 @@ impl Tab {
             Tab::Chat => "tab.chat",
             Tab::Channels => "tab.channels",
             Tab::PhoneRelay => "tab.phone_relay",
+            Tab::Integrations => "tab.integrations",
             Tab::SwarmTopology => "tab.swarm_topology",
             Tab::SkillEditor => "tab.skill_editor",
         }
@@ -241,6 +245,7 @@ pub fn App() -> impl IntoView {
                                                                                                                       <TabButton tab=Tab::Chat active_tab=active_tab set_active_tab=set_active_tab />
                                                                                                                                                                                                                                             <TabButton tab=Tab::Channels active_tab=active_tab set_active_tab=set_active_tab />
                                                                                                                                                                                                                                                                                                                                                                                                                             <TabButton tab=Tab::PhoneRelay active_tab=active_tab set_active_tab=set_active_tab />
+<TabButton tab=Tab::Integrations active_tab=active_tab set_active_tab=set_active_tab />
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         <TabButton tab=Tab::SwarmTopology active_tab=active_tab set_active_tab=set_active_tab />
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 <TabButton tab=Tab::SkillEditor active_tab=active_tab set_active_tab=set_active_tab />
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                </nav>
@@ -565,6 +570,12 @@ fn TabContent(tab: Tab) -> impl IntoView {
         Tab::PhoneRelay => view! {
         <div class="tab-panel tab-panel-phone-relay">
         <PhoneRelayPanel />
+        </div>
+        }
+        .into_any(),
+        Tab::Integrations => view! {
+        <div class="tab-panel tab-panel-integrations">
+        <IntegrationsPanel />
         </div>
         }
         .into_any(),

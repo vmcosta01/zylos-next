@@ -52,6 +52,7 @@ fn pt_br_bundle() -> Bundle {
     m.insert("tab.chat", "Chat");
     m.insert("tab.channels", "Canais");
     m.insert("tab.phone_relay", "Phone Relay");
+    m.insert("tab.integrations", "Integrações");
     m.insert("tab.swarm_topology", "Topologia Swarm");
     m.insert("tab.skill_editor", "Editor de Skills");
     m.insert("health.status", "Status");
@@ -95,6 +96,7 @@ fn en_us_bundle() -> Bundle {
     m.insert("tab.chat", "Chat");
     m.insert("tab.channels", "Channels");
     m.insert("tab.phone_relay", "Phone Relay");
+    m.insert("tab.integrations", "Integrations");
     m.insert("tab.swarm_topology", "Swarm Topology");
     m.insert("tab.skill_editor", "Skill Editor");
     m.insert("health.status", "Status");

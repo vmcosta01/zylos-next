@@ -13,6 +13,7 @@ pub mod hermes_desktop_api;
 pub mod hermes_employee_api;
 pub mod hermes_security_api;
 pub mod hermes_skill_evolution_api;
+pub mod integrations_api;
 pub mod local_guard;
 pub mod memory_api;
 pub mod notification_router;
@@ -169,7 +170,8 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
                 "/api/v1/personalities",
                 "/api/v1/sentinel",
                 "/api/v1/evidence",
-                "/api/v1/phase2/status"
+                "/api/v1/phase2/status",
+                "/api/v1/integrations/status"
                 ]
                 }))
             }),
@@ -198,6 +200,9 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
     let webrtc_relay =
         webrtc_relay::create_webrtc_relay_router(webrtc_relay::WebRtcRelayState::new());
     let auth = auth_api::create_auth_router();
+    let integrations = integrations_api::create_integrations_router(
+        integrations_api::IntegrationsState::from_env(),
+    );
 
     Router::new()
         .merge(root_health)
@@ -225,7 +230,8 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
                 .merge(channels)
                 .merge(computer_view)
                 .merge(webrtc_relay)
-                .merge(auth),
+                .merge(auth)
+                .merge(integrations),
         )
         .layer(axum::middleware::from_fn_with_state(
             sentinel_rt,

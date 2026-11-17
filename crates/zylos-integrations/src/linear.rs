@@ -36,6 +36,18 @@ impl LinearAdapter {
         }
     }
 
+    /// Create adapter with custom API URL (for testing/proxy/sandbox).
+    pub fn with_base_url(token: String, api_url: String) -> Self {
+        Self {
+            token,
+            client: Client::builder()
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+                .expect("failed to build reqwest client"),
+            api_url,
+        }
+    }
+
     async fn graphql(
         &self,
         query: &str,
