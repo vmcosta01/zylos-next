@@ -1,6 +1,6 @@
 # RB-Sentinel-Threshold-Tuning — Runbook de Ajuste de Thresholds e Redução de Falsos Positivos
 
-**Versão:** 1.0.0
+**Versão:** 1.1.0 (2026-11-17: §7 runtime do gateway)
 **Data:** 2026-11-12
 **Plano Relacionado:** [IMPLEMENTATION_PLAN_FASE11_MEGA.md](../docs/IMPLEMENTATION_PLAN_FASE11_MEGA.md) §11.7 T11.7.8
 **Playbooks Relacionados:** [`pb-sentinel-rules-authoring.md`](../playbooks/pb-sentinel-rules-authoring.md)
@@ -200,7 +200,69 @@ Adicionar ao dashboard Sentinel (T11.7.6):
 
 ---
 
-## 7. Referências
+## 7. Tuning no Runtime do Gateway (T11.7.2 / T11.7.4 / T11.7.6)
+
+> Esta seção complementa os passos 1–6 com os controles **reais** do runtime (`apps/zylos-gateway/src/sentinel_runtime.rs`). As consultas acima usam `_table="sentinel_alerts"` como notação genérica; no dataset real todos os eventos ficam no mesmo dataset (`AXIOM_SENTINEL_DATASET`, ex.: `zylos-sentinel`) separados por `kind` — ver [`pop-sentinel-axiom-integration.md`](../playbooks/pop-sentinel-axiom-integration.md).
+
+### 7.1 Duas camadas de detecção — ajuste cada uma separadamente
+
+| Camada | Onde | Parâmetros | Efeito no FP |
+|--------|------|------------|--------------|
+| **Regras YAML** (threshold fixo) | `SENTINEL_RULES_PATH` ou `DEFAULT_RULES_YAML` | `threshold`, `operator`, `cooldown_minutes`, `severity`, `remediation.gated`, `max_auto_executions` | Gera alertas e propostas de remediação |
+| **Baseline Z-score** | `BaselineDetector::default()` = `new(window=60, min_samples=10, z_threshold=3.0)`, `min_stddev=0.5` | janela (amostras), amostras mínimas, limiar Z | Só marca anomalias (ponto vermelho no cockpit, `kind=sentinel_anomaly`) — **não** dispara remediação |
+
+Com `SENTINEL_TICK_SECS=5`, janela 60 = 5 min de baseline e o detector só alerta após 10 ticks (~50 s) — por isso o critério "CPU >80% em <30 s" é coberto pela **regra** `cpu-spike` (1 tick), não pelo Z-score.
+
+### 7.2 Regras padrão embutidas
+
+| Regra | Métrica | Limite | Severidade | Cooldown | Remediação |
+|-------|---------|--------|------------|----------|------------|
+| `cpu-spike` | `cpu_percent` | > 80 | SEV-2 | 5 min | `restart-gateway` (gated) |
+| `memory-critical` | `memory_percent` | > 90 | SEV-2 | 10 min | `notify-oncall` (máx. 2 auto) |
+| `error-rate-high` | `error_rate_percent` | > 1 | SEV-1 | 5 min | `notify-oncall:pagerduty` (máx. 2 auto) |
+| `latency-degraded` | `latency_p95_ms` | > 1500 | SEV-3 | 15 min | `scale:gateway:3` (gated) |
+| `queue-backlog` | `queue_depth` | > 200 | SEV-3 | 15 min | `scale:gateway:4` (gated) |
+
+Para customizar: copiar o bloco `DEFAULT_RULES_YAML` para um arquivo, editar e apontar `SENTINEL_RULES_PATH`. YAML inválido → o gateway registra `regras do Sentinel inválidas; usando padrão` e segue com as regras embutidas (fail-safe — confira o log após cada mudança).
+
+### 7.3 Consultas APL para medir FP
+
+```
+// Alertas por regra (7d)
+['zylos-sentinel'] | where kind == "sentinel_alert" and _time > ago(7d)
+| summarize alerts = count() by rule_name, severity
+
+// Taxa de FP: remediações rejeitadas pelo on-call ≈ falsos positivos
+['zylos-sentinel'] | where kind == "sentinel_remediation" and _time > ago(7d)
+| summarize total = count(), rejeitadas = countif(status == "rejected") by rule_name
+| extend fp_rate = rejeitadas * 100.0 / total
+
+// Distribuição real da métrica para escolher o threshold (p95/p99)
+['zylos-sentinel'] | where kind == "sentinel_metric" and _time > ago(7d)
+| summarize percentiles_array(latency_p95_ms, 50, 95, 99), percentiles_array(cpu_percent, 95, 99)
+```
+
+Regra prática: threshold ≥ p99 da métrica em período saudável, e cooldown ≥ 3× o tick.
+
+### 7.4 Verificação visual (cockpit)
+
+Aba **Sentinel** → *Anomalias em tempo real*: cada sparkline mostra a série (até 120 pontos), a **linha tracejada vermelha** no limite padrão e **pontos vermelhos** nas anomalias Z-score. Atualização a cada 3 s (`POLL_SECS`). Se uma regra dispara mas a série nunca cruza a linha, o threshold do YAML diverge do exibido — o painel usa os limites padrão de `CHART_METRICS` (`apps/zylos-cockpit/src/components/sentinel_panel.rs`); atualize ambos.
+
+### 7.5 Remediação durante o tuning
+
+Mantenha `SENTINEL_REMEDIATION_MODE=dry_run` (padrão) durante qualquer ciclo de tuning: as propostas ficam registradas como `dry_run` no Axiom e permitem medir quantas remediações *teriam* sido disparadas sem executar nada. Promoção de modo: ver [`soar-sentinel-auto-remediation.md`](../docs/soar/soar-sentinel-auto-remediation.md) §7.
+
+### 7.6 Validação após mudança
+
+```bash
+cargo test -p zylos-sentinel                        # parser YAML, regras, gate
+cargo test -p zylos-gateway --lib sentinel_runtime  # DEFAULT_RULES_YAML parseia (5 regras)
+curl -s http://localhost:3000/api/v1/sentinel/metrics | jq '.rules, .remediation_mode'
+```
+
+---
+
+## 8. Referências
 
 - [`crates/zylos-sentinel/src/alert_rules.rs`](../crates/zylos-sentinel/src/alert_rules.rs) — Implementação do engine
 - [`playbooks/pb-sentinel-rules-authoring.md`](../playbooks/pb-sentinel-rules-authoring.md) — Formato YAML e boas práticas
