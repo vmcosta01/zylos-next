@@ -63,7 +63,7 @@ pub fn HitlApprovalPanel() -> impl IntoView {
                     let err_msg = msg.clone();
                     view! {
                         <div class="error-banner">
-                            <p>{format!("Erro ao carregar aprovações: {}", err_msg)}</p>
+                            <p>{format!("Erro ao carregar aprovações: {}", crate::ui_error::report("Erro ao carregar aprovações", &err_msg))}</p>
                             <button class="cta-retry" on:click=move |_| {
                                 spawn_local(async move {
                                     match fetch_pending_approvals().await {
@@ -97,7 +97,7 @@ fn ResolveApprovalForm() -> impl IntoView {
         spawn_local(async move {
             let text = match resolve_approval(&id, decision).await {
                 Ok(()) => format!("{id}: {decision}"),
-                Err(e) => e,
+                Err(e) => crate::ui_error::report("approval resolve", &e),
             };
             msg.set(Some(text));
         });

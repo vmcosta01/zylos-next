@@ -206,7 +206,7 @@ pub fn App() -> impl IntoView {
                             let err_msg = msg.clone();
                             view! {
                                 <div class="error-banner" role="alert">
-                                    <p>{format!("Connection lost: {}", err_msg)}</p>
+                                    <p>{format!("Conexão perdida: {}", crate::ui_error::report("health", &err_msg))}</p>
                                     <button class="cta-retry" on:click=move |_| {
                                         spawn_local(async move {
                                             match fetch_health().await {

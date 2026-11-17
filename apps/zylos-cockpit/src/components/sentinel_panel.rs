@@ -100,7 +100,7 @@ pub fn SentinelPanel() -> impl IntoView {
                     let err_msg = msg.clone();
                     view! {
                         <div class="error-banner">
-                            <p>{format!("Erro ao carregar sentinel: {}", err_msg)}</p>
+                            <p>{format!("Erro ao carregar sentinel: {}", crate::ui_error::report("Erro ao carregar sentinel", &err_msg))}</p>
                             <button class="cta-retry" on:click=move |_| {
                                 spawn_local(async move {
                                     match fetch_sentinel_stats().await {
@@ -410,7 +410,10 @@ pub fn SentinelAnomalyCharts() -> impl IntoView {
         spawn_local(async move {
             let msg = match post_decision(&id, &who, approve).await {
                 Ok(()) => format!("{} {}", id, if approve { "aprovada" } else { "rejeitada" }),
-                Err(e) => format!("Falha em {id}: {e}"),
+                Err(e) => format!(
+                    "Falha em {id}: {}",
+                    crate::ui_error::report("sentinel decision", &e)
+                ),
             };
             set_action_msg.set(Some(msg));
             if let Ok(r) = fetch_remediations().await {
@@ -425,7 +428,7 @@ pub fn SentinelAnomalyCharts() -> impl IntoView {
             {move || match live.get() {
                 None => view! { <div class="skeleton-card pulse"></div> }.into_any(),
                 Some(Err(e)) => view! {
-                    <div class="error-banner"><p>{format!("Métricas do Sentinel indisponíveis: {e}")}</p></div>
+                    <div class="error-banner"><p>{format!("Métricas do Sentinel indisponíveis: {}", crate::ui_error::report("sentinel metrics", &e))}</p></div>
                 }.into_any(),
                 Some(Ok(data)) => {
                     let charts = CHART_METRICS

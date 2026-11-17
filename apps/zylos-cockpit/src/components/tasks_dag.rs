@@ -92,7 +92,7 @@ pub fn TasksDag() -> impl IntoView {
                     let err_msg = msg.clone();
                     view! {
                         <div class="error-banner">
-                            <p>{format!("Erro ao carregar tarefas: {}", err_msg)}</p>
+                            <p>{format!("Erro ao carregar tarefas: {}", crate::ui_error::report("Erro ao carregar tarefas", &err_msg))}</p>
                             <button class="cta-retry" on:click=move |_| {
                                 spawn_local(async move {
                                     match fetch_swarm_stats().await {

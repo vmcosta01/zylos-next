@@ -86,7 +86,7 @@ pub fn EvidenceLedgerPanel() -> impl IntoView {
                     let err_msg = msg.clone();
                     view! {
                         <div class="error-banner">
-                            <p>{format!("Erro ao carregar ledger: {}", err_msg)}</p>
+                            <p>{format!("Erro ao carregar ledger: {}", crate::ui_error::report("Erro ao carregar ledger", &err_msg))}</p>
                             <button class="cta-retry" on:click=move |_| {
                                 spawn_local(async move {
                                     match fetch_ledger_stats().await {

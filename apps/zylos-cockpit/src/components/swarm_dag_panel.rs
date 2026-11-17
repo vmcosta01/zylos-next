@@ -89,7 +89,7 @@ pub fn SwarmDagPanel() -> impl IntoView {
                     let err_msg = msg.clone();
                     view! {
                         <div class="error-banner">
-                            <p>{format!("Erro ao carregar DAG: {}", err_msg)}</p>
+                            <p>{format!("Erro ao carregar DAG: {}", crate::ui_error::report("Erro ao carregar DAG", &err_msg))}</p>
                             <button class="cta-retry" on:click=move |_| {
                                 spawn_local(async move {
                                     match fetch_swarm_detail().await {

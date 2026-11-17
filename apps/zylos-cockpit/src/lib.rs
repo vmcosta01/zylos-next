@@ -45,3 +45,5 @@ pub mod i18n;
 
 /// Abas do cockpit (enum, ordem, chaves i18n, atalhos).
 pub mod tabs;
+
+pub mod ui_error;

@@ -91,7 +91,7 @@ pub fn MemoryTimeline() -> impl IntoView {
                     let err_msg = msg.clone();
                     view! {
                         <div class="error-banner">
-                            <p>{format!("Erro ao carregar memória: {}", err_msg)}</p>
+                            <p>{format!("Erro ao carregar memória: {}", crate::ui_error::report("Erro ao carregar memória", &err_msg))}</p>
                             <button class="cta-retry" on:click=move |_| {
                                 spawn_local(async move {
                                     match fetch_memory_stats().await {
