@@ -16,6 +16,8 @@ axum = { workspace = true }
 tower = { workspace = true }
 dashmap = "6.2.1"
 tokio = { workspace = true }
+rusqlite = { workspace = true }
+yrs = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

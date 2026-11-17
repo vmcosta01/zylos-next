@@ -75,6 +75,9 @@ tower-http = { version = "0.6", features = ["cors", "trace"] }
 # Database
 rusqlite = { version = "0.32", features = ["bundled"] }
 
+# CRDT (Fase 11.9 — ADR-012)
+yrs = "0.28"
+
 # Graph
 petgraph = "0.6"
 
