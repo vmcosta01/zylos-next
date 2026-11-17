@@ -3991,6 +3991,9 @@ name = "fastrand"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
+dependencies = [
+ "getrandom 0.4.3",
+]
 
 [[package]]
 name = "fd-lock"
@@ -10213,6 +10216,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "smallstr"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "862077b1e764f04c251fe82a2ef562fd78d7cadaeb072ca7c2bcaf7217b1ff3b"
+dependencies = [
+ "smallvec",
+]
+
+[[package]]
 name = "smallvec"
 version = "1.16.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13824,6 +13836,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "yrs"
+version = "0.28.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f7716b4846f9fab489af2ed7ab31c4554f5fe6965ede2392b9cdfed0e5087ff"
+dependencies = [
+ "arc-swap",
+ "async-lock 3.4.2",
+ "async-trait",
+ "dashmap 6.2.1",
+ "fastrand 2.5.0",
+ "serde",
+ "serde_json",
+ "smallstr",
+ "smallvec",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "zbus"
 version = "5.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14245,6 +14275,7 @@ dependencies = [
  "chrono",
  "dashmap 6.2.1",
  "jsonwebtoken",
+ "rusqlite",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -14254,6 +14285,7 @@ dependencies = [
  "tower",
  "tracing",
  "uuid",
+ "yrs",
 ]
 
 [[package]]
@@ -14399,6 +14431,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
  "web-sys",
+ "yrs",
 ]
 
 [[package]]
@@ -14545,12 +14578,14 @@ dependencies = [
  "serde_yaml",
  "tempfile",
  "tokio",
+ "tokio-tungstenite",
  "tokio-util",
  "toml 0.8.23",
  "tower",
  "tower-http 0.6.11",
  "tracing",
  "tracing-subscriber",
+ "yrs",
  "zylos-adapters",
  "zylos-agent-shield",
  "zylos-analytics",

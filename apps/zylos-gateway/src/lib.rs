@@ -7,6 +7,7 @@ pub mod bots_api;
 pub mod channels_api;
 pub mod computer_view_api;
 pub mod config;
+pub mod crdt_sync;
 pub mod evidence_api;
 pub mod goals_api;
 pub mod hermes_api;
@@ -207,6 +208,11 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
     );
     let analytics =
         analytics_api::create_analytics_router(analytics_api::AnalyticsHandle::from_env());
+    let crdt_state = crdt_sync::CrdtSyncState::with_store_path(std::path::Path::new(
+        &std::env::var("ZYLOS_CRDT_DB").unwrap_or_else(|_| "data/crdt.db".to_string()),
+    ));
+    crdt_sync::spawn_gc_task(&crdt_state);
+    let crdt = crdt_sync::create_crdt_sync_router(crdt_state);
 
     Router::new()
         .merge(root_health)
@@ -236,7 +242,8 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
                 .merge(webrtc_relay)
                 .merge(auth)
                 .merge(integrations)
-                .merge(analytics),
+                .merge(analytics)
+                .merge(crdt),
         )
         .layer(axum::middleware::from_fn_with_state(
             sentinel_rt,

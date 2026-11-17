@@ -56,6 +56,7 @@ fn pt_br_bundle() -> Bundle {
     m.insert("tab.swarm_topology", "Topologia Swarm");
     m.insert("tab.skill_editor", "Editor de Skills");
     m.insert("tab.analytics", "Analytics");
+    m.insert("tab.collab", "Colaboração");
     m.insert("health.status", "Status");
     m.insert("health.streams", "Streams Ativos");
     m.insert("health.version", "Versão");
@@ -101,6 +102,7 @@ fn en_us_bundle() -> Bundle {
     m.insert("tab.swarm_topology", "Swarm Topology");
     m.insert("tab.skill_editor", "Skill Editor");
     m.insert("tab.analytics", "Analytics");
+    m.insert("tab.collab", "Collaboration");
     m.insert("health.status", "Status");
     m.insert("health.streams", "Active Streams");
     m.insert("health.version", "Version");

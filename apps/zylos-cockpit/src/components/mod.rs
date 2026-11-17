@@ -51,6 +51,8 @@ pub mod integrations_panel;
 pub use integrations_panel::IntegrationsPanel;
 pub mod auth_login;
 pub mod theme_toggle;
+pub mod collab_panel;
+pub use collab_panel::CollabPanel;
 
 pub use agent_awareness_panel::AgentAwarenessPanel;
 #[allow(unused_imports)]

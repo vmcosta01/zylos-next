@@ -9,6 +9,7 @@
 
 pub mod claims;
 pub mod crdt;
+pub mod crdt_persistence;
 pub mod middleware;
 pub mod permissions;
 pub mod presence;
@@ -17,6 +18,7 @@ pub mod tokens;
 
 pub use claims::{Claims, TenantId};
 pub use crdt::{CrdtMessage, CrdtSyncServer, DocumentId};
+pub use crdt_persistence::{CrdtStore, CrdtStoreError, GcReport, VersionInfo};
 pub use middleware::auth_middleware;
 pub use permissions::Permission;
 pub use presence::{PresenceEvent, PresenceTracker};

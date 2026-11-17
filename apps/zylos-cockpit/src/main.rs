@@ -10,6 +10,7 @@ mod app;
 mod benchmarks;
 mod components;
 mod gateway_config;
+mod crdt_client;
 mod i18n;
 mod streaming;
 use app::App;
