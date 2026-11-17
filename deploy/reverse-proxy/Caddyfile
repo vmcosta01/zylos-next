@@ -1,0 +1,75 @@
+# Zylos Gateway — reverse proxy Caddy 2 (T11.4.3)
+# TLS automático (ACME/Let's Encrypt), HTTP/2+3, SSE e WebSocket.
+# Uso: caddy validate --config Caddyfile && caddy run --config Caddyfile
+# Variáveis: ZYLOS_GATEWAY_DOMAIN (ex.: gateway.zylos.example), ZYLOS_ACME_EMAIL,
+#            ZYLOS_COCKPIT_ORIGIN (ex.: https://cockpit.zylos.example)
+{
+	email {$ZYLOS_ACME_EMAIL:ops@zylos.example}
+	servers {
+		protocols h1 h2 h3
+	}
+}
+
+{$ZYLOS_GATEWAY_DOMAIN:gateway.zylos.example} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# Health check sem log e com timeout curto (alvo <100ms — 11.4 critério)
+	@health path /api/v1/health /api/v1/cockpit/health
+	handle @health {
+		reverse_proxy 127.0.0.1:3000 {
+			transport http {
+				dial_timeout 2s
+				response_header_timeout 2s
+			}
+		}
+	}
+
+	# WebSocket (computer-view relay, CRDT): Caddy faz upgrade automaticamente;
+	# stream_close_delay evita derrubar conexões em reload de config.
+	@ws path /ws/*
+	handle @ws {
+		reverse_proxy 127.0.0.1:3000 {
+			stream_close_delay 5m
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	# SSE (/api/v1/events): flush imediato, sem buffering.
+	@sse path /api/v1/events
+	handle @sse {
+		reverse_proxy 127.0.0.1:3000 {
+			flush_interval -1
+			transport http {
+				read_timeout 0
+			}
+		}
+	}
+
+	handle /api/* {
+		reverse_proxy 127.0.0.1:3000 {
+			header_up X-Real-IP {remote_host}
+			health_uri /api/v1/health
+			health_interval 15s
+		}
+	}
+
+	handle {
+		respond "Not Found" 404
+	}
+
+	log {
+		output file /var/log/caddy/zylos-gateway.log {
+			roll_size 50MiB
+			roll_keep 10
+		}
+		format json
+	}
+}

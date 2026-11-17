@@ -9,13 +9,9 @@ command_arguments = ["target", "add", "wasm32-unknown-unknown"]
 
 [tools]
 
-[[copy]]
-from = "sw.js"
-to = "sw.js"
-
-[[copy]]
-from = "manifest.json"
-to = "manifest.json"
+# Assets estáticos (sw.js, manifest.json, robots.txt, _headers, icons/) são copiados
+# via <link data-trunk rel="copy-file|copy-dir"> no index.html — o Trunk 0.22 não
+# suporta [[copy]] (era ignorado silenciosamente; ver T11.5.1 baseline).
 
 [serve]
 port = 3000
