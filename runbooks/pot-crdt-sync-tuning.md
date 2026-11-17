@@ -78,3 +78,42 @@ cargo bench -p zylos-auth --bench crdt_throughput
 - `crates/zylos-auth/src/crdt.rs`
 - `pop-crdt-conflict-resolve`
 - `pb-crdt-onboarding`
+
+
+## Atualização Fase 11.9 — valores reais do servidor yrs
+
+> Os trechos acima citam `crdt.rs` e um `cargo bench` que não existe. O servidor real é `apps/zylos-gateway/src/crdt_sync.rs`.
+
+### Parâmetros vigentes
+| Parâmetro | Constante | Valor |
+|---|---|---|
+| Capacidade do broadcast por sala | `ROOM_CHANNEL_CAPACITY` | 1024 |
+| Snapshot após N updates no log | `DEFAULT_COMPACT_EVERY` (`with_compact_every`) | 500 |
+| Frame máximo aceito | `MAX_FRAME_BYTES` | 8 MiB |
+| Retenção de versões (GC) | `DEFAULT_RETENTION_MS` (`crates/zylos-auth/src/crdt_persistence.rs`) | 30 dias |
+| Banco | env `ZYLOS_CRDT_DB` | `data/crdt.db` |
+| Tag de ping | `PING_TAG` | 100 |
+
+Cliente atrasado no broadcast (`Lagged`) recebe o estado completo como `SyncStep2` — idempotente, sem perda. Se ocorrer com frequência, aumente `ROOM_CHANNEL_CAPACITY`.
+
+### Load test real
+```bash
+export CARGO_TARGET_DIR=E:/zylos-target/crdt
+cargo test -p zylos-gateway --test crdt_latency_bench -- --nocapture --test-threads=1
+```
+Linhas `BENCH ...` trazem n/média/p50/p95/p99/máx em ms.
+
+### Linha de base medida (2026-11-17, loopback, build debug)
+| Cenário | p50 | p95 | p99 |
+|---|---|---|---|
+| Ping RTT | 0.087–0.173 ms | 0.271–0.564 ms | 0.421–0.859 ms |
+| Edição, 3 clientes | 0.404–0.566 ms | 1.398–1.576 ms | 2.566–8.177 ms |
+| Edição, 10 clientes | 0.652–0.870 ms | 2.872–3.807 ms | 6.805–6.868 ms |
+| Burst 10×100 | 1000 edições em 139.749 ms → 7156 edições/s | | |
+
+Detalhes: `docs/fase11-reports/crdt-sync-benchmark.md`. A meta antiga "<5 ms p99" não é atingida em debug com 10 clientes; repetir em `--release` antes de ajustar parâmetros.
+
+### Diagnóstico rápido
+- Salas ativas e clientes: `GET /api/v1/crdt/documents?active=true`.
+- Log crescendo sem snapshot: `POST /api/v1/crdt/documents/:doc_id/compact`.
+- GC manual: `POST /api/v1/crdt/gc`.
