@@ -96,6 +96,10 @@ impl AnalyticsStore {
             "DELETE FROM rollup_hourly WHERE hour < ?1",
             params![delete_cutoff],
         )?;
+        tx.execute(
+            "DELETE FROM rollup_dim_hourly WHERE hour < ?1",
+            params![delete_cutoff],
+        )?;
         let mut archived = 0usize;
         if let Some(ac) = archive_cutoff {
             archived = tx.execute(

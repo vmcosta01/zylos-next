@@ -20,10 +20,11 @@
 
 use crate::event::AnalyticsEvent;
 use crate::filter::Filter;
-use crate::store::AnalyticsStore;
+use crate::store::{AnalyticsStore, Source};
 use crate::{AnalyticsError, Result};
 use chrono::{Datelike, TimeZone, Utc};
 use rusqlite::params_from_iter;
+use rusqlite::types::Value;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -187,13 +188,12 @@ pub struct HeatmapCell {
     pub success_rate: f64,
 }
 
-/// Fonte dos dados de uma agregação (diagnóstico/benchmark).
-fn source(f: &Filter) -> (&'static str, &'static str, bool) {
-    if f.rollup_compatible() {
-        ("rollup_hourly", "hour", true)
-    } else {
-        ("all_events", "ts", false)
-    }
+/// Fonte dos dados de uma agregação: `(tabela, coluna de tempo, é rollup,
+/// WHERE, parâmetros)`.
+fn source(f: &Filter) -> Result<(&'static str, &'static str, bool, String, Vec<Value>)> {
+    let src = Source::of(f);
+    let (w, p) = src.where_sql(f)?;
+    Ok((src.table(), src.ts_col(), src.is_rollup(), w, p))
 }
 
 /// Seleção de métricas para rollup vs bruto.
@@ -228,8 +228,7 @@ impl AnalyticsStore {
     /// Série temporal agregada por `granularity` (ordenada por `start`).
     /// Apenas buckets com dados; use [`fill_gaps`] para série contínua.
     pub fn aggregate(&self, f: &Filter, granularity: Granularity) -> Result<Vec<Bucket>> {
-        let (table, tcol, rollup) = source(f);
-        let (w, p) = f.to_sql(tcol, rollup)?;
+        let (table, tcol, rollup, w, p) = source(f)?;
         let b = granularity.sql_bucket(tcol);
         let sql = format!(
             "SELECT {b} AS bk, {m} FROM {table}{w} GROUP BY bk ORDER BY bk",
@@ -249,8 +248,7 @@ impl AnalyticsStore {
 
     /// Resumo total do filtro (um único bucket com `start = since` ou 0).
     pub fn summary(&self, f: &Filter) -> Result<Bucket> {
-        let (table, tcol, rollup) = source(f);
-        let (w, p) = f.to_sql(tcol, rollup)?;
+        let (table, _tcol, rollup, w, p) = source(f)?;
         let sql = format!("SELECT {m} FROM {table}{w}", m = metric_cols(rollup));
         let start = f.since.unwrap_or(0);
         Ok(self
@@ -260,8 +258,7 @@ impl AnalyticsStore {
 
     /// Métricas por agente ou skill (ordenado por volume desc).
     pub fn breakdown(&self, f: &Filter, by: GroupBy) -> Result<Vec<GroupStats>> {
-        let (table, tcol, rollup) = source(f);
-        let (w, p) = f.to_sql(tcol, rollup)?;
+        let (table, _tcol, rollup, w, p) = source(f)?;
         let c = by.column();
         let sql = format!(
             "SELECT {c}, {m} FROM {table}{w} GROUP BY {c} ORDER BY 2 DESC, {c}",
@@ -289,8 +286,7 @@ impl AnalyticsStore {
         granularity: Granularity,
         by: GroupBy,
     ) -> Result<BTreeMap<String, Vec<Bucket>>> {
-        let (table, tcol, rollup) = source(f);
-        let (w, p) = f.to_sql(tcol, rollup)?;
+        let (table, tcol, rollup, w, p) = source(f)?;
         let b = granularity.sql_bucket(tcol);
         let c = by.column();
         let sql = format!(
@@ -313,8 +309,7 @@ impl AnalyticsStore {
 
     /// Heatmap dia-da-semana (seg=0) × hora (UTC). Sempre 168 células.
     pub fn heatmap(&self, f: &Filter) -> Result<Vec<HeatmapCell>> {
-        let (table, tcol, rollup) = source(f);
-        let (w, p) = f.to_sql(tcol, rollup)?;
+        let (table, tcol, rollup, w, p) = source(f)?;
         let (n, ok) = if rollup {
             ("SUM(n)", "SUM(ok)")
         } else {
@@ -364,8 +359,9 @@ impl AnalyticsStore {
         pred: impl Fn(&AnalyticsEvent) -> bool,
     ) -> Result<Vec<Bucket>> {
         let mut acc: BTreeMap<i64, (Bucket, f64)> = BTreeMap::new();
-        self.for_each_event(f, |e| {
-            if !pred(&e) {
+        // buffer reaproveitado e sem ORDER BY: o BTreeMap já ordena os buckets
+        self.scan_events(f, false, |e| {
+            if !pred(e) {
                 return;
             }
             let start = granularity.bucket_start(e.ts);
@@ -423,6 +419,55 @@ mod tests {
         ];
         s.insert_batch(&evs).unwrap();
         s
+    }
+
+    #[test]
+    fn dim_rollup_matches_raw_scan() {
+        let mut s = AnalyticsStore::open_in_memory().unwrap();
+        let evs = crate::synthetic::generate(
+            &crate::synthetic::SyntheticConfig {
+                days: 3,
+                events_per_day: 400,
+                ..Default::default()
+            },
+            MON_2026_11_16,
+        );
+        s.insert_batch(&evs).unwrap();
+        let since = MON_2026_11_16 - 3 * 86_400;
+        let dimf = Filter::all()
+            .range(since, MON_2026_11_16)
+            .agent("hermes")
+            .dim("channel", "slack");
+        assert!(dimf.dim_rollup_compatible());
+        // referência: varredura em memória dos eventos brutos
+        let reference = s
+            .aggregate_with_predicate(&Filter::all(), Granularity::Daily, |e| dimf.matches(e))
+            .unwrap();
+        let fast = s.aggregate(&dimf, Granularity::Daily).unwrap();
+        assert_eq!(fast.len(), reference.len());
+        for (a, b) in fast.iter().zip(&reference) {
+            assert_eq!(
+                (a.start, a.count, a.success, a.max_latency_ms, a.tokens),
+                (b.start, b.count, b.success, b.max_latency_ms, b.tokens)
+            );
+            assert!((a.avg_latency_ms - b.avg_latency_ms).abs() < 1e-9);
+            assert!((a.cost_usd - b.cost_usd).abs() < 1e-9);
+        }
+        let n_ref: u64 = reference.iter().map(|b| b.count).sum();
+        assert!(n_ref > 0);
+        assert_eq!(s.count(&dimf).unwrap(), n_ref);
+        assert_eq!(s.summary(&dimf).unwrap().count, n_ref);
+        let by_skill: u64 = s
+            .breakdown(&dimf, GroupBy::Skill)
+            .unwrap()
+            .iter()
+            .map(|g| g.stats.count)
+            .sum();
+        assert_eq!(by_skill, n_ref);
+        let heat: u64 = s.heatmap(&dimf).unwrap().iter().map(|c| c.count).sum();
+        assert_eq!(heat, n_ref);
+        // dimensão/valor inexistentes → vazio
+        assert_eq!(s.count(&Filter::all().dim("channel", "fax")).unwrap(), 0);
     }
 
     #[test]
