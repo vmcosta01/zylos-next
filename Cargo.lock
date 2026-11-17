@@ -14687,6 +14687,7 @@ dependencies = [
  "tracing",
  "uuid",
  "zeroize",
+ "zylos-agent-shield",
 ]
 
 [[package]]
