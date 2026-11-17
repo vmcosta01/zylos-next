@@ -1,6 +1,7 @@
 //! zylos-gateway library — exposes AppState and build_router for integration tests.
 
 pub mod analytics_api;
+pub mod api_auth;
 pub mod auth_api;
 pub mod axiom_logging;
 pub mod bots_api;
@@ -202,7 +203,14 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
     );
     let webrtc_relay =
         webrtc_relay::create_webrtc_relay_router(webrtc_relay::WebRtcRelayState::new());
-    let auth = auth_api::create_auth_router();
+    let auth_state = auth_api::AuthState::from_env();
+    let api_auth_state = api_auth::ApiAuth::new(auth_state.token_service());
+    if !api_auth_state.enforced() {
+        tracing::warn!(
+            "ZYLOS_AUTH_SECRET ausente: /api/v1 sem login (só local); aprovações bloqueadas"
+        );
+    }
+    let auth = auth_api::create_auth_router_with(auth_state);
     let integrations = integrations_api::create_integrations_router(
         integrations_api::IntegrationsState::from_env(),
     );
@@ -245,6 +253,10 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
                 .merge(analytics)
                 .merge(crdt),
         )
+        .layer(axum::middleware::from_fn_with_state(
+            api_auth_state,
+            api_auth::exigir_auth,
+        ))
         .layer(axum::middleware::from_fn_with_state(
             sentinel_rt,
             sentinel_runtime::track_requests,
