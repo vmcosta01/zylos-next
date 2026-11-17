@@ -43,6 +43,7 @@ toml = "0.8"
 
 dashmap = "6.2.1"
 futures-util = "0.3"
+yrs = { workspace = true, features = ["sync"] }
 zylos-channels = { path = "../../crates/zylos-channels" }
 zylos-auth = { path = "../../crates/zylos-auth" }
 zylos-computer-view = { version = "0.1.0", path = "../../crates/zylos-computer-view" }
@@ -52,3 +53,4 @@ serde_yaml = "0.9.34"
 
 [dev-dependencies]
 tempfile = { workspace = true }
+tokio-tungstenite = "0.24"
