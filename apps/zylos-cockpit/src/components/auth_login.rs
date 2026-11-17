@@ -17,6 +17,8 @@ pub fn LoginForm() -> impl IntoView {
     let user_id = RwSignal::new(String::new());
     let tenant_id = RwSignal::new(String::from("tenant-default"));
     let name = RwSignal::new(String::new());
+    // F11.11.8: emissão de token exige a credencial de bootstrap do gateway.
+    let credential = RwSignal::new(String::new());
     let error_msg = RwSignal::new(None::<String>);
     let is_loading = RwSignal::new(false);
     let token = RwSignal::new(None::<String>);
@@ -29,6 +31,7 @@ pub fn LoginForm() -> impl IntoView {
         let uid = user_id.get();
         let tid = tenant_id.get();
         let n = name.get();
+        let cred = credential.get();
 
         spawn_local(async move {
             let body = serde_json::json!({
@@ -40,6 +43,7 @@ pub fn LoginForm() -> impl IntoView {
 
             let req = gloo_net::http::Request::post("/api/v1/auth/login")
                 .header("Content-Type", "application/json")
+                .header("Authorization", &format!("Bearer {}", cred))
                 .body(body.to_string());
 
             let resp = match req {
@@ -109,6 +113,15 @@ pub fn LoginForm() -> impl IntoView {
                                 prop:value=move || tenant_id.get()
                                 on:input=move |ev| tenant_id.set(event_target_value(&ev))
                                 placeholder="tenant-default"
+                                required=true
+                            />
+
+                            <label>"Access credential"</label>
+                            <input
+                                type="password"
+                                autocomplete="off"
+                                prop:value=move || credential.get()
+                                on:input=move |ev| credential.set(event_target_value(&ev))
                                 required=true
                             />
 
