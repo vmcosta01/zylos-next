@@ -16,7 +16,7 @@ async fn fetch_json<T: for<'de> Deserialize<'de>>(url: &str) -> Result<T, String
     use gloo_net::http::Request;
     let mut last_err = String::new();
     for attempt in 0..3 {
-        match Request::get(url).send().await {
+        match crate::auth::authed(Request::get(url)).send().await {
             Ok(resp) if resp.ok() => {
                 return resp.json::<T>().await.map_err(|e| format!("{:?}", e));
             }
@@ -414,9 +414,9 @@ pub fn SkillEditorPanel() -> impl IntoView {
                     }
 
                     // POST para o endpoint de contratos (não /validate)
-                    match gloo_net::http::Request::post(
+                    match crate::auth::authed(gloo_net::http::Request::post(
                         "http://localhost:3000/api/v1/hermes/skill-evolution/contracts",
-                    )
+                    ))
                     .header("Content-Type", "application/json")
                     .body(
                         serde_json::json!({

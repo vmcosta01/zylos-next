@@ -50,6 +50,7 @@ pub use phone_relay_panel::PhoneRelayPanel;
 pub mod integrations_panel;
 pub use integrations_panel::IntegrationsPanel;
 pub mod auth_login;
+pub use auth_login::AuthHeaderButton;
 pub mod collab_panel;
 pub mod theme_toggle;
 pub use collab_panel::CollabPanel;

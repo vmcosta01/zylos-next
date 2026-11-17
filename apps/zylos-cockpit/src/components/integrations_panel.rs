@@ -102,7 +102,7 @@ pub fn format_test_result(r: &TestResult) -> String {
 
 async fn fetch_status() -> Result<Vec<IntegrationStatus>, String> {
     use gloo_net::http::Request;
-    let resp = Request::get(&format!("{GATEWAY}/integrations/status"))
+    let resp = crate::auth::authed(Request::get(&format!("{GATEWAY}/integrations/status")))
         .send()
         .await
         .map_err(|e| format!("{e:?}"))?;
@@ -117,10 +117,12 @@ async fn fetch_status() -> Result<Vec<IntegrationStatus>, String> {
 
 async fn post_test(name: &str) -> Result<TestResult, String> {
     use gloo_net::http::Request;
-    let resp = Request::post(&format!("{GATEWAY}/integrations/{name}/test"))
-        .send()
-        .await
-        .map_err(|e| format!("{e:?}"))?;
+    let resp = crate::auth::authed(Request::post(&format!(
+        "{GATEWAY}/integrations/{name}/test"
+    )))
+    .send()
+    .await
+    .map_err(|e| format!("{e:?}"))?;
     if !resp.ok() {
         return Err(format!("HTTP {}", resp.status()));
     }

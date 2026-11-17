@@ -552,3 +552,11 @@ button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2
 .node-orchestrator circle { fill: rgba(168,85,247,0.2); stroke: #a855f7; }
 .node-gateway circle { fill: rgba(34,197,94,0.2); stroke: var(--color-accent); }
 .node-tool circle { fill: rgba(245,158,11,0.2); stroke: var
+
+/* Login modal (auth_login.rs AuthHeaderButton) */
+.auth-header-btn { padding: 0.35rem 0.8rem; border-radius: 6px; cursor: pointer; }
+.auth-modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.auth-modal-content { position: relative; background: var(--bg-secondary, #1e1e2e); padding: 1.5rem; border-radius: 10px; min-width: 320px; max-width: 90vw; }
+.auth-modal-content form { display: flex; flex-direction: column; gap: 0.4rem; }
+.auth-modal-close { position: absolute; top: 0.4rem; right: 0.6rem; background: none; border: none; font-size: 1.4rem; cursor: pointer; color: inherit; }
+.auth-error { color: var(--accent-red, #e5534b); }

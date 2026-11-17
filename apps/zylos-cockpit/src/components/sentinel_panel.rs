@@ -132,6 +132,8 @@ async fn fetch_sentinel_stats() -> Result<SentinelStats, String> {
         Request::new_with_str_and_init("http://localhost:3000/api/v1/phase2/status", &opts)
             .map_err(|e| format!("{:?}", e))?;
 
+    crate::auth::authed_web_request(&request);
+
     let window = web_sys::window().ok_or("no window")?;
     let resp_value = window
         .fetch_with_request(&request)
@@ -488,10 +490,12 @@ pub fn SentinelAnomalyCharts() -> impl IntoView {
 }
 
 async fn fetch_live() -> Result<SentinelLive, String> {
-    let resp = gloo_net::http::Request::get(&format!("{SENTINEL_API}/metrics"))
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
+    let resp = crate::auth::authed(gloo_net::http::Request::get(&format!(
+        "{SENTINEL_API}/metrics"
+    )))
+    .send()
+    .await
+    .map_err(|e| e.to_string())?;
     if !resp.ok() {
         return Err(format!("HTTP {}", resp.status()));
     }
@@ -499,10 +503,12 @@ async fn fetch_live() -> Result<SentinelLive, String> {
 }
 
 async fn fetch_remediations() -> Result<Vec<RemediationItem>, String> {
-    let resp = gloo_net::http::Request::get(&format!("{SENTINEL_API}/remediations"))
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
+    let resp = crate::auth::authed(gloo_net::http::Request::get(&format!(
+        "{SENTINEL_API}/remediations"
+    )))
+    .send()
+    .await
+    .map_err(|e| e.to_string())?;
     if !resp.ok() {
         return Err(format!("HTTP {}", resp.status()));
     }
@@ -514,16 +520,18 @@ async fn fetch_remediations() -> Result<Vec<RemediationItem>, String> {
 async fn post_decision(id: &str, approver: &str, approve: bool) -> Result<(), String> {
     let verb = if approve { "approve" } else { "reject" };
     let body = serde_json::json!({ "approver": approver, "reason": "decidido no cockpit" });
-    let resp = gloo_net::http::Request::post(&format!("{SENTINEL_API}/remediations/{id}/{verb}"))
-        .json(&body)
-        .map_err(|e| e.to_string())?
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
+    let resp = crate::auth::authed(gloo_net::http::Request::post(&format!(
+        "{SENTINEL_API}/remediations/{id}/{verb}"
+    )))
+    .json(&body)
+    .map_err(|e| e.to_string())?
+    .send()
+    .await
+    .map_err(|e| e.to_string())?;
     if resp.ok() {
         Ok(())
     } else {
-        Err(format!("HTTP {}", resp.status()))
+        Err(crate::auth::approval_error(resp.status()))
     }
 }
 

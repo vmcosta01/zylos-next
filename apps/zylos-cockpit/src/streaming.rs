@@ -278,7 +278,7 @@ impl StreamContext {
         use wasm_bindgen::JsCast;
 
         let base = crate::gateway_config::gateway_base().ok_or("gateway não configurado")?;
-        let url = crate::gateway_config::join_url(&base, endpoint);
+        let url = crate::auth::authed_url(&crate::gateway_config::join_url(&base, endpoint));
 
         let es = web_sys::EventSource::new(&url).map_err(|e| format!("{:?}", e))?;
 

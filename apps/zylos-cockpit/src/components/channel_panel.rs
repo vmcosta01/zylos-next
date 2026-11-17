@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 /// Fetch JSON genérico via gloo-net (fallback para mock se falhar).
 async fn fetch_json<T: for<'de> Deserialize<'de>>(url: &str) -> Result<T, String> {
     use gloo_net::http::Request;
-    let resp = Request::get(url)
+    let resp = crate::auth::authed(Request::get(url))
         .send()
         .await
         .map_err(|e| format!("{:?}", e))?;
@@ -27,7 +27,7 @@ async fn post_json<B: Serialize, R: for<'de> Deserialize<'de>>(
     body: &B,
 ) -> Result<R, String> {
     use gloo_net::http::Request;
-    let resp = Request::post(url)
+    let resp = crate::auth::authed(Request::post(url))
         .header("Content-Type", "application/json")
         .body(serde_json::to_string(body).map_err(|e| format!("{:?}", e))?)
         .map_err(|e| format!("{:?}", e))?

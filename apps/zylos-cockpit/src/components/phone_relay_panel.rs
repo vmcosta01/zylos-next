@@ -21,7 +21,7 @@ use wasm_bindgen::closure::Closure;
 /// Fetch JSON genérico via gloo-net (fallback para mock se falhar).
 async fn fetch_json<T: for<'de> Deserialize<'de>>(url: &str) -> Result<T, String> {
     use gloo_net::http::Request;
-    let resp = Request::get(url)
+    let resp = crate::auth::authed(Request::get(url))
         .send()
         .await
         .map_err(|e| format!("{:?}", e))?;
@@ -308,7 +308,7 @@ pub fn PhoneRelayPanel() -> impl IntoView {
                         let ctrl_active = session.control_active;
                         // Conectar WebSocket e renderizar frames no canvas
                         Effect::new(move |_| {
-                            let url = ws_url.clone();
+                            let url = crate::auth::authed_url(&ws_url);
                             let m = metrics;
                             spawn_local(async move {
                                 use wasm_bindgen::JsCast;

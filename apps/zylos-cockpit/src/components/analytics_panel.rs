@@ -186,7 +186,7 @@ fn now_secs() -> i64 {
 }
 
 async fn get_json<T: for<'de> Deserialize<'de>>(path: &str) -> Result<T, String> {
-    let resp = gloo_net::http::Request::get(&format!("{API}{path}"))
+    let resp = crate::auth::authed(gloo_net::http::Request::get(&format!("{API}{path}")))
         .send()
         .await
         .map_err(|e| format!("{e:?}"))?;

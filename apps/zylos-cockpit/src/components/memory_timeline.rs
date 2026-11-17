@@ -131,6 +131,8 @@ async fn fetch_memory_stats() -> Result<MemoryStats, String> {
         Request::new_with_str_and_init("http://localhost:3000/api/v1/phase2/status", &opts)
             .map_err(|e| format!("{:?}", e))?;
 
+    crate::auth::authed_web_request(&request);
+
     let window = web_sys::window().ok_or("no window")?;
     let resp_value = window
         .fetch_with_request(&request)

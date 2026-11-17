@@ -41,12 +41,15 @@ pub fn color_for(client: u64) -> &'static str {
 }
 
 /// URL do WebSocket de sincronização para um documento.
+///
+/// Com token salvo (`localStorage['zylos_token']`) acrescenta `?access_token=`,
+/// pois WebSocket do navegador não aceita header `Authorization`.
 pub fn sync_url(base_ws: &str, doc_id: &str) -> String {
-    format!(
+    crate::auth::authed_url(&format!(
         "{}/api/v1/crdt/sync/{}",
         base_ws.trim_end_matches('/'),
         doc_id
-    )
+    ))
 }
 
 /// Estado de presença publicado via awareness (JSON compatível com y-protocols).

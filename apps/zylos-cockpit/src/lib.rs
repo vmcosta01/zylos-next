@@ -30,6 +30,8 @@ pub mod app {
 }
 
 /// Componentes do cockpit — expostos publicamente para testes E2E e integração.
+pub mod auth;
+
 pub mod components;
 
 /// Cliente CRDT (yrs) do painel de edição colaborativa (Fase 11.9).

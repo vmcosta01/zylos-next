@@ -41,7 +41,11 @@ pub fn LoginForm() -> impl IntoView {
                 "name": if n.is_empty() { None } else { Some(n) },
             });
 
-            let req = gloo_net::http::Request::post("/api/v1/auth/login")
+            let url = match crate::gateway_config::gateway_base() {
+                Some(base) => crate::gateway_config::join_url(&base, "/api/v1/auth/login"),
+                None => "/api/v1/auth/login".to_string(),
+            };
+            let req = gloo_net::http::Request::post(&url)
                 .header("Content-Type", "application/json")
                 .header("Authorization", &format!("Bearer {}", cred))
                 .body(body.to_string());
@@ -59,12 +63,15 @@ pub fn LoginForm() -> impl IntoView {
                 Ok(r) if r.ok() => {
                     if let Ok(auth) = r.json::<AuthResponse>().await {
                         token.set(Some(auth.access_token.clone()));
-                        // Persist token for subsequent API calls
+                        // Persiste o token (localStorage['zylos_token']) para as chamadas seguintes
+                        crate::auth::set_token(&auth.access_token);
                         if let Some(storage) =
                             web_sys::window().and_then(|w| w.local_storage().ok().flatten())
                         {
-                            let _ = storage.set_item("access_token", &auth.access_token);
                             let _ = storage.set_item("tenant_id", &tid);
+                        }
+                        if let Some(set_logged) = use_context::<RwSignal<bool>>() {
+                            set_logged.set(true);
                         }
                         is_loading.set(false);
                     } else {
@@ -156,6 +163,40 @@ pub fn LoginForm() -> impl IntoView {
     }
 }
 
+/// Botão Login/Sair no header; abre o [`LoginForm`] num modal.
+#[component]
+pub fn AuthHeaderButton() -> impl IntoView {
+    let logged_in = RwSignal::new(crate::auth::token().is_some());
+    provide_context(logged_in);
+    let open = RwSignal::new(false);
+
+    view! {
+        <button
+            class="auth-header-btn"
+            on:click=move |_| {
+                if logged_in.get_untracked() {
+                    crate::auth::clear_token();
+                    logged_in.set(false);
+                } else {
+                    open.set(true);
+                }
+            }
+        >
+            {move || if logged_in.get() { "Sair" } else { "Login" }}
+        </button>
+        {move || {
+            (open.get() && !logged_in.get()).then(|| view! {
+                <div class="auth-modal" role="dialog" aria-modal="true" aria-label="Login">
+                    <div class="auth-modal-content">
+                        <button class="auth-modal-close" aria-label="Fechar" on:click=move |_| open.set(false)>"×"</button>
+                        <LoginForm />
+                    </div>
+                </div>
+            })
+        }}
+    }
+}
+
 /// Presence indicator showing who is currently editing a document.
 #[allow(dead_code)]
 #[component]
@@ -168,7 +209,7 @@ pub fn PresenceIndicator(doc_id: String) -> impl IntoView {
         loop {
             if let Some(token) = web_sys::window()
                 .and_then(|w| w.local_storage().ok().flatten())
-                .and_then(|s| s.get_item("access_token").ok().flatten())
+                .and_then(|s| s.get_item(crate::auth::TOKEN_KEY).ok().flatten())
             {
                 let url = format!("/api/v1/presence/active?doc_id={}", did);
                 if let Ok(resp) = gloo_net::http::Request::get(&url)
