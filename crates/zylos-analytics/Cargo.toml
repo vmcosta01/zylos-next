@@ -1,0 +1,20 @@
+[package]
+name = "zylos-analytics"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Analytics de uso (agentes/skills): armazenamento SQLite, agregações temporais, filtros, export CSV/PDF, feedback loop de auto-melhoria, retenção e relatórios preset (Fase 11.10)"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+chrono = { workspace = true }
+rusqlite = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true
