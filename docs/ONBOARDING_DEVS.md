@@ -90,7 +90,7 @@ Testes E2E do cockpit: `apps/zylos-cockpit/tests/e2e_*.rs`; E2E do workspace: `t
 ### Escolha da tarefa
 Siga a progressão de `playbooks/onboarding-devs.md` §4.2: comece por **fix em docs** ou **teste unitário faltante**. Boas candidatas reais, levantadas nos screenshots do USER_GUIDE:
 - Adicionar as chaves i18n faltantes (`tab.goals`, `tab.personalities`, `tab.swarm_dag`, `tab.sentinel`, `tab.evidence_ledger`, `tab.hitl_approval`) em `apps/zylos-cockpit/src/i18n.rs`. Hoje elas aparecem cruas nas tabs.
-- Corrigir links quebrados em docs (ex.: `docs/USER_GUIDE.md` cita `pop-token-revoke.md` relativo; o arquivo real é `runbooks/pop-token-revoke.md`).
+- Alinhar `docker-compose.yml` ao gateway: o compose define `ZYLOS_HOST`/`ZYLOS_PORT`, mas o gateway só lê `ZYLOS_LISTEN` (`apps/zylos-gateway/src/config.rs`). Ver `docs/FAQ.md` A18.
 
 ### Fluxo
 ```bash
