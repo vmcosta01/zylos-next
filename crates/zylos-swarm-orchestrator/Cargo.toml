@@ -1,6 +1,7 @@
 [package]
 name = "zylos-swarm-orchestrator"
 version = "0.1.0"
+license.workspace = true
 edition = "2021"
 description = "Multi-agent swarm orchestration with task decomposition, dependency DAGs, and execution scheduling for zylos-gateway"
 

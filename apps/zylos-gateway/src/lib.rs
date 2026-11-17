@@ -22,6 +22,7 @@ pub mod orchestrate_api;
 pub mod password_masking;
 pub mod personalities_api;
 pub mod phase2_integration;
+pub mod security_headers;
 pub mod sentinel_api;
 pub mod sentinel_runtime;
 pub mod soar_api;
@@ -241,6 +242,7 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
             sentinel_rt,
             sentinel_runtime::track_requests,
         ))
+        .layer(axum::middleware::from_fn(security_headers::security_headers))
         .layer(tower_http::trace::TraceLayer::new_for_http())
         .layer(
             tower_http::cors::CorsLayer::new()

@@ -1,0 +1,45 @@
+# cargo-deny — Fase 11.11.5 (auditoria de dependências)
+# Sem este arquivo o cargo-deny usa allow-list vazia e rejeita toda licença.
+
+[graph]
+all-features = false
+
+[advisories]
+# Vulnerabilidades NÃO são ignoradas aqui: as remanescentes estão documentadas
+# como exceções em reports/fase11-security/11.11.5-dependency-audit.md.
+unmaintained = "workspace"
+ignore = []
+
+[licenses]
+confidence-threshold = 0.8
+allow = [
+    "MIT",
+    "MIT-0",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-1-Clause",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "0BSD",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "Unlicense",
+    "CC0-1.0",
+    "BSL-1.0",
+    "CDLA-Permissive-2.0",
+    # copyleft fraco (por arquivo) — aceito para dependências não modificadas
+    "MPL-2.0",
+]
+
+[licenses.private]
+# crates do workspace (publish = false / sem campo license) não são publicadas
+ignore = true
+
+[bans]
+multiple-versions = "warn"
+wildcards = "allow"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

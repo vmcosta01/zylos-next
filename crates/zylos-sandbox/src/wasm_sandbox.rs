@@ -23,7 +23,7 @@ use wasmtime::{
     Config, Engine, Extern, Instance, Linker, Module, Store, StoreLimits, StoreLimitsBuilder, Val,
 };
 use wasmtime_wasi::preview1::WasiP1Ctx;
-use wasmtime_wasi::{ResourceTable, WasiCtx, WasiCtxBuilder, WasiView};
+use wasmtime_wasi::WasiCtxBuilder;
 
 /// Unique identifier for a sandbox instance.
 pub type SandboxId = uuid::Uuid;
@@ -224,14 +224,6 @@ struct SandboxState {
     network_policy: NetworkPolicy,
 }
 
-impl WasiView for SandboxState {
-    fn ctx(&mut self) -> &mut WasiCtx {
-        self.wasi.ctx()
-    }
-    fn table(&mut self) -> &mut ResourceTable {
-        self.wasi.table()
-    }
-}
 
 /// A WASM sandbox instance with snapshot/resume capability.
 pub struct WasmSandbox {
