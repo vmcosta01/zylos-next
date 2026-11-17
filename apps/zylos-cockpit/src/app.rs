@@ -81,6 +81,23 @@ pub fn App() -> impl IntoView {
 
     let (state, set_state) = signal(DashboardState::Loading);
     let (active_tab, set_active_tab) = signal(Tab::Agents);
+    let palette_open = RwSignal::new(false);
+
+    // Atalhos globais: Ctrl/Cmd+K (paleta de abas) e Ctrl/Cmd+1..9 (aba N).
+    let _shortcuts = window_event_listener(leptos::ev::keydown, move |ev| {
+        if let Some(sc) = crate::tabs::shortcut_for(
+            ev.ctrl_key() || ev.meta_key(),
+            ev.alt_key(),
+            &ev.key(),
+            focus_in_editable(),
+        ) {
+            ev.prevent_default();
+            match sc {
+                crate::tabs::Shortcut::OpenPalette => palette_open.set(true),
+                crate::tabs::Shortcut::SwitchTab(i) => set_active_tab.set(Tab::ALL[i]),
+            }
+        }
+    });
 
     // Fetch health on mount
     Effect::new(move |_| {
@@ -142,6 +159,8 @@ pub fn App() -> impl IntoView {
                     <TabButton tab=Tab::Analytics active_tab=active_tab set_active_tab=set_active_tab />
                     <TabButton tab=Tab::Collab active_tab=active_tab set_active_tab=set_active_tab />
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    </nav>
+
+                <TabPalette open=palette_open set_active_tab=set_active_tab />
 
                 <main class="cockpit-main">
                     {move || match &*state.read() {
@@ -211,6 +230,109 @@ pub fn App() -> impl IntoView {
                 </main>
             </div>
         }
+}
+
+/// `true` se o foco está num campo editável (input/textarea/select/contenteditable).
+fn focus_in_editable() -> bool {
+    let Some(el) = web_sys::window()
+        .and_then(|w| w.document())
+        .and_then(|d| d.active_element())
+    else {
+        return false;
+    };
+    let tag = el.tag_name().to_ascii_lowercase();
+    matches!(tag.as_str(), "input" | "textarea" | "select")
+        || el
+            .get_attribute("contenteditable")
+            .is_some_and(|v| v != "false")
+}
+
+/// Paleta simples de abas (Ctrl+K): filtra por nome; Enter abre a primeira, Esc fecha.
+#[component]
+fn TabPalette(open: RwSignal<bool>, set_active_tab: WriteSignal<Tab>) -> impl IntoView {
+    // StoredValue é Copy: as closures internas do <Show> continuam `Fn`.
+    let i18n = StoredValue::new_local(use_i18n());
+    let query = RwSignal::new(String::new());
+    let input_ref = NodeRef::<leptos::html::Input>::new();
+
+    let matches = move || {
+        let q = query.get().to_lowercase();
+        Tab::ALL
+            .iter()
+            .copied()
+            .filter(|t| {
+                q.is_empty()
+                    || i18n
+                        .with_value(|i| i.t(t.i18n_key()))
+                        .to_lowercase()
+                        .contains(&q)
+            })
+            .collect::<Vec<_>>()
+    };
+    let choose = move |t: Tab| {
+        set_active_tab.set(t);
+        open.set(false);
+        query.set(String::new());
+    };
+
+    Effect::new(move |_| {
+        if open.get() {
+            if let Some(el) = input_ref.get() {
+                let _ = el.focus();
+            }
+        }
+    });
+
+    view! {
+        <Show when=move || open.get()>
+            <div class="tab-palette-backdrop" on:click=move |_| open.set(false)>
+                <div
+                    class="tab-palette"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Paleta de abas"
+                    on:click=|ev| ev.stop_propagation()
+                >
+                    <input
+                        node_ref=input_ref
+                        type="search"
+                        placeholder="Ir para aba... (Esc fecha)"
+                        prop:value=move || query.get()
+                        on:input=move |ev| query.set(event_target_value(&ev))
+                        on:keydown=move |ev: leptos::ev::KeyboardEvent| match ev.key().as_str() {
+                            "Escape" => open.set(false),
+                            "Enter" => {
+                                if let Some(t) = matches().first().copied() {
+                                    choose(t);
+                                }
+                            }
+                            _ => {}
+                        }
+                    />
+                    <ul class="tab-palette-list">
+                        {move || {
+                            matches()
+                                .into_iter()
+                                .map(|t| {
+                                    let label = i18n.with_value(|i| i.t(t.i18n_key()));
+                                    let pos = Tab::ALL.iter().position(|x| *x == t).unwrap_or(0);
+                                    let hint = if pos < 9 { format!("Ctrl+{}", pos + 1) } else { String::new() };
+                                    view! {
+                                        <li>
+                                            <button class="tab-palette-item" on:click=move |_| choose(t)>
+                                                <span>{label}</span>
+                                                <kbd>{hint}</kbd>
+                                            </button>
+                                        </li>
+                                    }
+                                })
+                                .collect_view()
+                        }}
+                    </ul>
+                </div>
+            </div>
+        </Show>
+    }
 }
 
 /// Translated app title

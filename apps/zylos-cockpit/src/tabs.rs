@@ -159,6 +159,80 @@ impl Tab {
     }
 }
 
+/// Ação disparada por um atalho global de teclado.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Shortcut {
+    /// Ctrl/Cmd+K — abre a paleta de abas.
+    OpenPalette,
+    /// Ctrl/Cmd+1..9 — troca para a aba N (índice 0-based em [`Tab::ALL`]).
+    SwitchTab(usize),
+}
+
+/// Interpreta um keydown. `in_editable` = foco em input/textarea/contenteditable
+/// (nesse caso nenhum atalho é disparado, para não roubar a digitação).
+pub fn shortcut_for(
+    ctrl_or_meta: bool,
+    alt: bool,
+    key: &str,
+    in_editable: bool,
+) -> Option<Shortcut> {
+    if !ctrl_or_meta || alt || in_editable {
+        return None;
+    }
+    match key {
+        "k" | "K" => Some(Shortcut::OpenPalette),
+        _ => {
+            let mut chars = key.chars();
+            match (chars.next(), chars.next()) {
+                (Some(c @ '1'..='9'), None) => {
+                    let idx = c as usize - '1' as usize;
+                    (idx < Tab::ALL.len()).then_some(Shortcut::SwitchTab(idx))
+                }
+                _ => None,
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod shortcut_tests {
+    use super::*;
+
+    #[test]
+    fn ctrl_k_abre_paleta() {
+        assert_eq!(
+            shortcut_for(true, false, "k", false),
+            Some(Shortcut::OpenPalette)
+        );
+        assert_eq!(
+            shortcut_for(true, false, "K", false),
+            Some(Shortcut::OpenPalette)
+        );
+        assert_eq!(shortcut_for(false, false, "k", false), None);
+    }
+
+    #[test]
+    fn ctrl_digito_troca_aba() {
+        assert_eq!(
+            shortcut_for(true, false, "1", false),
+            Some(Shortcut::SwitchTab(0))
+        );
+        assert_eq!(
+            shortcut_for(true, false, "9", false),
+            Some(Shortcut::SwitchTab(8))
+        );
+        assert_eq!(shortcut_for(true, false, "0", false), None);
+        assert_eq!(shortcut_for(true, true, "1", false), None);
+        assert_eq!(Tab::ALL[0], Tab::Agents);
+    }
+
+    #[test]
+    fn ignora_quando_digitando() {
+        assert_eq!(shortcut_for(true, false, "k", true), None);
+        assert_eq!(shortcut_for(true, false, "3", true), None);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

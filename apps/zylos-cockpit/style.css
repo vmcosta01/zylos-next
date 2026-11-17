@@ -560,3 +560,11 @@ button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2
 .auth-modal-content form { display: flex; flex-direction: column; gap: 0.4rem; }
 .auth-modal-close { position: absolute; top: 0.4rem; right: 0.6rem; background: none; border: none; font-size: 1.4rem; cursor: pointer; color: inherit; }
 .auth-error { color: var(--accent-red, #e5534b); }
+
+/* Paleta de abas (Ctrl+K) */
+.tab-palette-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); display: flex; justify-content: center; align-items: flex-start; padding-top: 12vh; z-index: 1001; }
+.tab-palette { background: var(--bg-secondary, #1e1e2e); border-radius: 10px; width: min(480px, 92vw); max-height: 60vh; display: flex; flex-direction: column; padding: 0.75rem; }
+.tab-palette input { width: 100%; padding: 0.5rem; margin-bottom: 0.5rem; }
+.tab-palette-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; }
+.tab-palette-item { width: 100%; display: flex; justify-content: space-between; padding: 0.4rem 0.6rem; background: none; border: none; color: inherit; cursor: pointer; text-align: left; }
+.tab-palette-item:hover, .tab-palette-item:focus { background: rgba(255, 255, 255, 0.08); }
