@@ -1,5 +1,114 @@
 # FAQ — Zylos-Next
 
+> **Versão 2.0 (Fase 11.6.4, 2026-11-17).** A Parte A traz as **30 perguntas mais frequentes**, levantadas nas dúvidas reais desta fase (setup, preview sem gateway, CI, deploy). Cada resposta cita arquivo, comando ou endpoint que **existe no repo** (conferido com `grep` em 2026-11-17). A Parte B é o FAQ legado (v1); veja o aviso no início dela.
+
+## Parte A — Top 30 (verificadas)
+
+### Uso do Cockpit
+
+**A1. Abri o cockpit e só aparece "Connection lost: … Failed to fetch". Está quebrado?**
+Não. O cockpit é WASM estático e, ao abrir, chama `GET http://localhost:3000/api/v1/health` (`fetch_health()` em `apps/zylos-cockpit/src/app.rs`). Sem gateway nesse endereço, mostra o banner e o botão "Tentar novamente". Suba o gateway (`cargo run -p zylos-gateway`) e clique no botão. Screenshot: `docs/assets/screenshots/00-offline-gateway.png`.
+
+**A2. Por que o preview do Cloudflare Pages não mostra dados?**
+O preview (`https://fix-ci-trigger-master.zylos-cockpit-preview.pages.dev`) só publica o frontend. O gateway ainda não está deployado, e mesmo um gateway local recusa `Origin` que não seja da máquina local (`apps/zylos-gateway/src/local_guard.rs`). O preview serve para validar UI, não operação.
+
+**A3. Quantas tabs existem e onde estão definidas?**
+31, no `enum Tab` de `apps/zylos-cockpit/src/app.rs`. Descrição e screenshot de cada uma: `docs/USER_GUIDE.md` §4.
+
+**A4. Algumas tabs aparecem como `tab.goals`, `tab.sentinel`… Por quê?**
+Faltam as traduções dessas chaves em `apps/zylos-cockpit/src/i18n.rs`. As 6 afetadas são `tab.goals`, `tab.personalities`, `tab.swarm_dag`, `tab.sentinel`, `tab.evidence_ledger` e `tab.hitl_approval`. É um bug conhecido e serve como boa tarefa de first PR (`docs/ONBOARDING_DEVS.md` §5).
+
+**A5. Os números de Frota, Federação e Subagentes são reais?**
+Não. Esses painéis (e Threads, Arquivos, Canais, Avatares, Phone Relay, SOAR) renderizam **dados de demonstração embutidos no componente**. Painéis ligados à API (Tarefas, Memória, Sentinel, Ledger, HITL, Segurança, Topologia etc.) mostram erro de fetch quando não há gateway. A legenda de cada screenshot no USER_GUIDE informa qual é o caso.
+
+**A6. Como troco tema claro/escuro?**
+Pelo botão 🌙 no header (`ThemeToggle`, `apps/zylos-cockpit/src/components/theme_toggle.rs`). A preferência fica salva em `localStorage`. A tab "Temas" (`skin_themes.rs`) oferece skins adicionais.
+
+**A7. Existe tela de login?**
+O componente existe (`apps/zylos-cockpit/src/components/auth_login.rs`) e o gateway expõe `/api/v1/auth/login` e `/api/v1/auth/register`. Porém o componente **não está montado** em `App`, então hoje o cockpit abre direto no dashboard.
+
+**A8. Os atalhos `Ctrl+K` e `1-9` funcionam?**
+Ainda não. Não há handler global de teclado. Só `channel_panel.rs` e `chat_panel.rs` tratam `keydown` (Enter para enviar). Ver aviso em `docs/USER_GUIDE.md` §6.
+
+**A9. Em que idioma está a interface?**
+Português do Brasil por padrão (`provide_i18n(Locale::PtBr)` em `app.rs`). Também existe um dicionário em inglês em `i18n.rs`.
+
+### Gateway e operação
+
+**A10. Como subo o gateway e em que porta ele escuta?**
+`cargo run -p zylos-gateway`. O padrão é `127.0.0.1:3000` (`default_listen_addr()` em `apps/zylos-gateway/src/config.rs`), com override via `ZYLOS_LISTEN=0.0.0.0:3000`.
+
+**A11. Quais variáveis de ambiente o gateway lê de fato?**
+`ZYLOS_CONFIG` (arquivo TOML), `ZYLOS_LISTEN`, `ZYLOS_SHUTDOWN_TIMEOUT_SECS`, `ZYLOS_EVENT_BUS_CAPACITY`, `ZYLOS_SKILLS_PATH`, `ZYLOS_SOAR_AUDIT_KEY`, `ZYLOS_HERMES_TOKEN`, `SENTRY_DSN`, `AXIOM_TOKEN`, `AXIOM_DATASET` e `AXIOM_ENDPOINT` (todas aparecem via `std::env::var` em `apps/zylos-gateway/src/`). A precedência está documentada em `config.rs`: CLI > env > TOML > defaults.
+
+**A12. Quais endpoints de health existem?**
+`/gateway/health`, `/gateway/ready`, `/gateway/live` (raiz) e `/api/v1/health` e `/api/v1/cockpit/health` (definidos em `apps/zylos-gateway/src/lib.rs`). Procedimento de validação: `runbooks/pop-health-check-validation.md`.
+
+**A13. Por que as rotas `/api/v1/hermes/*` retornam erro pedindo token?**
+Elas são protegidas por Bearer token. Defina `ZYLOS_HERMES_TOKEN` antes de subir o gateway (`apps/zylos-gateway/src/hermes_api.rs`). O `scripts/zylos-start.sh` lê esse valor do arquivo `.zylos-hermes-token` na raiz, que você cria localmente e não deve commitar.
+
+**A14. Recebo erro "o cabeçalho Origin não é desta máquina". Como resolvo?**
+É o middleware `so_desta_maquina` (`apps/zylos-gateway/src/local_guard.rs`), que aceita só origens locais (`localhost`/loopback). Acesse o cockpit por `http://localhost:<porta>`. Para acesso remoto, use reverse proxy conforme `runbooks/zylos-gateway.md`.
+
+**A15. Onde ficam os dados persistentes?**
+Em SQLite, sob `data/`. Por exemplo, os canais usam `sqlite://data/channels.db` (`apps/zylos-gateway/src/lib.rs`). Backup e restore: `runbooks/backup-restore.md` e `playbooks/pop-backup-restore.md`.
+
+**A16. Como reinicio o gateway com segurança?**
+Siga `playbooks/pop-gateway-restart.md`. O shutdown gracioso respeita `ZYLOS_SHUTDOWN_TIMEOUT_SECS` (padrão 5s). No Windows/git-bash, `scripts/zylos-stop.sh` e `scripts/zylos-start.sh` fazem o ciclo completo.
+
+**A17. Como ativo Sentry e Axiom?**
+Defina `SENTRY_DSN`. Sem ela, o log mostra "Sentry disabled (SENTRY_DSN not set)" (`apps/zylos-gateway/src/main.rs`). Para Axiom, defina `AXIOM_TOKEN` e `AXIOM_DATASET` (`apps/zylos-gateway/src/axiom_logging.rs`). Os playbooks são `playbooks/pb-sentry-integration.md` e `playbooks/pb-axiom-logging-setup.md`.
+
+**A18. Rodando pelo `docker-compose.yml`, o gateway não responde na 8080. Por quê?**
+O `docker-compose.yml` define `ZYLOS_HOST`/`ZYLOS_PORT`, mas o gateway **não lê essas variáveis**: ele lê `ZYLOS_LISTEN` (`config.rs`). O `Dockerfile` expõe a 8080 e o healthcheck usa `http://localhost:8080/api/v1/health`. Defina `ZYLOS_LISTEN=0.0.0.0:8080` no container. Essa inconsistência está documentada aqui e precisa de correção no compose.
+
+### Incidentes e procedimentos
+
+**A19. O que faço quando um alerta do Sentinel dispara?**
+Siga `playbooks/pop-sentinel-alert-investigation.md`. Ajuste de thresholds: `runbooks/rb-sentinel-threshold-tuning.md`. Visão geral: `runbooks/sentinel-aiops.md`.
+
+**A20. Qual é o fluxo de resposta a incidente em produção?**
+`runbooks/rb-production-incident-response.md`, com alertas automatizados em `docs/soar/soar-production-alerts.md` e escalonamento em `docs/playbooks/on-call-playbook.md`.
+
+**A21. Como decido uma aprovação HITL corretamente?**
+Siga `playbooks/pop-approval-decide.md`. Detalhes do serviço estão em `runbooks/rb-zylos-approval.md`, e o timeout de aprovação tem SOAR próprio em `docs/soar/soar-approval-timeout.md`.
+
+**A22. Como revogo um token comprometido?**
+`runbooks/pop-token-revoke.md`. Tokens do relay mobile seguem `playbooks/pop-relay-token-revoke.md`. Em caso de brecha de autenticação, use `docs/soar/soar-auth-breach.md`.
+
+**A23. Uma regra de egress bloqueou uma chamada legítima. E agora?**
+Siga `playbooks/pop-egress-false-positive.md`. A gestão de regras fica em `playbooks/pb-egress-rules-management.md`, e o runbook do serviço é `runbooks/rb-zylos-egress.md`.
+
+**A24. Como paro o controle remoto / phone relay em emergência?**
+Use `playbooks/pop-relay-emergency-stop.md` e `playbooks/pop-computer-control-emergency.md`.
+
+### Desenvolvimento, CI e deploy
+
+**A25. Qual versão do Rust devo usar?**
+Use stable, fixado em `rust-toolchain.toml` com clippy, rustfmt, rust-analyzer e o target `wasm32-unknown-unknown`. O MSRV declarado é `rust-version = "1.82"` em `Cargo.toml`, verificado pelo job "MSRV Check (Rust 1.82)" do CI.
+
+**A26. Como rodo o cockpit localmente?**
+`cd apps/zylos-cockpit && trunk serve --port 3001`. O `Trunk.toml` define a porta 3000, que colide com o gateway, por isso a flag. Build de produção: `trunk build --release`.
+
+**A27. Quais checagens o CI faz no meu PR?**
+`.github/workflows/ci.yml` roda check, rustfmt, clippy, test, docs, coverage, security-audit (não bloqueante), MSRV, build-release, WASM build, WASM size check (< 5MB gzipped) e E2E com `wasm-pack test --headless --chrome`. Os crates `zylos-desktop`/`zylos-desktop-app` ficam fora dos jobs Rust. Equivalentes locais: `docs/ONBOARDING_DEVS.md` §4.
+
+**A28. Os testes E2E do cockpit estouram timeout. O que faço?**
+Defina `WASM_BINDGEN_TEST_TIMEOUT=300`, como o CI faz (o default do runner é 20s). Os testes ficam em `apps/zylos-cockpit/tests/e2e_*.rs`. Problemas de build WASM: `runbooks/pop-wasm-build-troubleshoot.md`.
+
+**A29. Como meu PR ganha um preview?**
+`.github/workflows/deploy-preview.yml` builda o cockpit e publica no Cloudflare Pages (`--project-name=zylos-cockpit-preview --branch=<sua-branch>`), depois comenta a URL no PR. Setup: `playbooks/pb-cloudflare-pages-setup.md`.
+
+**A30. Como sai uma release de produção?**
+Fazendo push de uma tag `v*`. `.github/workflows/deploy-prod.yml` valida (clippy, testes, WASM < 5MB), publica no projeto Pages `zylos-cockpit` (branch `main`) e gera release notes. Procedimento operacional: `runbooks/rb-cockpit-release.md`.
+
+---
+
+## Parte B — FAQ legado (v1)
+
+> **Aviso (2026-11-17):** as respostas abaixo vêm da v1 deste FAQ e **não foram todas verificadas**. Em busca no código (`apps/`, `crates/`) **não foram encontrados**: backend PostgreSQL configurável (`[storage] backend`), `[memory] consolidation_cron`, flags `--check`/`--validate-skills-only`, endpoint `/metrics`, `[rate_limit]`, `[webhooks]`, `[mcp.servers]`, feature `dhat-heap`, OpenTelemetry e imagem `ghcr.io`. Também não existe `CHANGELOG.md` na raiz. Em caso de conflito, vale a Parte A.
+
+
 ## Gerais
 
 ### 1. O que é Zylos-Next?
