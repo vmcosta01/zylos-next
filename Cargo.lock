@@ -14221,15 +14221,19 @@ name = "zylos-auth"
 version = "0.1.0"
 dependencies = [
  "axum 0.7.9",
+ "base64 0.22.1",
  "chrono",
  "dashmap 6.2.1",
  "jsonwebtoken",
  "serde",
+ "serde_json",
+ "sha2 0.10.9",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
  "tower",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
