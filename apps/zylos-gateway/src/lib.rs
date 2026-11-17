@@ -147,45 +147,40 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
         );
 
     // === Fase 11.4 T11.4.6: Health check endpoints padronizados ===
-    let api_health = Router::new()
-        .route(
-            "/health",
-            get(|| async {
-                axum::Json(serde_json::json!({
-                "status": "ok",
-                "service": "zylos-gateway",
-                "version": env!("CARGO_PKG_VERSION"),
-                }))
-            }),
-        )
-        .route(
-            "/cockpit/health",
-            get(|| async {
-                axum::Json(serde_json::json!({
-                "status": "ok",
-                "component": "cockpit",
-                "endpoints_available": [
-                "/api/v1/channels",
-                "/api/v1/computer-view/sessions",
-                "/api/v1/hermes/skills",
-                "/api/v1/goals",
-                "/api/v1/memory",
-                "/api/v1/personalities",
-                "/api/v1/sentinel",
-                "/api/v1/evidence",
-                "/api/v1/phase2/status",
-                "/api/v1/integrations/status"
-                ]
-                }))
-            }),
-        );
+    // `/api/v1/health` vem do router do cockpit (zylos-live-comm), que devolve
+    // status/active_streams/version/service — formato que o cockpit consome.
+    // Não registrar `/health` aqui de novo: o axum entra em pânico com rota duplicada.
+    let api_health = Router::new().route(
+        "/cockpit/health",
+        get(|| async {
+            axum::Json(serde_json::json!({
+            "status": "ok",
+            "component": "cockpit",
+            "endpoints_available": [
+            "/api/v1/channels",
+            "/api/v1/computer-view/sessions",
+            "/api/v1/hermes/skills",
+            "/api/v1/goals",
+            "/api/v1/memory",
+            "/api/v1/personalities",
+            "/api/v1/sentinel",
+            "/api/v1/evidence",
+            "/api/v1/phase2/status",
+            "/api/v1/integrations/status"
+            ]
+            }))
+        }),
+    );
 
     // New Fase 9 routers (channels + computer-view)
     let channels_store = tokio::task::block_in_place(|| {
         tokio::runtime::Handle::current().block_on(async {
-            let store = zylos_channels::ChannelsStore::connect("sqlite://data/channels.db")
-                .await
-                .expect("failed to connect channels store");
+            let store = zylos_channels::ChannelsStore::connect(
+                &std::env::var("ZYLOS_CHANNELS_DB")
+                    .unwrap_or_else(|_| "sqlite://data/channels.db".to_string()),
+            )
+            .await
+            .expect("failed to connect channels store");
             store
                 .run_migrations()
                 .await

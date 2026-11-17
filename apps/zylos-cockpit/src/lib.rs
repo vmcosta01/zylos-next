@@ -5,15 +5,10 @@
 //! wasm-bindgen. A lógica real da UI vive em `main.rs` e nos componentes
 //! Leptos; este arquivo re-exporta o necessário para o build WASM funcionar.
 
-/// Ponto de entrada chamado pelo JS (`wasm_bindgen`) para montar a aplicação
-/// no DOM quando usado como biblioteca cdylib.
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen::prelude::wasm_bindgen(start)]
-pub fn start() {
-    console_error_panic_hook::set_once();
-    // mount_to_body será chamado pelo hydrate/csr runtime do Leptos;
-    // aqui garantimos apenas que o panic hook está instalado.
-}
+// Sem `#[wasm_bindgen(start)]` aqui: o binário (`main.rs`) importa esta lib e,
+// se a lib tivesse um start, o wasm-bindgen o usaria NO LUGAR de `main()` — o
+// App nunca seria montado (tela presa em "Carregando…"). O panic hook e o
+// `mount_to_body` ficam em `main.rs`.
 
 // Re-exporta o main module apenas quando compilado como binário.
 // Em `cargo check --workspace` (lib-only) ou docs, `crate::main` não existe;

@@ -36,6 +36,21 @@ impl ChannelsStore {
 
     /// Cria store conectando a uma URL SQLite.
     pub async fn connect(url: &str) -> Result<Self> {
+        // Garante que o diretório do arquivo exista (ex.: `sqlite://data/channels.db`
+        // num checkout limpo) — sem isso o SQLite falha com "unable to open database file".
+        if let Some(path) = url
+            .strip_prefix("sqlite://")
+            .or_else(|| url.strip_prefix("sqlite:"))
+        {
+            let path = path.split('?').next().unwrap_or(path);
+            if !path.is_empty() && !path.starts_with(':') {
+                if let Some(dir) = std::path::Path::new(path).parent() {
+                    if !dir.as_os_str().is_empty() {
+                        let _ = std::fs::create_dir_all(dir);
+                    }
+                }
+            }
+        }
         let opts = SqliteConnectOptions::from_str(url)?
             .create_if_missing(true)
             .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);

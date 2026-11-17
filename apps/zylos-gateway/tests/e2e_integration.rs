@@ -114,8 +114,7 @@ async fn e2e_state() -> AppState {
 // HEALTH & READINESS (3 tests)
 // ============================================================
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_01_gateway_health_returns_version() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -136,8 +135,7 @@ async fn e2e_01_gateway_health_returns_version() {
     assert!(json["version"].as_str().is_some());
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_02_readiness_probe_reflects_state() {
     let state = e2e_state().await;
     // Toggle ready off
@@ -156,8 +154,7 @@ async fn e2e_02_readiness_probe_reflects_state() {
     assert_eq!(json["status"], "not_ready");
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_03_liveness_probe_always_alive() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -180,8 +177,7 @@ async fn e2e_03_liveness_probe_always_alive() {
 // SKILLS REGISTRY (3 tests)
 // ============================================================
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_04_skills_list_empty_registry() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -200,8 +196,7 @@ async fn e2e_04_skills_list_empty_registry() {
     assert_eq!(json["total"], 0);
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_05_skill_not_found_returns_404() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -216,8 +211,7 @@ async fn e2e_05_skill_not_found_returns_404() {
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_06_eval_run_not_found_returns_404() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -236,8 +230,7 @@ async fn e2e_06_eval_run_not_found_returns_404() {
 // SSE STREAMING (2 tests)
 // ============================================================
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_07_sse_endpoint_returns_event_stream() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -257,8 +250,7 @@ async fn e2e_07_sse_endpoint_returns_event_stream() {
     );
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_08_sse_with_filter_param() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -278,8 +270,7 @@ async fn e2e_08_sse_with_filter_param() {
 // SOAR EVENT PROCESSING (3 tests)
 // ============================================================
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_09_soar_event_submission_accepted() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -311,8 +302,7 @@ async fn e2e_09_soar_event_submission_accepted() {
     );
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_10_soar_event_invalid_payload_rejected() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -336,8 +326,7 @@ async fn e2e_10_soar_event_invalid_payload_rejected() {
     );
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_11_soar_event_with_all_severity_levels() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -376,8 +365,7 @@ async fn e2e_11_soar_event_with_all_severity_levels() {
 // CORS & SECURITY (3 tests)
 // ============================================================
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_12_cors_headers_on_all_endpoints() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -399,8 +387,7 @@ async fn e2e_12_cors_headers_on_all_endpoints() {
     }
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_13_preflight_options_request() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -418,8 +405,7 @@ async fn e2e_13_preflight_options_request() {
     assert_eq!(resp.status(), StatusCode::OK);
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_14_unknown_route_returns_404() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -438,8 +424,7 @@ async fn e2e_14_unknown_route_returns_404() {
 // CROSS-CRATE INTEGRATION (6 tests)
 // ============================================================
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_15_event_bus_propagates_to_sse() {
     let state = e2e_state().await;
     let bus = state.event_bus.clone();
@@ -460,8 +445,7 @@ async fn e2e_15_event_bus_propagates_to_sse() {
     );
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_16_multiple_subsystems_share_event_bus() {
     let state = e2e_state().await;
 
@@ -481,8 +465,7 @@ async fn e2e_16_multiple_subsystems_share_event_bus() {
     );
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_17_soar_orchestrator_accessible_via_state() {
     let state = e2e_state().await;
 
@@ -492,8 +475,7 @@ async fn e2e_17_soar_orchestrator_accessible_via_state() {
     // If we got here without panic, the orchestrator is properly shared
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_18_skills_validator_rejects_malformed() {
     let state = e2e_state().await;
 
@@ -510,8 +492,7 @@ async fn e2e_18_skills_validator_rejects_malformed() {
     assert!(result.is_err(), "Malformed skill should be rejected");
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_19_concurrent_requests_no_panic() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -535,8 +516,7 @@ async fn e2e_19_concurrent_requests_no_panic() {
     }
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_20_full_workflow_health_to_soar() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -596,8 +576,7 @@ fn orchestrate_request(nodes: serde_json::Value) -> serde_json::Value {
     })
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_21_orchestrate_memory_consolidation() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -630,8 +609,7 @@ async fn e2e_21_orchestrate_memory_consolidation() {
     assert_eq!(json["results"][0]["success"], true);
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_22_orchestrate_contradiction_detection() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -661,8 +639,7 @@ async fn e2e_22_orchestrate_contradiction_detection() {
     assert_eq!(json["results"][0]["output"]["contradictions_found"], 0);
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_23_orchestrate_dag_execution_multi_node() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -708,8 +685,7 @@ async fn e2e_23_orchestrate_dag_execution_multi_node() {
     assert_eq!(json["failed"], 0);
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_24_orchestrate_rollback_on_failure() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -765,8 +741,7 @@ async fn e2e_24_orchestrate_rollback_on_failure() {
     assert!(skipped.is_none() || skipped.unwrap()["success"] == false);
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_25_orchestrate_recovery_after_dependency_failure() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -820,8 +795,7 @@ async fn e2e_25_orchestrate_recovery_after_dependency_failure() {
     assert_eq!(recovery["success"], true);
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_26_orchestrate_proof_validation() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -855,8 +829,7 @@ async fn e2e_26_orchestrate_proof_validation() {
     );
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_27_orchestrate_panel_deliberation() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -892,8 +865,7 @@ async fn e2e_27_orchestrate_panel_deliberation() {
     assert_eq!(json["results"][0]["output"]["agreed"], true);
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_28_orchestrate_wasm_isolation_check() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -927,8 +899,7 @@ async fn e2e_28_orchestrate_wasm_isolation_check() {
     );
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_29_orchestrate_skill_registry_discovery() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -959,8 +930,7 @@ async fn e2e_29_orchestrate_skill_registry_discovery() {
     assert!(json["results"][0]["output"]["total"].as_u64().is_some());
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_30_orchestrate_eval_flywheel_status() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -990,8 +960,7 @@ async fn e2e_30_orchestrate_eval_flywheel_status() {
     assert_eq!(json["results"][0]["output"]["flywheel_available"], true);
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_31_orchestrate_cockpit_streaming_status() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -1024,8 +993,7 @@ async fn e2e_31_orchestrate_cockpit_streaming_status() {
         .is_some());
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_32_orchestrate_lazy_roster_performance() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -1072,8 +1040,7 @@ async fn e2e_32_orchestrate_lazy_roster_performance() {
     }
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_33_orchestrate_soar_playbook_dispatch_via_dag() {
     let state = e2e_state().await;
     let handles = e2e_api_handles().await;
@@ -1133,8 +1100,7 @@ async fn orchestrate(nodes: serde_json::Value) -> (serde_json::Value, Vec<String
     (json, ordem)
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_34_orchestrate_nos_fora_de_ordem_executam_na_ordem_das_dependencias() {
     // DAG valido (a -> b -> c), enviado fora de ordem: b e c antes de a.
     let (json, ordem) = orchestrate(serde_json::json!([
@@ -1151,8 +1117,7 @@ async fn e2e_34_orchestrate_nos_fora_de_ordem_executam_na_ordem_das_dependencias
     assert_eq!(ordem, ["a", "b", "c"]);
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_35_orchestrate_pedido_em_ordem_nao_muda_de_ordem() {
     let (json, ordem) = orchestrate(serde_json::json!([
         {"id": "a", "subsystem": "sandbox", "action": "wasm_check"},
@@ -1202,8 +1167,7 @@ fn dag_com_etapa_invalida() -> serde_json::Value {
     ])
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_36_orchestrate_etapa_invalida_recusa_e_explica_sem_executar() {
     let (status, json) =
         orchestrate_bruto(serde_json::json!({"nodes": dag_com_etapa_invalida()})).await;
@@ -1220,8 +1184,7 @@ async fn e2e_36_orchestrate_etapa_invalida_recusa_e_explica_sem_executar() {
         .contains("nao-existe"));
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_37_orchestrate_parte_valida_quando_pedida() {
     let (status, json) = orchestrate_bruto(serde_json::json!({
         "nodes": dag_com_etapa_invalida(),
@@ -1242,8 +1205,7 @@ async fn e2e_37_orchestrate_parte_valida_quando_pedida() {
     assert_eq!(json["failed"], 1);
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_40_orchestrate_parte_valida_com_rollback_nao_diz_que_reverteu() {
     // a parte valida roda sem falha; as etapas de fora nao rodaram e nada foi
     // desfeito, entao rolled_back tem de ser false
@@ -1259,8 +1221,7 @@ async fn e2e_40_orchestrate_parte_valida_com_rollback_nao_diz_que_reverteu() {
     assert_eq!(json["rolled_back"], false, "{json}");
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_38_orchestrate_id_repetido_e_ciclo_ficam_fora_com_o_que_depende_deles() {
     let (status, json) = orchestrate_bruto(serde_json::json!({"nodes": [
         {"id": "d", "subsystem": "live-comm", "action": "cockpit_status"},
@@ -1276,8 +1237,7 @@ async fn e2e_38_orchestrate_id_repetido_e_ciclo_ficam_fora_com_o_que_depende_del
     assert_eq!(ids(&json["fora"]), ["d", "d", "e", "p", "q"]);
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_39_orchestrate_sem_nada_executavel_tambem_recusa() {
     let (status, json) = orchestrate_bruto(serde_json::json!({"nodes": [
         {"id": "x", "subsystem": "live-comm", "action": "cockpit_status", "depends_on": ["x"]}
