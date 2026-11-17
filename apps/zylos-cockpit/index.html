@@ -12,7 +12,7 @@
 
     <!-- T11.5.3 resource hints: o Trunk injeta <link rel="modulepreload"> do JS e
          <link rel="preload" as="fetch" type="application/wasm"> do WASM automaticamente. -->
-    <link data-trunk rel="rust" data-bin="zylos-cockpit" data-wasm-opt-params="--enable-bulk-memory --enable-nontrapping-float-to-int" />
+    <link data-trunk rel="rust" data-bin="zylos-cockpit" data-cargo-profile="wasm-release" data-wasm-opt="z" data-wasm-opt-params="--enable-bulk-memory --enable-nontrapping-float-to-int" />
 
     <!-- T11.5.2 critical rendering path: shell crítico + CSS inlinado (zero folhas bloqueantes). -->
     <style>

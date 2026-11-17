@@ -123,6 +123,18 @@ opt-level = 3
 lto = true
 codegen-units = 1
 
+# Perfil do cockpit WASM (Trunk: index.html `data-cargo-profile="wasm-release"`).
+# O [profile.*] dentro de apps/zylos-cockpit/Cargo.toml é ignorado pelo Cargo
+# (só o workspace root vale), por isso o perfil vive aqui. Otimiza tamanho:
+# o download + compile do .wasm domina o LCP mobile (Slow 4G + CPU 4x).
+[profile.wasm-release]
+inherits = "release"
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = "debuginfo"
+
 [workspace.lints.rust]
 unsafe_code = "warn"
 
