@@ -577,6 +577,9 @@ mod tests {
             GateDecision::Rejected
         );
 
+        // Sleep to ensure distinct second-precision timestamp for the newer plan
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
         // Submit newer plan (same routine + agent)
         let _id2 = gate
             .submit_plan("deploy-staging", "a1", "v2 improved", "c2")
