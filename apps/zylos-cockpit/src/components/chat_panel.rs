@@ -352,6 +352,7 @@ pub fn ChatPanel() -> impl IntoView {
                                 <div class="chat-input-wrapper">
                                     <textarea
                                         class="chat-textarea"
+                                        aria-label="Mensagem para o bot"
                                         placeholder="Digite sua mensagem... (Enter para enviar, Shift+Enter para nova linha)"
                                         rows="2"
                                         prop:value={move || input_text.get()}

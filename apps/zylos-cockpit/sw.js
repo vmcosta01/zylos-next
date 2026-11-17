@@ -2,14 +2,15 @@
 // PWA offline-first strategy with cache-versioned assets.
 // Registered by main.rs on first load.
 
-const CACHE_NAME = 'zylos-cockpit-v1';
+const CACHE_NAME = 'zylos-cockpit-v2';
 const OFFLINE_URL = '/index.html';
 
 // Assets to pre-cache on install
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
-  '/style.css',
+  '/manifest.json',
+  '/icons/icon-192.png',
 ];
 
 // Install: pre-cache core shell

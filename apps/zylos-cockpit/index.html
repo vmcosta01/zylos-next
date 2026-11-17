@@ -4,20 +4,59 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Zylos Cockpit</title>
-    <link data-trunk rel="rust" data-bin="zylos-cockpit" data-wasm-opt-params="--enable-bulk-memory --enable-nontrapping-float-to-int" />
-    <link data-trunk rel="css" href="design-tokens.css" />
-    <link data-trunk rel="css" href="style.css" />
-    <link rel="manifest" href="/manifest.json" />
+    <meta name="description" content="Zylos Cockpit — painel de orquestração multi-agente do Zylos-Next: agentes, tarefas, memória, aprovações HITL e observabilidade." />
     <meta name="theme-color" content="#0f1117" />
+    <!-- URL base do gateway (T11.5.6). Vazio = só usa http://localhost:3000 quando servido de localhost.
+         Em produção, preencher no deploy (ex.: https://gateway.zylos.example). -->
+    <meta name="zylos-gateway-url" content="" />
+
+    <!-- T11.5.3 resource hints: o Trunk injeta <link rel="modulepreload"> do JS e
+         <link rel="preload" as="fetch" type="application/wasm"> do WASM automaticamente. -->
+    <link data-trunk rel="rust" data-bin="zylos-cockpit" data-wasm-opt-params="--enable-bulk-memory --enable-nontrapping-float-to-int" />
+
+    <!-- T11.5.2 critical rendering path: shell crítico + CSS inlinado (zero folhas bloqueantes). -->
+    <style>
+        html, body { margin: 0; background: #0A0E1A; color: #F9FAFB; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; }
+        #app-splash { max-width: 1280px; margin: 0 auto; padding: 24px; box-sizing: border-box; }
+        #app-splash h1 { margin: 0; padding-bottom: 16px; font-size: 24px; font-weight: 600; border-bottom: 1px solid #374151; }
+        #app-splash p { color: #9CA3AF; font-size: 14px; }
+        body:has(.cockpit-root) #app-splash { display: none; }
+    </style>
+    <link data-trunk rel="css" href="design-tokens.css" data-inline />
+    <link data-trunk rel="css" href="style.css" data-inline />
+
+    <!-- T11.5.4 assets estáticos (a seção [[copy]] do Trunk.toml é ignorada pelo Trunk 0.22) -->
+    <link data-trunk rel="copy-file" href="manifest.json" />
+    <link data-trunk rel="copy-file" href="sw.js" />
+    <link data-trunk rel="copy-file" href="robots.txt" />
+    <link data-trunk rel="copy-file" href="_headers" />
+    <link data-trunk rel="copy-dir" href="icons" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
 </head>
 <body>
+    <div id="app-splash" aria-hidden="true">
+        <h1>Zylos Cockpit</h1>
+        <p>Carregando…</p>
+    </div>
     <div id="app"></div>
     <script>
+        // T11.5.3: preconnect ao gateway somente quando configurado.
+        (function () {
+            var m = document.querySelector('meta[name="zylos-gateway-url"]');
+            var u = m && m.content.trim();
+            if (u) {
+                var l = document.createElement('link');
+                l.rel = 'preconnect'; l.href = u; l.crossOrigin = 'anonymous';
+                document.head.appendChild(l);
+            }
+        })();
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
+            window.addEventListener('load', function () {
                 navigator.serviceWorker.register('/sw.js')
-                    .then(reg => console.log('[SW] Registered:', reg.scope))
-                    .catch(err => console.warn('[SW] Registration failed:', err));
+                    .catch(function (err) { console.warn('[SW] Registration failed:', err); });
             });
         }
     </script>

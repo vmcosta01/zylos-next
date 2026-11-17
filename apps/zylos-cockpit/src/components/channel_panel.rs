@@ -376,6 +376,7 @@ pub fn ChannelPanel() -> impl IntoView {
                                     <input
                                         class="channel-input"
                                         type="text"
+                                        aria-label="Mensagem do canal"
                                         placeholder="Digite sua mensagem..."
                                         prop:value=move || new_message_text.get()
                                         on:input=move |ev| {

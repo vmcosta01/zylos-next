@@ -9,6 +9,7 @@ use leptos::prelude::*;
 mod app;
 mod benchmarks;
 mod components;
+mod gateway_config;
 mod i18n;
 mod streaming;
 use app::App;

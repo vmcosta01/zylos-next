@@ -94,8 +94,9 @@ pub fn LoginForm() -> impl IntoView {
                 } else {
                     view! {
                         <form on:submit=on_submit>
-                            <label>"User ID"</label>
+                            <label for="auth-user-id">"User ID"</label>
                             <input
+                                id="auth-user-id"
                                 type="text"
                                 prop:value=move || user_id.get()
                                 on:input=move |ev| user_id.set(event_target_value(&ev))
@@ -103,8 +104,9 @@ pub fn LoginForm() -> impl IntoView {
                                 required=true
                             />
 
-                            <label>"Tenant"</label>
+                            <label for="auth-tenant">"Tenant"</label>
                             <input
+                                id="auth-tenant"
                                 type="text"
                                 prop:value=move || tenant_id.get()
                                 on:input=move |ev| tenant_id.set(event_target_value(&ev))
@@ -112,8 +114,9 @@ pub fn LoginForm() -> impl IntoView {
                                 required=true
                             />
 
-                            <label>"Display Name (optional)"</label>
+                            <label for="auth-name">"Display Name (optional)"</label>
                             <input
+                                id="auth-name"
                                 type="text"
                                 prop:value=move || name.get()
                                 on:input=move |ev| name.set(event_target_value(&ev))

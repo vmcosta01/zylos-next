@@ -1,0 +1,3 @@
+# Zylos Cockpit — ferramenta interna; não indexar.
+User-agent: *
+Disallow: /

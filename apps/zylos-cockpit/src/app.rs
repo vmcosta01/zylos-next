@@ -211,7 +211,7 @@ pub fn App() -> impl IntoView {
                 </div>
             </header>
 
-            <nav class="cockpit-tabs">
+            <nav class="cockpit-tabs" aria-label="Abas do cockpit">
                             <TabButton tab=Tab::Agents active_tab=active_tab set_active_tab=set_active_tab />
                             <TabButton tab=Tab::Tasks active_tab=active_tab set_active_tab=set_active_tab />
                             <TabButton tab=Tab::Memory active_tab=active_tab set_active_tab=set_active_tab />
@@ -288,7 +288,7 @@ pub fn App() -> impl IntoView {
                     DashboardState::Error(msg) => {
                         let err_msg = msg.clone();
                         view! {
-                            <div class="error-banner">
+                            <div class="error-banner" role="alert">
                                 <p>{format!("Connection lost: {}", err_msg)}</p>
                                 <button class="cta-retry" on:click=move |_| {
                                     spawn_local(async move {
@@ -380,6 +380,7 @@ fn TabButton(
     view! {
         <button
             class=css
+            aria-current=move || is_active().then_some("page")
             on:click=move |_| set_active_tab.set(tab)
         >
             {label}
@@ -590,7 +591,10 @@ async fn fetch_health() -> Result<HealthResponse, String> {
     let opts = RequestInit::new();
     opts.set_method("GET");
 
-    let request = Request::new_with_str_and_init("http://localhost:3000/api/v1/health", &opts)
+    let base = crate::gateway_config::gateway_base()
+        .ok_or("Gateway não configurado (meta zylos-gateway-url)")?;
+    let url = crate::gateway_config::join_url(&base, "/api/v1/health");
+    let request = Request::new_with_str_and_init(&url, &opts)
         .map_err(|e| format!("{:?}", e))?;
 
     let window = web_sys::window().ok_or("no window")?;
