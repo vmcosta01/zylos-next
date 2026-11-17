@@ -21,6 +21,7 @@ pub mod password_masking;
 pub mod personalities_api;
 pub mod phase2_integration;
 pub mod sentinel_api;
+pub mod sentinel_runtime;
 pub mod soar_api;
 pub mod webrtc_relay;
 
@@ -90,6 +91,13 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
     let personalities = personalities_api::create_personalities_router(handles.personalities);
     let sentinel = sentinel_api::create_sentinel_router(handles.sentinel);
     let evidence = evidence_api::create_evidence_router(handles.evidence);
+    // Fase 11.7: runtime do Sentinel (métricas → regras → gate HITL → SOAR/Axiom)
+    let sentinel_rt = std::sync::Arc::new(sentinel_runtime::SentinelRuntime::from_env(Box::new(
+        sentinel_runtime::OrchestratorForwarder(state.soar_orchestrator.clone()),
+    )));
+    sentinel_rt.spawn_loop(sentinel_runtime::tick_interval_from_env());
+    let sentinel_runtime_routes =
+        sentinel_runtime::create_sentinel_runtime_router(sentinel_rt.clone());
 
     // Phase 2 aggregated status endpoint (used by cockpit components: memory, tasks, personalities, sentinel, swarm, evidence, hitl)
     let phase2_state = tokio::task::block_in_place(|| {
@@ -211,6 +219,7 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
                 .merge(memory)
                 .merge(personalities)
                 .merge(sentinel)
+                .merge(sentinel_runtime_routes)
                 .merge(evidence)
                 .merge(phase2)
                 .merge(channels)
@@ -218,6 +227,10 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
                 .merge(webrtc_relay)
                 .merge(auth),
         )
+        .layer(axum::middleware::from_fn_with_state(
+            sentinel_rt,
+            sentinel_runtime::track_requests,
+        ))
         .layer(tower_http::trace::TraceLayer::new_for_http())
         .layer(
             tower_http::cors::CorsLayer::new()
