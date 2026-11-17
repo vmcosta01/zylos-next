@@ -56,6 +56,14 @@
 - **Consequências:** Type-safe routing; middleware composável (auth, rate-limit, tracing); HTTP/2 nativo.
 - **Alternativas Rejeitadas:** Actix-web (actor model desnecessário), Warp (filters complexos), Rocket (sync-first legacy).
 
+## ADR-013: SQLite + rollup horário para Analytics
+- **Status:** Aprovado
+- **Data:** 2026-11-17
+- **Contexto:** Analytics Dashboard (Fase 11.10) precisa de load < 2 s com 30 dias / 1M+ eventos, sem serviços externos.
+- **Decisão:** SQLite (rusqlite bundled) com rollup horário materializado na ingestão; detalhes em [docs/ADR-013-analytics-storage.md](docs/ADR-013-analytics-storage.md).
+- **Consequências:** Load medido 549 ms com 1.02M eventos; filtros sobre eventos brutos (dimensão/latência) ficam acima de 500 ms em 30 dias.
+- **Alternativas Rejeitadas:** DuckDB (dependência nativa pesada), TimescaleDB (exige PostgreSQL).
+
 ## Referências
 - [Manifesto Conceito #7](file:///C:/Users/Paulo/.claude/CONCEITOS-DESENVOLVIMENTO-IA.md) — Documentos Vivos
 - [ARCHITECTURE.md](./ARCHITECTURE.md) para detalhes técnicos de cada decisão
