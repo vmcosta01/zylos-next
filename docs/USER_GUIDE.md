@@ -1,7 +1,7 @@
 # Guia do Usuário — Cockpit Zylos
 
-**Data:** 2026-11-12
-**Versão:** 1.0.0
+**Data:** 2026-11-17
+**Versão:** 1.1.0 (Fase 11.6.1 — screenshots reais)
 **Público-alvo:** Operadores, desenvolvedores e administradores do sistema Zylos-Next
 
 ---
@@ -16,6 +16,7 @@
 6. [Keyboard Shortcuts](#6-keyboard-shortcuts)
 7. [Troubleshooting](#7-troubleshooting)
 8. [Referências](#8-referências)
+9. [Sobre os Screenshots](#9-sobre-os-screenshots)
 
 ---
 
@@ -28,9 +29,19 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 - Conexão com o gateway Zylos (`http://localhost:3000` por padrão)
 - Autenticação JWT (obtida via `/api/v1/auth/login`)
 
+### Primeira tela: estado offline (gateway ausente)
+
+O cockpit é um bundle WASM estático; ao abrir, chama `GET http://localhost:3000/api/v1/health` (função `fetch_health()` em `apps/zylos-cockpit/src/app.rs`). Se o gateway não responde, a área principal mostra **"Connection lost: … Failed to fetch"** e o botão **"Tentar novamente"** — as tabs ficam visíveis mas o conteúdo não é renderizado. É exatamente o que acontece no preview público, porque o gateway ainda não está deployado:
+
+![Cockpit sem gateway](assets/screenshots/00-offline-gateway.png)
+
+Para operar de verdade, suba o gateway local (`cargo run -p zylos-gateway`, escuta em `127.0.0.1:3000` por padrão; override com `ZYLOS_LISTEN`) e abra o cockpit a partir de uma origem local (`trunk serve` em `apps/zylos-cockpit`, ou `scripts/zylos-start.sh`). O gateway aplica `local_guard::so_desta_maquina` e só aceita `Origin` desta máquina (`apps/zylos-gateway/src/local_guard.rs`).
+
 ---
 
 ## 2. Acesso e Autenticação
+
+> **Estado atual (verificado no código em 2026-11-17):** o componente `auth_login.rs` existe em `apps/zylos-cockpit/src/components/`, mas **não está montado** em `App` (`app.rs`) — o preview abre direto no dashboard, sem tela de login. Os endpoints `/api/v1/auth/login` e `/api/v1/auth/register` existem no gateway. O fluxo abaixo descreve o comportamento planejado.
 
 ### 2.1 Login
 1. Acesse a URL do cockpit
@@ -91,7 +102,11 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 - Filtro por status: running/idle/blocked/archived
 - Busca por nome/role
 
-**Screenshot esperado:** Grid de cards com avatares coloridos por division, badges de status verde/amarelo/vermelho.
+**Screenshot real (preview, 2026-11-17):**
+
+![Agents (Roster de Agentes)](assets/screenshots/01-agents.png)
+
+*Estado capturado:* cards de amostra (`sample_agents()` em `app.rs`): Backend Engineer/Idle, Chief of Staff/Running, Code Reviewer/Blocked.
 
 ---
 
@@ -116,6 +131,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 - Botão "Retry" em tarefas failed
 - "Force Complete" (admin only)
 
+**Screenshot real (preview, 2026-11-17):**
+
+![Tasks (DAG de Tarefas)](assets/screenshots/02-tasks.png)
+
+*Estado capturado:* "Erro ao carregar tarefas: … Failed to fetch" — erro de fetch (gateway ausente).
+
 ---
 
 ### 4.3 Memory (Timeline)
@@ -130,6 +151,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 - Hover → preview completo
 - Clique → expande detalhes + contexto
 - Botão "Consolidate" → merge memórias similares (background job)
+
+**Screenshot real (preview, 2026-11-17):**
+
+![Memory (Timeline)](assets/screenshots/03-memory.png)
+
+*Estado capturado:* "Erro ao carregar memória" — erro de fetch (gateway ausente).
 
 ---
 
@@ -146,6 +173,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 - Editar target/criteria
 - Marcar milestone como atingido
 
+**Screenshot real (preview, 2026-11-17):**
+
+![Goals (Painel de Metas)](assets/screenshots/04-goals.png)
+
+*Estado capturado:* "Erro ao carregar goals" — erro de fetch (gateway ausente); rótulo da tab aparece como `tab.goals` (chave i18n sem tradução).
+
 ---
 
 ### 4.5 Personalities (Presets)
@@ -159,6 +192,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 **Ações:**
 - Aplicar personalidade a agente (dropdown no AgentCard)
 - Criar custom personality (form modal)
+
+**Screenshot real (preview, 2026-11-17):**
+
+![Personalities (Presets)](assets/screenshots/05-personalities.png)
+
+*Estado capturado:* "Erro ao carregar personalidades" — erro de fetch (gateway ausente); rótulo `tab.personalities` sem tradução.
 
 ---
 
@@ -175,6 +214,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 - Monitorar execução em tempo real
 - Abort crew (emergency stop)
 
+**Screenshot real (preview, 2026-11-17):**
+
+![SwarmDag (Orquestração)](assets/screenshots/06-swarm-dag.png)
+
+*Estado capturado:* "Erro ao carregar DAG" — erro de fetch (gateway ausente); rótulo `tab.swarm_dag` sem tradução.
+
 ---
 
 ### 4.7 Sentinel (AIOps)
@@ -189,6 +234,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 - Acknowledge alerta
 - Escalar para SOAR workflow
 - Ajustar thresholds
+
+**Screenshot real (preview, 2026-11-17):**
+
+![Sentinel (AIOps)](assets/screenshots/07-sentinel.png)
+
+*Estado capturado:* "Erro ao carregar sentinel" — erro de fetch (gateway ausente); rótulo `tab.sentinel` sem tradução.
 
 ---
 
@@ -205,6 +256,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 - Verificar integridade (re-hash)
 - Download bundle (ZIP)
 
+**Screenshot real (preview, 2026-11-17):**
+
+![EvidenceLedger (Provas)](assets/screenshots/08-evidence-ledger.png)
+
+*Estado capturado:* "Erro ao carregar ledger" — erro de fetch (gateway ausente); rótulo `tab.evidence_ledger` sem tradução.
+
 ---
 
 ### 4.9 HitlApproval (Gates)
@@ -219,6 +276,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 - Approve (com reason opcional)
 - Reject (reason obrigatório)
 - Delegate para outro agent
+
+**Screenshot real (preview, 2026-11-17):**
+
+![HitlApproval (Gates)](assets/screenshots/09-hitl.png)
+
+*Estado capturado:* "Erro ao carregar aprovações" — erro de fetch (gateway ausente); rótulo `tab.hitl_approval` sem tradução.
 
 ---
 
@@ -235,6 +298,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 - Editar (admin only)
 - Evoluir skill (gera novo contract)
 
+**Screenshot real (preview, 2026-11-17):**
+
+![Skills (Registry)](assets/screenshots/10-skills.png)
+
+*Estado capturado:* painel "Benchmarks de Performance" com botão "Executar Benchmarks" (o conteúdo real desta tab é `BenchmarkPanel`, não um registry de skills).
+
 ---
 
 ### 4.11 Logs (Event Feed)
@@ -249,6 +318,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 - Severity: info/warn/error
 - Agent: todos ou específico
 - Keyword search
+
+**Screenshot real (preview, 2026-11-17):**
+
+![Logs (Event Feed)](assets/screenshots/11-logs.png)
+
+*Estado capturado:* "Conectando... Aguardando eventos..." (SSE sem servidor).
 
 ---
 
@@ -265,6 +340,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 - Pausar execução
 - Ver logs detalhados
 
+**Screenshot real (preview, 2026-11-17):**
+
+![Soar (Orchestrator)](assets/screenshots/12-soar.png)
+
+*Estado capturado:* "Visão Geral / Playbooks / Eventos / Validação" com 4 playbooks, 1 ativo, 1 isolado — dados de demonstração embutidos no componente.
+
 ---
 
 ### 4.13 Security (Scanner)
@@ -280,6 +361,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 - Marcar como false positive
 - Ver detalhes CVE
 
+**Screenshot real (preview, 2026-11-17):**
+
+![Security (Scanner)](assets/screenshots/13-security.png)
+
+*Estado capturado:* "🛡️ Security Dashboard — Guardrails: fetch error" — erro de fetch (gateway ausente).
+
 ---
 
 ### 4.14 Awareness (Estados)
@@ -289,6 +376,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 **Componentes:**
 - `AgentAwarenessPanel`: Timeline de transições de estado
 - Filtros por agente/período
+
+**Screenshot real (preview, 2026-11-17):**
+
+![Awareness (Estados)](assets/screenshots/14-awareness.png)
+
+*Estado capturado:* "🧠 Agent Awareness — fetch error" — erro de fetch (gateway ausente).
 
 ---
 
@@ -303,6 +396,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 **Ações:**
 - Clique em nó → ver contract completo
 - Hover → mostra métricas de uso
+
+**Screenshot real (preview, 2026-11-17):**
+
+![SkillEvolution (Graph)](assets/screenshots/15-skill-evolution.png)
+
+*Estado capturado:* "🔄 Skill Evolution — Hierarchy: fetch error" — erro de fetch (gateway ausente).
 
 ---
 
@@ -319,6 +418,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 - Editar rotina (YAML editor)
 - Ajustar rate limit (token bucket)
 
+**Screenshot real (preview, 2026-11-17):**
+
+![EmployeeGovernance (Roles)](assets/screenshots/16-employee-governance.png)
+
+*Estado capturado:* "👥 Employee Governance — Roles: fetch error" — erro de fetch (gateway ausente).
+
 ---
 
 ### 4.17 TaskTriage (InboxSurface)
@@ -333,6 +438,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 - Drag-and-drop entre colunas
 - Marcar como done
 - Escalar para HITL approval
+
+**Screenshot real (preview, 2026-11-17):**
+
+![TaskTriage (InboxSurface)](assets/screenshots/17-task-triage.png)
+
+*Estado capturado:* "⚠️ Falha ao carregar dados de triagem" — erro de fetch (gateway ausente).
 
 ---
 
@@ -349,6 +460,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 - Reordenar (drag ou botões)
 - Arquivar thread
 
+**Screenshot real (preview, 2026-11-17):**
+
+![Threads (Conversas)](assets/screenshots/18-threads.png)
+
+*Estado capturado:* 3 threads de exemplo (Conversa Principal, Debug Session, Code Review) com botões ↑ ↓ ✕ — dados de demonstração embutidos no componente.
+
 ---
 
 ### 4.19 Subagents (Status)
@@ -362,6 +479,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 **Ações:**
 - Ver logs do subagent
 - Abort subagent (emergency stop)
+
+**Screenshot real (preview, 2026-11-17):**
+
+![Subagents (Status)](assets/screenshots/19-subagents.png)
+
+*Estado capturado:* cards de subagentes (Research Agent, Code Reviewer…) com steps/tokens/duração — dados de demonstração embutidos no componente.
 
 ---
 
@@ -378,6 +501,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 - Download
 - Delete (admin only)
 
+**Screenshot real (preview, 2026-11-17):**
+
+![Files (Manager)](assets/screenshots/20-files.png)
+
+*Estado capturado:* árvore backups/docs/media e arquivos de exemplo — dados de demonstração embutidos no componente.
+
 ---
 
 ### 4.21 Voice (Panel)
@@ -387,6 +516,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 **Componentes:**
 - `VoicePanel`: Controles de mic/speaker, transcript em tempo real
 - Indicadores de qualidade (latency, confidence)
+
+**Screenshot real (preview, 2026-11-17):**
+
+![Voice (Panel)](assets/screenshots/21-voice.png)
+
+*Estado capturado:* "Aguardando — Transcrição aparecerá aqui" com botões Ouvir/Parar/Mudo/1.0x.
 
 ---
 
@@ -398,6 +533,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 - `EmojiReactions`: Chips clicáveis com contadores
 - Picker de emoji custom
 
+**Screenshot real (preview, 2026-11-17):**
+
+![Reactions (Emoji)](assets/screenshots/22-reactions.png)
+
+*Estado capturado:* apenas o chip "+" (sem mensagens para reagir).
+
 ---
 
 ### 4.23 Avatars (Grid)
@@ -407,6 +548,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 **Componentes:**
 - `AgentAvatarsGrid`: Círculos coloridos por division
 - Badge de status (online/busy/away/offline)
+
+**Screenshot real (preview, 2026-11-17):**
+
+![Avatars (Grid)](assets/screenshots/23-avatars.png)
+
+*Estado capturado:* "Equipe de Agentes — 12 agentes" com iniciais e tarefa atual — dados de demonstração embutidos no componente.
 
 ---
 
@@ -418,6 +565,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 - `SkinThemesPanel`: Cards com preview de cores
 - Aplicação imediata com persistência
 
+**Screenshot real (preview, 2026-11-17):**
+
+![Skins (Themes)](assets/screenshots/24-skins.png)
+
+*Estado capturado:* cards de temas (Default ativo, Ocean, Forest…) — dados de demonstração embutidos no componente. Obs.: os nomes reais diferem da lista "Monokai/Solarized/…" desta seção.
+
 ---
 
 ### 4.25 Fleet (Auditor)
@@ -428,6 +581,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 - `FleetAuditorPanel`: Tabela com sorting, filtros por período
 - Gráficos de tendência (custo vs eficácia)
 
+**Screenshot real (preview, 2026-11-17):**
+
+![Fleet (Auditor)](assets/screenshots/25-fleet.png)
+
+*Estado capturado:* Fleet Auditor com custo total $77.02, 14.180.000 tokens, 90.1% sucesso — dados de demonstração embutidos no componente.
+
 ---
 
 ### 4.26 Federation (Dashboard)
@@ -437,6 +596,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 **Componentes:**
 - `FederationDashboard`: Métricas de sync, conflitos resolvidos
 - Lista de nós federados com latência
+
+**Screenshot real (preview, 2026-11-17):**
+
+![Federation (Dashboard)](assets/screenshots/26-federation.png)
+
+*Estado capturado:* 4 nós, 1847 syncs/24h, 127ms latência média — dados de demonstração embutidos no componente.
 
 ---
 
@@ -452,6 +617,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 - Enviar mensagem (Enter)
 - Mencionar agente (@nome)
 - Anexar arquivo (drag-and-drop)
+
+**Screenshot real (preview, 2026-11-17):**
+
+![Chat (Panel)](assets/screenshots/27-chat.png)
+
+*Estado capturado:* lista de bots (Assistente Zylos/openai, Dev Agent/anthropic, Pesquisador/google) e "Selecione um bot".
 
 ---
 
@@ -469,6 +640,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 - Enviar mensagem (Enter ou botão)
 
 **Backend:** `zylos-channels` com SQLite persistente
+
+**Screenshot real (preview, 2026-11-17):**
+
+![Channels (Sistema)](assets/screenshots/28-channels.png)
+
+*Estado capturado:* canais #Geral, #Desenvolvimento, 🔒Segurança, #Anúncios com mensagens — dados de demonstração embutidos no componente.
 
 ---
 
@@ -488,6 +665,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 
 **Backend:** `webrtc_relay.rs` no gateway
 
+**Screenshot real (preview, 2026-11-17):**
+
+![PhoneRelay (Mobile)](assets/screenshots/29-phone-relay.png)
+
+*Estado capturado:* código de pareamento `ZYLOS-7X4K-M9Q2` e dispositivo "Pixel 8 Pro" — dados de demonstração embutidos no componente.
+
 ---
 
 ### 4.30 SkillEditor (Visual)
@@ -505,6 +688,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 - Save to Backend (POST `/api/v1/hermes/skill-evolution/contracts`)
 
 **Backend:** Integração com Hermes skill-evolution API
+
+**Screenshot real (preview, 2026-11-17):**
+
+![SkillEditor (Visual)](assets/screenshots/30-swarm-topology.png)
+
+*Estado capturado:* "⚠️ Gateway indisponível: fetch error" — erro de fetch (gateway ausente).
 
 ---
 
@@ -524,6 +713,12 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 - Resetar layout (botão)
 
 **Backend:** Polling `/api/v1/hermes/bot/spawn-crew` a cada 5s
+
+**Screenshot real (preview, 2026-11-17):**
+
+![SwarmTopology (Interativo)](assets/screenshots/31-skill-editor.png)
+
+*Estado capturado:* toolbar (+ Add Step, Undo, Redo, Save to Backend) e "⚠️ Gateway indisponível" — erro de fetch (gateway ausente).
 
 ---
 
@@ -560,6 +755,8 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 ---
 
 ## 6. Keyboard Shortcuts
+
+> **Atenção:** em 2026-11-17 não há handler global de teclado no cockpit (apenas `channel_panel.rs` e `chat_panel.rs` tratam `keydown`, para Enter no input). Os atalhos `1-9`, `Ctrl+K` e `Ctrl+/` abaixo são **planejados, não implementados**. `Tab`/`Shift+Tab`/`Enter` funcionam por serem comportamento nativo do browser.
 
 | Tecla | Ação |
 |-------|------|
@@ -631,5 +828,16 @@ O **Cockpit Zylos** é a interface web de operação e monitoramento do sistema 
 
 ---
 
-**Última atualização:** 2026-11-12  
+## 9. Sobre os Screenshots
+
+- **Origem:** preview Cloudflare Pages `https://fix-ci-trigger-master.zylos-cockpit-preview.pages.dev` (deploy do workflow `.github/workflows/deploy-preview.yml`), capturado em 2026-11-17 com Chrome headless 1280×800 via `playwright-core`.
+- **Script reprodutível:** `docs/assets/screenshots/capture-cockpit-screenshots.js` (`npm i playwright-core@1 && node capture-cockpit-screenshots.js <dir-saida>`; ajuste `CHROME` para o caminho do seu Chrome).
+- **`00-offline-gateway.png`**: estado 100% real, sem nenhuma interceptação.
+- **`01..31-*.png`**: para que as tabs renderizem, o script intercepta **apenas** `GET http://localhost:3000/api/v1/health` e responde `{"status":"ok","active_streams":0,"version":"preview-mock"}` (por isso o header mostra `vpreview-mock`). Todas as outras chamadas a `localhost:3000` são recusadas — por isso muitos painéis mostram erro de fetch. Os painéis que aparecem populados usam dados de demonstração embutidos no próprio componente, não dados de produção.
+- **Problemas visíveis nos screenshots (registrados para correção):** 6 tabs exibem a chave i18n crua (`tab.goals`, `tab.personalities`, `tab.swarm_dag`, `tab.sentinel`, `tab.evidence_ledger`, `tab.hitl_approval`) porque faltam entradas em `apps/zylos-cockpit/src/i18n.rs`; erros de fetch exibem o stack trace WASM inteiro ao usuário.
+- **Atualizar:** quando o gateway de produção estiver no ar, re-execute o script sem a interceptação de health e substitua os PNGs.
+
+---
+
+**Última atualização:** 2026-11-17  
 **Mantido por:** Hermes Agent (via skill `documentation-author`)
