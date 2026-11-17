@@ -6,6 +6,9 @@ use crate::manifest::{ActionSpec, IntegrationSpec};
 use crate::oauth::{OAuthFlow, TokenBundle};
 use serde_json::Value;
 use tracing::{debug, info, warn};
+use zylos_agent_shield::network_egress::{
+    parse_url_target, EgressConfig, EgressDecision, EgressRule, NetworkEgressFilter,
+};
 
 /// Simple PII patterns scanned on outbound request bodies before dispatch.
 /// In production this would delegate to `zylos-sentinel`; here we provide a
@@ -42,23 +45,112 @@ fn scan_outbound_pii(body: &Value) -> Vec<String> {
     findings
 }
 
+/// Hosts que o executor pode chamar (fail-closed). Derivados de `specs/*.yaml`.
+/// Hosts com placeholder (`{shop}.myshopify.com`) entram como wildcard de sufixo.
+pub const ALLOWED_PROVIDER_HOSTS: &[&str] = &[
+    "*.myshopify.com",
+    "api.atlassian.com",
+    "api.figma.com",
+    "api.github.com",
+    "api.linear.app",
+    "api.notion.com",
+    "api.stripe.com",
+    "gmail.googleapis.com",
+    "open.feishu.cn",
+    "qyapi.weixin.qq.com",
+    "slack.com",
+    "www.googleapis.com",
+];
+
+/// Identidade usada nas regras de egress do executor.
+pub const EGRESS_AGENT: &str = "zylos-integrations";
+
+/// Filtro de egress padrão do executor: só HTTPS (443) para os hosts dos provedores,
+/// com checagem do IP resolvido (anti DNS-rebinding / SSRF para rede interna).
+pub fn default_egress_filter() -> NetworkEgressFilter {
+    let mut rules = std::collections::HashMap::new();
+    rules.insert(
+        EGRESS_AGENT.to_string(),
+        EgressRule {
+            allowed_hosts: ALLOWED_PROVIDER_HOSTS
+                .iter()
+                .map(|h| h.to_string())
+                .collect(),
+            allowed_ports: vec![443],
+            deny_all: false,
+        },
+    );
+    NetworkEgressFilter::new(EgressConfig {
+        egress_rules: rules,
+        log_blocked: true,
+        allow_dns_resolution: true,
+    })
+}
+
+/// Codifica um valor para entrar num template de URL (RFC 3986 unreserved).
+/// Impede que um parâmetro troque host, caminho ou query (`evil.com/`, `../`, `?`, `#`, `@`).
+fn encode_url_param(v: &str) -> String {
+    let mut out = String::with_capacity(v.len());
+    for b in v.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char)
+            }
+            _ => out.push_str(&format!("%{:02X}", b)),
+        }
+    }
+    out
+}
+
+/// Checagem de egress usada pelo executor antes de cada chamada.
+pub async fn check_egress_with(filter: &NetworkEgressFilter, url: &str) -> Result<()> {
+    let blocked = |reason: String| IntegrationError::ProviderExecution {
+        provider: "egress".into(),
+        action: "check_egress".into(),
+        detail: format!("egress bloqueado: {reason}"),
+    };
+    if !url.to_ascii_lowercase().starts_with("https://") {
+        return Err(blocked(format!("só HTTPS é permitido ({url})")));
+    }
+    let (host, port) = parse_url_target(url).map_err(blocked)?;
+    let (decision, _ips) = filter.check_with_dns(EGRESS_AGENT, &host, port).await;
+    match decision {
+        EgressDecision::Allowed => Ok(()),
+        EgressDecision::Blocked { reason } => Err(blocked(reason)),
+    }
+}
+
 /// Executes actions against provider APIs using stored OAuth tokens.
 pub struct ActionExecutor {
     db: TokenStore,
     oauth: OAuthFlow,
     http: reqwest::Client,
+    egress: NetworkEgressFilter,
 }
 
 impl ActionExecutor {
     pub fn new(db: TokenStore, oauth: OAuthFlow) -> Self {
+        Self::with_egress(db, oauth, default_egress_filter())
+    }
+
+    /// Construtor com filtro de egress explícito (testes / política customizada).
+    pub fn with_egress(db: TokenStore, oauth: OAuthFlow, egress: NetworkEgressFilter) -> Self {
         Self {
             db,
             oauth,
             http: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(30))
+                // Redirect seguiria para um host não validado pelo filtro.
+                .redirect(reqwest::redirect::Policy::none())
                 .build()
                 .expect("Failed to build HTTP client"),
+            egress,
         }
+    }
+
+    /// Verifica a URL final no filtro de egress (host, porta, IP resolvido).
+    pub async fn check_egress(&self, url: &str) -> Result<()> {
+        check_egress_with(&self.egress, url).await
     }
 
     /// Execute an action on behalf of a user.
@@ -107,6 +199,7 @@ impl ActionExecutor {
 
         // Build the request
         let url = self.build_url(&action.url_template, params);
+        self.check_egress(&url).await?;
         let request = self.build_request(&action.method, &url, &bundle.access_token, params)?;
 
         debug!(provider = %spec.slug, action = %action.id, "Executing integration action");
@@ -164,8 +257,8 @@ impl ActionExecutor {
                 let placeholder = format!("{{{}}}", key);
                 if url.contains(&placeholder) {
                     let replacement = match value {
-                        Value::String(s) => s.clone(),
-                        other => other.to_string(),
+                        Value::String(s) => encode_url_param(s),
+                        other => encode_url_param(&other.to_string()),
                     };
                     url = url.replace(&placeholder, &replacement);
                 }
@@ -218,5 +311,72 @@ impl ActionExecutor {
         }
 
         builder.build().map_err(IntegrationError::Http)
+    }
+}
+
+#[cfg(test)]
+mod egress_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn bloqueia_hosts_fora_da_allowlist_e_rede_interna() {
+        let f = default_egress_filter();
+        for url in [
+            "http://api.github.com/repos",
+            "https://169.254.169.254/latest/meta-data",
+            "https://127.0.0.1/admin",
+            "https://localhost/",
+            "https://evil.example.com/",
+            "https://api.github.com:8443/",
+            "https://user@api.github.com/",
+            "https://api.github.com.evil.com/",
+            "file:///etc/passwd",
+        ] {
+            assert!(
+                check_egress_with(&f, url).await.is_err(),
+                "deveria bloquear {url}"
+            );
+        }
+    }
+
+    #[test]
+    fn allowlist_cobre_os_specs() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("specs");
+        let mut hosts = std::collections::BTreeSet::new();
+        for e in std::fs::read_dir(dir).unwrap() {
+            let txt = std::fs::read_to_string(e.unwrap().path()).unwrap();
+            for part in txt.split("https://").skip(1) {
+                let h = part.split(['/', '"', '\'', ' ', '\n']).next().unwrap();
+                hosts.insert(h.replace("{shop}", "x"));
+            }
+        }
+        for h in hosts {
+            let ok = ALLOWED_PROVIDER_HOSTS
+                .iter()
+                .any(|a| match a.strip_prefix("*.") {
+                    Some(suf) => h.ends_with(&format!(".{suf}")),
+                    None => *a == h,
+                });
+            // URLs de OAuth/autorização (ex.: accounts.google.com) não passam pelo executor.
+            if !ok {
+                assert!(
+                    h.contains("oauth")
+                        || h.contains("accounts.")
+                        || h.contains("auth")
+                        || !h.contains("api") && !h.contains("googleapis"),
+                    "host de API sem regra de egress: {h}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn parametro_nao_troca_host_nem_caminho() {
+        assert_eq!(
+            encode_url_param("evil.com/x?y#z@w"),
+            "evil.com%2Fx%3Fy%23z%40w"
+        );
+        assert_eq!(encode_url_param("../admin"), "..%2Fadmin");
+        assert_eq!(encode_url_param("abc-123_~."), "abc-123_~.");
     }
 }

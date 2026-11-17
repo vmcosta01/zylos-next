@@ -91,6 +91,13 @@ impl AuthState {
     }
 }
 
+impl AuthState {
+    /// Serviço de tokens compartilhado (mesma denylist de revogação do middleware).
+    pub fn token_service(&self) -> Option<TokenService> {
+        self.svc.clone()
+    }
+}
+
 /// Cria router com endpoints de autenticação.
 pub fn create_auth_router() -> Router {
     create_auth_router_with(AuthState::from_env())
