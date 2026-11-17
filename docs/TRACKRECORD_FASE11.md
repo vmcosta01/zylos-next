@@ -1,9 +1,9 @@
 # TRACKRECORD — Fase 11 Unificada (A→B→C→D)
 
-**Versão:** 1.2.0
+**Versão:** 1.3.0
 **Data Início:** 2026-11-12
 **Plano Mestre:** [IMPLEMENTATION_PLAN_FASE11_MEGA.md](./IMPLEMENTATION_PLAN_FASE11_MEGA.md)
-**Status Geral:** 🟢 EM ANDAMENTO — 29/85 concluídas, 4 parciais, 1 bloqueada (auditado contra o código em 2026-11-17)
+**Status Geral:** 🟢 EM ANDAMENTO — 30/85 concluídas, 3 parciais, 1 bloqueada (auditado contra o código em 2026-11-17)
 
 ---
 
@@ -11,15 +11,25 @@
 
 | Macro-Fase | Fases | Tasks Totais | Concluídas | Parciais | Bloqueadas | Status |
 |------------|-------|-------------|-----------|--------------|-----------|--------|
-| A: Build Release & CI/CD | 11.1–11.3 | 20 | 15 | 3 | 0 | 🟢 Em Andamento |
+| A: Build Release & CI/CD | 11.1–11.3 | 20 | 16 | 2 | 0 | 🟢 Em Andamento |
 | B: Deploy Produção & Monitoring | 11.4–11.6 | 23 | 5 | 1 | 1 | 🟢 Em Andamento |
 | C: AIOps, Integrações, CRDT, Analytics | 11.7–11.10 | 32 | 9 | 0 | 0 | 🟢 Em Andamento |
 | D: Auditoria Final Segurança | 11.11 | 10 | 0 | 0 | 0 | ⬜ Planejado |
-| **TOTAL** | **11 fases** | **85** | **29** | **4** | **1** | **🟢 Em Andamento** |
+| **TOTAL** | **11 fases** | **85** | **30** | **3** | **1** | **🟢 Em Andamento** |
 
 ---
 
 ## Log Cronológico de Execuções
+
+### 2026-11-17 — T11.3.8 concluída: pipeline end-to-end (PR → CI → preview → merge)
+
+**Evidências:**
+- Deploy Preview run 44082225630 (commit 96c0921): primeira execução; Build Cockpit WASM ✅ + Deploy to Cloudflare Pages ✅; https://fix-ci-trigger-master.zylos-cockpit-preview.pages.dev → HTTP 200.
+- Bug encontrado: comentário do PR saía com "Preview URL" vazio — workflow lia `steps.deploy.outputs.url`, mas `cloudflare/wrangler-action@v3` (action.yml) só expõe `deployment-url`. Corrigido em `deploy-preview.yml` (8f84d5c) e `deploy-prod.yml` environment url (4d3abf1).
+- Deploy Preview run 44083522250 (4d3abf1) ✅ — comentário no PR #1 com URL preenchida: https://b8e02578.zylos-cockpit-preview.pages.dev
+- CI run 44083522252 (4d3abf1): 12/12 jobs verdes.
+- PR #1 mergeado em `master` em 2026-11-17T12:38:08Z (merge commit e41495d).
+**Pendente fora desta task:** `deploy-prod.yml` (tag `v*`) ainda nunca executado — validar na T11.4.1.
 
 ### 2026-11-17 — Auditoria do TRACKRECORD contra o código + fix gatilho deploy-preview
 
@@ -93,11 +103,11 @@
 | 11.3.1 | Workflow ci.yml (clippy, test, build, e2e) | ✅ Completo | 2026-11-17 | 14 jobs (wasm-build, wasm-size-check, e2e-tests inclusos); verde no PR #1 |
 | 11.3.2 | Cache cargo registry + target | ✅ Completo | 2026-11-12 | Swatinem/rust-cache@v2 já configurado |
 | 11.3.3 | Size check job (>5MB = fail) | ✅ Completo | 2026-11-12 | Job wasm-size-check no ci.yml |
-| 11.3.4 | Workflow deploy-preview.yml | ✅ Completo | 2026-11-17 | Cloudflare Pages preview por PR; gatilho corrigido main → main+master em 2026-11-17 |
-| 11.3.5 | Workflow deploy-prod.yml | ✅ Completo | 2026-11-12 | Via tag v* + GitHub Release (ainda nunca executado) |
+| 11.3.4 | Workflow deploy-preview.yml | ✅ Completo | 2026-11-17 | Cloudflare Pages preview por PR; gatilho main → main+master; output `deployment-url` corrigido; executado com sucesso |
+| 11.3.5 | Workflow deploy-prod.yml | ✅ Completo | 2026-11-12 | Via tag v* + GitHub Release (output `deployment-url` corrigido; ainda nunca executado) |
 | 11.3.6 | Configurar secrets no GitHub | 🟡 Parcial | — | ✅ CLOUDFLARE_API_TOKEN/ACCOUNT_ID (2026-11-13). ❌ JWT_SECRET, SENTRY_DSN (manual, usuário). SECURITY.md não atualizado |
 | 11.3.7 | Badges de status nos READMEs | ⬜ Pendente | — | CI já rodou verde; apps/zylos-cockpit/README.md e apps/zylos-gateway/README.md sem badge |
-| 11.3.8 | Testar pipeline end-to-end | 🟡 Parcial | — | ✅ PR #1 aberto + CI verde. ❌ Merge pendente. ❌ Deploy preview nunca rodou (gatilho corrigido; validar no próximo push do PR) |
+| 11.3.8 | Testar pipeline end-to-end | ✅ Completo | 2026-11-17 | PR #1 → CI 44083522252 (12/12) → Deploy Preview 44083522250 (URL no comentário) → merge e41495d |
 
 ### Fase 11.4: Deploy Produção + Monitoring ⬜
 | Task | Descrição | Status | Data Conclusão | Notas |
@@ -215,7 +225,7 @@
 
 | Métrica | Target | Atual | Tendência |
 |---------|--------|-------|-----------|
-| Tasks concluídas | 85 | 29 (+4 parciais) | 📈 Crescente |
+| Tasks concluídas | 85 | 30 (+3 parciais) | 📈 Crescente |
 | Documents produzidos | ≥82 | 9 | 📈 Crescente |
 | Gates verdes | 11 | 1 (11.1); 11.2 e 11.3 parciais | 📈 Crescente |
 | Auditorias aprovadas | 11 | 0 | ➡️ Aguardando |
@@ -252,6 +262,7 @@
 | 2026-11-12 | 1.0.0 | Hermes Agent | Criação inicial do track record para Fase 11 |
 | 2026-11-12 | 1.1.0 | Hermes Agent | Fase 11.1 completa (ADR-011), Fase 11.2 parcial (12 testes E2E novos, 20/20 passed) |
 | 2026-11-17 | 1.2.0 | Hermes Agent | Auditoria contra código: 29 concluídas/4 parciais/1 bloqueada de 85; fix gatilho deploy-preview (master) |
+| 2026-11-17 | 1.3.0 | Hermes Agent | T11.3.8 ✅ (preview + merge e41495d); fix output deployment-url; 30/3/1 de 85 |
 
 ---
 
