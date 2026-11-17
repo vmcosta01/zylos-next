@@ -37,6 +37,7 @@ members = [
     "tests/zylos-e2e", "crates/zylos-independent-verifier", "crates/zylos-approval", "crates/zylos-egress", "crates/zylos-audit-log", "crates/zylos-brief", "crates/zylos-model-config", "crates/zylos-computer-view", "crates/zylos-spaces",
     "crates/zylos-channels",
     "crates/zylos-auth",
+    "crates/zylos-analytics",
 ]
 
 [workspace.package]

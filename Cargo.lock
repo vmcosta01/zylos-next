@@ -14188,6 +14188,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "zylos-analytics"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "zylos-approval"
 version = "0.1.0"
 dependencies = [
@@ -14529,6 +14541,7 @@ dependencies = [
  "tracing-subscriber",
  "zylos-adapters",
  "zylos-agent-shield",
+ "zylos-analytics",
  "zylos-auth",
  "zylos-browser-takeover",
  "zylos-channels",

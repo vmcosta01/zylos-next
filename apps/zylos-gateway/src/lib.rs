@@ -1,5 +1,6 @@
 //! zylos-gateway library — exposes AppState and build_router for integration tests.
 
+pub mod analytics_api;
 pub mod auth_api;
 pub mod axiom_logging;
 pub mod bots_api;
@@ -203,6 +204,8 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
     let integrations = integrations_api::create_integrations_router(
         integrations_api::IntegrationsState::from_env(),
     );
+    let analytics =
+        analytics_api::create_analytics_router(analytics_api::AnalyticsHandle::from_env());
 
     Router::new()
         .merge(root_health)
@@ -231,7 +234,8 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
                 .merge(computer_view)
                 .merge(webrtc_relay)
                 .merge(auth)
-                .merge(integrations),
+                .merge(integrations)
+                .merge(analytics),
         )
         .layer(axum::middleware::from_fn_with_state(
             sentinel_rt,

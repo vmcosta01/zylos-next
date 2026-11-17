@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen_futures::spawn_local;
 
 use crate::benchmarks::BenchmarkPanel;
+use crate::components::analytics_panel::AnalyticsPanel;
 use crate::components::{
     provide_theme, AgentAvatarsGrid, AgentAwarenessPanel, AgentInfo, AgentStatus, ChannelPanel,
     ChatPanel, EmojiReactions, EmployeeGovernancePanel, EvidenceLedgerPanel, FederationDashboard,
@@ -75,6 +76,7 @@ pub enum Tab {
     Integrations,
     SwarmTopology,
     SkillEditor,
+    Analytics,
 }
 
 impl Tab {
@@ -112,6 +114,7 @@ impl Tab {
             Tab::Integrations => "tab-integrations",
             Tab::SwarmTopology => "tab-swarm-topology",
             Tab::SkillEditor => "tab-skill-editor",
+            Tab::Analytics => "tab-analytics",
         }
     }
 
@@ -149,6 +152,7 @@ impl Tab {
             Tab::Integrations => "tab.integrations",
             Tab::SwarmTopology => "tab.swarm_topology",
             Tab::SkillEditor => "tab.skill_editor",
+            Tab::Analytics => "tab.analytics",
         }
     }
 }
@@ -248,6 +252,7 @@ pub fn App() -> impl IntoView {
 <TabButton tab=Tab::Integrations active_tab=active_tab set_active_tab=set_active_tab />
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         <TabButton tab=Tab::SwarmTopology active_tab=active_tab set_active_tab=set_active_tab />
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 <TabButton tab=Tab::SkillEditor active_tab=active_tab set_active_tab=set_active_tab />
+                <TabButton tab=Tab::Analytics active_tab=active_tab set_active_tab=set_active_tab />
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                </nav>
 
             <main class="cockpit-main">
@@ -588,6 +593,12 @@ fn TabContent(tab: Tab) -> impl IntoView {
         Tab::SkillEditor => view! {
         <div class="tab-panel tab-panel-skill-editor">
         <SkillEditorPanel />
+        </div>
+        }
+        .into_any(),
+        Tab::Analytics => view! {
+        <div class="tab-panel tab-panel-analytics">
+        <AnalyticsPanel />
         </div>
         }
         .into_any(),
