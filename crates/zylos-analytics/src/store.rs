@@ -8,6 +8,10 @@
 //!   inserção. Responde às consultas do dashboard sem varrer a tabela bruta;
 //!   é o que mantém o load < 2s com 1M+ eventos (ver
 //!   `docs/fase11-reports/analytics-benchmark.md`).
+//! - `rollup_dim_hourly` — pré-agregação por (dimensão, valor, hora, agente,
+//!   skill). Responde filtros de **uma** dimensão customizada (`dim.k = v`)
+//!   sem `json_extract` sobre a tabela bruta. Bancos criados antes desta
+//!   tabela são migrados (backfill idempotente) em [`AnalyticsStore::open`].
 //!
 //! `rusqlite::Connection` é `Send` mas não `Sync`; o gateway envolve o store
 //! num `Mutex`.
@@ -68,6 +72,21 @@ CREATE TABLE IF NOT EXISTS rollup_hourly (
 CREATE INDEX IF NOT EXISTS idx_rollup_skill ON rollup_hourly(skill, hour);
 CREATE INDEX IF NOT EXISTS idx_rollup_agent ON rollup_hourly(agent, hour);
 
+CREATE TABLE IF NOT EXISTS rollup_dim_hourly (
+    dkey        TEXT NOT NULL,
+    dval        TEXT NOT NULL,
+    hour        INTEGER NOT NULL,
+    agent       TEXT NOT NULL,
+    skill       TEXT NOT NULL,
+    n           INTEGER NOT NULL,
+    ok          INTEGER NOT NULL,
+    lat_sum     INTEGER NOT NULL,
+    lat_max     INTEGER NOT NULL,
+    cost        REAL NOT NULL,
+    tokens      INTEGER NOT NULL,
+    PRIMARY KEY (dkey, dval, hour, agent, skill)
+) WITHOUT ROWID;
+
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -84,6 +103,88 @@ const UPSERT_ROLLUP: &str =
         lat_max = MAX(lat_max, excluded.lat_max),
         cost = cost + excluded.cost,
         tokens = tokens + excluded.tokens";
+
+const UPSERT_DIM_ROLLUP: &str =
+    "INSERT INTO rollup_dim_hourly (dkey, dval, hour, agent, skill, n, ok, lat_sum, lat_max, cost, tokens)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+     ON CONFLICT(dkey, dval, hour, agent, skill) DO UPDATE SET
+        n = n + excluded.n,
+        ok = ok + excluded.ok,
+        lat_sum = lat_sum + excluded.lat_sum,
+        lat_max = MAX(lat_max, excluded.lat_max),
+        cost = cost + excluded.cost,
+        tokens = tokens + excluded.tokens";
+
+/// Chave em `meta` que marca o backfill de `rollup_dim_hourly` como feito.
+const META_DIM_ROLLUP: &str = "schema.rollup_dim_hourly.v1";
+
+/// Backfill de `rollup_dim_hourly` a partir dos eventos brutos (quentes +
+/// arquivo). Só valores-texto entram — o mesmo que `insert_batch` produz.
+const BACKFILL_DIM_ROLLUP: &str = "
+    DELETE FROM rollup_dim_hourly;
+    INSERT INTO rollup_dim_hourly (dkey, dval, hour, agent, skill, n, ok, lat_sum, lat_max, cost, tokens)
+    SELECT j.key, j.value, e.ts - (e.ts % 3600), e.agent, e.skill,
+           COUNT(*), SUM(e.success), SUM(e.latency_ms), MAX(e.latency_ms),
+           SUM(e.cost_usd), SUM(e.tokens)
+    FROM all_events AS e, json_each(e.dims) AS j
+    WHERE e.dims <> '{}' AND j.type = 'text'
+    GROUP BY 1, 2, 3, 4, 5;";
+
+/// Fonte física escolhida para responder um [`Filter`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Source {
+    /// `rollup_hourly` (período/agente/skill alinhados à hora).
+    Rollup,
+    /// `rollup_dim_hourly` (idem + exatamente uma dimensão).
+    DimRollup,
+    /// `all_events` (eventos brutos).
+    Raw,
+}
+
+impl Source {
+    pub(crate) fn of(f: &Filter) -> Self {
+        if f.rollup_compatible() {
+            Self::Rollup
+        } else if f.dim_rollup_compatible() {
+            Self::DimRollup
+        } else {
+            Self::Raw
+        }
+    }
+
+    pub(crate) fn table(self) -> &'static str {
+        match self {
+            Self::Rollup => "rollup_hourly",
+            Self::DimRollup => "rollup_dim_hourly",
+            Self::Raw => "all_events",
+        }
+    }
+
+    pub(crate) fn ts_col(self) -> &'static str {
+        match self {
+            Self::Raw => "ts",
+            _ => "hour",
+        }
+    }
+
+    pub(crate) fn is_rollup(self) -> bool {
+        self != Self::Raw
+    }
+
+    /// `WHERE` parametrizado para esta fonte.
+    pub(crate) fn where_sql(self, f: &Filter) -> Result<(String, Vec<rusqlite::types::Value>)> {
+        let (mut w, mut p) = f.to_sql(self.ts_col(), self.is_rollup())?;
+        if self == Self::DimRollup {
+            if let Some((k, v)) = f.dimensions.iter().next() {
+                w.push_str(if w.is_empty() { " WHERE " } else { " AND " });
+                w.push_str("dkey = ? AND dval = ?");
+                p.push(rusqlite::types::Value::Text(k.clone()));
+                p.push(rusqlite::types::Value::Text(v.clone()));
+            }
+        }
+        Ok((w, p))
+    }
+}
 
 /// Store SQLite de eventos.
 pub struct AnalyticsStore {
@@ -119,9 +220,32 @@ impl AnalyticsStore {
         Self::init(Connection::open_in_memory()?)
     }
 
-    fn init(conn: Connection) -> Result<Self> {
+    fn init(mut conn: Connection) -> Result<Self> {
         conn.execute_batch(SCHEMA)?;
+        Self::migrate(&mut conn)?;
         Ok(Self { conn })
+    }
+
+    /// Migrações idempotentes para bancos criados por versões anteriores.
+    fn migrate(conn: &mut Connection) -> Result<()> {
+        let done: Option<String> = conn
+            .query_row(
+                "SELECT value FROM meta WHERE key = ?1",
+                [META_DIM_ROLLUP],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if done.is_none() {
+            let tx = conn.transaction()?;
+            tx.execute_batch(BACKFILL_DIM_ROLLUP)?;
+            tx.execute(
+                "INSERT INTO meta(key, value) VALUES (?1, '1')
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                [META_DIM_ROLLUP],
+            )?;
+            tx.commit()?;
+        }
+        Ok(())
     }
 
     /// Manutenção após cargas grandes: checkpoint do WAL (trunca o arquivo
@@ -151,6 +275,7 @@ impl AnalyticsStore {
         }
         let tx = self.conn.transaction()?;
         let mut roll: HashMap<(i64, &str, &str), RollAcc> = HashMap::new();
+        let mut droll: HashMap<(&str, &str, i64, &str, &str), RollAcc> = HashMap::new();
         {
             let mut stmt = tx.prepare_cached(
                 "INSERT INTO events (ts, agent, skill, success, latency_ms, cost_usd, tokens, dims)
@@ -182,11 +307,34 @@ impl AnalyticsStore {
                 acc.lat_max = acc.lat_max.max(e.latency_ms as i64);
                 acc.cost += e.cost_usd;
                 acc.tokens += e.tokens as i64;
+                for (k, v) in &e.dimensions {
+                    let d = droll
+                        .entry((
+                            k.as_str(),
+                            v.as_str(),
+                            hour,
+                            e.agent.as_str(),
+                            e.skill.as_str(),
+                        ))
+                        .or_default();
+                    d.n += 1;
+                    d.ok += e.success as i64;
+                    d.lat_sum += e.latency_ms as i64;
+                    d.lat_max = d.lat_max.max(e.latency_ms as i64);
+                    d.cost += e.cost_usd;
+                    d.tokens += e.tokens as i64;
+                }
             }
             let mut up = tx.prepare_cached(UPSERT_ROLLUP)?;
             for ((hour, agent, skill), a) in &roll {
                 up.execute(params![
                     hour, agent, skill, a.n, a.ok, a.lat_sum, a.lat_max, a.cost, a.tokens
+                ])?;
+            }
+            let mut dup = tx.prepare_cached(UPSERT_DIM_ROLLUP)?;
+            for ((k, v, hour, agent, skill), a) in &droll {
+                dup.execute(params![
+                    k, v, hour, agent, skill, a.n, a.ok, a.lat_sum, a.lat_max, a.cost, a.tokens
                 ])?;
             }
         }
@@ -196,9 +344,10 @@ impl AnalyticsStore {
 
     /// Conta eventos (quentes + arquivados) que satisfazem o filtro.
     pub fn count(&self, f: &Filter) -> Result<u64> {
-        if f.rollup_compatible() {
-            let (w, p) = f.to_sql("hour", true)?;
-            let sql = format!("SELECT COALESCE(SUM(n),0) FROM rollup_hourly{w}");
+        let src = Source::of(f);
+        if src.is_rollup() {
+            let (w, p) = src.where_sql(f)?;
+            let sql = format!("SELECT COALESCE(SUM(n),0) FROM {}{w}", src.table());
             let n: i64 = self
                 .conn
                 .query_row(&sql, params_from_iter(p), |r| r.get(0))?;
@@ -403,6 +552,37 @@ mod tests {
             .query_events_with(&Filter::all(), |e| e.latency_ms > 100, 10)
             .unwrap();
         assert_eq!(slow.len(), 1);
+    }
+
+    #[test]
+    fn migration_backfills_dim_rollup_idempotently() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("old.db");
+        {
+            let mut s = AnalyticsStore::open(&p).unwrap();
+            s.insert_batch(&[
+                AnalyticsEvent::new(3600, "a", "s", true, 10).with_dim("channel", "slack"),
+                AnalyticsEvent::new(3700, "a", "s", false, 30).with_dim("channel", "slack"),
+                AnalyticsEvent::new(3800, "b", "s", true, 20).with_dim("channel", "api"),
+                AnalyticsEvent::new(3900, "b", "s", true, 20),
+            ])
+            .unwrap();
+            // simula banco de versão anterior: sem a tabela nem o marcador
+            s.conn
+                .execute_batch(
+                    "DROP TABLE rollup_dim_hourly;
+                     DELETE FROM meta WHERE key = 'schema.rollup_dim_hourly.v1';",
+                )
+                .unwrap();
+        }
+        for _ in 0..2 {
+            let s = AnalyticsStore::open(&p).unwrap();
+            let slack = Filter::all().dim("channel", "slack");
+            assert_eq!(s.count(&slack).unwrap(), 2);
+            let b = s.summary(&slack).unwrap();
+            assert_eq!((b.count, b.success, b.max_latency_ms), (2, 1, 30));
+            assert_eq!(s.count(&Filter::all().dim("channel", "api")).unwrap(), 1);
+        }
     }
 
     #[test]

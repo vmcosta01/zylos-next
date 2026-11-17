@@ -125,6 +125,17 @@ impl Filter {
             && aligned(self.until)
     }
 
+    /// `true` se o filtro pode ser respondido por `rollup_dim_hourly`:
+    /// como [`Filter::rollup_compatible`], mas com exatamente uma dimensão.
+    pub fn dim_rollup_compatible(&self) -> bool {
+        self.dimensions.len() == 1
+            && Filter {
+                dimensions: BTreeMap::new(),
+                ..self.clone()
+            }
+            .rollup_compatible()
+    }
+
     /// Compila para `WHERE ...` parametrizado. `ts_col` é a coluna de tempo
     /// (`ts` na tabela bruta, `hour` no rollup). Quando `rollup` é `true`,
     /// apenas período/agente/skill são emitidos.
@@ -267,6 +278,24 @@ mod tests {
         assert!(Filter::all().range(3600, 7200).rollup_compatible());
         assert!(!Filter::all().range(3601, 7200).rollup_compatible());
         assert!(!Filter::all().dim("k", "v").rollup_compatible());
+        assert!(Filter::all().dim("k", "v").dim_rollup_compatible());
+        assert!(Filter::all()
+            .range(3600, 7200)
+            .agent("a")
+            .dim("k", "v")
+            .dim_rollup_compatible());
+        assert!(!Filter::all()
+            .dim("k", "v")
+            .dim("j", "w")
+            .dim_rollup_compatible());
+        assert!(!Filter::all()
+            .range(3601, 7200)
+            .dim("k", "v")
+            .dim_rollup_compatible());
+        let mut f = Filter::all().dim("k", "v");
+        f.success = Some(true);
+        assert!(!f.dim_rollup_compatible());
+        assert!(!Filter::all().dim_rollup_compatible());
     }
 
     #[test]
