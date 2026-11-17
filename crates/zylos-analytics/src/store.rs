@@ -106,6 +106,11 @@ impl AnalyticsStore {
         let conn = Connection::open(path)?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "synchronous", "NORMAL")?;
+        // 64 MiB de page cache + 256 MiB mmap: o rollup e os índices ficam
+        // quentes em memória (o benchmark T11.10.8 depende disso).
+        conn.pragma_update(None, "cache_size", -65_536)?;
+        conn.pragma_update(None, "mmap_size", 268_435_456i64)?;
+        conn.pragma_update(None, "temp_store", "MEMORY")?;
         Self::init(conn)
     }
 
@@ -117,6 +122,19 @@ impl AnalyticsStore {
     fn init(conn: Connection) -> Result<Self> {
         conn.execute_batch(SCHEMA)?;
         Ok(Self { conn })
+    }
+
+    /// Manutenção após cargas grandes: checkpoint do WAL (trunca o arquivo
+    /// `-wal`) e `ANALYZE`/`PRAGMA optimize` para o planner escolher os índices.
+    pub fn optimize(&self) -> Result<()> {
+        self.conn
+            .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))
+            .or_else(|e| match e {
+                rusqlite::Error::QueryReturnedNoRows => Ok(()),
+                other => Err(other),
+            })?;
+        self.conn.execute_batch("ANALYZE; PRAGMA optimize;")?;
+        Ok(())
     }
 
     /// Insere um evento; retorna o id.
@@ -195,21 +213,34 @@ impl AnalyticsStore {
     }
 
     /// Lista eventos (mais recentes primeiro) com paginação.
+    ///
+    /// Consulta cada tabela (quente e arquivo) com `ORDER BY ts DESC LIMIT`
+    /// próprio — usa `idx_events_ts`/`idx_archive_ts` em vez de ordenar a view
+    /// `all_events` inteira — e intercala o resultado.
     pub fn query_events(
         &self,
         f: &Filter,
         limit: usize,
         offset: usize,
     ) -> Result<Vec<AnalyticsEvent>> {
-        let (w, mut p) = f.to_sql("ts", false)?;
+        let (w, p) = f.to_sql("ts", false)?;
+        let take = (limit + offset) as i64;
         let sql = format!(
-            "SELECT id, ts, agent, skill, success, latency_ms, cost_usd, tokens, dims
-             FROM all_events{w} ORDER BY ts DESC, id DESC LIMIT ? OFFSET ?"
+            "SELECT * FROM (SELECT id, ts, agent, skill, success, latency_ms, cost_usd, tokens, dims
+                FROM events{w} ORDER BY ts DESC, id DESC LIMIT ?)
+             UNION ALL
+             SELECT * FROM (SELECT id, ts, agent, skill, success, latency_ms, cost_usd, tokens, dims
+                FROM events_archive{w} ORDER BY ts DESC, id DESC LIMIT ?)
+             ORDER BY 2 DESC, 1 DESC LIMIT ? OFFSET ?"
         );
-        p.push(rusqlite::types::Value::Integer(limit as i64));
-        p.push(rusqlite::types::Value::Integer(offset as i64));
+        let mut all = p.clone();
+        all.push(rusqlite::types::Value::Integer(take));
+        all.extend(p);
+        all.push(rusqlite::types::Value::Integer(take));
+        all.push(rusqlite::types::Value::Integer(limit as i64));
+        all.push(rusqlite::types::Value::Integer(offset as i64));
         let mut stmt = self.conn.prepare(&sql)?;
-        let rows = stmt.query_map(params_from_iter(p), row_to_event)?;
+        let rows = stmt.query_map(params_from_iter(all), row_to_event)?;
         let mut out = Vec::new();
         for r in rows {
             out.push(r?);

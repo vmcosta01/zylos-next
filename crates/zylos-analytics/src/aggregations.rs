@@ -147,7 +147,8 @@ pub enum GroupBy {
 }
 
 impl GroupBy {
-    fn col(self) -> &'static str {
+    /// Nome da coluna SQL (`agent`|`skill`).
+    pub fn column(self) -> &'static str {
         match self {
             Self::Agent => "agent",
             Self::Skill => "skill",
@@ -261,7 +262,7 @@ impl AnalyticsStore {
     pub fn breakdown(&self, f: &Filter, by: GroupBy) -> Result<Vec<GroupStats>> {
         let (table, tcol, rollup) = source(f);
         let (w, p) = f.to_sql(tcol, rollup)?;
-        let c = by.col();
+        let c = by.column();
         let sql = format!(
             "SELECT {c}, {m} FROM {table}{w} GROUP BY {c} ORDER BY 2 DESC, {c}",
             m = metric_cols(rollup)
@@ -291,7 +292,7 @@ impl AnalyticsStore {
         let (table, tcol, rollup) = source(f);
         let (w, p) = f.to_sql(tcol, rollup)?;
         let b = granularity.sql_bucket(tcol);
-        let c = by.col();
+        let c = by.column();
         let sql = format!(
             "SELECT {c}, {b} AS bk, {m} FROM {table}{w} GROUP BY {c}, bk ORDER BY {c}, bk",
             m = metric_cols(rollup)

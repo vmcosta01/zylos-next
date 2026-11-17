@@ -1,5 +1,6 @@
 //! zylos-gateway library — exposes AppState and build_router for integration tests.
 
+pub mod analytics_api;
 pub mod auth_api;
 pub mod axiom_logging;
 pub mod bots_api;
@@ -190,6 +191,8 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
     let webrtc_relay =
         webrtc_relay::create_webrtc_relay_router(webrtc_relay::WebRtcRelayState::new());
     let auth = auth_api::create_auth_router();
+    let analytics =
+        analytics_api::create_analytics_router(analytics_api::AnalyticsHandle::from_env());
 
     Router::new()
         .merge(root_health)
@@ -216,7 +219,8 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
                 .merge(channels)
                 .merge(computer_view)
                 .merge(webrtc_relay)
-                .merge(auth),
+                .merge(auth)
+                .merge(analytics),
         )
         .layer(tower_http::trace::TraceLayer::new_for_http())
         .layer(
