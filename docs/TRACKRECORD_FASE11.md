@@ -1,25 +1,36 @@
 # TRACKRECORD — Fase 11 Unificada (A→B→C→D)
 
-**Versão:** 1.0.0
+**Versão:** 1.2.0
 **Data Início:** 2026-11-12
 **Plano Mestre:** [IMPLEMENTATION_PLAN_FASE11_MEGA.md](./IMPLEMENTATION_PLAN_FASE11_MEGA.md)
-**Status Geral:** 🟢 EM ANDAMENTO (Fase 11.1 completa, Fase 11.2 em progresso)
+**Status Geral:** 🟢 EM ANDAMENTO — 29/85 concluídas, 4 parciais, 1 bloqueada (auditado contra o código em 2026-11-17)
 
 ---
 
 ## Resumo Executivo
 
-| Macro-Fase | Fases | Tasks Totais | Concluídas | Em Andamento | Bloqueadas | Status |
+| Macro-Fase | Fases | Tasks Totais | Concluídas | Parciais | Bloqueadas | Status |
 |------------|-------|-------------|-----------|--------------|-----------|--------|
-| A: Build Release & CI/CD | 11.1–11.3 | 20 | 6 | 3 | 0 | 🟢 Em Andamento |
-| B: Deploy Produção & Monitoring | 11.4–11.6 | 23 | 0 | 0 | 0 | ⬜ Planejado |
-| C: AIOps, Integrações, CRDT, Analytics | 11.7–11.10 | 31 | 0 | 0 | 0 | ⬜ Planejado |
+| A: Build Release & CI/CD | 11.1–11.3 | 20 | 15 | 3 | 0 | 🟢 Em Andamento |
+| B: Deploy Produção & Monitoring | 11.4–11.6 | 23 | 5 | 1 | 1 | 🟢 Em Andamento |
+| C: AIOps, Integrações, CRDT, Analytics | 11.7–11.10 | 32 | 9 | 0 | 0 | 🟢 Em Andamento |
 | D: Auditoria Final Segurança | 11.11 | 10 | 0 | 0 | 0 | ⬜ Planejado |
-| **TOTAL** | **11 fases** | **84** | **6** | **3** | **0** | **🟢 Em Andamento** |
+| **TOTAL** | **11 fases** | **85** | **29** | **4** | **1** | **🟢 Em Andamento** |
 
 ---
 
 ## Log Cronológico de Execuções
+
+### 2026-11-17 — Auditoria do TRACKRECORD contra o código + fix gatilho deploy-preview
+
+**Atividade:** Conferência de cada task marcada contra arquivos, testes locais e GitHub (`gh run/pr/secret`).
+**Evidências:**
+- CI run 44032056450 (PR #1 `fix/ci-trigger-master` → `master`): 12/12 jobs verdes (Clippy, Test, Docs, Check, Coverage, Rustfmt, MSRV, Security Audit, WASM Build, WASM Size Check, E2E Chrome, Build Release). 11 runs anteriores falharam.
+- `cargo test -p zylos-sentinel`: 26 + 16 + 9 passed · `-p zylos-integrations --lib`: 23 passed · `-p zylos-gateway --lib notification_router`: 8 passed.
+- `gh secret list`: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, FLY_API_TOKEN, SLACK_BOT/APP/USER_TOKEN, NOTION_TOKEN, LINEAR_TOKEN (todos 2026-11-13). Ausentes: JWT_SECRET, SENTRY_DSN.
+**Problema Identificado:** `deploy-preview.yml` filtrava `pull_request.branches: ["main"]`, mas a branch padrão é `master` (não existe `main` no remoto) → deploy preview nunca executou. `deploy-prod.yml` (tag `v*`) também nunca executou.
+**Solução Aplicada:** gatilho alterado para `branches: ["main", "master"]` (mesmo padrão do `ci.yml`).
+**Correções de status:** 11.2.4, 11.3.6, 11.3.8, 11.4.4 → 🟡 Parcial; 11.8.7 → desbloqueada (tokens existem); contagem 84 → 85 (Macro C tem 32 tasks).
 
 ### 2026-11-12 — Fase 11.1: ADR-011 Decidida + wasm-opt Fix
 
@@ -59,9 +70,9 @@
 ### Fase 11.1: Validação de Build Release ✅
 | Task | Descrição | Status | Data Conclusão | Notas |
 |------|-----------|--------|----------------|-------|
-| 11.1.1 | Configurar profile release-lto | ✅ Completo | 2026-11-12 | ADR-011: manter Default (opt-level 3, fat LTO) |
+| 11.1.1 | Configurar profile release-lto | ✅ Completo | 2026-11-12 | ADR-011: manter Default. Atual em Cargo.toml: opt-level 3, lto = true, codegen-units 1; `strip` removido no commit 3318e8f (preservar target_features WASM) |
 | 11.1.2 | Auditar dependências pesadas | ✅ Completo | 2026-11-12 | playbooks/pot-wasm-dependency-audit.md; P1/P2 opcionais (1.44MB já atende target) |
-| 11.1.3 | Integrar wasm-opt pós-build | ✅ Completo | 2026-11-12 | Wrapper C# injeta flags automaticamente |
+| 11.1.3 | Integrar wasm-opt pós-build | ✅ Completo | 2026-11-12 | Local: wrapper C#; no repo: `data-wasm-opt-params` em apps/zylos-cockpit/index.html |
 | 11.1.4 | Validar build release <5MB gzipped | ✅ Completo | 2026-11-12 | 1.44 MB gzipped (71% abaixo do target) |
 | 11.1.5 | Code splitting via leptos::lazy | ⬜ Pendente | — | Não necessário (1.44MB já atende) |
 | 11.1.6 | Benchmark final de tamanho | ✅ Completo | 2026-11-12 | docs/BENCHMARK_RELEASE_PROFILES.md |
@@ -70,23 +81,23 @@
 | Task | Descrição | Status | Data Conclusão | Notas |
 |------|-----------|--------|----------------|-------|
 | 11.2.1 | Instalar Chrome + chromedriver | ✅ Completo | 2026-11-12 | Chrome 157 + chromedriver 157.0.8103.39 |
-| 11.2.2 | E2E para componentes críticos | ✅ Completo | 2026-11-12 | tests/e2e_channels.rs (3 testes mount DOM) |
+| 11.2.2 | E2E para componentes críticos | ✅ Completo | 2026-11-12 | e2e_channels.rs (3) + e2e_components.rs (8). Obs.: arquivos e2e_auth/e2e_skill_editor/e2e_topology do plano não existem com esses nomes |
 | 11.2.3 | E2E para workflows completos | ✅ Completo | 2026-11-12 | tests/e2e_workflows.rs (5 workflows) |
-| 11.2.4 | Timeout annotations em testes lentos | ✅ Completo | 2026-11-12 | Removido std::thread::sleep (não funciona em WASM) |
-| 11.2.5 | Executar suite completa | ✅ Completo | 2026-11-12 | 20/20 passed, 0 failed |
+| 11.2.4 | Timeout annotations em testes lentos | 🟡 Parcial | — | Nenhum `timeout = 300` em tests/e2e_*.rs; apenas removido std::thread::sleep |
+| 11.2.5 | Executar suite completa | ✅ Completo | 2026-11-17 | 25 testes em 4 arquivos; job E2E Chrome Headless verde no CI run 44032056450 |
 | 11.2.6 | Testes de regressão para bugs conhecidos | ✅ Completo | 2026-11-12 | tests/e2e_regression.rs (9 testes) |
 
 ### Fase 11.3: CI/CD Pipeline 🟢
 | Task | Descrição | Status | Data Conclusão | Notas |
 |------|-----------|--------|----------------|-------|
-| 11.3.1 | Workflow ci.yml (clippy, test, build, e2e) | ✅ Completo | 2026-11-12 | 3 novos jobs WASM adicionados |
+| 11.3.1 | Workflow ci.yml (clippy, test, build, e2e) | ✅ Completo | 2026-11-17 | 14 jobs (wasm-build, wasm-size-check, e2e-tests inclusos); verde no PR #1 |
 | 11.3.2 | Cache cargo registry + target | ✅ Completo | 2026-11-12 | Swatinem/rust-cache@v2 já configurado |
 | 11.3.3 | Size check job (>5MB = fail) | ✅ Completo | 2026-11-12 | Job wasm-size-check no ci.yml |
-| 11.3.4 | Workflow deploy-preview.yml | ✅ Completo | 2026-11-12 | Cloudflare Pages preview por PR |
-| 11.3.5 | Workflow deploy-prod.yml | ✅ Completo | 2026-11-12 | Via tag v* + GitHub Release |
-| 11.3.6 | Configurar secrets no GitHub | ⬜ Pendente | — | Manual (usuário): CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID |
-| 11.3.7 | Badges de status nos READMEs | ⬜ Pendente | — | Após primeiro run do CI |
-| 11.3.8 | Testar pipeline end-to-end | ⬜ Pendente | — | Requer PR real no GitHub |
+| 11.3.4 | Workflow deploy-preview.yml | ✅ Completo | 2026-11-17 | Cloudflare Pages preview por PR; gatilho corrigido main → main+master em 2026-11-17 |
+| 11.3.5 | Workflow deploy-prod.yml | ✅ Completo | 2026-11-12 | Via tag v* + GitHub Release (ainda nunca executado) |
+| 11.3.6 | Configurar secrets no GitHub | 🟡 Parcial | — | ✅ CLOUDFLARE_API_TOKEN/ACCOUNT_ID (2026-11-13). ❌ JWT_SECRET, SENTRY_DSN (manual, usuário). SECURITY.md não atualizado |
+| 11.3.7 | Badges de status nos READMEs | ⬜ Pendente | — | CI já rodou verde; apps/zylos-cockpit/README.md e apps/zylos-gateway/README.md sem badge |
+| 11.3.8 | Testar pipeline end-to-end | 🟡 Parcial | — | ✅ PR #1 aberto + CI verde. ❌ Merge pendente. ❌ Deploy preview nunca rodou (gatilho corrigido; validar no próximo push do PR) |
 
 ### Fase 11.4: Deploy Produção + Monitoring ⬜
 | Task | Descrição | Status | Data Conclusão | Notas |
@@ -94,9 +105,9 @@
 | 11.4.1 | Cloudflare Pages produção | ⬜ Pendente | — | Custom domain + SSL |
 | 11.4.2 | Provisionar VPS/K8s para gateway | ⬜ Pendente | — | Manual (usuário) |
 | 11.4.3 | Reverse proxy + TLS + WebSocket | ⬜ Pendente | — | nginx/Caddy |
-| 11.4.4 | Sentry integração (cockpit + gateway) | ✅ Completo | 2026-11-12 | sentry + sentry-tracing adicionados; main.rs inicializa via SENTRY_DSN; pb-sentry-integration.md criado |
+| 11.4.4 | Sentry integração (cockpit + gateway) | 🟡 Parcial | — | Gateway ✅ (sentry 0.46.2, sentry::init em main.rs, pb-sentry-integration.md). Cockpit ❌ sem Sentry |
 | 11.4.5 | Axiom logging estruturado | ✅ Completo | 2026-11-12 | axiom_logging.rs com batching async; reqwest adicionado; pb-axiom-logging-setup.md criado |
-| 11.4.6 | Health check endpoints | ✅ Completo | 2026-11-12 | /api/v1/health + /api/v1/cockpit/health adicionados ao gateway; pop-health-check-validation.md criado |
+| 11.4.6 | Health check endpoints | ✅ Completo | 2026-11-12 | /api/v1/health + /api/v1/cockpit/health + /gateway/health no gateway (lib.rs); pop-health-check-validation.md criado |
 | 11.4.7 | Alertas automáticos | ✅ Completo | 2026-11-12 | soar-production-alerts.md com 4 regras (error rate, latency, health check, wasm size); matriz SEV-1 a SEV-4 |
 | 11.4.8 | Source maps WASM → Sentry | ✅ Completo | 2026-11-12 | pop-wasm-source-maps.md criado com procedimento completo + integração CI/CD |
 | 11.4.9 | Smoke test produção | ⏸️ Bloqueado | — | Requer deploy em produção (T11.4.1–T11.4.3 manuais) |
@@ -126,7 +137,7 @@
 ### Fase 11.7: AIOps Sentinel 🟢
 | Task | Descrição | Status | Data Conclusão | Notas |
 |------|-----------|--------|----------------|-------|
-| 11.7.1 | Crate zylos-sentinel | ✅ Completo | 2026-11-12 | Já existente (803 linhas); alert_rules.rs adicionado com YAML DSL engine + 8 testes |
+| 11.7.1 | Crate zylos-sentinel | ✅ Completo | 2026-11-12 | Já existente (803 linhas); alert_rules.rs adicionado com YAML DSL engine + 9 testes |
 | 11.7.2 | Métricas coletadas | ⬜ Pendente | — | Integrar com Axiom/health endpoints |
 | 11.7.3 | Alert rules engine DSL YAML | ✅ Completo | 2026-11-12 | alert_rules.rs: load_from_yaml, evaluate, cooldown, gated remediation; pb-sentinel-rules-authoring.md criado |
 | 11.7.4 | Integração Axiom | ⬜ Pendente | — | Conectar AlertRulesEngine a axiom_logging metrics |
@@ -142,9 +153,9 @@
 | 11.8.2 | Slack adapter | ✅ Completo | 2026-11-12 | slack.rs: ChannelAdapter impl via Web API + Bot Token; 2 testes |
 | 11.8.3 | Notion adapter | ✅ Completo | 2026-11-12 | notion.rs: ChannelAdapter impl via API v1 + Integration Token; 2 testes |
 | 11.8.4 | Linear adapter | ✅ Completo | 2026-11-12 | linear.rs: ChannelAdapter impl via GraphQL + Personal Access Token; 2 testes |
-| 11.8.5 | Notification router no gateway | ✅ Completo | 2026-11-12 | notification_router.rs com YAML config, severity filter, cooldown dedup, message templates; 7 testes unitários passando |
+| 11.8.5 | Notification router no gateway | ✅ Completo | 2026-11-12 | notification_router.rs com YAML config, severity filter, cooldown dedup, message templates; 8 testes unitários passando (2026-11-17) |
 | 11.8.6 | UI configuração integrações | ⬜ Pendente | — | Cockpit panel (requer trunk serve) |
-| 11.8.7 | Testes sandbox/staging | ⏸️ Bloqueado | — | Requer tokens reais de Slack/Notion/Linear |
+| 11.8.7 | Testes sandbox/staging | ⬜ Pendente | — | Desbloqueada: SLACK_*, NOTION_TOKEN, LINEAR_TOKEN existem nos secrets (2026-11-13) |
 | 11.8.8 | SOAR incident→notify→ticket→doc | ✅ Completo | 2026-11-12 | soar-incident-notification-workflow.md com fluxo completo Alert→Slack→Linear→Notion; error handling e fallbacks documentados |
 
 ### Fase 11.9: CRDT Multi-User Avançado ⬜
@@ -204,13 +215,13 @@
 
 | Métrica | Target | Atual | Tendência |
 |---------|--------|-------|-----------|
-| Tasks concluídas | 84 | 14 | 📈 Crescente |
+| Tasks concluídas | 85 | 29 (+4 parciais) | 📈 Crescente |
 | Documents produzidos | ≥82 | 9 | 📈 Crescente |
-| Gates verdes | 11 | 3 (11.1, 11.2, 11.3 parcial) | 📈 Crescente |
+| Gates verdes | 11 | 1 (11.1); 11.2 e 11.3 parciais | 📈 Crescente |
 | Auditorias aprovadas | 11 | 0 | ➡️ Aguardando |
 | Crates novos | 2 (sentinel, integrations) | 0 | ➡️ Aguardando |
-| Testes E2E novos | ≥60 | 17 (3 channels + 9 regression + 5 workflows) | 📈 Crescente |
-| Testes E2E totais | — | 25/25 passed | ✅ 100% pass rate |
+| Testes E2E novos | ≥60 | 25 (3 channels + 8 components + 9 regression + 5 workflows) | 📈 Crescente |
+| Testes E2E totais | — | 25 — job CI verde (run 44032056450) | ✅ 100% pass rate |
 
 ---
 
@@ -240,6 +251,7 @@
 |------|--------|-------|----------|
 | 2026-11-12 | 1.0.0 | Hermes Agent | Criação inicial do track record para Fase 11 |
 | 2026-11-12 | 1.1.0 | Hermes Agent | Fase 11.1 completa (ADR-011), Fase 11.2 parcial (12 testes E2E novos, 20/20 passed) |
+| 2026-11-17 | 1.2.0 | Hermes Agent | Auditoria contra código: 29 concluídas/4 parciais/1 bloqueada de 85; fix gatilho deploy-preview (master) |
 
 ---
 
