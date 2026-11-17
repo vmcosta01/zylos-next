@@ -1,6 +1,7 @@
 [package]
 name = "zylos-cockpit"
 version = "0.1.0"
+license.workspace = true
 edition = "2021"
 description = "Zylos-Next Cockpit — Leptos WASM frontend (ADR-042)"
 

@@ -1,6 +1,7 @@
 [package]
 name = "zylos-personalities"
 version = "0.1.0"
+license.workspace = true
 edition = "2021"
 description = "Personality-driven agent identities with division taxonomy for zylos-gateway"
 
