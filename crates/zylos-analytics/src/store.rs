@@ -38,6 +38,8 @@ CREATE TABLE IF NOT EXISTS events (
 CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts);
 CREATE INDEX IF NOT EXISTS idx_events_skill_ts ON events(skill, ts);
 CREATE INDEX IF NOT EXISTS idx_events_agent_ts ON events(agent, ts);
+-- filtros por latência (min/max_latency_ms): COUNT coberto pelo índice
+CREATE INDEX IF NOT EXISTS idx_events_latency_ts ON events(latency_ms, ts);
 
 CREATE TABLE IF NOT EXISTS events_archive (
     id          INTEGER PRIMARY KEY,
@@ -51,6 +53,7 @@ CREATE TABLE IF NOT EXISTS events_archive (
     dims        TEXT NOT NULL DEFAULT '{}'
 );
 CREATE INDEX IF NOT EXISTS idx_archive_ts ON events_archive(ts);
+CREATE INDEX IF NOT EXISTS idx_archive_latency_ts ON events_archive(latency_ms, ts);
 
 CREATE VIEW IF NOT EXISTS all_events AS
     SELECT id, ts, agent, skill, success, latency_ms, cost_usd, tokens, dims FROM events
@@ -353,11 +356,17 @@ impl AnalyticsStore {
                 .query_row(&sql, params_from_iter(p), |r| r.get(0))?;
             return Ok(n as u64);
         }
+        // Uma contagem por tabela (em vez da view `all_events`): permite ao
+        // planner usar índices cobrindo (`idx_*_latency_ts`, `idx_*_ts`).
         let (w, p) = f.to_sql("ts", false)?;
-        let sql = format!("SELECT COUNT(*) FROM all_events{w}");
+        let sql = format!(
+            "SELECT (SELECT COUNT(*) FROM events{w}) + (SELECT COUNT(*) FROM events_archive{w})"
+        );
+        let mut all = p.clone();
+        all.extend(p);
         let n: i64 = self
             .conn
-            .query_row(&sql, params_from_iter(p), |r| r.get(0))?;
+            .query_row(&sql, params_from_iter(all), |r| r.get(0))?;
         Ok(n as u64)
     }
 
@@ -412,6 +421,35 @@ impl AnalyticsStore {
         Ok(())
     }
 
+    /// Como [`Self::for_each_event`], mas entrega uma referência a um único
+    /// buffer reaproveitado entre linhas (sem alocar `String`/`BTreeMap` por
+    /// evento). `ordered = false` dispensa a ordenação cronológica.
+    pub(crate) fn scan_events(
+        &self,
+        f: &Filter,
+        ordered: bool,
+        mut visit: impl FnMut(&AnalyticsEvent),
+    ) -> Result<()> {
+        let (w, p) = f.to_sql("ts", false)?;
+        let order = if ordered {
+            " ORDER BY ts ASC, id ASC"
+        } else {
+            ""
+        };
+        let sql = format!(
+            "SELECT id, ts, agent, skill, success, latency_ms, cost_usd, tokens, dims
+             FROM all_events{w}{order}"
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
+        let mut rows = stmt.query(params_from_iter(p))?;
+        let mut e = AnalyticsEvent::new(0, "", "", false, 0);
+        while let Some(r) = rows.next()? {
+            fill_event(r, &mut e)?;
+            visit(&e);
+        }
+        Ok(())
+    }
+
     /// Lista eventos que satisfazem filtro **e** um predicado customizado.
     pub fn query_events_with(
         &self,
@@ -420,9 +458,9 @@ impl AnalyticsStore {
         limit: usize,
     ) -> Result<Vec<AnalyticsEvent>> {
         let mut out = Vec::new();
-        self.for_each_event(f, |e| {
-            if out.len() < limit && pred(&e) {
-                out.push(e);
+        self.scan_events(f, true, |e| {
+            if out.len() < limit && pred(e) {
+                out.push(e.clone());
             }
         })?;
         Ok(out)
@@ -480,8 +518,8 @@ impl AnalyticsStore {
 }
 
 fn row_to_event(r: &rusqlite::Row<'_>) -> rusqlite::Result<AnalyticsEvent> {
-    let dims: String = r.get(8)?;
-    let dimensions: BTreeMap<String, String> = serde_json::from_str(&dims).unwrap_or_default();
+    let dims = r.get_ref(8)?.as_str().unwrap_or("{}");
+    let dimensions = parse_dims(dims);
     Ok(AnalyticsEvent {
         id: Some(r.get(0)?),
         ts: r.get(1)?,
@@ -493,6 +531,131 @@ fn row_to_event(r: &rusqlite::Row<'_>) -> rusqlite::Result<AnalyticsEvent> {
         tokens: r.get::<_, i64>(7)?.max(0) as u64,
         dimensions,
     })
+}
+
+/// Preenche `e` com a linha `r` reaproveitando as alocações de `e`.
+fn fill_event(r: &rusqlite::Row<'_>, e: &mut AnalyticsEvent) -> rusqlite::Result<()> {
+    fn set(dst: &mut String, src: &str) {
+        dst.clear();
+        dst.push_str(src);
+    }
+    e.id = Some(r.get(0)?);
+    e.ts = r.get(1)?;
+    set(&mut e.agent, r.get_ref(2)?.as_str()?);
+    set(&mut e.skill, r.get_ref(3)?.as_str()?);
+    e.success = r.get::<_, i64>(4)? != 0;
+    e.latency_ms = r.get::<_, i64>(5)?.max(0) as u64;
+    e.cost_usd = r.get(6)?;
+    e.tokens = r.get::<_, i64>(7)?.max(0) as u64;
+    let dims = r.get_ref(8)?.as_str().unwrap_or("{}");
+    if !fill_flat_dims(dims, &mut e.dimensions) {
+        e.dimensions = parse_dims(dims);
+    }
+    Ok(())
+}
+
+/// Atualiza `map` in-place a partir de um objeto JSON plano sem escapes,
+/// reaproveitando chaves/valores já alocados. `false` se o formato não for o
+/// caminho rápido (o chamador cai em [`parse_dims`]).
+fn fill_flat_dims(s: &str, map: &mut BTreeMap<String, String>) -> bool {
+    if s == "{}" {
+        map.clear();
+        return true;
+    }
+    if s.contains('\\') {
+        return false;
+    }
+    let mut pairs: [(&str, &str); 8] = [("", ""); 8];
+    let mut n = 0;
+    let Some(mut rest) = s.strip_prefix('{').and_then(|x| x.strip_suffix('}')) else {
+        return false;
+    };
+    let take = |r: &str| -> Option<(usize, usize)> {
+        let body = r.strip_prefix('"')?;
+        let end = body.find('"')?;
+        Some((end, end + 2))
+    };
+    loop {
+        if n == pairs.len() {
+            return false;
+        }
+        let Some((kl, used)) = take(rest) else {
+            return false;
+        };
+        let k = &rest[1..1 + kl];
+        let Some(r2) = rest[used..].strip_prefix(':') else {
+            return false;
+        };
+        let Some((vl, used)) = take(r2) else {
+            return false;
+        };
+        pairs[n] = (k, &r2[1..1 + vl]);
+        n += 1;
+        rest = &r2[used..];
+        if rest.is_empty() {
+            break;
+        }
+        let Some(r3) = rest.strip_prefix(',') else {
+            return false;
+        };
+        rest = r3;
+    }
+    let pairs = &pairs[..n];
+    let same_keys = map.len() == n && pairs.iter().all(|(k, _)| map.contains_key(*k));
+    if same_keys {
+        for (k, v) in pairs {
+            if let Some(slot) = map.get_mut(*k) {
+                if slot != v {
+                    slot.clear();
+                    slot.push_str(v);
+                }
+            }
+        }
+    } else {
+        // chaves duplicadas: último valor vence (igual ao serde_json)
+        map.clear();
+        for (k, v) in pairs {
+            map.insert((*k).to_string(), (*v).to_string());
+        }
+    }
+    true
+}
+
+/// Decodifica a coluna `dims`. Caminho rápido para o formato que
+/// `insert_batch` grava (objeto JSON plano de strings sem escapes, ex.
+/// `{"channel":"slack","model":"haiku"}`); qualquer outra coisa (escapes,
+/// espaços, tipos não-string) cai no `serde_json` — mesma semântica.
+fn parse_dims(s: &str) -> BTreeMap<String, String> {
+    if s == "{}" {
+        return BTreeMap::new();
+    }
+    if !s.contains('\\') {
+        if let Some(m) = parse_flat_dims(s) {
+            return m;
+        }
+    }
+    serde_json::from_str(s).unwrap_or_default()
+}
+
+fn parse_flat_dims(s: &str) -> Option<BTreeMap<String, String>> {
+    let mut rest = s.strip_prefix('{')?.strip_suffix('}')?;
+    let mut out = BTreeMap::new();
+    let take_str = |r: &str| -> Option<(String, usize)> {
+        let body = r.strip_prefix('"')?;
+        let end = body.find('"')?;
+        Some((body[..end].to_string(), end + 2))
+    };
+    loop {
+        let (k, used) = take_str(rest)?;
+        rest = rest[used..].strip_prefix(':')?;
+        let (v, used) = take_str(rest)?;
+        rest = &rest[used..];
+        out.insert(k, v);
+        if rest.is_empty() {
+            return Some(out);
+        }
+        rest = rest.strip_prefix(',')?;
+    }
 }
 
 #[cfg(test)]
@@ -521,6 +684,38 @@ mod tests {
         };
         assert_eq!(s.count(&ff).unwrap(), 1);
         assert_eq!(s.distinct_skills().unwrap(), vec!["s1", "s2"]);
+    }
+
+    #[test]
+    fn parse_dims_matches_serde() {
+        let cases = [
+            "{}",
+            r#"{"channel":"slack"}"#,
+            r#"{"channel":"slack","model":"haiku"}"#,
+            r#"{"a":"","b.c-d":"ção ✓"}"#,
+            r#"{"k":"with \"quote\" and \\ slash"}"#,
+            r#"{ "k" : "spaced" }"#,
+            r#"{"n":1}"#,
+            "not json",
+            "",
+        ];
+        for c in cases {
+            let want: BTreeMap<String, String> = serde_json::from_str(c).unwrap_or_default();
+            assert_eq!(parse_dims(c), want, "{c}");
+        }
+        let mut m = BTreeMap::new();
+        m.insert("x".to_string(), "a,b:\"c\"".to_string());
+        m.insert("y".to_string(), "{}".to_string());
+        let enc = serde_json::to_string(&m).unwrap();
+        assert_eq!(parse_dims(&enc), m);
+        // caminho in-place: sequência de linhas com conjuntos de chaves variados
+        let mut buf = BTreeMap::new();
+        for c in cases.iter().chain(cases.iter().rev()) {
+            let want: BTreeMap<String, String> = serde_json::from_str(c).unwrap_or_default();
+            if fill_flat_dims(c, &mut buf) {
+                assert_eq!(buf, want, "{c}");
+            }
+        }
     }
 
     #[test]

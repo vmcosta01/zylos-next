@@ -359,8 +359,9 @@ impl AnalyticsStore {
         pred: impl Fn(&AnalyticsEvent) -> bool,
     ) -> Result<Vec<Bucket>> {
         let mut acc: BTreeMap<i64, (Bucket, f64)> = BTreeMap::new();
-        self.for_each_event(f, |e| {
-            if !pred(&e) {
+        // buffer reaproveitado e sem ORDER BY: o BTreeMap já ordena os buckets
+        self.scan_events(f, false, |e| {
+            if !pred(e) {
                 return;
             }
             let start = granularity.bucket_start(e.ts);
