@@ -39,6 +39,18 @@ impl NotionAdapter {
         }
     }
 
+    /// Create adapter with custom API URL (for testing/proxy/sandbox).
+    pub fn with_base_url(token: String, base_url: String) -> Self {
+        Self {
+            token,
+            client: Client::builder()
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+                .expect("failed to build reqwest client"),
+            base_url,
+        }
+    }
+
     async fn api_get(&self, path: &str) -> Result<serde_json::Value> {
         let url = format!("{}{}", self.base_url, path);
         let resp = self

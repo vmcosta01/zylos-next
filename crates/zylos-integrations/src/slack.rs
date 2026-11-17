@@ -38,7 +38,6 @@ impl SlackAdapter {
     }
 
     /// Create adapter with custom base URL (for testing/proxy).
-    #[allow(dead_code)]
     pub fn with_base_url(bot_token: String, base_url: String) -> Self {
         Self {
             bot_token,
