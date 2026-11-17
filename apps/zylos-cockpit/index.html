@@ -12,7 +12,7 @@
 
     <!-- T11.5.3 resource hints: o Trunk injeta <link rel="modulepreload"> do JS e
          <link rel="preload" as="fetch" type="application/wasm"> do WASM automaticamente. -->
-    <link data-trunk rel="rust" data-bin="zylos-cockpit" data-wasm-opt-params="--enable-bulk-memory --enable-nontrapping-float-to-int" />
+    <link data-trunk rel="rust" data-bin="zylos-cockpit" data-cargo-profile="wasm-release" data-wasm-opt="z" data-wasm-opt-params="--enable-bulk-memory --enable-nontrapping-float-to-int" />
 
     <!-- T11.5.2 critical rendering path: shell crítico + CSS inlinado (zero folhas bloqueantes). -->
     <style>
@@ -22,8 +22,10 @@
         #app-splash p { color: #9CA3AF; font-size: 14px; }
         body:has(.cockpit-root) #app-splash { display: none; }
     </style>
-    <link data-trunk rel="css" href="design-tokens.css" data-inline />
-    <link data-trunk rel="css" href="style.css" data-inline />
+    <!-- rel="inline" do Trunk 0.22 embute o arquivo num <style> no HTML final
+         (o `rel="css" data-inline` não tinha efeito e gerava 2 <link> bloqueantes). -->
+    <link data-trunk rel="inline" type="css" href="design-tokens.css" />
+    <link data-trunk rel="inline" type="css" href="style.css" />
 
     <!-- T11.5.4 assets estáticos (a seção [[copy]] do Trunk.toml é ignorada pelo Trunk 0.22) -->
     <link data-trunk rel="copy-file" href="manifest.json" />
