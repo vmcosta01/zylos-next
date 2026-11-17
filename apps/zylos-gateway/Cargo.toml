@@ -48,6 +48,7 @@ zylos-auth = { path = "../../crates/zylos-auth" }
 zylos-computer-view = { version = "0.1.0", path = "../../crates/zylos-computer-view" }
 sentry = { version = "0.46.2", features = ["backtrace", "contexts", "panic", "log"] }
 zylos-sentinel = { version = "0.1.0", path = "../../crates/zylos-sentinel" }
+zylos-integrations = { path = "../../crates/zylos-integrations" }
 serde_yaml = "0.9.34"
 
 [dev-dependencies]

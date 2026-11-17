@@ -14535,6 +14535,7 @@ dependencies = [
  "zylos-computer-view",
  "zylos-evidence-ledger",
  "zylos-goals",
+ "zylos-integrations",
  "zylos-live-comm",
  "zylos-memory-sync",
  "zylos-memory-system",
@@ -14605,6 +14606,7 @@ version = "0.1.0"
 dependencies = [
  "aes-gcm",
  "async-trait",
+ "axum 0.7.9",
  "chrono",
  "dirs 5.0.1",
  "hex",
