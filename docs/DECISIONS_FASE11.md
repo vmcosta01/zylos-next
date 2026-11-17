@@ -146,23 +146,6 @@ Adotar **yrs 0.28** em todas as camadas:
 - Benchmark com 3 e 10 clientes simultâneos: ✅ ver `docs/fase11-reports/crdt-sync-benchmark.md`.
 - Tamanho WASM: ✅ medido (tabela acima).
 
----------|-----------|---------------|------------|---------|-----------|
-| Yjs | ~800KB | <50ms p95 | Alta (5+ anos) | Bindings oficiais | Grande (ProseMirror/TipTap) |
-| Automerge | ~1.2MB | <100ms p95 | Média (3 anos) | Crate nativo Rust | Média |
-| Diamond-types | ~400KB | <30ms p95 | Baixa (1 ano) | Crate nativo Rust | Pequena |
-
-### Critérios de Decisão
-- WASM size <1.5MB (para não impactar initial load)
-- Latência sync p95 <100ms local, <500ms remote
-- Bindings WASM estáveis e mantidos
-- Suporte a presence awareness e undo history
-- Licença compatível (MIT/Apache-2.0)
-
-### Validação Planejada
-- Implementar PoC com cada library (edit text simples)
-- Benchmark latência com 2, 5, 10 clientes simultâneos
-- Medir WASM size final com bindings
-- Avaliar documentação e exemplos disponíveis
 
 ---
 
