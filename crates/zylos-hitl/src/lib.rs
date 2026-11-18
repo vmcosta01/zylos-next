@@ -523,54 +523,195 @@ pub fn is_permanent(error: &str) -> bool {
         || lower.contains("zod_error")
 }
 
-// ─── WASM Policy Sandbox Stub (Task 7C.2.2) ───────────────────────────────
+// ─── WASM Policy Sandbox (Task 7C.2.2) ────────────────────────────────────
 
-/// Stub for WASM-based policy engine (wasmtime 25.0).
+/// Fuel granted to a single policy evaluation (bounds CPU time).
+pub const WASM_POLICY_FUEL: u64 = 10_000_000;
+/// Maximum linear memory a policy module may grow to (16 MiB).
+pub const WASM_POLICY_MAX_MEMORY: usize = 16 * 1024 * 1024;
+
+/// WASM-based policy engine backed by `wasmtime`.
 ///
-/// Currently a no-op placeholder; `evaluate()` always returns `None`.
-/// Will be replaced with real WASM execution when the runtime is integrated.
+/// # ABI contract
+///
+/// A policy module must export:
+///
+/// * `memory` — its linear memory;
+/// * `alloc(len: i32) -> i32` — returns a pointer to `len` writable bytes;
+/// * `evaluate(ptr: i32, len: i32) -> i32` — receives the [`ApprovalRequest`]
+///   serialized as UTF-8 JSON at `ptr..ptr+len` and returns
+///   `0` = no decision (pass to the next tier), `1` = approve, `2` = reject.
+///
+/// The module must not import anything. Each evaluation runs in a fresh
+/// store limited to [`WASM_POLICY_FUEL`] fuel and [`WASM_POLICY_MAX_MEMORY`]
+/// bytes of memory. Any trap, fuel exhaustion, ABI violation or unknown
+/// return code yields `None` and is recorded in [`Self::last_error`].
 pub struct WasmPolicySandbox {
-    loaded: bool,
+    engine: wasmtime::Engine,
+    module: Option<wasmtime::Module>,
     module_name: Option<String>,
+    last_error: std::sync::Mutex<Option<String>>,
+}
+
+struct PolicyStoreState {
+    limits: wasmtime::StoreLimits,
 }
 
 impl WasmPolicySandbox {
     /// Create a new empty sandbox with no module loaded.
     pub fn new() -> Self {
+        let mut config = wasmtime::Config::new();
+        config.consume_fuel(true);
+        // Infallible for this configuration; fall back to default engine otherwise.
+        let engine = wasmtime::Engine::new(&config).unwrap_or_default();
         Self {
-            loaded: false,
+            engine,
+            module: None,
             module_name: None,
+            last_error: std::sync::Mutex::new(None),
         }
     }
 
-    /// Load a WASM module by name. Currently a stub that records the name.
+    /// Compile and validate a WASM (or WAT text) policy module.
+    ///
+    /// Fails with [`HitlError::WasmPolicy`] if the bytes are not a valid
+    /// module, the module has imports, or the ABI exports are missing or
+    /// have the wrong signature. On failure the previously loaded module
+    /// (if any) is kept.
     pub fn load_module(
         &mut self,
         name: &str,
-        _wasm_bytes: &[u8],
+        wasm_bytes: &[u8],
     ) -> std::result::Result<(), HitlError> {
-        self.loaded = true;
+        let module = wasmtime::Module::new(&self.engine, wasm_bytes)
+            .map_err(|e| HitlError::WasmPolicy(format!("invalid module {name}: {e}")))?;
+        if module.imports().len() > 0 {
+            return Err(HitlError::WasmPolicy(format!(
+                "module {name} must not have imports"
+            )));
+        }
+        let i32t = |t: &wasmtime::ValType| matches!(t, wasmtime::ValType::I32);
+        let check_fn = |export: &str, params: usize| -> std::result::Result<(), HitlError> {
+            match module.get_export(export) {
+                Some(wasmtime::ExternType::Func(f))
+                    if f.params().len() == params
+                        && f.params().all(|t| i32t(&t))
+                        && f.results().len() == 1
+                        && f.results().all(|t| i32t(&t)) =>
+                {
+                    Ok(())
+                }
+                _ => Err(HitlError::WasmPolicy(format!(
+                    "module {name} must export func {export} with {params} i32 params -> i32"
+                ))),
+            }
+        };
+        check_fn("alloc", 1)?;
+        check_fn("evaluate", 2)?;
+        if !matches!(
+            module.get_export("memory"),
+            Some(wasmtime::ExternType::Memory(_))
+        ) {
+            return Err(HitlError::WasmPolicy(format!(
+                "module {name} must export memory"
+            )));
+        }
+        self.module = Some(module);
         self.module_name = Some(name.to_string());
         Ok(())
     }
 
     /// Whether a module has been loaded.
     pub fn is_loaded(&self) -> bool {
-        self.loaded
+        self.module.is_some()
     }
     /// Name of the loaded module, if any.
     pub fn module_name(&self) -> Option<&str> {
         self.module_name.as_deref()
     }
-    /// Evaluate a request against the loaded WASM policy. Stub: always `None`.
-    pub fn evaluate(&self, _request: &ApprovalRequest) -> Option<ApprovalDecision> {
-        None
+    /// Error from the most recent evaluation, if it failed.
+    pub fn last_error(&self) -> Option<String> {
+        self.last_error.lock().ok().and_then(|g| g.clone())
+    }
+
+    /// Evaluate a request against the loaded WASM policy.
+    ///
+    /// Returns `None` when no module is loaded, the policy returns `0`, or
+    /// execution fails (the failure is logged and kept in [`Self::last_error`]).
+    pub fn evaluate(&self, request: &ApprovalRequest) -> Option<ApprovalDecision> {
+        let module = self.module.as_ref()?;
+        let result = self.run(module, request);
+        let (decision, err) = match result {
+            Ok(0) => (None, None),
+            Ok(1) => (Some(ApprovalDecision::Approve), None),
+            Ok(2) => (Some(ApprovalDecision::Reject), None),
+            Ok(code) => (None, Some(format!("unknown policy return code {code}"))),
+            Err(e) => (None, Some(e)),
+        };
+        if let Some(e) = &err {
+            tracing::warn!(
+                module = self.module_name.as_deref().unwrap_or("?"),
+                error = %e,
+                "wasm policy evaluation failed"
+            );
+        }
+        if let Ok(mut g) = self.last_error.lock() {
+            *g = err;
+        }
+        decision
+    }
+
+    fn run(
+        &self,
+        module: &wasmtime::Module,
+        request: &ApprovalRequest,
+    ) -> std::result::Result<i32, String> {
+        let payload = serde_json::to_vec(request).map_err(|e| format!("serialize: {e}"))?;
+        let len = i32::try_from(payload.len()).map_err(|_| "request too large".to_string())?;
+        let limits = wasmtime::StoreLimitsBuilder::new()
+            .memory_size(WASM_POLICY_MAX_MEMORY)
+            .instances(1)
+            .build();
+        let mut store = wasmtime::Store::new(&self.engine, PolicyStoreState { limits });
+        store.limiter(|s| &mut s.limits);
+        store
+            .set_fuel(WASM_POLICY_FUEL)
+            .map_err(|e| format!("fuel: {e}"))?;
+        let instance = wasmtime::Instance::new(&mut store, module, &[])
+            .map_err(|e| format!("instantiate: {e:#}"))?;
+        let memory = instance
+            .get_memory(&mut store, "memory")
+            .ok_or_else(|| "missing memory export".to_string())?;
+        let alloc = instance
+            .get_typed_func::<i32, i32>(&mut store, "alloc")
+            .map_err(|e| format!("alloc: {e}"))?;
+        let eval = instance
+            .get_typed_func::<(i32, i32), i32>(&mut store, "evaluate")
+            .map_err(|e| format!("evaluate: {e}"))?;
+        let ptr = alloc
+            .call(&mut store, len)
+            .map_err(|e| format!("alloc trapped: {e:#}"))?;
+        let offset = usize::try_from(ptr).map_err(|_| format!("alloc returned bad ptr {ptr}"))?;
+        memory
+            .write(&mut store, offset, &payload)
+            .map_err(|e| format!("write request: {e}"))?;
+        eval.call(&mut store, (ptr, len))
+            .map_err(|e| format!("evaluate trapped: {e:#}"))
     }
 }
 
 impl Default for WasmPolicySandbox {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl PolicyTier for WasmPolicySandbox {
+    fn tier(&self) -> DecisionTier {
+        DecisionTier::Safety
+    }
+    fn evaluate(&self, request: &ApprovalRequest) -> Option<ApprovalDecision> {
+        WasmPolicySandbox::evaluate(self, request)
     }
 }
 
@@ -639,6 +780,9 @@ pub enum HitlError {
     /// Lost the distributed lease for this approval.
     #[error("lost lease: {0}")]
     LostLease(String),
+    /// WASM policy module failed to compile/validate.
+    #[error("wasm policy error: {0}")]
+    WasmPolicy(String),
 }
 
 /// Convenience result type for HITL operations.
@@ -1304,12 +1448,145 @@ mod tests {
         assert!(!is_permanent("network timeout"));
     }
 
+    fn wasm_req(tool: &str) -> ApprovalRequest {
+        ApprovalRequest {
+            id: "w".into(),
+            summary: "s".into(),
+            tool_call: tool.into(),
+            args_hash: "h".into(),
+            ttl_secs: 60,
+            created_at: Utc::now(),
+            expires_at: Utc::now(),
+            thread_id: "t".into(),
+            requester_id: "r".into(),
+            status: ApprovalStatus::Pending,
+            decision: None,
+            decided_at: None,
+            decided_by_tier: None,
+            refusal_reason: None,
+        }
+    }
+
+    /// Policy module whose `evaluate` body is `body` (stack: ptr=local 0, len=local 1).
+    fn wat_policy(body: &str) -> String {
+        format!(
+            r#"(module
+                (memory (export "memory") 1)
+                (global $next (mut i32) (i32.const 1024))
+                (func (export "alloc") (param $len i32) (result i32)
+                    (local $p i32)
+                    global.get $next
+                    local.set $p
+                    global.get $next
+                    local.get $len
+                    i32.add
+                    global.set $next
+                    local.get $p)
+                (func (export "evaluate") (param $ptr i32) (param $len i32) (result i32)
+                    {body}))"#
+        )
+    }
+
     #[test]
-    fn test_wasm_stub() {
+    fn test_wasm_approve() {
         let mut s = WasmPolicySandbox::new();
         assert!(!s.is_loaded());
-        s.load_module("p.wasm", &[0]).unwrap();
+        s.load_module("approve", wat_policy("i32.const 1").as_bytes())
+            .unwrap();
         assert!(s.is_loaded());
+        assert_eq!(s.module_name(), Some("approve"));
+        assert_eq!(s.evaluate(&wasm_req("x")), Some(ApprovalDecision::Approve));
+        assert!(s.last_error().is_none());
+    }
+
+    #[test]
+    fn test_wasm_reject() {
+        let mut s = WasmPolicySandbox::new();
+        s.load_module("reject", wat_policy("i32.const 2").as_bytes())
+            .unwrap();
+        assert_eq!(s.evaluate(&wasm_req("x")), Some(ApprovalDecision::Reject));
+    }
+
+    #[test]
+    fn test_wasm_no_decision() {
+        let mut s = WasmPolicySandbox::new();
+        s.load_module("pass", wat_policy("i32.const 0").as_bytes())
+            .unwrap();
+        assert_eq!(s.evaluate(&wasm_req("x")), None);
+        assert!(s.last_error().is_none());
+        // Falls through to the next tier in decide_action.
+        let tiers: Vec<Box<dyn PolicyTier>> = vec![Box::new(s), Box::new(DefaultPolicyTier)];
+        let (d, t) = decide_action(&wasm_req("x"), &tiers);
+        assert_eq!(d, ApprovalDecision::Approve);
+        assert_eq!(t, DecisionTier::Default);
+    }
+
+    #[test]
+    fn test_wasm_reads_request_json() {
+        // Approve iff the JSON payload starts with '{' (0x7b) and is non-empty.
+        let body = "local.get $len i32.eqz
+                    if (result i32) i32.const 0
+                    else local.get $ptr i32.load8_u i32.const 123 i32.eq
+                         if (result i32) i32.const 1 else i32.const 2 end
+                    end";
+        let mut s = WasmPolicySandbox::new();
+        s.load_module("json", wat_policy(body).as_bytes()).unwrap();
+        assert_eq!(s.evaluate(&wasm_req("x")), Some(ApprovalDecision::Approve));
+    }
+
+    #[test]
+    fn test_wasm_infinite_loop_runs_out_of_fuel() {
+        let mut s = WasmPolicySandbox::new();
+        s.load_module(
+            "loop",
+            wat_policy("(loop $l (br $l)) i32.const 1").as_bytes(),
+        )
+        .unwrap();
+        assert_eq!(s.evaluate(&wasm_req("x")), None);
+        let err = s.last_error().expect("error recorded");
+        assert!(err.contains("evaluate trapped"), "{err}");
+        assert!(err.to_lowercase().contains("fuel"), "{err}");
+    }
+
+    #[test]
+    fn test_wasm_unknown_code_is_none() {
+        let mut s = WasmPolicySandbox::new();
+        s.load_module("bad", wat_policy("i32.const 7").as_bytes())
+            .unwrap();
+        assert_eq!(s.evaluate(&wasm_req("x")), None);
+        assert!(s
+            .last_error()
+            .unwrap()
+            .contains("unknown policy return code 7"));
+    }
+
+    #[test]
+    fn test_wasm_memory_limit() {
+        // Grow beyond 16 MiB (257 pages > 256) must fail -> memory.grow returns -1.
+        let body = "i32.const 300 memory.grow i32.const -1 i32.eq
+                    if (result i32) i32.const 2 else i32.const 1 end";
+        let mut s = WasmPolicySandbox::new();
+        s.load_module("grow", wat_policy(body).as_bytes()).unwrap();
+        assert_eq!(s.evaluate(&wasm_req("x")), Some(ApprovalDecision::Reject));
+    }
+
+    #[test]
+    fn test_wasm_invalid_module() {
+        let mut s = WasmPolicySandbox::new();
+        let err = s.load_module("garbage", &[0, 1, 2, 3]).unwrap_err();
+        assert!(matches!(err, HitlError::WasmPolicy(_)));
+        assert!(!s.is_loaded());
+        // Valid wasm but missing ABI exports.
+        let err = s
+            .load_module("noabi", b"(module (func (export \"f\")))")
+            .unwrap_err();
+        assert!(err.to_string().contains("alloc"), "{err}");
+        // Imports are not allowed.
+        let err = s
+            .load_module("imp", b"(module (import \"env\" \"f\" (func)))")
+            .unwrap_err();
+        assert!(err.to_string().contains("imports"), "{err}");
+        assert!(!s.is_loaded());
     }
 
     #[test]

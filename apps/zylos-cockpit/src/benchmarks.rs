@@ -4,7 +4,6 @@
 //! Measures render time, memory usage, and interaction latency per Master Plan.
 
 use leptos::prelude::*;
-use std::time::Instant;
 
 use crate::components::agent_card::{AgentInfo, AgentStatus};
 
@@ -36,6 +35,8 @@ pub struct BenchmarkResults {
     pub p95_render_ms: f64,
     pub p99_render_ms: f64,
     pub memory_mb: f64,
+    /// p95 latency of a measured interaction (DOM click → handler done), ms.
+    /// `NaN` when it could not be measured (fails the target).
     pub interaction_latency_ms: f64,
 }
 
@@ -79,6 +80,77 @@ pub fn generate_agents(count: usize) -> Vec<AgentInfo> {
         .collect()
 }
 
+/// Monotonic clock in milliseconds.
+///
+/// On `wasm32` uses `performance.now()` (`std::time::Instant` panics on
+/// `wasm32-unknown-unknown`); natively uses a process-wide `Instant` origin.
+#[cfg(target_arch = "wasm32")]
+pub fn now_ms() -> f64 {
+    web_sys::window()
+        .and_then(|w| w.performance())
+        .map(|p| p.now())
+        .unwrap_or_else(js_sys::Date::now)
+}
+
+/// Monotonic clock in milliseconds (native: `Instant` since first call).
+#[cfg(not(target_arch = "wasm32"))]
+pub fn now_ms() -> f64 {
+    use std::sync::OnceLock;
+    use std::time::Instant;
+    static ORIGIN: OnceLock<Instant> = OnceLock::new();
+    ORIGIN.get_or_init(Instant::now).elapsed().as_secs_f64() * 1000.0
+}
+
+/// Work done by the benchmarked interaction: filter the agent list by status
+/// (what the cockpit does when the user clicks a status filter).
+fn interaction_handler(agents: &[AgentInfo]) -> usize {
+    agents
+        .iter()
+        .filter(|a| matches!(a.status, AgentStatus::Running))
+        .count()
+}
+
+/// Measure the latency of one user interaction in milliseconds.
+///
+/// On `wasm32` a real DOM `click` event is dispatched to a detached element
+/// whose listener runs the filter handler; the time from dispatch until the
+/// listener returns is measured with `performance.now()`. Returns `None` if
+/// the DOM is unavailable. Natively, only the handler cost is measured.
+#[cfg(target_arch = "wasm32")]
+pub fn measure_interaction_latency(agents: &[AgentInfo]) -> Option<f64> {
+    use std::cell::Cell;
+    use std::rc::Rc;
+    use wasm_bindgen::closure::Closure;
+    use wasm_bindgen::JsCast;
+
+    let document = web_sys::window()?.document()?;
+    let target = document.create_element("button").ok()?;
+    let agents: Rc<Vec<AgentInfo>> = Rc::new(agents.to_vec());
+    let handled = Rc::new(Cell::new(false));
+    let (a, h) = (agents.clone(), handled.clone());
+    let listener = Closure::<dyn FnMut(web_sys::Event)>::new(move |_e: web_sys::Event| {
+        let _ = interaction_handler(&a);
+        h.set(true);
+    });
+    target
+        .add_event_listener_with_callback("click", listener.as_ref().unchecked_ref())
+        .ok()?;
+    let event = web_sys::Event::new("click").ok()?;
+    let start = now_ms();
+    target.dispatch_event(&event).ok()?;
+    let elapsed = now_ms() - start;
+    let _ = target.remove_event_listener_with_callback("click", listener.as_ref().unchecked_ref());
+    handled.get().then_some(elapsed)
+}
+
+/// Measure the latency of one user interaction (native: handler cost only).
+#[cfg(not(target_arch = "wasm32"))]
+pub fn measure_interaction_latency(agents: &[AgentInfo]) -> Option<f64> {
+    let start = now_ms();
+    std::hint::black_box(interaction_handler(std::hint::black_box(agents)));
+    Some(now_ms() - start)
+}
+
 /// Run benchmark suite
 pub fn run_benchmark(config: BenchmarkConfig) -> BenchmarkResults {
     let agents = generate_agents(config.agent_count);
@@ -94,17 +166,29 @@ pub fn run_benchmark(config: BenchmarkConfig) -> BenchmarkResults {
 
     // Measured iterations — time agent generation + filtering (DOM-independent cost)
     for _ in 0..config.iterations {
-        let start = Instant::now();
+        let start = now_ms();
         let fresh = generate_agents(config.agent_count);
         let _filtered: Vec<&AgentInfo> = fresh
             .iter()
             .filter(|a| matches!(a.status, AgentStatus::Running))
             .collect();
-        let elapsed = start.elapsed().as_secs_f64() * 1000.0;
+        let elapsed = now_ms() - start;
         render_times.push(elapsed);
     }
 
     render_times.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+    // Interaction latency: p95 over `iterations` measured interactions
+    // (NaN = could not be measured, e.g. no DOM).
+    let mut latencies: Vec<f64> = (0..config.iterations.max(1))
+        .filter_map(|_| measure_interaction_latency(&agents))
+        .collect();
+    latencies.sort_by(|a, b| a.total_cmp(b));
+    let interaction_latency_ms = if latencies.is_empty() {
+        f64::NAN
+    } else {
+        BenchmarkResults::percentile(&latencies, 0.95)
+    };
 
     let avg = render_times.iter().sum::<f64>() / render_times.len() as f64;
     let p95 = BenchmarkResults::percentile(&render_times, 0.95);
@@ -120,7 +204,7 @@ pub fn run_benchmark(config: BenchmarkConfig) -> BenchmarkResults {
         p95_render_ms: p95,
         p99_render_ms: p99,
         memory_mb,
-        interaction_latency_ms: 5.0, // Placeholder — real measurement needs JS interop
+        interaction_latency_ms,
     }
 }
 
@@ -297,6 +381,33 @@ mod tests {
         let results = run_benchmark(config);
         assert_eq!(results.render_times_ms.len(), 3);
         assert_eq!(results.config.agent_count, 10);
-        assert!(results.avg_render_ms > 0.0);
+        assert!(results.avg_render_ms >= 0.0);
+        assert!(results.interaction_latency_ms.is_finite());
+        assert!(results.interaction_latency_ms >= 0.0);
+    }
+
+    #[test]
+    fn test_now_ms_monotonic_and_interaction_measured() {
+        let a = now_ms();
+        let agents = generate_agents(200);
+        let lat = measure_interaction_latency(&agents).expect("native measurement");
+        let b = now_ms();
+        assert!(b >= a);
+        assert!(lat >= 0.0 && lat <= b - a);
+        assert_eq!(interaction_handler(&agents), 50);
+    }
+
+    #[test]
+    fn test_nan_latency_fails_targets() {
+        let results = BenchmarkResults {
+            config: BenchmarkConfig::default(),
+            render_times_ms: vec![1.0],
+            avg_render_ms: 1.0,
+            p95_render_ms: 1.0,
+            p99_render_ms: 1.0,
+            memory_mb: 1.0,
+            interaction_latency_ms: f64::NAN,
+        };
+        assert!(!results.meets_targets());
     }
 }

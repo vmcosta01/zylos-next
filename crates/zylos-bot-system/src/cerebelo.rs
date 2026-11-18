@@ -552,14 +552,215 @@ pub struct RecoveryRecord {
     pub final_outcome: OutcomeUncertainty,
 }
 
+/// A subtask produced by [`decompose_objective`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Subtask {
+    /// Stable id: `{prefix}-sub-{n}` (1-based).
+    pub id: String,
+    /// Text of the subtask.
+    pub description: String,
+    /// Ids that must complete first (sequential chain: the previous subtask).
+    pub depends_on: Vec<String>,
+}
+
+/// Connectives used to split a sentence into sequential steps (longest first).
+const CONNECTIVES: &[&str] = &[
+    " and after that ",
+    " and then ",
+    " after that ",
+    ", then ",
+    " then ",
+    " e em seguida ",
+    " em seguida ",
+    " e depois ",
+    " e então ",
+    " depois ",
+    " então ",
+    " and ",
+    " e ",
+];
+
+fn strip_list_marker(line: &str) -> &str {
+    let t = line.trim_start();
+    for m in ["- ", "* ", "• ", "+ "] {
+        if let Some(rest) = t.strip_prefix(m) {
+            return rest;
+        }
+    }
+    // Numbered markers: "1." "1)" "a)" followed by whitespace.
+    let digits = t.chars().take_while(|c| c.is_ascii_digit()).count();
+    let rest = &t[digits..];
+    if digits > 0 {
+        if let Some(r) = rest.strip_prefix('.').or_else(|| rest.strip_prefix(')')) {
+            if r.starts_with(char::is_whitespace) {
+                return r;
+            }
+        }
+    }
+    t
+}
+
+fn split_connectives(sentence: &str) -> Vec<String> {
+    let mut parts = vec![sentence.to_string()];
+    for conn in CONNECTIVES {
+        parts = parts
+            .into_iter()
+            .flat_map(|p| {
+                let lower = p.to_lowercase();
+                // Split only when lowercase has same byte layout (ASCII-safe offsets).
+                if lower.len() != p.len() {
+                    return vec![p];
+                }
+                let mut out = Vec::new();
+                let mut start = 0;
+                for (idx, _) in lower.match_indices(conn) {
+                    if idx >= start {
+                        out.push(p[start..idx].to_string());
+                        start = idx + conn.len();
+                    }
+                }
+                out.push(p[start..].to_string());
+                out
+            })
+            .collect();
+    }
+    parts
+}
+
+/// Deterministically split an objective into sequential subtasks.
+///
+/// Splits, in order, by lines / list items (`-`, `*`, `1.`, `1)`), sentence
+/// terminators (`.`, `;`, `!`, `?`) and sequencing connectives (`then`,
+/// `and`, `e depois`, `e`, ...). Each subtask depends on the previous one.
+/// Returns an empty vector for a blank objective.
+pub fn decompose_objective(prefix: &str, objective: &str) -> Vec<Subtask> {
+    let mut pieces: Vec<String> = Vec::new();
+    for line in objective.lines() {
+        let line = strip_list_marker(line);
+        for sentence in line.split(['.', ';', '!', '?']) {
+            for part in split_connectives(sentence) {
+                let cleaned = part
+                    .trim()
+                    .trim_matches(|c: char| c == ',' || c == ':' || c.is_whitespace())
+                    .to_string();
+                if !cleaned.is_empty() {
+                    pieces.push(cleaned);
+                }
+            }
+        }
+    }
+    let mut out: Vec<Subtask> = Vec::with_capacity(pieces.len());
+    for (i, description) in pieces.into_iter().enumerate() {
+        let depends_on = out.last().map(|p| vec![p.id.clone()]).unwrap_or_default();
+        out.push(Subtask {
+            id: format!("{prefix}-sub-{}", i + 1),
+            description,
+            depends_on,
+        });
+    }
+    out
+}
+
+/// A specialist that recovery may delegate to, with its registered capabilities.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpecialistProfile {
+    pub name: String,
+    pub capabilities: Vec<String>,
+}
+
+impl SpecialistProfile {
+    pub fn new(name: impl Into<String>, capabilities: &[&str]) -> Self {
+        Self {
+            name: name.into(),
+            capabilities: capabilities.iter().map(|c| c.to_string()).collect(),
+        }
+    }
+}
+
+fn words(text: &str) -> Vec<String> {
+    text.split(|c: char| !c.is_alphanumeric())
+        .filter(|w| w.chars().count() >= 2)
+        .map(|w| w.to_lowercase())
+        .collect()
+}
+
+fn word_matches(task_word: &str, cap_word: &str) -> bool {
+    task_word == cap_word
+        || (cap_word.len() >= 4
+            && task_word.len() >= 4
+            && (task_word.starts_with(cap_word) || cap_word.starts_with(task_word)))
+}
+
+/// Score of a specialist for `task`: number of capability words present in the task text.
+pub fn specialist_score(task: &str, specialist: &SpecialistProfile) -> usize {
+    let task_words = words(task);
+    specialist
+        .capabilities
+        .iter()
+        .flat_map(|c| words(c))
+        .filter(|cw| task_words.iter().any(|tw| word_matches(tw, cw)))
+        .count()
+}
+
+/// Pick the registered specialist with the highest capability score for `task`.
+///
+/// Ties resolve to the first registered. Errors with [`BotError::AgentNotFound`]
+/// when no specialist scores above zero (or none are registered).
+pub fn select_specialist<'a>(
+    task: &str,
+    specialists: &'a [SpecialistProfile],
+) -> Result<&'a SpecialistProfile> {
+    let mut best: Option<(&SpecialistProfile, usize)> = None;
+    for sp in specialists {
+        let score = specialist_score(task, sp);
+        if score > 0 && best.is_none_or(|(_, b)| score > b) {
+            best = Some((sp, score));
+        }
+    }
+    best.map(|(sp, _)| sp).ok_or_else(|| {
+        BotError::AgentNotFound(format!("no specialist with capabilities matching: {task}"))
+    })
+}
+
+/// Extract the objective text from a task spec (`objective`, `description`,
+/// `task`, `goal` or `command` string fields, in that order).
+pub fn task_objective(task_spec: &serde_json::Value) -> Option<String> {
+    ["objective", "description", "task", "goal", "command"]
+        .iter()
+        .find_map(|k| task_spec.get(*k).and_then(|v| v.as_str()))
+        .map(str::to_string)
+}
+
 /// Recovery ladder: retry(max=3) → decompose → delegate → escalate.
+///
+/// * **Decompose**: the objective (see [`task_objective`]) is split with
+///   [`decompose_objective`]; if it yields ≥2 subtasks they run sequentially
+///   (spec gets a `subtask` field) and recovery succeeds if all succeed.
+/// * **Delegate**: the best specialist by [`select_specialist`] re-runs the
+///   task (spec gets `delegated_to`). Skipped when no specialist matches.
+/// * **Escalate**: otherwise the node fails and a human is required.
 pub struct RecoveryLadder {
     max_retries: u32,
+    specialists: Vec<SpecialistProfile>,
 }
 
 impl RecoveryLadder {
     pub fn new(max_retries: u32) -> Self {
-        Self { max_retries }
+        Self {
+            max_retries,
+            specialists: Vec::new(),
+        }
+    }
+
+    /// Register specialists available for delegation.
+    pub fn with_specialists(mut self, specialists: Vec<SpecialistProfile>) -> Self {
+        self.specialists = specialists;
+        self
+    }
+
+    /// Registered specialists.
+    pub fn specialists(&self) -> &[SpecialistProfile] {
+        &self.specialists
     }
 
     /// Attempt recovery for a failed node. Returns the final outcome and record.
@@ -577,6 +778,15 @@ impl RecoveryLadder {
         let _guard = span.enter();
 
         let mut steps = Vec::new();
+        let succeeded = |steps: Vec<RecoveryStep>| {
+            (
+                OutcomeUncertainty::Succeeded,
+                RecoveryRecord {
+                    steps,
+                    final_outcome: OutcomeUncertainty::Succeeded,
+                },
+            )
+        };
 
         // Step 1: Retry up to max_retries
         for attempt in 1..=self.max_retries {
@@ -587,27 +797,67 @@ impl RecoveryLadder {
             info!(attempt, max = self.max_retries, "Recovery: retrying");
             let outcome = execute_fn(task_spec.clone()).await;
             if outcome == OutcomeUncertainty::Succeeded {
-                return (
-                    OutcomeUncertainty::Succeeded,
-                    RecoveryRecord {
-                        steps,
-                        final_outcome: OutcomeUncertainty::Succeeded,
-                    },
-                );
+                return succeeded(steps);
             }
             // Small backoff between retries
             tokio::time::sleep(Duration::from_millis(100 * attempt as u64)).await;
         }
 
-        // Step 2: Decompose (stub — would split into subtasks)
-        steps.push(RecoveryStep::Decompose { subtask_count: 0 });
-        warn!("Recovery: decomposition not yet implemented; skipping");
+        let objective = task_objective(&task_spec).unwrap_or_default();
 
-        // Step 3: Delegate to specialist (stub)
-        steps.push(RecoveryStep::Delegate {
-            specialist: "none".into(),
+        // Step 2: Decompose into sequential subtasks
+        let subtasks = decompose_objective(node_id, &objective);
+        steps.push(RecoveryStep::Decompose {
+            subtask_count: subtasks.len(),
         });
-        warn!("Recovery: delegation not yet implemented; skipping");
+        if subtasks.len() >= 2 {
+            info!(
+                count = subtasks.len(),
+                "Recovery: executing decomposed subtasks"
+            );
+            let mut all_ok = true;
+            for sub in &subtasks {
+                let mut spec = task_spec.clone();
+                if let Some(obj) = spec.as_object_mut() {
+                    obj.insert(
+                        "subtask".into(),
+                        serde_json::to_value(sub).unwrap_or_default(),
+                    );
+                } else {
+                    spec = serde_json::json!({ "parent": spec, "subtask": sub });
+                }
+                if execute_fn(spec).await != OutcomeUncertainty::Succeeded {
+                    warn!(subtask = %sub.id, "Recovery: subtask failed");
+                    all_ok = false;
+                    break;
+                }
+            }
+            if all_ok {
+                return succeeded(steps);
+            }
+        } else {
+            info!("Recovery: objective not decomposable (<2 subtasks)");
+        }
+
+        // Step 3: Delegate to the best-matching specialist
+        match select_specialist(&objective, &self.specialists) {
+            Ok(sp) => {
+                steps.push(RecoveryStep::Delegate {
+                    specialist: sp.name.clone(),
+                });
+                info!(specialist = %sp.name, "Recovery: delegating to specialist");
+                let mut spec = task_spec.clone();
+                if let Some(obj) = spec.as_object_mut() {
+                    obj.insert("delegated_to".into(), sp.name.clone().into());
+                } else {
+                    spec = serde_json::json!({ "parent": spec, "delegated_to": sp.name });
+                }
+                if execute_fn(spec).await == OutcomeUncertainty::Succeeded {
+                    return succeeded(steps);
+                }
+            }
+            Err(e) => warn!(error = %e, "Recovery: delegation skipped"),
+        }
 
         // Step 4: Escalate to human
         steps.push(RecoveryStep::EscalateHuman);
@@ -1108,9 +1358,142 @@ mod tests {
             .await;
 
         assert_eq!(outcome, OutcomeUncertainty::Failed);
-        // Should have: 2 retries + decompose + delegate + escalate = 5 steps
-        assert_eq!(record.steps.len(), 5);
+        // 2 retries + decompose(0, no objective) + escalate (no specialist) = 4 steps
+        assert_eq!(record.steps.len(), 4);
+        assert_eq!(
+            record.steps[2],
+            RecoveryStep::Decompose { subtask_count: 0 }
+        );
         assert_eq!(record.steps.last(), Some(&RecoveryStep::EscalateHuman));
+    }
+
+    #[test]
+    fn test_decompose_connectives_and_dependencies() {
+        let subs = decompose_objective("n1", "Fetch the data, then clean it and write the report.");
+        let d: Vec<&str> = subs.iter().map(|s| s.description.as_str()).collect();
+        assert_eq!(d, vec!["Fetch the data", "clean it", "write the report"]);
+        assert_eq!(subs[0].id, "n1-sub-1");
+        assert!(subs[0].depends_on.is_empty());
+        assert_eq!(subs[1].depends_on, vec!["n1-sub-1".to_string()]);
+        assert_eq!(subs[2].depends_on, vec!["n1-sub-2".to_string()]);
+    }
+
+    #[test]
+    fn test_decompose_lists_sentences_and_portuguese() {
+        let subs = decompose_objective(
+            "x",
+            "- baixar logs\n2) analisar erros e depois abrir issue\nCompilar; testar",
+        );
+        let d: Vec<&str> = subs.iter().map(|s| s.description.as_str()).collect();
+        assert_eq!(
+            d,
+            vec![
+                "baixar logs",
+                "analisar erros",
+                "abrir issue",
+                "Compilar",
+                "testar"
+            ]
+        );
+        assert!(decompose_objective("x", "   ").is_empty());
+        // Deterministic
+        assert_eq!(
+            decompose_objective("x", "a and b"),
+            decompose_objective("x", "a and b")
+        );
+    }
+
+    #[test]
+    fn test_select_specialist_by_score() {
+        let sps = vec![
+            SpecialistProfile::new("writer", &["write report", "docs"]),
+            SpecialistProfile::new("db", &["database", "sql query", "migration"]),
+            SpecialistProfile::new("tie", &["database"]),
+        ];
+        assert_eq!(
+            select_specialist("run the SQL query on the database", &sps)
+                .unwrap()
+                .name,
+            "db"
+        );
+        assert_eq!(
+            select_specialist("write the report", &sps).unwrap().name,
+            "writer"
+        );
+        // Stem match: "migrations" ~ "migration"
+        assert_eq!(
+            select_specialist("apply migrations", &sps).unwrap().name,
+            "db"
+        );
+        assert!(matches!(
+            select_specialist("paint a picture", &sps),
+            Err(BotError::AgentNotFound(_))
+        ));
+        assert!(select_specialist("database", &[]).is_err());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_recovery_decompose_runs_subtasks() {
+        let ladder = RecoveryLadder::new(1);
+        let seen = Arc::new(Mutex::new(Vec::<String>::new()));
+        let s2 = seen.clone();
+        let (outcome, record) = ladder
+            .recover(
+                "n",
+                serde_json::json!({"objective": "build then test"}),
+                |spec| {
+                    let s = s2.clone();
+                    async move {
+                        match spec.get("subtask") {
+                            Some(sub) => {
+                                s.lock()
+                                    .await
+                                    .push(sub["description"].as_str().unwrap().into());
+                                OutcomeUncertainty::Succeeded
+                            }
+                            None => OutcomeUncertainty::Failed,
+                        }
+                    }
+                },
+            )
+            .await;
+        assert_eq!(outcome, OutcomeUncertainty::Succeeded);
+        assert_eq!(
+            *seen.lock().await,
+            vec!["build".to_string(), "test".to_string()]
+        );
+        assert_eq!(
+            record.steps.last(),
+            Some(&RecoveryStep::Decompose { subtask_count: 2 })
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_recovery_delegates_to_specialist() {
+        let ladder = RecoveryLadder::new(1).with_specialists(vec![
+            SpecialistProfile::new("generic", &["shell"]),
+            SpecialistProfile::new("dba", &["database migration"]),
+        ]);
+        let (outcome, record) = ladder
+            .recover(
+                "n",
+                serde_json::json!({"objective": "run database migration"}),
+                |spec| async move {
+                    if spec.get("delegated_to").and_then(|v| v.as_str()) == Some("dba") {
+                        OutcomeUncertainty::Succeeded
+                    } else {
+                        OutcomeUncertainty::Failed
+                    }
+                },
+            )
+            .await;
+        assert_eq!(outcome, OutcomeUncertainty::Succeeded);
+        assert_eq!(
+            record.steps.last(),
+            Some(&RecoveryStep::Delegate {
+                specialist: "dba".into()
+            })
+        );
     }
 
     #[tokio::test]

@@ -45,7 +45,7 @@ for session in sessions {
  ```
 3. **Capturar screenshot forense** do estado atual do desktop:
  ```rust
- let screenshot = session_manager.generate_placeholder_screenshot(session_id)?;
+ let screenshot = session_manager.capture_screenshot(session_id)?;
  // Em produção: capturar screenshot real via VNC proxy
  save_forensic_evidence(session_id, &screenshot);
  ```
