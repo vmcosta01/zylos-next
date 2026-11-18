@@ -76,8 +76,22 @@ impl AuthState {
 
     /// Construtor explícito (testes / embedding).
     pub fn new(config: TokenConfig, bootstrap: Option<String>) -> Self {
+        // F2: abre (ou cria) o store persistente de JWTs revogados.
+        let revocation_store = std::env::var("ZYLOS_REVOKED_DB")
+            .ok()
+            .map(|p| std::path::PathBuf::from(p))
+            .or_else(|| Some(std::path::PathBuf::from("data/revoked.db")))
+            .and_then(|path| {
+                match zylos_auth::revocation_store::RevocationStore::open(&path) {
+                    Ok(s) => Some(std::sync::Arc::new(s)),
+                    Err(e) => {
+                        tracing::warn!(error = %e, path = %path.display(), "F2: falha ao abrir denylist SQLite");
+                        None
+                    }
+                }
+            });
         let svc = match TokenService::new(config) {
-            Ok(s) => Some(s),
+            Ok(s) => Some(s.with_revocation_store(revocation_store)),
             Err(e) => {
                 tracing::warn!(error = %e, "auth: TokenService desabilitado (ZYLOS_AUTH_SECRET ausente/fraco)");
                 None

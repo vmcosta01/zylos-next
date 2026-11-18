@@ -9,6 +9,7 @@
 //! - revocation by `jti` (in-memory denylist, purged on expiry)
 
 use crate::claims::{Claims, TenantId, DEFAULT_AUDIENCE, DEFAULT_ISSUER};
+use crate::revocation_store::RevocationStore;
 use chrono::Utc;
 use dashmap::DashMap;
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
@@ -114,12 +115,14 @@ pub struct TokenService {
     config: TokenConfig,
     encoding_key: EncodingKey,
     decoding_key: DecodingKey,
-    /// jti -> exp (denylist).
+    /// jti -> exp (denylist in-memory, cache do store persistente).
     revoked: Arc<DashMap<String, i64>>,
     /// sha256(refresh token) -> entry.
     refresh: Arc<DashMap<String, RefreshEntry>>,
     /// revoked refresh families.
     revoked_families: Arc<DashMap<String, i64>>,
+    /// F2: denylist persistente SQLite (sobrevive a restarts).
+    revocation_store: Option<Arc<RevocationStore>>,
 }
 
 fn hash_refresh(token: &str) -> String {
@@ -171,7 +174,14 @@ impl TokenService {
             revoked: Arc::new(DashMap::new()),
             refresh: Arc::new(DashMap::new()),
             revoked_families: Arc::new(DashMap::new()),
+            revocation_store: None,
         })
+    }
+
+    /// Injeta o store persistente de revogação (F2).
+    pub fn with_revocation_store(mut self, store: Option<Arc<RevocationStore>>) -> Self {
+        self.revocation_store = store;
+        self
     }
 
     fn sign(&self, req: &CreateTokenRequest) -> Result<(String, Claims), TokenError> {
@@ -285,6 +295,12 @@ impl TokenService {
     /// Revoke an access token by `jti` until its expiry.
     pub fn revoke_jti(&self, jti: &str, exp: i64) {
         self.revoked.insert(jti.to_string(), exp);
+        // F2: persiste no SQLite para sobreviver a restarts.
+        if let Some(store) = &self.revocation_store {
+            if let Err(e) = store.revoke(jti, exp) {
+                tracing::warn!(error = %e, jti, "F2: falha ao persistir revogação");
+            }
+        }
     }
 
     /// Validate then revoke the given access token (logout).
@@ -294,9 +310,22 @@ impl TokenService {
         Ok(())
     }
 
-    /// Whether a `jti` is in the denylist.
+    /// Whether a `jti` is in the denylist (in-memory cache + F2 persistent store).
     pub fn is_revoked(&self, jti: &str) -> bool {
-        self.revoked.contains_key(jti)
+        if self.revoked.contains_key(jti) {
+            return true;
+        }
+        // F2: consulta o store persistente se o cache in-memory não tem.
+        if let Some(store) = &self.revocation_store {
+            match store.is_revoked(jti) {
+                Ok(true) => return true,
+                Ok(false) => {}
+                Err(e) => {
+                    tracing::warn!(error = %e, jti, "F2: falha ao consultar denylist persistente");
+                }
+            }
+        }
+        false
     }
 
     /// Drop expired denylist / refresh entries. Returns entries removed.
@@ -306,6 +335,13 @@ impl TokenService {
         self.revoked.retain(|_, exp| *exp >= now);
         self.refresh.retain(|_, e| e.exp >= now);
         self.revoked_families.retain(|_, exp| *exp >= now);
+        // F2: limpa entradas expiradas do store persistente.
+        if let Some(store) = &self.revocation_store {
+            match store.purge_expired() {
+                Ok(n) => tracing::debug!(removed = n, "F2: purge SQLite concluído"),
+                Err(e) => tracing::warn!(error = %e, "F2: falha no purge SQLite"),
+            }
+        }
         before - (self.revoked.len() + self.refresh.len() + self.revoked_families.len())
     }
 
