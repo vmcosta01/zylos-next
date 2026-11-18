@@ -24,6 +24,7 @@ pub mod orchestrate_api;
 pub mod password_masking;
 pub mod personalities_api;
 pub mod phase2_integration;
+pub mod reactions_api;
 pub mod relay_api;
 pub mod security_headers;
 pub mod sentinel_api;
@@ -248,7 +249,12 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
                 .merge(integrations)
                 .merge(analytics)
                 .merge(crdt)
-                .merge(relay_api::create_relay_router(relay_api::RelayState::from_env())),
+                .merge(relay_api::create_relay_router(
+                    relay_api::RelayState::from_env(),
+                ))
+                .merge(reactions_api::create_reactions_router(
+                    reactions_api::ReactionsState::from_env(),
+                )),
         )
         .layer(axum::middleware::from_fn_with_state(
             api_auth_state,

@@ -47,7 +47,10 @@ pub async fn get_json<T: DeserializeOwned>(path: &str) -> Result<T, String> {
 }
 
 /// `POST path` com corpo JSON → JSON.
-pub async fn post_json<B: Serialize, T: DeserializeOwned>(path: &str, body: &B) -> Result<T, String> {
+pub async fn post_json<B: Serialize, T: DeserializeOwned>(
+    path: &str,
+    body: &B,
+) -> Result<T, String> {
     send_json(Request::post(&api_url(path)?), body).await
 }
 

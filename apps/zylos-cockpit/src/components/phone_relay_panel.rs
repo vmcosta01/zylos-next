@@ -145,8 +145,7 @@ pub fn PhoneRelayPanel() -> impl IntoView {
     let revoke = move |id: String| {
         spawn_local(async move {
             let body = serde_json::json!({ "device_id": id });
-            match delete_json::<_, serde_json::Value>(&format!("{BASE}/tokens/revoke"), &body)
-                .await
+            match delete_json::<_, serde_json::Value>(&format!("{BASE}/tokens/revoke"), &body).await
             {
                 Ok(_) => devices.update(|d| d.retain(|x| x.id != id)),
                 Err(e) => show_err(e),

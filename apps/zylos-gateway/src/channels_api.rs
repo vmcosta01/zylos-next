@@ -315,18 +315,31 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
-    async fn call(app: &Router, method: &str, uri: &str, body: Option<&str>) -> (StatusCode, serde_json::Value) {
+    async fn call(
+        app: &Router,
+        method: &str,
+        uri: &str,
+        body: Option<&str>,
+    ) -> (StatusCode, serde_json::Value) {
         let mut b = Request::builder().method(method).uri(uri);
         if body.is_some() {
             b = b.header("content-type", "application/json");
         }
         let req = b
-            .body(body.map(|s| Body::from(s.to_string())).unwrap_or_else(Body::empty))
+            .body(
+                body.map(|s| Body::from(s.to_string()))
+                    .unwrap_or_else(Body::empty),
+            )
             .unwrap();
         let resp = app.clone().oneshot(req).await.unwrap();
         let status = resp.status();
-        let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
-        (status, serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null))
+        let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20)
+            .await
+            .unwrap();
+        (
+            status,
+            serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null),
+        )
     }
 
     /// Fluxo completo usado pelo cockpit: criar canal → enviar → listar → join/leave.
@@ -346,7 +359,13 @@ mod tests {
         assert_eq!(v["channel"]["name"], "rota-teste");
 
         let uri = format!("/channels/{id}/messages");
-        let (st, v) = call(&app, "POST", &uri, Some(r#"{"author":"ana","content":"oi"}"#)).await;
+        let (st, v) = call(
+            &app,
+            "POST",
+            &uri,
+            Some(r#"{"author":"ana","content":"oi"}"#),
+        )
+        .await;
         assert_eq!(st, StatusCode::CREATED);
         assert_eq!(v["message"]["content"], "oi");
 

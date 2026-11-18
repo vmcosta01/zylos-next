@@ -543,7 +543,8 @@ fn TabContent(tab: Tab) -> impl IntoView {
         .into_any(),
         Tab::Reactions => view! {
         <div class="tab-panel tab-panel-reactions">
-        <EmojiReactions _message_id="demo-msg-1" />
+        <p class="panel-subtitle">"Reaja às mensagens reais dos canais (persistidas no gateway)."</p>
+        <ChannelPanel />
         </div>
         }
         .into_any(),

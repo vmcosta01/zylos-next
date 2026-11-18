@@ -79,7 +79,10 @@ pub fn jwt_subject(token: &str) -> Option<String> {
     let payload = token.split('.').nth(1)?;
     let bytes = b64url_decode(payload)?;
     let v: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
-    v.get("sub")?.as_str().filter(|s| !s.is_empty()).map(String::from)
+    v.get("sub")?
+        .as_str()
+        .filter(|s| !s.is_empty())
+        .map(String::from)
 }
 
 /// Identidade do usuário atual: `sub` do token, ou `"local"` sem login.

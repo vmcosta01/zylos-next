@@ -171,7 +171,9 @@ pub fn ChannelPanel() -> impl IntoView {
                     channels.update(|c| c.push(created.channel));
                     active_channel_id.set(id);
                 }
-                Err(e) if e == "HTTP 409" => error.set(Some("Já existe um canal com esse nome.".into())),
+                Err(e) if e == "HTTP 409" => {
+                    error.set(Some("Já existe um canal com esse nome.".into()))
+                }
                 Err(e) => show_err(e),
             }
         });
@@ -183,18 +185,29 @@ pub fn ChannelPanel() -> impl IntoView {
             return;
         }
         spawn_local(async move {
-            let path = format!("/api/v1/channels/{}/{action}", crate::auth::url_encode(&cid));
+            let path = format!(
+                "/api/v1/channels/{}/{action}",
+                crate::auth::url_encode(&cid)
+            );
             let body = serde_json::json!({ "user_id": crate::auth::current_user() });
             match post_json::<_, serde_json::Value>(&path, &body).await {
                 Ok(_) => {
                     error.set(None);
-                    notice.set(Some(if action == "join" { "Você entrou no canal.".into() } else { "Você saiu do canal.".into() }));
+                    notice.set(Some(if action == "join" {
+                        "Você entrou no canal.".into()
+                    } else {
+                        "Você saiu do canal.".into()
+                    }));
                     if let Ok(resp) = get_json::<ChannelsResponse>("/api/v1/channels").await {
                         channels.set(resp.channels);
                     }
                 }
-                Err(e) if e == "HTTP 409" => notice.set(Some("Você já é membro deste canal.".into())),
-                Err(e) if e == "HTTP 404" && action == "leave" => notice.set(Some("Você não é membro deste canal.".into())),
+                Err(e) if e == "HTTP 409" => {
+                    notice.set(Some("Você já é membro deste canal.".into()))
+                }
+                Err(e) if e == "HTTP 404" && action == "leave" => {
+                    notice.set(Some("Você não é membro deste canal.".into()))
+                }
                 Err(e) => show_err(e),
             }
         });
@@ -320,6 +333,7 @@ pub fn ChannelPanel() -> impl IntoView {
                                             <span class="message-author">{msg.author}</span>
                                             <span class="message-time">{time}</span>
                                             <p class="message-content">{msg.content}</p>
+                                            <crate::components::emoji_reactions::EmojiReactions message_id=msg.id.clone() />
                                         </div>
                                     }
                                 }

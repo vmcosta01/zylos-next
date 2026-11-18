@@ -349,7 +349,12 @@ async fn post_pair(State(st): State<RelayState>, Json(req): Json<PairRequest>) -
     if name.is_empty() || name.len() > 100 {
         return err(StatusCode::BAD_REQUEST, "invalid_device_name");
     }
-    let platform = match req.platform.as_deref().map(str::to_ascii_lowercase).as_deref() {
+    let platform = match req
+        .platform
+        .as_deref()
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+    {
         Some("android") => "android",
         Some("ios") => "ios",
         _ => "other",
@@ -413,12 +418,20 @@ mod tests {
             b = b.header("content-type", "application/json");
         }
         let req = b
-            .body(body.map(|v| Body::from(v.to_string())).unwrap_or_else(Body::empty))
+            .body(
+                body.map(|v| Body::from(v.to_string()))
+                    .unwrap_or_else(Body::empty),
+            )
             .unwrap();
         let resp = app.clone().oneshot(req).await.unwrap();
         let st = resp.status();
-        let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
-        (st, serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null))
+        let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20)
+            .await
+            .unwrap();
+        (
+            st,
+            serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null),
+        )
     }
 
     #[test]
