@@ -14,13 +14,33 @@
          <link rel="preload" as="fetch" type="application/wasm"> do WASM automaticamente. -->
     <link data-trunk rel="rust" data-bin="zylos-cockpit" data-cargo-profile="wasm-release" data-wasm-opt="z" data-wasm-opt-params="--enable-bulk-memory --enable-nontrapping-float-to-int" />
 
-    <!-- T11.5.2 critical rendering path: shell crítico + CSS inlinado (zero folhas bloqueantes). -->
+    <!-- T11.5.2 critical rendering path: shell crítico + skeleton + error-banner com CSS inlinado.
+         O LCP agora é o skeleton/error-banner estático (pintado antes do WASM), não mais o banner
+         renderizado pelo Leptos após fetch_health falhar. Tokens de cor inline são os valores dark-theme
+         literais (não dependem de var() porque o stylesheet externo ainda não carregou neste momento). -->
     <style>
-        html, body { margin: 0; background: #0A0E1A; color: #F9FAFB; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; }
-        #app-splash { max-width: 1280px; margin: 0 auto; padding: 24px; box-sizing: border-box; }
-        #app-splash h1 { margin: 0; padding-bottom: 16px; font-size: 24px; font-weight: 600; border-bottom: 1px solid #374151; }
-        #app-splash p { color: #9CA3AF; font-size: 14px; }
-        body:has(.cockpit-root) #app-splash { display: none; }
+        /* Reset + base (espelha style.css:16-23 sem depender de design-tokens) */
+        *{margin:0;padding:0;box-sizing:border-box}
+        html,body{background:#0f1117;color:#e4e6ed;font-family:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;line-height:1.5}
+        /* Shell layout (espelha .cockpit-root/.cockpit-header/.cockpit-main) */
+        #app-splash{max-width:1280px;margin:0 auto;padding:24px;display:flex;flex-direction:column;gap:16px}
+        #app-splash .splash-header{display:flex;align-items:center;justify-content:space-between;padding-bottom:16px;border-bottom:1px solid #2a2d3a}
+        #app-splash .splash-header h1{font-size:24px;font-weight:700;letter-spacing:-.01em}
+        #app-splash .splash-version{font-family:'JetBrains Mono','Fira Code',monospace;font-size:12px;color:#8b8fa3;background:#1a1d27;border:1px solid #2a2d3a;padding:2px 8px;border-radius:9999px}
+        /* Skeleton grid (espelha .skeleton-grid/.skeleton-card/.pulse — LCP candidate) */
+        #app-splash .skeleton-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+        #app-splash .skeleton-card{height:110px;border-radius:8px;background:#1a1d27;animation:splash-pulse 1.4s ease-in-out infinite}
+        @keyframes splash-pulse{0%,100%{opacity:1}50%{opacity:.4}}
+        /* Error banner estático: VISÍVEL imediatamente como LCP candidate.
+           Quando o Leptos monta .cockpit-root, body:has() esconde todo o #app-splash.
+           Se o gateway responder com sucesso, o Leptos substitui o conteúdo; se falhar,
+           este banner já está pintado desde o first paint (~375ms), não após 4s de fetch. */
+        #app-splash .error-banner{border:1px solid #ef4444;border-left-width:4px;border-radius:8px;padding:24px;background:#1a1d27;display:flex;flex-direction:column;gap:12px;align-items:flex-start;min-height:120px}
+        #app-splash .error-banner p{color:#e4e6ed;font-size:16px;line-height:1.5}
+        #app-splash .error-banner .error-title{font-size:18px;font-weight:600;color:#ef4444;margin-bottom:4px}
+        #app-splash .cta-retry{border:1px solid #2563EB;border-radius:6px;padding:10px 20px;font:500 14px 'Inter',system-ui,sans-serif;cursor:pointer;background:#2563EB;color:#fff;margin-top:8px}
+        /* Quando o Leptos monta .cockpit-root, esconde o splash imediatamente */
+        body:has(.cockpit-root) #app-splash{display:none}
     </style>
     <!-- rel="inline" do Trunk 0.22 embute o arquivo num <style> no HTML final
          (o `rel="css" data-inline` não tinha efeito e gerava 2 <link> bloqueantes). -->
@@ -39,9 +59,33 @@
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
 </head>
 <body>
-    <div id="app-splash" aria-hidden="true">
-        <h1>Zylos Cockpit</h1>
-        <p>Carregando…</p>
+    <!-- Shell estático: pintado pelo HTML antes do WASM. O Leptos esconde via body:has(.cockpit-root).
+         Skeleton grid é o LCP candidate — tamanho fixo, sem dependência de JS ou fetch. -->
+    <div id="app-splash" aria-label="Carregando Zylos Cockpit">
+        <div class="splash-header">
+            <h1>Zylos Cockpit</h1>
+            <span class="splash-version">v0.1.0</span>
+        </div>
+        <div class="skeleton-grid" aria-hidden="true">
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+        </div>
+        <!-- Error banner estático: LCP candidate pintado no first paint (~375ms).
+             O Leptos esconde todo #app-splash via body:has(.cockpit-root) quando monta.
+             Se o gateway falhar, este banner já está visível; se JS estiver desabilitado,
+             o noscript abaixo mostra mensagem específica. -->
+        <div class="error-banner" role="alert" id="splash-error">
+            <span class="error-title">Conectando ao gateway…</span>
+            <p>Aguardando resposta do Zylos Gateway. Se esta mensagem persistir, verifique a conexão.</p>
+            <button class="cta-retry" onclick="location.reload()">Tentar novamente</button>
+        </div>
+        <noscript>
+            <div class="error-banner" role="alert">
+                <span class="error-title">JavaScript desabilitado</span>
+                <p>O Zylos Cockpit requer JavaScript habilitado.</p>
+            </div>
+        </noscript>
     </div>
     <div id="app"></div>
     <script>
