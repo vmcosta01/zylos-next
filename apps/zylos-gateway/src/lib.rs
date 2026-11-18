@@ -276,14 +276,44 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
             security_headers::security_headers,
         ))
         .layer(tower_http::trace::TraceLayer::new_for_http())
-        .layer(
-            tower_http::cors::CorsLayer::new()
-                .allow_origin(tower_http::cors::AllowOrigin::predicate(
+        .layer({
+            // F19: CORS com métodos/headers explícitos + origens via ZYLOS_CORS_ORIGINS.
+            use axum::http::{HeaderName, Method};
+            let mut cors = tower_http::cors::CorsLayer::new()
+                .allow_methods([
+                    Method::GET,
+                    Method::POST,
+                    Method::PATCH,
+                    Method::DELETE,
+                    Method::OPTIONS,
+                ])
+                .allow_headers([
+                    axum::http::header::AUTHORIZATION,
+                    axum::http::header::CONTENT_TYPE,
+                    HeaderName::from_static("x-requested-with"),
+                ]);
+            if let Ok(origins_env) = std::env::var("ZYLOS_CORS_ORIGINS") {
+                let origins: Vec<_> = origins_env
+                    .split(',')
+                    .map(|s| s.trim())
+                    .filter(|s| !s.is_empty())
+                    .filter_map(|s| s.parse().ok())
+                    .collect();
+                if origins.is_empty() {
+                    tracing::warn!("ZYLOS_CORS_ORIGINS definido mas vazio — usando apenas origens locais");
+                    cors = cors.allow_origin(tower_http::cors::AllowOrigin::predicate(
+                        local_guard::cors_origem_local,
+                    ));
+                } else {
+                    cors = cors.allow_origin(tower_http::cors::AllowOrigin::list(origins));
+                }
+            } else {
+                cors = cors.allow_origin(tower_http::cors::AllowOrigin::predicate(
                     local_guard::cors_origem_local,
-                ))
-                .allow_methods(tower_http::cors::Any)
-                .allow_headers(tower_http::cors::Any),
-        )
+                ));
+            }
+            cors
+        })
         // Camada mais externa: roda antes de tudo, inclusive da resposta de CORS ao preflight.
         .layer(axum::middleware::from_fn(local_guard::so_desta_maquina))
 }
