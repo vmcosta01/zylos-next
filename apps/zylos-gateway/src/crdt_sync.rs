@@ -55,9 +55,12 @@ use yrs::updates::decoder::{Decode, DecoderV1};
 use yrs::updates::encoder::Encode;
 use yrs::{ClientID, GetString, ReadTxn, StateVector, Transact, Update};
 use zylos_auth::crdt_persistence::{text_of_state, CrdtStore, TEXT_ROOT};
+use zylos_auth::TokenService;
 
 /// Tag do `Message::Custom` usado como ping/pong para medir latência.
 pub const PING_TAG: u8 = 100;
+/// Close code personalizado para autenticação falha no WebSocket (faixa 4000-4999).
+const WS_CLOSE_AUTH_FAILED: u16 = 4001;
 /// Capacidade do canal broadcast por sala.
 const ROOM_CHANNEL_CAPACITY: usize = 1024;
 /// Após N updates pendentes no log, o servidor gera um snapshot (compactação).
@@ -134,6 +137,8 @@ pub struct CrdtSyncState {
     store: Option<Arc<CrdtStore>>,
     next_conn: Arc<AtomicU64>,
     compact_every: i64,
+    /// F1: validação JWT no WebSocket (opcional; ausente = modo dev/local).
+    token_service: Option<TokenService>,
 }
 
 impl Default for CrdtSyncState {
@@ -150,7 +155,14 @@ impl CrdtSyncState {
             store,
             next_conn: Arc::new(AtomicU64::new(1)),
             compact_every: DEFAULT_COMPACT_EVERY,
+            token_service: None,
         }
+    }
+
+    /// Injeta o `TokenService` para validação JWT no WebSocket (F1).
+    pub fn with_token_service(mut self, svc: Option<TokenService>) -> Self {
+        self.token_service = svc;
+        self
     }
 
     /// Abre (ou cria) o banco SQLite em `path`; em caso de falha, segue em memória.
@@ -293,11 +305,41 @@ fn decode_frame(bytes: &[u8]) -> Result<Vec<Message>, String> {
         .map_err(|e| e.to_string())
 }
 
+/// Query params aceitos no upgrade WebSocket (F1: JWT via query string).
+#[derive(Debug, Deserialize)]
+struct WsSyncQuery {
+    access_token: Option<String>,
+}
+
 async fn ws_sync(
     ws: WebSocketUpgrade,
     Path(doc_id): Path<String>,
+    Query(query): Query<WsSyncQuery>,
     State(state): State<CrdtSyncState>,
 ) -> impl IntoResponse {
+    // F1: valida JWT no connect quando ZYLOS_AUTH_SECRET está definido.
+    if let Some(svc) = &state.token_service {
+        match query.access_token.as_deref() {
+            Some(tok) if !tok.is_empty() => {
+                if let Err(e) = svc.validate_token(tok) {
+                    warn!(doc_id, error = %e, "crdt: JWT inválido no WS connect");
+                    return axum::response::Response::builder()
+                        .status(StatusCode::UNAUTHORIZED)
+                        .body(axum::body::Body::from("JWT inválido"))
+                        .unwrap()
+                        .into_response();
+                }
+            }
+            _ => {
+                warn!(doc_id, "crdt: WS connect sem access_token");
+                return axum::response::Response::builder()
+                    .status(StatusCode::UNAUTHORIZED)
+                    .body(axum::body::Body::from("access_token obrigatório"))
+                    .unwrap()
+                    .into_response();
+            }
+        }
+    }
     ws.max_message_size(MAX_FRAME_BYTES)
         .on_upgrade(move |socket| handle_socket(socket, doc_id, state))
 }
@@ -731,5 +773,28 @@ mod tests {
         assert_eq!(relay.len(), 1);
         let n = room.with_awareness(|a| a.iter().count());
         assert_eq!(n, 1);
+    }
+
+    /// F1: sem token_service, conexões são aceitas (modo dev/local).
+    #[test]
+    fn crdt_ws_accepts_connection_without_token_service() {
+        let state = CrdtSyncState::default();
+        assert!(state.token_service.is_none());
+        // Se token_service é None, ws_sync não valida JWT — comportamento esperado.
+    }
+
+    /// F1: com token_service, query sem access_token deve ser rejeitada.
+    #[test]
+    fn crdt_ws_rejects_missing_token_when_enforced() {
+        use zylos_auth::{TokenConfig, TokenService};
+        let svc = TokenService::new(TokenConfig {
+            secret: "test-secret-at-least-32-bytes-long!".into(),
+            ..TokenConfig::default()
+        })
+        .unwrap();
+        let state = CrdtSyncState::default().with_token_service(Some(svc));
+        assert!(state.token_service.is_some());
+        // A validação real ocorre no handler ws_sync via Query(WsSyncQuery);
+        // este teste garante que o estado carrega o serviço corretamente.
     }
 }

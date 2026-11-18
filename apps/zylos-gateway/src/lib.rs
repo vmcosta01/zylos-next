@@ -25,6 +25,7 @@ pub mod orchestrate_api;
 pub mod password_masking;
 pub mod personalities_api;
 pub mod phase2_integration;
+pub mod rate_limit;
 pub mod reactions_api;
 pub mod relay_api;
 pub mod security_headers;
@@ -210,7 +211,7 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
             "ZYLOS_AUTH_SECRET ausente: /api/v1 sem login (só local); aprovações bloqueadas"
         );
     }
-    let auth = auth_api::create_auth_router_with(auth_state);
+    let auth = auth_api::create_auth_router_with(auth_state.clone());
     let integrations = integrations_api::create_integrations_router(
         integrations_api::IntegrationsState::from_env(),
     );
@@ -218,7 +219,8 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
         analytics_api::create_analytics_router(analytics_api::AnalyticsHandle::from_env());
     let crdt_state = crdt_sync::CrdtSyncState::with_store_path(std::path::Path::new(
         &std::env::var("ZYLOS_CRDT_DB").unwrap_or_else(|_| "data/crdt.db".to_string()),
-    ));
+    ))
+    .with_token_service(auth_state.token_service());
     crdt_sync::spawn_gc_task(&crdt_state);
     let crdt = crdt_sync::create_crdt_sync_router(crdt_state);
 
@@ -276,6 +278,11 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
             security_headers::security_headers,
         ))
         .layer(tower_http::trace::TraceLayer::new_for_http())
+        // F15: per-IP token-bucket rate limiter (ZYLOS_RATE_LIMIT_RPS, default 100).
+        .layer(axum::middleware::from_fn_with_state(
+            rate_limit::RateLimiter::from_env(),
+            rate_limit::RateLimiter::middleware,
+        ))
         .layer({
             // F19: CORS com métodos/headers explícitos + origens via ZYLOS_CORS_ORIGINS.
             use axum::http::{HeaderName, Method};
