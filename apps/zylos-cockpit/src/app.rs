@@ -12,7 +12,7 @@ use crate::benchmarks::BenchmarkPanel;
 use crate::components::analytics_panel::AnalyticsPanel;
 use crate::components::{
     provide_theme, AgentAvatarsGrid, AgentAwarenessPanel, AgentInfo, AgentStatus, AuthHeaderButton,
-    ChannelPanel, ChatPanel, CollabPanel, EmojiReactions, EmployeeGovernancePanel,
+    ChannelPanel, ChatPanel, CollabPanel, EmployeeGovernancePanel,
     EvidenceLedgerPanel, FederationDashboard, FileManager, FleetAuditorPanel, GoalsPanel,
     HitlApprovalPanel, IntegrationsPanel, LazyRoster, MemoryTimeline, PersonalitiesPanel,
     PhoneRelayPanel, SecurityPanel, SentinelPanel, SkillEditorPanel, SkillEvolutionPanel,
