@@ -2,7 +2,7 @@
 //!
 //! - chamadas HTTP: `Authorization: Bearer <token>` quando houver token;
 //! - WebSocket/EventSource (não aceitam headers): `?access_token=<token url-encoded>`;
-//! - respostas 401/403 em ações de aprovação → [`ADMIN_LOGIN_MSG`].
+//! - respostas 401/403 em ações de aprovação → `ADMIN_LOGIN_MSG`.
 
 /// Chave do token no `localStorage`.
 pub const TOKEN_KEY: &str = "zylos_token";

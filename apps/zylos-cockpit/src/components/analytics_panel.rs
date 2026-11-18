@@ -5,7 +5,7 @@
 //!   (hora/dia/semana/mês), agente, skill e status (sucesso/falha).
 //! - **Gráficos** (T11.10.2): linha (volume e taxa de sucesso), barras
 //!   (sucesso por skill), heatmap (dia × hora), pizza (volume por agente) e
-//!   tabela (detalhe por skill). Todos SVG puro — ver [`super::analytics_charts`].
+//!   tabela (detalhe por skill). Todos SVG puro — ver `super::analytics_charts`.
 //! - **Export** (T11.10.4): CSV dos dados visíveis e PDF dos relatórios preset.
 //! - **Auto-melhoria** (T11.10.5): recomendações do feedback loop.
 //! - **Relatórios preset** (T11.10.7): links JSON/CSV/PDF.
