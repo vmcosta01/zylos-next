@@ -26,20 +26,67 @@ impl Default for OcrConfig {
 }
 
 /// Client for interacting with VLM OCR services
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct VlmOcrClient {
     config: OcrConfig,
     http: Client,
+    egress: zylos_agent_shield::network_egress::NetworkEgressFilter,
+}
+
+impl std::fmt::Debug for VlmOcrClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VlmOcrClient")
+            .field("config", &self.config)
+            .field("http", &self.http)
+            .field("egress", &"<NetworkEgressFilter>")
+            .finish()
+    }
 }
 
 impl VlmOcrClient {
     /// Create a new VLM OCR client with the given configuration.
     pub fn new(config: OcrConfig) -> Self {
+        use zylos_agent_shield::network_egress::{EgressConfig, EgressRule, NetworkEgressFilter};
         let http = Client::builder()
             .timeout(Duration::from_secs(config.timeout_secs))
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .expect("Failed to build HTTP client");
-        Self { config, http }
+        let mut rules = std::collections::HashMap::new();
+        rules.insert(
+            "zylos-vlm-ocr".to_string(),
+            EgressRule {
+                allowed_hosts: vec!["localhost".into(), "127.0.0.1".into(), "*".into()],
+                allowed_ports: vec![80, 443, 8080, 8443],
+                deny_all: false,
+            },
+        );
+        let egress = NetworkEgressFilter::new(EgressConfig {
+            egress_rules: rules,
+            log_blocked: true,
+            allow_dns_resolution: true,
+        });
+        Self {
+            config,
+            http,
+            egress,
+        }
+    }
+
+    async fn check_egress(&self, url: &str) -> Result<(), crate::error::OcrError> {
+        use zylos_agent_shield::network_egress::parse_url_target;
+        let (host, port) = parse_url_target(url)
+            .map_err(|e| crate::error::OcrError::Network(format!("invalid URL: {}", e)))?;
+        let (decision, _ips) = self
+            .egress
+            .check_with_dns("zylos-vlm-ocr", &host, port)
+            .await;
+        match decision {
+            zylos_agent_shield::network_egress::EgressDecision::Allowed => Ok(()),
+            zylos_agent_shield::network_egress::EgressDecision::Blocked { reason } => Err(
+                crate::error::OcrError::Network(format!("egress blocked: {}", reason)),
+            ),
+        }
     }
 
     /// Returns a reference to the current client configuration.
@@ -66,7 +113,9 @@ impl VlmOcrClient {
     }
 
     async fn do_request(&self, request: &OcrRequest) -> OcrResult<OcrResponse> {
-        let mut req = self.http.post(format!("{}/ocr", self.config.endpoint));
+        let url = format!("{}/ocr", self.config.endpoint);
+        self.check_egress(&url).await?;
+        let mut req = self.http.post(&url);
         if let Some(ref key) = self.config.api_key {
             req = req.header("Authorization", format!("Bearer {}", key));
         }

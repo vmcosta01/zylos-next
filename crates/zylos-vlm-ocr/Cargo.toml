@@ -7,6 +7,7 @@ license.workspace = true
 description = "VLM OCR Sidecar for Zylos-Next — dots.mocr integration with structured output"
 
 [dependencies]
+zylos-agent-shield = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

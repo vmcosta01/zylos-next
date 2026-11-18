@@ -12,6 +12,10 @@ pub enum OcrError {
     #[error("HTTP request failed: {0}")]
     Http(#[from] reqwest::Error),
 
+    /// Network egress check failed or URL is not allowed.
+    #[error("Network error: {0}")]
+    Network(String),
+
     /// The supplied image could not be decoded or is unsupported.
     #[error("Invalid image format: {0}")]
     InvalidImage(String),
