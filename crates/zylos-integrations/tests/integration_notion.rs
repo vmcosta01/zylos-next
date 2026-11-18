@@ -134,3 +134,84 @@ async fn sandbox_notion_search_readonly() {
         .expect("POST /search falhou");
     eprintln!("notion: {} databases visíveis", dbs.len());
 }
+
+#[tokio::test]
+async fn mock_notion_calendar_queries_database_with_date_filter() {
+    let page = |id: &str, title: &str, start: &str, end: serde_json::Value| {
+        serde_json::json!({
+            "object": "page", "id": id, "url": format!("https://notion.so/{id}"),
+            "properties": {
+                "Name": {"type": "title", "title": [{"plain_text": title}]},
+                "When": {"type": "date", "date": {"start": start, "end": end, "time_zone": null}},
+                "Location": {"type": "rich_text", "rich_text": [{"plain_text": "Sala 1"}]},
+                "Attendees": {"type": "people", "people": [
+                    {"id": "u1", "name": "Bia", "person": {"email": "bia@x.io"}},
+                    {"id": "u2", "name": "Rui"}
+                ]}
+            }
+        })
+    };
+    let srv = MockServer::start(vec![(
+        "/databases/db-cal/query",
+        200,
+        serde_json::json!({
+            "results": [
+                page("p1", "Kickoff", "2026-11-18T10:00:00Z", serde_json::json!("2026-11-18T11:00:00Z")),
+                page("p2", "Feriado", "2026-11-20", serde_json::Value::Null),
+                {"id": "p3", "properties": {"When": {"type": "date", "date": null}}}
+            ],
+            "has_more": false, "next_cursor": null
+        }),
+    )])
+    .await;
+    let a = NotionAdapter::with_base_url("ntn_mock".into(), srv.base_url.clone())
+        .with_calendar_database("db-cal", Some("When"));
+    let ev = a
+        .list_calendar_events("2026-11-17T00:00:00Z", "2026-11-30T00:00:00Z")
+        .await
+        .unwrap();
+    assert_eq!(ev.len(), 2, "page without date skipped");
+    assert_eq!(ev[0].event_id, "p1");
+    assert_eq!(ev[0].title, "Kickoff");
+    assert_eq!(ev[0].end_time, "2026-11-18T11:00:00Z");
+    assert_eq!(ev[0].location.as_deref(), Some("Sala 1"));
+    assert_eq!(
+        ev[0].attendees,
+        vec!["bia@x.io".to_string(), "Rui".to_string()]
+    );
+    assert_eq!(ev[1].start_time, "2026-11-20");
+    assert_eq!(
+        ev[1].end_time, "2026-11-20",
+        "all-day: end defaults to start"
+    );
+
+    let reqs = srv.requests();
+    assert_eq!(reqs.len(), 1);
+    assert_eq!(reqs[0].method, "POST");
+    let f = &reqs[0].body["filter"]["and"];
+    assert_eq!(f[0]["property"], "When");
+    assert_eq!(f[0]["date"]["on_or_after"], "2026-11-17T00:00:00Z");
+    assert_eq!(f[1]["date"]["on_or_before"], "2026-11-30T00:00:00Z");
+}
+
+#[tokio::test]
+async fn mock_notion_calendar_default_property_and_errors() {
+    let srv = MockServer::start(vec![(
+        "/databases/db-x/query",
+        404,
+        serde_json::json!({"object": "error", "code": "object_not_found"}),
+    )])
+    .await;
+    // Not configured -> explicit error, no request.
+    let a = NotionAdapter::with_base_url("ntn_mock".into(), srv.base_url.clone());
+    assert!(a.list_calendar_events("a", "b").await.is_err());
+    assert!(srv.requests().is_empty());
+    // Default "Date" property; HTTP error propagates.
+    let a = a.with_calendar_database("db-x", None);
+    let err = a.list_calendar_events("a", "b").await.unwrap_err();
+    assert!(err.to_string().contains("404"), "{err}");
+    assert_eq!(
+        srv.requests()[0].body["filter"]["and"][0]["property"],
+        "Date"
+    );
+}
