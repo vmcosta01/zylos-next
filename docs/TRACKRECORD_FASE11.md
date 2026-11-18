@@ -1,6 +1,6 @@
 # TRACKRECORD — Fase 11 Unificada (A→B→C→D)
 
-**Versão:** 1.4.0
+**Versão:** 1.5.0
 **Data Início:** 2026-11-12
 **Plano Mestre:** [IMPLEMENTATION_PLAN_FASE11_MEGA.md](./IMPLEMENTATION_PLAN_FASE11_MEGA.md)
 **Status Geral:** 🟢 EM ANDAMENTO — 70/85 concluídas, 9 parciais, 1 bloqueada, 5 pendentes (dependem do usuário/infra) — auditado em 2026-11-17
@@ -20,6 +20,17 @@
 ---
 
 ## Log Cronológico de Execuções
+
+### 2026-11-18 — Telas com dados reais + funções reais (sem mocks) — PR #2
+
+**Pedido:** remover dados de exemplo e funções que só fingiam funcionar. Agentes executores via ghostcli (Fable 5.2, Opus 5.5, GPT Astra).
+- **Gateway (novas rotas, SQLite):** `/api/v1/agents`, `/api/v1/subagents` (do SwarmOrchestrator), `/api/v1/threads` (+ `/:id`, `/:id/messages`; ZYLOS_THREADS_DB), `/api/v1/messages/:id/reactions` (toggle; ZYLOS_REACTIONS_DB), `/api/v1/hermes/desktop/relay/{pair-code,pair,devices,tokens/revoke}` (código 5 min + QR SVG gerado no servidor, token guardado só como SHA-256; ZYLOS_RELAY_DB), envio de mensagem em canais.
+- **Cockpit:** Agentes, Subagentes, Threads, Canais, Phone Relay, Reações consomem só o gateway; sem dados → estado vazio honesto. Voz usa microfone real (getUserMedia + AnalyserNode), SpeechRecognition e speechSynthesis.
+- **Funções reais:** WasmPolicySandbox com wasmtime 36 (e67443a), decomposição/delegação do cerebelo (40da525), captura de tela real via xcap (fd96b14), calendário Notion via `databases/{id}/query` com filtro de data, latência de interação medida com `performance.now()`.
+- **CI:** run 44268834323 (e7d97b5) verde, 12/12 jobs.
+- **Merges:** e018348 (screens-a + screens-b), d513998 (fakes). CI: dependências de sistema do xcap adicionadas ao ci.yml (9e2b456) e Dockerfile (e7d97b5) — o CI de d513998 falhou em `libspa-sys` por falta do PipeWire.
+- **Verificação local (branch integrada):** gateway lib 103 + testes de integração (40 e2e, 13 local_guard, 35, 12, 4, 3) 0 falhas; cockpit lib 115; hitl/bot-system/computer-view/integrations/channels/swarm 106/20/24/30/26/31 ok; wasm32 check ok; clippy -D warnings ok; `cargo doc -Dwarnings` workspace ok; fmt ok.
+- **Teste manual no navegador** (gateway 127.0.0.1:3000 + cockpit :8088): thread criada via API aparece na tela; canais reais listados; reação persistida; Phone Relay gerou código `3D4R-MFLK` com QR SVG real (docs/fase11-reports/cockpit-phone-relay-2026-11-18.png).
 
 ### 2026-11-17 — Execução autônoma: 40 tasks (7 frentes paralelas) integradas em `feat/fase11-autonomo` (PR #2)
 
@@ -211,10 +222,10 @@
 | 11.11.2 | JWT implementation review | ✅ Completo | 2026-11-17 | Sem segredo fallback, mínimo 32 B, iss/aud/nbf/jti, denylist de revogação, refresh com rotação + detecção de reuso (25fe4a5). ⚠️ denylist perde-se no restart |
 | 11.11.3 | Egress filter validation | ✅ Completo | 2026-11-17 | NetworkEgressFilter fail-closed: encodings IP, IPv6, userinfo, redirects, DNS rebinding (1406acd). ⚠️ filtro ainda não chamado pelos clientes HTTP |
 | 11.11.4 | Threat model STRIDE atualizado | ✅ Completo | 2026-11-17 | reports/fase11-security/11.11.4-stride-threat-model.md (CRDT WS, analytics, integrations, sentinel remediação, Pages, reverse proxy) |
-| 11.11.5 | Dependency audit (cargo audit/deny/trivy) | 🟡 Parcial | — | cargo audit 48→12 vulns (críticas 4→0, altas 5→2: quick-xml via lancedb, aguarda upstream); wasmtime 25→36; deny.toml novo (licenses/bans/sources ok). trivy indisponível. Gate "zero critical/high" não atingido |
+| 11.11.5 | Dependency audit (cargo audit/deny/trivy) | 🟡 Parcial | 2026-11-17 | quick-xml resolvido (lancedb 0.15→0.41, arrow 58; 133 testes --features lancedb ok, 4ead3f0). cargo audit restante: 10 vulns, 0 críticas (h2 0.3, libsqlite3-sys 0.30, rsa Marvin, rustls 0.21/webpki 0.101 transitivas). trivy indisponível
 | 11.11.6 | Capability token review | ✅ Completo | 2026-11-17 | Capability tokens: limite de path, deny traversal, wildcard de host com ponto, vínculo ao agente, overflow de TTL (5d18743) |
 | 11.11.7 | CORS/CSP headers audit | ✅ Completo | 2026-11-17 | security_headers.rs no gateway + apps/zylos-cockpit/_headers; relatório 11.11.7-cors-csp-headers.md (CORS `Any` = baixo, aberto) |
-| 11.11.8 | Remediar findings críticos | 🟡 Parcial | — | 3 críticos + 3 altos corrigidos e re-testados. Abertos: 4 altos (auth_middleware não montado em /api/v1/* e WS; /approval/resolve sem authz; egress filter não usado; quick-xml) + 7 médios. 11.11.8-remediation.md |
+| 11.11.8 | Remediar findings críticos | 🟡 Parcial | 2026-11-17 | Corrigidos os 4 altos: JWT obrigatório em /api/v1/* com ZYLOS_AUTH_SECRET + admin nas aprovações (4caa94f), NetworkEgressFilter no ActionExecutor (86cb9af), quick-xml (4ead3f0). Médios ainda sem re-teste independente. |
 | 11.11.9 | Auditoria adversarial final | 🟡 Parcial | — | 11.11.9-adversarial-audit.md: NÃO APROVADO p/ produção exposta (só local 127.0.0.1). Feito por agente, sem juiz humano independente |
 | 11.11.10 | Security sign-off | ⬜ Pendente | — | Tech Lead + Security Reviewer |
 
@@ -275,6 +286,8 @@
 | 2026-11-12 | 1.1.0 | Hermes Agent | Fase 11.1 completa (ADR-011), Fase 11.2 parcial (12 testes E2E novos, 20/20 passed) |
 | 2026-11-17 | 1.2.0 | Hermes Agent | Auditoria contra código: 29 concluídas/4 parciais/1 bloqueada de 85; fix gatilho deploy-preview (master) |
 | 2026-11-17 | 1.3.0 | Hermes Agent | T11.3.8 ✅ (preview + merge e41495d); fix output deployment-url; 30/3/1 de 85 |
+| 2026-11-17 | 1.4.0 | Hermes Agent | Execução autônoma (40 tasks, 7 frentes): 70/9/1/5 de 85 |
+| 2026-11-18 | 1.5.0 | Hermes Agent | Telas com dados reais, funções reais (HITL WASM, cerebelo, xcap, Notion, latência), segurança 11.11.5/11.11.8 atualizadas |
 
 ---
 
