@@ -35,6 +35,9 @@ pub mod crdt_client;
 /// Resolução da URL base do gateway.
 pub mod gateway_config;
 
+/// HTTP autenticado ao gateway (GET/POST/DELETE JSON).
+pub mod gateway_http;
+
 /// Traduções pt-BR / en-US.
 pub mod i18n;
 

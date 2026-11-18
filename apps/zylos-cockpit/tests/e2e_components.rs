@@ -54,19 +54,17 @@ fn test_channel_serialization_roundtrip() {
 /// Valida serialização/deserialização de PairedDevice.
 #[wasm_bindgen_test]
 fn test_paired_device_serialization_roundtrip() {
-    use zylos_cockpit::components::phone_relay_panel::{DeviceStatus, PairedDevice, Platform};
+    use zylos_cockpit::components::phone_relay_panel::PairedDevice;
     let dev = PairedDevice {
         id: "dev-1".to_string(),
         name: "My Phone".to_string(),
-        platform: Platform::Android,
-        paired_at: "2026-11-11T18:00:00Z".to_string(),
-        last_seen: "agora".to_string(),
-        status: DeviceStatus::Online,
+        platform: "android".to_string(),
+        paired_at: 1_700_000_000,
+        last_seen: 1_700_000_060,
     };
     let json = serde_json::to_string(&dev).unwrap();
     let deserialized: PairedDevice = serde_json::from_str(&json).unwrap();
-    assert_eq!(dev.id, deserialized.id);
-    assert_eq!(dev.status, deserialized.status);
+    assert_eq!(dev, deserialized);
 }
 
 /// Valida serialização/deserialização de SkillDef.

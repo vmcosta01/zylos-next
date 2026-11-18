@@ -212,39 +212,23 @@ fn test_workflow_phone_relay_session() {
         || view! { <zylos_cockpit::components::phone_relay_panel::PhoneRelayPanel /> },
     );
 
-    // Step 2: Criar PairedDevice e simular lifecycle
-    use zylos_cockpit::components::phone_relay_panel::{DeviceStatus, PairedDevice, Platform};
+    // Step 2: PairedDevice como devolvido por GET /hermes/desktop/relay/devices
+    use zylos_cockpit::components::phone_relay_panel::{relative_time, PairedDevice};
 
-    let mut device = PairedDevice {
+    let device = PairedDevice {
         id: "dev-workflow-test".to_string(),
         name: "Test Phone".to_string(),
-        platform: Platform::Android,
-        paired_at: "2026-11-12T10:00:00Z".to_string(),
-        last_seen: "2026-11-12T10:00:00Z".to_string(),
-        status: DeviceStatus::Offline,
+        platform: "android".to_string(),
+        paired_at: 1_700_000_000,
+        last_seen: 1_700_000_120,
     };
-
-    // Workflow: Offline → Online
-    device.status = DeviceStatus::Online;
-    device.last_seen = js_sys::Date::new_0().to_iso_string().as_string().unwrap();
-
-    let json_online = serde_json::to_string(&device).unwrap();
-    let deserialized_online: PairedDevice = serde_json::from_str(&json_online).unwrap();
+    let json = serde_json::to_string(&device).unwrap();
+    let back: PairedDevice = serde_json::from_str(&json).unwrap();
+    assert_eq!(back, device, "Workflow step 2: device roundtrip OK");
     assert_eq!(
-        deserialized_online.status,
-        DeviceStatus::Online,
-        "Workflow step 2: Device online status OK"
-    );
-
-    // Workflow: Online → Offline (disconnect)
-    device.status = DeviceStatus::Offline;
-
-    let json_offline = serde_json::to_string(&device).unwrap();
-    let deserialized_offline: PairedDevice = serde_json::from_str(&json_offline).unwrap();
-    assert_eq!(
-        deserialized_offline.status,
-        DeviceStatus::Offline,
-        "Workflow step 3: Device offline status OK"
+        relative_time(device.last_seen, device.last_seen + 180),
+        "há 3 min",
+        "Workflow step 3: last_seen relativo OK"
     );
 
     cleanup_test_container("test-workflow-phone");
