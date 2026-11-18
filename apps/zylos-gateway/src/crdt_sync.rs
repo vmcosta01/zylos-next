@@ -59,8 +59,6 @@ use zylos_auth::TokenService;
 
 /// Tag do `Message::Custom` usado como ping/pong para medir latência.
 pub const PING_TAG: u8 = 100;
-/// Close code personalizado para autenticação falha no WebSocket (faixa 4000-4999).
-const WS_CLOSE_AUTH_FAILED: u16 = 4001;
 /// Capacidade do canal broadcast por sala.
 const ROOM_CHANNEL_CAPACITY: usize = 1024;
 /// Após N updates pendentes no log, o servidor gera um snapshot (compactação).

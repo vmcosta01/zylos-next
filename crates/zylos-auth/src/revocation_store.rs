@@ -63,7 +63,10 @@ impl RevocationStore {
 
     /// Insere ou atualiza um JTI revogado com sua expiração.
     pub fn revoke(&self, jti: &str, exp: i64) -> Result<()> {
-        let conn = self.conn.lock().map_err(|_| RevocationStoreError::Poisoned)?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| RevocationStoreError::Poisoned)?;
         conn.execute(
             "INSERT INTO revoked_jtis (jti, exp) VALUES (?1, ?2)
              ON CONFLICT(jti) DO UPDATE SET exp = excluded.exp",
@@ -74,7 +77,10 @@ impl RevocationStore {
 
     /// Verifica se um JTI está na denylist persistente.
     pub fn is_revoked(&self, jti: &str) -> Result<bool> {
-        let conn = self.conn.lock().map_err(|_| RevocationStoreError::Poisoned)?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| RevocationStoreError::Poisoned)?;
         let exists: Option<i64> = conn
             .query_row(
                 "SELECT 1 FROM revoked_jtis WHERE jti = ?1 AND exp > ?2",
@@ -87,14 +93,23 @@ impl RevocationStore {
 
     /// Remove entradas expiradas. Retorna quantidade removida.
     pub fn purge_expired(&self) -> Result<usize> {
-        let conn = self.conn.lock().map_err(|_| RevocationStoreError::Poisoned)?;
-        let removed = conn.execute("DELETE FROM revoked_jtis WHERE exp <= ?1", params![now_ts()])?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| RevocationStoreError::Poisoned)?;
+        let removed = conn.execute(
+            "DELETE FROM revoked_jtis WHERE exp <= ?1",
+            params![now_ts()],
+        )?;
         Ok(removed)
     }
 
     /// Conta entradas ativas (não expiradas). Útil para métricas/testes.
     pub fn count_active(&self) -> Result<usize> {
-        let conn = self.conn.lock().map_err(|_| RevocationStoreError::Poisoned)?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| RevocationStoreError::Poisoned)?;
         let n: usize = conn.query_row(
             "SELECT COUNT(*) FROM revoked_jtis WHERE exp > ?1",
             params![now_ts()],

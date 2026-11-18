@@ -136,9 +136,7 @@ async fn post_guardrail_rule(State(state): State<AppState>, Json(body): Json<Val
 // Capability Tokens (F16: real HMAC-signed issuance/verification)
 // ---------------------------------------------------------------------------
 
-async fn get_capability_tokens(
-    State(cts): State<CapabilityTokensState>,
-) -> Response {
+async fn get_capability_tokens(State(cts): State<CapabilityTokensState>) -> Response {
     let count = cts.store.count().await;
     ok_json(json!({
         "status": "ok",
@@ -154,7 +152,11 @@ async fn post_capability_token(
         return (StatusCode::BAD_REQUEST, "agent_id is required").into_response();
     }
     if req.capabilities.is_empty() {
-        return (StatusCode::BAD_REQUEST, "at least one capability is required").into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            "at least one capability is required",
+        )
+            .into_response();
     }
     let caps: Vec<Capability> = req
         .capabilities

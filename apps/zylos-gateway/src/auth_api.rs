@@ -79,7 +79,7 @@ impl AuthState {
         // F2: abre (ou cria) o store persistente de JWTs revogados.
         let revocation_store = std::env::var("ZYLOS_REVOKED_DB")
             .ok()
-            .map(|p| std::path::PathBuf::from(p))
+            .map(std::path::PathBuf::from)
             .or_else(|| Some(std::path::PathBuf::from("data/revoked.db")))
             .and_then(|path| {
                 match zylos_auth::revocation_store::RevocationStore::open(&path) {

@@ -60,7 +60,12 @@ impl Bucket {
             }
             if self
                 .tokens
-                .compare_exchange(current, current - 1_000, Ordering::Relaxed, Ordering::Relaxed)
+                .compare_exchange(
+                    current,
+                    current - 1_000,
+                    Ordering::Relaxed,
+                    Ordering::Relaxed,
+                )
                 .is_ok()
             {
                 return true;
@@ -94,7 +99,11 @@ impl RateLimiter {
     /// Extract client IP from request headers or peer addr.
     fn client_ip(req: &Request) -> String {
         // Prefer X-Forwarded-For (first entry) for reverse-proxy setups.
-        if let Some(xff) = req.headers().get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
+        if let Some(xff) = req
+            .headers()
+            .get("x-forwarded-for")
+            .and_then(|v| v.to_str().ok())
+        {
             if let Some(first) = xff.split(',').next().map(str::trim) {
                 if !first.is_empty() {
                     return first.to_string();
@@ -147,7 +156,7 @@ mod tests {
     #[test]
     fn f15_bucket_allows_within_rps() {
         let bucket = Bucket::new(10 * 1_000); // 10 rps capacity
-        // Should allow 10 requests immediately.
+                                              // Should allow 10 requests immediately.
         for _ in 0..10 {
             assert!(bucket.try_consume(10));
         }
@@ -161,12 +170,9 @@ mod tests {
             buckets: Arc::new(DashMap::new()),
             rps: 2,
         };
-        let app = Router::new()
-            .route("/ok", get(|| async { "ok" }))
-            .layer(axum::middleware::from_fn_with_state(
-                limiter.clone(),
-                RateLimiter::middleware,
-            ));
+        let app = Router::new().route("/ok", get(|| async { "ok" })).layer(
+            axum::middleware::from_fn_with_state(limiter.clone(), RateLimiter::middleware),
+        );
 
         // First 2 requests pass.
         for _ in 0..2 {
@@ -204,12 +210,9 @@ mod tests {
             buckets: Arc::new(DashMap::new()),
             rps: 1,
         };
-        let app = Router::new()
-            .route("/ok", get(|| async { "ok" }))
-            .layer(axum::middleware::from_fn_with_state(
-                limiter,
-                RateLimiter::middleware,
-            ));
+        let app = Router::new().route("/ok", get(|| async { "ok" })).layer(
+            axum::middleware::from_fn_with_state(limiter, RateLimiter::middleware),
+        );
 
         // IP-A uses its 1 token.
         let resp = app

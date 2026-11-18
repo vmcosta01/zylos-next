@@ -307,7 +307,9 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
                     .filter_map(|s| s.parse().ok())
                     .collect();
                 if origins.is_empty() {
-                    tracing::warn!("ZYLOS_CORS_ORIGINS definido mas vazio — usando apenas origens locais");
+                    tracing::warn!(
+                        "ZYLOS_CORS_ORIGINS definido mas vazio — usando apenas origens locais"
+                    );
                     cors = cors.allow_origin(tower_http::cors::AllowOrigin::predicate(
                         local_guard::cors_origem_local,
                     ));
