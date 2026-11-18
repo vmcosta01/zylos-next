@@ -86,7 +86,17 @@ fn default_true() -> bool {
     true
 }
 fn default_audit_key() -> String {
-    "zylos-gateway-soar-key".to_string()
+    // F14: sem chave fixa. Gera uma aleatória por processo quando ZYLOS_SOAR_AUDIT_KEY
+    // não está definido; o valor é logado como aviso para que o operador configure.
+    use rand::RngCore;
+    let mut bytes = [0u8; 32];
+    rand::thread_rng().fill_bytes(&mut bytes);
+    let key = hex::encode(bytes);
+    tracing::warn!(
+        "ZYLOS_SOAR_AUDIT_KEY não definido — usando chave efêmera gerada aleatoriamente; \
+         configure a env para auditoria persistente entre restarts"
+    );
+    key
 }
 fn default_event_bus_capacity() -> usize {
     256
@@ -225,5 +235,28 @@ mod tests {
         let config = GatewayConfig::load(None).unwrap();
         assert_eq!(config.server.listen_addr, "127.0.0.1:9999");
         std::env::remove_var("ZYLOS_LISTEN");
+    }
+
+    #[test]
+    fn f14_default_audit_key_is_not_hardcoded() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        std::env::remove_var("ZYLOS_SOAR_AUDIT_KEY");
+        let a = default_audit_key();
+        let b = default_audit_key();
+        // Não pode ser a chave fixa antiga
+        assert_ne!(a, "zylos-gateway-soar-key");
+        // Duas chamadas devem gerar valores diferentes (efêmero por processo)
+        assert_ne!(a, b);
+        // Tamanho esperado: 32 bytes → 64 hex chars
+        assert_eq!(a.len(), 64);
+    }
+
+    #[test]
+    fn f14_env_audit_key_overrides_generated() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        std::env::set_var("ZYLOS_SOAR_AUDIT_KEY", "minha-chave-de-auditoria-32b-ok");
+        let config = GatewayConfig::load(None).unwrap();
+        assert_eq!(config.soar.audit_key, "minha-chave-de-auditoria-32b-ok");
+        std::env::remove_var("ZYLOS_SOAR_AUDIT_KEY");
     }
 }
