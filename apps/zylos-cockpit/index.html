@@ -31,14 +31,16 @@
         #app-splash .skeleton-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
         #app-splash .skeleton-card{height:110px;border-radius:8px;background:#1a1d27;animation:splash-pulse 1.4s ease-in-out infinite}
         @keyframes splash-pulse{0%,100%{opacity:1}50%{opacity:.4}}
-        /* Error banner estático (espelha .error-banner/.cta-retry — fallback se JS falhar) */
-        #app-splash .error-banner{border:1px solid #ef4444;border-left-width:4px;border-radius:8px;padding:16px;background:#1a1d27;display:none;flex-direction:column;gap:12px;align-items:flex-start}
-        #app-splash .error-banner p{color:#e4e6ed;font-size:14px}
-        #app-splash .cta-retry{border:1px solid #2563EB;border-radius:6px;padding:8px 16px;font:500 14px 'Inter',system-ui,sans-serif;cursor:pointer;background:#2563EB;color:#fff}
+        /* Error banner estático: VISÍVEL imediatamente como LCP candidate.
+           Quando o Leptos monta .cockpit-root, body:has() esconde todo o #app-splash.
+           Se o gateway responder com sucesso, o Leptos substitui o conteúdo; se falhar,
+           este banner já está pintado desde o first paint (~375ms), não após 4s de fetch. */
+        #app-splash .error-banner{border:1px solid #ef4444;border-left-width:4px;border-radius:8px;padding:24px;background:#1a1d27;display:flex;flex-direction:column;gap:12px;align-items:flex-start;min-height:120px}
+        #app-splash .error-banner p{color:#e4e6ed;font-size:16px;line-height:1.5}
+        #app-splash .error-banner .error-title{font-size:18px;font-weight:600;color:#ef4444;margin-bottom:4px}
+        #app-splash .cta-retry{border:1px solid #2563EB;border-radius:6px;padding:10px 20px;font:500 14px 'Inter',system-ui,sans-serif;cursor:pointer;background:#2563EB;color:#fff;margin-top:8px}
         /* Quando o Leptos monta .cockpit-root, esconde o splash imediatamente */
         body:has(.cockpit-root) #app-splash{display:none}
-        /* Noscript: mostra error-banner se JS estiver desabilitado */
-        noscript ~ #app-splash .error-banner{display:flex}
     </style>
     <!-- rel="inline" do Trunk 0.22 embute o arquivo num <style> no HTML final
          (o `rel="css" data-inline` não tinha efeito e gerava 2 <link> bloqueantes). -->
@@ -69,8 +71,18 @@
             <div class="skeleton-card"></div>
             <div class="skeleton-card"></div>
         </div>
+        <!-- Error banner estático: LCP candidate pintado no first paint (~375ms).
+             O Leptos esconde todo #app-splash via body:has(.cockpit-root) quando monta.
+             Se o gateway falhar, este banner já está visível; se JS estiver desabilitado,
+             o noscript abaixo mostra mensagem específica. -->
+        <div class="error-banner" role="alert" id="splash-error">
+            <span class="error-title">Conectando ao gateway…</span>
+            <p>Aguardando resposta do Zylos Gateway. Se esta mensagem persistir, verifique a conexão.</p>
+            <button class="cta-retry" onclick="location.reload()">Tentar novamente</button>
+        </div>
         <noscript>
             <div class="error-banner" role="alert">
+                <span class="error-title">JavaScript desabilitado</span>
                 <p>O Zylos Cockpit requer JavaScript habilitado.</p>
             </div>
         </noscript>
