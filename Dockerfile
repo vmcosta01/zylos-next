@@ -15,6 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsqlite3-dev \
     protobuf-compiler \
     curl \
+    libclang-dev libpipewire-0.3-dev libspa-0.2-dev libxcb1-dev libxrandr-dev \
+    libdbus-1-dev libgbm-dev libegl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install wasm-pack for cockpit WASM build
@@ -41,6 +43,7 @@ FROM debian:bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libssl3 \
+    libpipewire-0.3-0 libxcb1 libxcb-randr0 libxrandr2 libdbus-1-3 libgbm1 libegl1 \
     libsqlite3-0 \
     tini \
     curl \
