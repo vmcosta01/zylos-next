@@ -14,10 +14,10 @@ use crate::components::{
     provide_theme, AgentAvatarsGrid, AgentAwarenessPanel, AgentsPanel, AuthHeaderButton,
     ChannelPanel, ChatPanel, CollabPanel, EmojiReactions, EmployeeGovernancePanel,
     EvidenceLedgerPanel, FederationDashboard, FileManager, FleetAuditorPanel, GoalsPanel,
-    HitlApprovalPanel, IntegrationsPanel, MemoryTimeline, PersonalitiesPanel,
-    PhoneRelayPanel, SecurityPanel, SentinelPanel, SkillEditorPanel, SkillEvolutionPanel,
-    SkinThemesPanel, SoarDashboard, SubagentStatusCards, SwarmDagPanel, SwarmTopologyPanel,
-    TaskTriagePanel, TasksDag, ThemeToggle, ThreadManager, VoicePanel,
+    HitlApprovalPanel, IntegrationsPanel, MemoryTimeline, PersonalitiesPanel, PhoneRelayPanel,
+    SecurityPanel, SentinelPanel, SkillEditorPanel, SkillEvolutionPanel, SkinThemesPanel,
+    SoarDashboard, SubagentStatusCards, SwarmDagPanel, SwarmTopologyPanel, TaskTriagePanel,
+    TasksDag, ThemeToggle, ThreadManager, VoicePanel,
 };
 use crate::i18n::{provide_i18n, use_i18n, Locale};
 use crate::streaming::{provide_stream, LiveEventFeed, StreamConfig};
@@ -385,14 +385,12 @@ fn TabButton(
 #[component]
 fn TabContent(tab: Tab) -> impl IntoView {
     match tab {
-        Tab::Agents => {
-            view! {
-                <div class="tab-panel tab-panel-agents">
-                    <AgentsPanel />
-                </div>
-            }
-            .into_any()
+        Tab::Agents => view! {
+            <div class="tab-panel tab-panel-agents">
+                <AgentsPanel />
+            </div>
         }
+        .into_any(),
         Tab::Tasks => view! {
             <div class="tab-panel tab-panel-tasks">
                 <TasksDag />

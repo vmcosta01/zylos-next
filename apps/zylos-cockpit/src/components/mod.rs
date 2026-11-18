@@ -2,12 +2,12 @@
 
 pub mod agent_awareness_panel;
 pub mod agent_card;
+pub mod agents_panel;
 pub mod chat_panel;
 pub mod employee_governance_panel;
 pub mod evidence_ledger_panel;
 pub mod goals_panel;
 pub mod hitl_approval_panel;
-pub mod agents_panel;
 pub use agents_panel::AgentsPanel;
 pub mod lazy_roster;
 pub mod memory_timeline;

@@ -78,17 +78,22 @@ pub fn ThreadManager() -> impl IntoView {
     Effect::new(move |_| load());
 
     // Executa uma ação remota e recarrega a lista; erro vai para o banner.
-    let act = move |fut: std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>| {
-        spawn_local(async move {
-            match fut.await {
-                Ok(()) => action_error.set(None),
-                Err(e) => action_error.set(Some(crate::ui_error::report("threads", &e))),
-            }
-            load();
-        });
-    };
+    let act =
+        move |fut: std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>>>>| {
+            spawn_local(async move {
+                match fut.await {
+                    Ok(()) => action_error.set(None),
+                    Err(e) => action_error.set(Some(crate::ui_error::report("threads", &e))),
+                }
+                load();
+            });
+        };
 
-    let on_create = move |_| act(Box::pin(async { create_thread("Nova conversa").await.map(|_| ()) }));
+    let on_create = move |_| {
+        act(Box::pin(async {
+            create_thread("Nova conversa").await.map(|_| ())
+        }))
+    };
 
     view! {
         <div class="thread-manager">
@@ -244,11 +249,7 @@ async fn create_thread(name: &str) -> Result<Thread, String> {
     let req = crate::auth::authed(Request::post(&threads_url("")?))
         .json(&serde_json::json!({ "name": name }))
         .map_err(|e| format!("{e:?}"))?;
-    send(req)
-        .await?
-        .json()
-        .await
-        .map_err(|e| format!("{e:?}"))
+    send(req).await?.json().await.map_err(|e| format!("{e:?}"))
 }
 
 async fn patch_thread(id: &str, body: serde_json::Value) -> Result<(), String> {
