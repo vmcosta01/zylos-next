@@ -33,8 +33,14 @@ pub const PING_TAG: u8 = 100;
 /// Paleta de cores de presença via CSS custom properties (ADR-008).
 /// Valores definidos em `styles/design-tokens.css` como --peer-1..--peer-8.
 pub const PRESENCE_COLORS: [&str; 8] = [
-    "var(--peer-1)", "var(--peer-2)", "var(--peer-3)", "var(--peer-4)",
-    "var(--peer-5)", "var(--peer-6)", "var(--peer-7)", "var(--peer-8)",
+    "var(--peer-1)",
+    "var(--peer-2)",
+    "var(--peer-3)",
+    "var(--peer-4)",
+    "var(--peer-5)",
+    "var(--peer-6)",
+    "var(--peer-7)",
+    "var(--peer-8)",
 ];
 
 /// Cor determinística para um client id.

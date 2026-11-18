@@ -54,8 +54,12 @@ pub use integrations_panel::IntegrationsPanel;
 pub mod auth_login;
 pub use auth_login::AuthHeaderButton;
 pub mod collab_panel;
+pub mod collapsible_sidebar;
 pub mod theme_toggle;
+pub mod translucent_header;
 pub use collab_panel::CollabPanel;
+pub use collapsible_sidebar::{CollapsibleSidebar, SidebarGroup};
+pub use translucent_header::{GatewayStatus, TranslucentHeader};
 
 pub use agent_awareness_panel::AgentAwarenessPanel;
 #[allow(unused_imports)]
