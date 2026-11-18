@@ -25,6 +25,8 @@ pub mod orchestrate_api;
 pub mod password_masking;
 pub mod personalities_api;
 pub mod phase2_integration;
+pub mod reactions_api;
+pub mod relay_api;
 pub mod security_headers;
 pub mod sentinel_api;
 pub mod sentinel_runtime;
@@ -254,6 +256,12 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
                 .merge(subagents_api::create_subagents_router(state.swarm.clone()))
                 .merge(threads_api::create_threads_router(
                     threads_api::ThreadsStore::from_env().expect("threads store"),
+                ))
+                .merge(relay_api::create_relay_router(
+                    relay_api::RelayState::from_env(),
+                ))
+                .merge(reactions_api::create_reactions_router(
+                    reactions_api::ReactionsState::from_env(),
                 )),
         )
         .layer(axum::middleware::from_fn_with_state(

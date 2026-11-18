@@ -12,12 +12,12 @@ use crate::benchmarks::BenchmarkPanel;
 use crate::components::analytics_panel::AnalyticsPanel;
 use crate::components::{
     provide_theme, AgentAvatarsGrid, AgentAwarenessPanel, AgentsPanel, AuthHeaderButton,
-    ChannelPanel, ChatPanel, CollabPanel, EmojiReactions, EmployeeGovernancePanel,
-    EvidenceLedgerPanel, FederationDashboard, FileManager, FleetAuditorPanel, GoalsPanel,
-    HitlApprovalPanel, IntegrationsPanel, MemoryTimeline, PersonalitiesPanel, PhoneRelayPanel,
-    SecurityPanel, SentinelPanel, SkillEditorPanel, SkillEvolutionPanel, SkinThemesPanel,
-    SoarDashboard, SubagentStatusCards, SwarmDagPanel, SwarmTopologyPanel, TaskTriagePanel,
-    TasksDag, ThemeToggle, ThreadManager, VoicePanel,
+    ChannelPanel, ChatPanel, CollabPanel, EmployeeGovernancePanel, EvidenceLedgerPanel,
+    FederationDashboard, FileManager, FleetAuditorPanel, GoalsPanel, HitlApprovalPanel,
+    IntegrationsPanel, MemoryTimeline, PersonalitiesPanel, PhoneRelayPanel, SecurityPanel,
+    SentinelPanel, SkillEditorPanel, SkillEvolutionPanel, SkinThemesPanel, SoarDashboard,
+    SubagentStatusCards, SwarmDagPanel, SwarmTopologyPanel, TaskTriagePanel, TasksDag, ThemeToggle,
+    ThreadManager, VoicePanel,
 };
 use crate::i18n::{provide_i18n, use_i18n, Locale};
 use crate::streaming::{provide_stream, LiveEventFeed, StreamConfig};
@@ -513,7 +513,8 @@ fn TabContent(tab: Tab) -> impl IntoView {
         .into_any(),
         Tab::Reactions => view! {
         <div class="tab-panel tab-panel-reactions">
-        <EmojiReactions _message_id="demo-msg-1" />
+        <p class="panel-subtitle">"Reaja às mensagens reais dos canais (persistidas no gateway)."</p>
+        <ChannelPanel />
         </div>
         }
         .into_any(),

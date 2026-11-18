@@ -13,7 +13,7 @@ leptos = { version = "0.7", features = ["csr"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 wasm-bindgen = "0.2"
-web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "console", "Request", "RequestInit", "Response", "Storage", "DomTokenList", "HtmlInputElement", "Event", "EventSource", "MessageEvent", "Location", "MouseEvent", "SvgElement", "SvgGraphicsElement", "SvgCircleElement", "SvgLineElement", "SvgTextElement", "SvgsvgElement", "DomRect", "WheelEvent", "KeyboardEvent", "WebSocket", "BinaryType", "HtmlTextAreaElement"] }
+web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "console", "Request", "RequestInit", "Response", "Storage", "DomTokenList", "HtmlInputElement", "Event", "EventSource", "MessageEvent", "Location", "MouseEvent", "SvgElement", "SvgGraphicsElement", "SvgCircleElement", "SvgLineElement", "SvgTextElement", "SvgsvgElement", "DomRect", "WheelEvent", "KeyboardEvent", "WebSocket", "BinaryType", "HtmlTextAreaElement", "Navigator", "MediaDevices", "MediaStream", "MediaStreamTrack", "MediaStreamConstraints", "AudioContext", "BaseAudioContext", "AudioNode", "AnalyserNode", "MediaStreamAudioSourceNode", "SpeechSynthesis", "SpeechSynthesisUtterance"] }
 console_error_panic_hook = "0.1"
 gloo-net = { version = "0.6", features = ["http"] }
 wasm-bindgen-futures = "0.4"
