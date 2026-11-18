@@ -335,6 +335,28 @@ pub enum PersonalityError {
 // Personality Registry
 // ---------------------------------------------------------------------------
 
+/// `:memory:` cria um banco separado por conexão; com um pool de várias
+/// conexões as tabelas da migração só existiriam em uma delas ("no such
+/// table"). Para memória usa uma única conexão que nunca é reciclada.
+async fn connect_sqlite_pool(
+    path: &str,
+    options: SqliteConnectOptions,
+) -> Result<SqlitePool, sqlx::Error> {
+    let p = path.trim_start_matches("sqlite:").trim_start_matches("//");
+    let in_memory = p == ":memory:" || p.starts_with(":memory:?") || p.contains("mode=memory");
+    if in_memory {
+        sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .min_connections(1)
+            .idle_timeout(None)
+            .max_lifetime(None)
+            .connect_with(options)
+            .await
+    } else {
+        SqlitePool::connect_with(options).await
+    }
+}
+
 /// SQLite WAL-backed registry for agent personality profiles.
 #[derive(Clone)]
 pub struct PersonalityRegistry {
@@ -347,7 +369,7 @@ impl PersonalityRegistry {
         let options = SqliteConnectOptions::from_str(path)?
             .create_if_missing(true)
             .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
-        let pool = SqlitePool::connect_with(options).await?;
+        let pool = connect_sqlite_pool(path, options).await?;
         let registry = Self { pool };
         registry.run_migrations().await?;
         Ok(registry)
@@ -1203,5 +1225,32 @@ mod tests {
         assert_eq!(collab.role, "contributor");
         assert!(collab.defer_to_experts);
         assert_eq!(collab.conflict_resolution, "data_driven");
+    }
+}
+
+#[cfg(test)]
+mod memory_pool_regression {
+    /// Regressão: `:memory:` com pool multi-conexão perdia as tabelas.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn memory_pool_keeps_schema_across_concurrent_queries() {
+        let opts = <sqlx::sqlite::SqliteConnectOptions as std::str::FromStr>::from_str(":memory:")
+            .unwrap();
+        let pool = super::connect_sqlite_pool(":memory:", opts).await.unwrap();
+        sqlx::query("CREATE TABLE t (x INTEGER)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let mut hs = Vec::new();
+        for _ in 0..32 {
+            let p = pool.clone();
+            hs.push(tokio::spawn(async move {
+                sqlx::query("SELECT count(*) FROM t").execute(&p).await
+            }));
+        }
+        for h in hs {
+            h.await
+                .unwrap()
+                .expect("tabela deve existir em todas as consultas");
+        }
     }
 }

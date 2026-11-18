@@ -402,6 +402,12 @@ pub struct SwarmOrchestrator {
     hop_guard: hop_count::HopCountGuard,
 }
 
+/// `true` se o caminho SQLite aponta para um banco em memória.
+fn is_memory_path(path: &str) -> bool {
+    let p = path.trim_start_matches("sqlite:").trim_start_matches("//");
+    p == ":memory:" || p.starts_with(":memory:?") || p.contains("mode=memory")
+}
+
 impl SwarmOrchestrator {
     /// Opens or creates the swarm orchestrator store at the given path.
     ///
@@ -411,7 +417,21 @@ impl SwarmOrchestrator {
         let options = SqliteConnectOptions::from_str(path)?
             .create_if_missing(true)
             .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
-        let pool = SqlitePool::connect_with(options).await?;
+        // `:memory:` cria um banco separado por conexão: com um pool de várias
+        // conexões, as tabelas criadas pela migração só existem em uma delas e
+        // as demais falham com "no such table". Para memória, usamos uma única
+        // conexão que nunca é reciclada.
+        let pool = if is_memory_path(path) {
+            sqlx::sqlite::SqlitePoolOptions::new()
+                .max_connections(1)
+                .min_connections(1)
+                .idle_timeout(None)
+                .max_lifetime(None)
+                .connect_with(options)
+                .await?
+        } else {
+            SqlitePool::connect_with(options).await?
+        };
         let orch = Self {
             pool,
             hop_guard: hop_count::HopCountGuard::default_limit(),
@@ -1611,5 +1631,36 @@ mod tests {
         assert_eq!(filhas.len(), 1);
         assert_eq!(filhas[0].id, filha.id);
         assert_eq!(filhas[0].parent_id.as_deref(), Some(pai.id.as_str()));
+    }
+}
+
+#[cfg(test)]
+mod memory_pool_tests {
+    use super::*;
+    use std::sync::Arc;
+
+    /// Regressão: com `:memory:` e pool de várias conexões, consultas
+    /// concorrentes caíam em conexões sem as tabelas ("no such table").
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn memory_store_survives_concurrent_queries() {
+        let orch = Arc::new(SwarmOrchestrator::open(":memory:").await.unwrap());
+        let mut handles = Vec::new();
+        for _ in 0..32 {
+            let o = orch.clone();
+            handles.push(tokio::spawn(async move { o.list_agents().await }));
+        }
+        for h in handles {
+            h.await
+                .unwrap()
+                .expect("list_agents em :memory: deve funcionar");
+        }
+    }
+
+    #[test]
+    fn detects_memory_paths() {
+        assert!(is_memory_path(":memory:"));
+        assert!(is_memory_path("sqlite::memory:"));
+        assert!(is_memory_path("file:x?mode=memory&cache=shared"));
+        assert!(!is_memory_path("data/swarm.db"));
     }
 }
