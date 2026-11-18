@@ -52,6 +52,9 @@ sentry = { version = "0.46.2", features = ["backtrace", "contexts", "panic", "lo
 zylos-sentinel = { version = "0.1.0", path = "../../crates/zylos-sentinel" }
 zylos-integrations = { path = "../../crates/zylos-integrations" }
 serde_yaml = "0.9.34"
+rusqlite = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

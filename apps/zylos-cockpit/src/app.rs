@@ -11,10 +11,10 @@ use wasm_bindgen_futures::spawn_local;
 use crate::benchmarks::BenchmarkPanel;
 use crate::components::analytics_panel::AnalyticsPanel;
 use crate::components::{
-    provide_theme, AgentAvatarsGrid, AgentAwarenessPanel, AgentInfo, AgentStatus, AuthHeaderButton,
+    provide_theme, AgentAvatarsGrid, AgentAwarenessPanel, AgentsPanel, AuthHeaderButton,
     ChannelPanel, ChatPanel, CollabPanel, EmojiReactions, EmployeeGovernancePanel,
     EvidenceLedgerPanel, FederationDashboard, FileManager, FleetAuditorPanel, GoalsPanel,
-    HitlApprovalPanel, IntegrationsPanel, LazyRoster, MemoryTimeline, PersonalitiesPanel,
+    HitlApprovalPanel, IntegrationsPanel, MemoryTimeline, PersonalitiesPanel,
     PhoneRelayPanel, SecurityPanel, SentinelPanel, SkillEditorPanel, SkillEvolutionPanel,
     SkinThemesPanel, SoarDashboard, SubagentStatusCards, SwarmDagPanel, SwarmTopologyPanel,
     TaskTriagePanel, TasksDag, ThemeToggle, ThreadManager, VoicePanel,
@@ -42,33 +42,6 @@ pub enum DashboardState {
 }
 
 pub use crate::tabs::Tab;
-
-/// Sample agents for demo/empty-state testing
-fn sample_agents() -> Vec<AgentInfo> {
-    vec![
-        AgentInfo {
-            id: "agent-001".to_string(),
-            name: "Chief of Staff".to_string(),
-            status: AgentStatus::Running,
-            task_count: 12,
-            last_active: "2m ago".to_string(),
-        },
-        AgentInfo {
-            id: "agent-002".to_string(),
-            name: "Backend Engineer".to_string(),
-            status: AgentStatus::Idle,
-            task_count: 3,
-            last_active: "15m ago".to_string(),
-        },
-        AgentInfo {
-            id: "agent-003".to_string(),
-            name: "Code Reviewer".to_string(),
-            status: AgentStatus::Blocked,
-            task_count: 7,
-            last_active: "1h ago".to_string(),
-        },
-    ]
-}
 
 /// Root application component
 #[component]
@@ -413,10 +386,9 @@ fn TabButton(
 fn TabContent(tab: Tab) -> impl IntoView {
     match tab {
         Tab::Agents => {
-            let agents = sample_agents();
             view! {
                 <div class="tab-panel tab-panel-agents">
-                    <LazyRoster agents=agents max_visible=20 />
+                    <AgentsPanel />
                 </div>
             }
             .into_any()

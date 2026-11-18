@@ -1,5 +1,6 @@
 //! zylos-gateway library — exposes AppState and build_router for integration tests.
 
+pub mod agents_api;
 pub mod analytics_api;
 pub mod api_auth;
 pub mod auth_api;
@@ -28,6 +29,8 @@ pub mod security_headers;
 pub mod sentinel_api;
 pub mod sentinel_runtime;
 pub mod soar_api;
+pub mod subagents_api;
+pub mod threads_api;
 pub mod webrtc_relay;
 
 use axum::{routing::get, Router};
@@ -246,7 +249,12 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
                 .merge(auth)
                 .merge(integrations)
                 .merge(analytics)
-                .merge(crdt),
+                .merge(crdt)
+                .merge(agents_api::create_agents_router(state.swarm.clone()))
+                .merge(subagents_api::create_subagents_router(state.swarm.clone()))
+                .merge(threads_api::create_threads_router(
+                    threads_api::ThreadsStore::from_env().expect("threads store"),
+                )),
         )
         .layer(axum::middleware::from_fn_with_state(
             api_auth_state,
