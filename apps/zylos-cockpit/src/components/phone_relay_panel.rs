@@ -116,7 +116,7 @@ pub fn PhoneRelayPanel() -> impl IntoView {
             now.set(now_secs());
             let t = ticks.get_value() + 1;
             ticks.set_value(t);
-            if t % 10 == 0 {
+            if t.is_multiple_of(10) {
                 reload();
             }
         },

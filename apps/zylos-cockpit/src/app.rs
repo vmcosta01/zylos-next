@@ -12,12 +12,12 @@ use crate::benchmarks::BenchmarkPanel;
 use crate::components::analytics_panel::AnalyticsPanel;
 use crate::components::{
     provide_theme, AgentAvatarsGrid, AgentAwarenessPanel, AgentInfo, AgentStatus, AuthHeaderButton,
-    ChannelPanel, ChatPanel, CollabPanel, EmployeeGovernancePanel,
-    EvidenceLedgerPanel, FederationDashboard, FileManager, FleetAuditorPanel, GoalsPanel,
-    HitlApprovalPanel, IntegrationsPanel, LazyRoster, MemoryTimeline, PersonalitiesPanel,
-    PhoneRelayPanel, SecurityPanel, SentinelPanel, SkillEditorPanel, SkillEvolutionPanel,
-    SkinThemesPanel, SoarDashboard, SubagentStatusCards, SwarmDagPanel, SwarmTopologyPanel,
-    TaskTriagePanel, TasksDag, ThemeToggle, ThreadManager, VoicePanel,
+    ChannelPanel, ChatPanel, CollabPanel, EmployeeGovernancePanel, EvidenceLedgerPanel,
+    FederationDashboard, FileManager, FleetAuditorPanel, GoalsPanel, HitlApprovalPanel,
+    IntegrationsPanel, LazyRoster, MemoryTimeline, PersonalitiesPanel, PhoneRelayPanel,
+    SecurityPanel, SentinelPanel, SkillEditorPanel, SkillEvolutionPanel, SkinThemesPanel,
+    SoarDashboard, SubagentStatusCards, SwarmDagPanel, SwarmTopologyPanel, TaskTriagePanel,
+    TasksDag, ThemeToggle, ThreadManager, VoicePanel,
 };
 use crate::i18n::{provide_i18n, use_i18n, Locale};
 use crate::streaming::{provide_stream, LiveEventFeed, StreamConfig};

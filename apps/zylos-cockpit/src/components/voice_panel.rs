@@ -260,6 +260,7 @@ async fn start_waveform(
     };
 
     let mut buf = vec![0u8; analyser.frequency_bin_count() as usize];
+    #[allow(clippy::type_complexity)]
     let frame: Rc<RefCell<Option<Closure<dyn FnMut()>>>> = Rc::new(RefCell::new(None));
     let frame2 = frame.clone();
     *frame2.borrow_mut() = Some(Closure::new(move || {
