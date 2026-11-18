@@ -42,9 +42,26 @@
 4. prefers-reduced-motion desabilita completamente
 5. ≥55fps em mid-range device
 
-**Decisão:** TBD — Avaliar na Fase 3. Se leptos-spring compilar e passar benchmarks → Opção A. Caso contrário → Opção B. Opção C rejeitada (não atende requisitos de motion).
+**Decisão:** ✅ Opção B — Custom WASM solver (`apps/zylos-cockpit/src/spring.rs`).
 
-**Validação:** Benchmark FPS + bundle size check na Fase 3 gate.
+**Racional:**
+- `leptos-spring` não existe como crate independente compatível com Leptos 0.7; `leptos-use` (v0.14-0.15) oferece `use_transition` mas sem velocity handoff nem interruptibilidade real
+- Custom solver dá controle total sobre physics params (damping, response, mass), interruptibilidade e velocity handoff
+- Bundle overhead estimado ~2-3KB gzipped (solver + RAF loop), dentro do budget <5KB
+- Zero dependências externas além de `web-sys` (já presente)
+- Testes unitários validam convergência, overshoot e interrupção sem necessidade de browser
+
+**Alternativas Rejeitadas:**
+1. Opção A (leptos-spring): crate inexistente para Leptos 0.7; leptos-use insuficiente
+2. Opção C (CSS transitions): sem interruptibilidade, sem velocity handoff — rejeitada por não atender DESIGN_SYSTEM.md §8.2
+
+**Consequências:**
+- Manutenção própria do solver (~300 LOC)
+- Physics params configuráveis via `SpringConfig` presets (UI/GESTURE/MICRO/ENTRANCE)
+- `prefers-reduced-motion` detectado via `window.matchMedia` → snap instantâneo
+- Integrado em `CollapsibleSidebar` (width animation); pronto para modals/toasts/tabs nas fases futuras
+
+**Validação:** Testes unitários passam (convergência <2s, interruptibilidade, velocity handoff); bundle check na Fase 3 gate.
 
 ---
 

@@ -3,10 +3,11 @@
 //! Grupos: Core, Orquestração, Comunicação, Configuração.
 //! Persistência: localStorage `zylos-sidebar-collapsed` (sidebar inteira)
 //! e `zylos-sidebar-groups` (grupos individuais).
-//! Animação: CSS transition via var(--spring-ui-response) (spring real na Fase 3).
+//! Animação: Spring physics-based via `crate::spring` (ADR-007, Fase 3).
 
 use leptos::prelude::*;
 
+use crate::spring::{create_spring, SpringConfig};
 use crate::tabs::Tab;
 
 /// Grupos da sidebar conforme DESIGN_SYSTEM.md §10.4.
@@ -79,6 +80,10 @@ pub fn CollapsibleSidebar(
     // Estado global: sidebar colapsada (mostra só ícones).
     let collapsed = RwSignal::new(ls_get_bool("zylos-sidebar-collapsed", false));
 
+    // Spring para animar width da sidebar (ADR-007, DESIGN_SYSTEM.md §8).
+    let initial_width = if collapsed.get() { 64.0 } else { 280.0 };
+    let (sidebar_width, width_spring) = create_spring(initial_width, SpringConfig::UI);
+
     // Estado por grupo: true = expandido, false = colapsado.
     let group_states = StoredValue::new({
         let mut map = std::collections::HashMap::new();
@@ -89,10 +94,15 @@ pub fn CollapsibleSidebar(
         map
     });
 
-    let toggle_sidebar = move |_| {
-        let new_val = !collapsed.get();
-        collapsed.set(new_val);
-        ls_set_bool("zylos-sidebar-collapsed", new_val);
+    let toggle_sidebar = {
+        let width_spring = width_spring.clone();
+        move |_| {
+            let new_val = !collapsed.get();
+            collapsed.set(new_val);
+            ls_set_bool("zylos-sidebar-collapsed", new_val);
+            // Anima width via spring (interruptível, velocity handoff).
+            width_spring.set_target(if new_val { 64.0 } else { 280.0 });
+        }
     };
 
     let toggle_group = move |g: SidebarGroup| {
@@ -107,13 +117,8 @@ pub fn CollapsibleSidebar(
 
     view! {
         <nav
-            class=move || {
-                if collapsed.get() {
-                    "collapsible-sidebar sidebar-collapsed material-translucent"
-                } else {
-                    "collapsible-sidebar sidebar-expanded material-translucent"
-                }
-            }
+            class="collapsible-sidebar material-translucent"
+            style=move || format!("width: {:.1}px; min-width: {:.1}px;", sidebar_width.get(), sidebar_width.get())
             role="navigation"
             aria-label="Navegação principal"
         >
