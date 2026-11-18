@@ -30,9 +30,11 @@ pub const TEXT_ROOT: &str = "content";
 /// Tag `Message::Custom` de ping/pong (igual a `crdt_sync::PING_TAG`).
 pub const PING_TAG: u8 = 100;
 
-/// Paleta de cores de presença (contraste AA sobre fundo escuro e claro).
+/// Paleta de cores de presença via CSS custom properties (ADR-008).
+/// Valores definidos em `styles/design-tokens.css` como --peer-1..--peer-8.
 pub const PRESENCE_COLORS: [&str; 8] = [
-    "#e6194b", "#3cb44b", "#4363d8", "#f58231", "#911eb4", "#008080", "#9a6324", "#d6336c",
+    "var(--peer-1)", "var(--peer-2)", "var(--peer-3)", "var(--peer-4)",
+    "var(--peer-5)", "var(--peer-6)", "var(--peer-7)", "var(--peer-8)",
 ];
 
 /// Cor determinística para um client id.

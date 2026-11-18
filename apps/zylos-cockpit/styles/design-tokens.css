@@ -23,15 +23,62 @@
   --color-status-info: #3b82f6;
   --color-status-idle: #6b7280;
 
-  /* ── Agent Division Colors ── */
-  --division-engineering: #6366f1;
-  --division-research: #8b5cf6;
-  --division-operations: #ec4899;
-  --division-creative: #f97316;
-  --division-security: #ef4444;
-  --division-management: #14b8a6;
-  --division-support: #3b82f6;
-  --division-custom: #a855f7;
+  /* ── Agent Role Colors (21 roles) ── */
+  --role-engineering: #3b82f6;
+  --role-security: #ef4444;
+  --role-devops: #f59e0b;
+  --role-data: #8b5cf6;
+  --role-design: #ec4899;
+  --role-product: #10b981;
+  --role-qa: #06b6d4;
+  --role-research: #6366f1;
+  --role-support: #14b8a6;
+  --role-finance: #84cc16;
+  --role-legal: #78716c;
+  --role-hr: #f97316;
+  --role-marketing: #d946ef;
+  --role-operations: #0ea5e9;
+  --role-architecture: #a855f7;
+  --role-testing: #22d3ee;
+  --role-documentation: #fbbf24;
+  --role-integration: #34d399;
+  --role-monitoring: #fb923c;
+  --role-compliance: #a3a3a3;
+  --role-custom: #6b7280;
+
+  /* ── Topology Node Colors ── */
+  --node-agent: #3b82f6;
+  --node-orchestrator: #f59e0b;
+  --node-gateway: #10b981;
+  --node-online: #22c55e;
+  --node-degraded: #eab308;
+  --node-offline: #ef4444;
+
+  /* ── Chart Palette (10 series) ── */
+  --chart-1: #4f8cff;
+  --chart-2: #22c55e;
+  --chart-3: #f59e0b;
+  --chart-4: #ef4444;
+  --chart-5: #a855f7;
+  --chart-6: #06b6d4;
+  --chart-7: #ec4899;
+  --chart-8: #84cc16;
+  --chart-9: #f97316;
+  --chart-10: #64748b;
+
+  /* ── CRDT Peer Palette (8 peers) ── */
+  --peer-1: #e6194b;
+  --peer-2: #3cb44b;
+  --peer-3: #4363d8;
+  --peer-4: #f58231;
+  --peer-5: #911eb4;
+  --peer-6: #008080;
+  --peer-7: #9a6324;
+  --peer-8: #d6336c;
+
+  /* ── Accent Semantic Aliases ── */
+  --accent-blue: #3e63dd;
+  --accent-red: #e5484d;
 
   /* ── Typography ── */
   --font-family-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;

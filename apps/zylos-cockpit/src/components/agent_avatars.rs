@@ -4,28 +4,28 @@
 //! Fornece avatares coloridos baseados na divisão/função do agente,
 //! com mais de 20 cores distintas para diferenciação visual clara.
 //!
-//! ## Divisões e Cores
-//! - Engineering: #3B82F6 (azul)
-//! - Security: #EF4444 (vermelho)
-//! - DevOps: #F59E0B (âmbar)
-//! - Data: #8B5CF6 (violeta)
-//! - Design: #EC4899 (rosa)
-//! - Product: #10B981 (esmeralda)
-//! - QA: #06B6D4 (ciano)
-//! - Research: #6366F1 (índigo)
-//! - Support: #14B8A6 (teal)
-//! - Finance: #84CC16 (lima)
-//! - Legal: #78716C (pedra)
-//! - HR: #F97316 (laranja)
-//! - Marketing: #D946EF (fúcsia)
-//! - Operations: #0EA5E9 (sky)
-//! - Architecture: #A855F7 (roxo)
-//! - Testing: #22D3EE (ciano claro)
-//! - Documentation: #FBBF24 (âmbar claro)
-//! - Integration: #34D399 (esmeralda claro)
-//! - Monitoring: #FB923C (laranja claro)
-//! - Compliance: #A3A3A3 (cinza)
-//! - Default: #6B7280 (cinza médio)
+//! ## Divisões e Cores (CSS custom properties em `styles/design-tokens.css`)
+//! - Engineering: var(--role-engineering)
+//! - Security: var(--role-security)
+//! - DevOps: var(--role-devops)
+//! - Data: var(--role-data)
+//! - Design: var(--role-design)
+//! - Product: var(--role-product)
+//! - QA: var(--role-qa)
+//! - Research: var(--role-research)
+//! - Support: var(--role-support)
+//! - Finance: var(--role-finance)
+//! - Legal: var(--role-legal)
+//! - HR: var(--role-hr)
+//! - Marketing: var(--role-marketing)
+//! - Operations: var(--role-operations)
+//! - Architecture: var(--role-architecture)
+//! - Testing: var(--role-testing)
+//! - Documentation: var(--role-documentation)
+//! - Integration: var(--role-integration)
+//! - Monitoring: var(--role-monitoring)
+//! - Compliance: var(--role-compliance)
+//! - Default: var(--role-custom)
 //!
 //! ## Related Documents
 //! - Implementation Plan: [IMPLEMENTATION_PLAN_DETAILED.md](../../docs/IMPLEMENTATION_PLAN_DETAILED.md) §4.6
@@ -60,31 +60,37 @@ pub enum AgentDivision {
 }
 
 impl AgentDivision {
-    /// Retorna a cor hex associada à divisão
-    pub fn color(&self) -> &'static str {
+    /// Retorna o nome da CSS custom property associada à divisão.
+    /// O valor real da cor vive em `styles/design-tokens.css` (ADR-008).
+    pub fn color_var(&self) -> &'static str {
         match self {
-            Self::Engineering => "#3B82F6",
-            Self::Security => "#EF4444",
-            Self::DevOps => "#F59E0B",
-            Self::Data => "#8B5CF6",
-            Self::Design => "#EC4899",
-            Self::Product => "#10B981",
-            Self::QA => "#06B6D4",
-            Self::Research => "#6366F1",
-            Self::Support => "#14B8A6",
-            Self::Finance => "#84CC16",
-            Self::Legal => "#78716C",
-            Self::HR => "#F97316",
-            Self::Marketing => "#D946EF",
-            Self::Operations => "#0EA5E9",
-            Self::Architecture => "#A855F7",
-            Self::Testing => "#22D3EE",
-            Self::Documentation => "#FBBF24",
-            Self::Integration => "#34D399",
-            Self::Monitoring => "#FB923C",
-            Self::Compliance => "#A3A3A3",
-            Self::Custom(_) => "#6B7280",
+            Self::Engineering => "--role-engineering",
+            Self::Security => "--role-security",
+            Self::DevOps => "--role-devops",
+            Self::Data => "--role-data",
+            Self::Design => "--role-design",
+            Self::Product => "--role-product",
+            Self::QA => "--role-qa",
+            Self::Research => "--role-research",
+            Self::Support => "--role-support",
+            Self::Finance => "--role-finance",
+            Self::Legal => "--role-legal",
+            Self::HR => "--role-hr",
+            Self::Marketing => "--role-marketing",
+            Self::Operations => "--role-operations",
+            Self::Architecture => "--role-architecture",
+            Self::Testing => "--role-testing",
+            Self::Documentation => "--role-documentation",
+            Self::Integration => "--role-integration",
+            Self::Monitoring => "--role-monitoring",
+            Self::Compliance => "--role-compliance",
+            Self::Custom(_) => "--role-custom",
         }
+    }
+
+    /// Retorna a referência CSS `var(--role-*)` para uso em inline styles.
+    pub fn color(&self) -> String {
+        format!("var({})", self.color_var())
     }
 
     /// Retorna as iniciais da divisão para exibição no avatar
@@ -334,14 +340,14 @@ pub fn AgentAvatarsGrid() -> impl IntoView {
 
             // Legenda de divisões
             <div class="agent-division-legend">
-                <span class="legend-item"><span class="legend-dot" style="background: #3B82F6"></span>"Engenharia"</span>
-                <span class="legend-item"><span class="legend-dot" style="background: #EF4444"></span>"Segurança"</span>
-                <span class="legend-item"><span class="legend-dot" style="background: #F59E0B"></span>"DevOps"</span>
-                <span class="legend-item"><span class="legend-dot" style="background: #8B5CF6"></span>"Dados"</span>
-                <span class="legend-item"><span class="legend-dot" style="background: #EC4899"></span>"Design"</span>
-                <span class="legend-item"><span class="legend-dot" style="background: #10B981"></span>"Produto"</span>
-                <span class="legend-item"><span class="legend-dot" style="background: #06B6D4"></span>"QA"</span>
-                <span class="legend-item"><span class="legend-dot" style="background: #6366F1"></span>"Pesquisa"</span>
+                <span class="legend-item"><span class="legend-dot" style="background: var(--role-engineering)"></span>"Engenharia"</span>
+                <span class="legend-item"><span class="legend-dot" style="background: var(--role-security)"></span>"Segurança"</span>
+                <span class="legend-item"><span class="legend-dot" style="background: var(--role-devops)"></span>"DevOps"</span>
+                <span class="legend-item"><span class="legend-dot" style="background: var(--role-data)"></span>"Dados"</span>
+                <span class="legend-item"><span class="legend-dot" style="background: var(--role-design)"></span>"Design"</span>
+                <span class="legend-item"><span class="legend-dot" style="background: var(--role-product)"></span>"Produto"</span>
+                <span class="legend-item"><span class="legend-dot" style="background: var(--role-qa)"></span>"QA"</span>
+                <span class="legend-item"><span class="legend-dot" style="background: var(--role-research)"></span>"Pesquisa"</span>
             </div>
         </div>
     }
@@ -376,8 +382,8 @@ mod tests {
             AgentDivision::Compliance,
         ];
 
-        let colors: Vec<&str> = divisions.iter().map(|d| d.color()).collect();
-        let unique: std::collections::HashSet<&str> = colors.iter().copied().collect();
+        let colors: Vec<String> = divisions.iter().map(|d| d.color()).collect();
+        let unique: std::collections::HashSet<&String> = colors.iter().collect();
         assert_eq!(
             colors.len(),
             unique.len(),

@@ -330,7 +330,7 @@ pub fn AnalyticsPanel() -> impl IntoView {
                 <div class="an-grid-charts">
                     <LineChart title="Execuções por período" labels=labels.clone() values=counts />
                     <LineChart title="Taxa de sucesso (%)" labels=labels values=rates unit="%"
-                        max=100.0 color="#22c55e" />
+                        max=100.0 color="var(--color-status-success)" />
                     <BarChart title="Sucesso por skill (%)" items=skill_bars unit="%" max=100.0
                         warn_below=70.0 />
                     <PieChart title="Volume por agente" items=agent_pie />

@@ -15,10 +15,11 @@
 use leptos::prelude::*;
 use serde::Deserialize;
 
-/// Paleta categórica (acessível em tema claro e escuro).
+/// Paleta categórica via CSS custom properties (ADR-008).
+/// Valores definidos em `styles/design-tokens.css` como --chart-1..--chart-10.
 pub const PALETTE: [&str; 10] = [
-    "#4f8cff", "#22c55e", "#f59e0b", "#ef4444", "#a855f7", "#06b6d4", "#ec4899", "#84cc16",
-    "#f97316", "#64748b",
+    "var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)",
+    "var(--chart-6)", "var(--chart-7)", "var(--chart-8)", "var(--chart-9)", "var(--chart-10)",
 ];
 
 /// Rótulos dos dias (0 = segunda, como em `zylos_analytics::HeatmapCell`).

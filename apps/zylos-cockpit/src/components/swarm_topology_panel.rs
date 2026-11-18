@@ -28,12 +28,12 @@ impl NodeType {
         }
     }
 
-    /// Cor de preenchimento SVG por tipo
+    /// Cor de preenchimento SVG por tipo (CSS var reference, ADR-008)
     pub fn fill_color(&self) -> &'static str {
         match self {
-            NodeType::Agent => "#3b82f6",
-            NodeType::Orchestrator => "#f59e0b",
-            NodeType::Gateway => "#10b981",
+            NodeType::Agent => "var(--node-agent)",
+            NodeType::Orchestrator => "var(--node-orchestrator)",
+            NodeType::Gateway => "var(--node-gateway)",
         }
     }
 
@@ -65,12 +65,12 @@ pub enum NodeStatus {
 }
 
 impl NodeStatus {
-    /// Cor do anel de status ao redor do nó
+    /// Cor do anel de status ao redor do nó (CSS var reference, ADR-008)
     pub fn stroke_color(&self) -> &'static str {
         match self {
-            NodeStatus::Online => "#22c55e",
-            NodeStatus::Degraded => "#eab308",
-            NodeStatus::Offline => "#ef4444",
+            NodeStatus::Online => "var(--node-online)",
+            NodeStatus::Degraded => "var(--node-degraded)",
+            NodeStatus::Offline => "var(--node-offline)",
         }
     }
 
@@ -504,11 +504,11 @@ pub fn SwarmTopologyPanel() -> impl IntoView {
                 .topology-node.dragging { cursor: grabbing; }
                 .topology-tooltip {
                     position: fixed;
-                    background: #1e293b;
-                    border: 1px solid #475569;
+                    background: var(--color-bg-secondary);
+                    border: 1px solid var(--color-border-strong);
                     border-radius: 8px;
                     padding: 10px 14px;
-                    color: #e2e8f0;
+                    color: var(--color-text-primary);
                     font-size: 12px;
                     line-height: 1.5;
                     pointer-events: none;
@@ -517,16 +517,16 @@ pub fn SwarmTopologyPanel() -> impl IntoView {
                     max-width: 240px;
                 }
                 .topology-tooltip .tt-label { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
-                .topology-tooltip .tt-type { color: #94a3b8; font-size: 11px; }
+                .topology-tooltip .tt-type { color: var(--color-text-secondary); font-size: 11px; }
                 .topology-tooltip .tt-status { margin-top: 4px; font-size: 11px; }
                 .topology-controls {
                     display: flex; gap: 6px; margin-bottom: 8px; justify-content: flex-end;
                 }
                 .topology-controls button {
-                    background: #334155; border: 1px solid #475569; color: #e2e8f0;
+                    background: var(--color-bg-tertiary); border: 1px solid var(--color-border-strong); color: var(--color-text-primary);
                     border-radius: 4px; padding: 4px 10px; font-size: 12px; cursor: pointer;
                 }
-                .topology-controls button:hover { background: #475569; }
+                .topology-controls button:hover { background: var(--color-border-strong); }
                 "#}
             </style>
 
@@ -582,7 +582,7 @@ pub fn SwarmTopologyPanel() -> impl IntoView {
                                     y1=y1.to_string()
                                     x2=x2.to_string()
                                     y2=y2.to_string()
-                                    stroke="#94a3b8"
+                                    stroke="var(--color-text-secondary)"
                                     stroke-width=stroke_width.to_string()
                                     stroke-dasharray=dash
                                     opacity="0.6"
@@ -622,7 +622,7 @@ pub fn SwarmTopologyPanel() -> impl IntoView {
                                         x=node.x.to_string()
                                         y=label_y.to_string()
                                         text-anchor="middle"
-                                        fill="#e2e8f0"
+                                        fill="var(--color-text-primary)"
                                         font-size="11"
                                         font-family="system-ui, sans-serif"
                                         style="pointer-events: none; user-select: none;"
