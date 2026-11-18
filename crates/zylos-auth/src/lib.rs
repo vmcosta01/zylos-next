@@ -13,6 +13,7 @@ pub mod crdt_persistence;
 pub mod middleware;
 pub mod permissions;
 pub mod presence;
+pub mod revocation_store;
 pub mod roles;
 pub mod tokens;
 

@@ -15,6 +15,7 @@
 //! Cada operação deve ser validada contra o token do agente antes de executar.
 //! Tokens expirados ou revogados são rejeitados imediatamente.
 
+use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
@@ -22,6 +23,8 @@ use std::sync::Arc;
 use std::time::SystemTime;
 use tokio::sync::RwLock;
 use uuid::Uuid;
+
+type HmacSha256 = Hmac<Sha256>;
 
 /// Erros do sistema de capability tokens.
 #[derive(Debug, thiserror::Error, PartialEq)]
@@ -238,6 +241,43 @@ impl CapabilityToken {
         hasher.update(b":");
         hasher.update(agent_id.as_bytes());
         hex::encode(hasher.finalize())
+    }
+
+    /// F16: assina o token com HMAC-SHA256 usando a chave fornecida.
+    /// O payload assinado é `id:agent_id:issued_at:ttl_secs:fingerprint`.
+    pub fn sign(&mut self, key: &[u8]) -> Result<String, TokenError> {
+        let payload = format!(
+            "{}:{}:{}:{}:{}",
+            self.id,
+            self.agent_id,
+            self.issued_at,
+            self.ttl_secs.unwrap_or(0),
+            self.fingerprint
+        );
+        let mut mac = HmacSha256::new_from_slice(key)
+            .map_err(|e| TokenError::Invalid(format!("chave HMAC inválida: {e}")))?;
+        mac.update(payload.as_bytes());
+        Ok(hex::encode(mac.finalize().into_bytes()))
+    }
+
+    /// F16: verifica se a assinatura HMAC-SHA256 confere.
+    pub fn verify_signature(&self, signature: &str, key: &[u8]) -> Result<(), TokenError> {
+        let payload = format!(
+            "{}:{}:{}:{}:{}",
+            self.id,
+            self.agent_id,
+            self.issued_at,
+            self.ttl_secs.unwrap_or(0),
+            self.fingerprint
+        );
+        let mut mac = HmacSha256::new_from_slice(key)
+            .map_err(|e| TokenError::Invalid(format!("chave HMAC inválida: {e}")))?;
+        mac.update(payload.as_bytes());
+        let expected = hex::encode(mac.finalize().into_bytes());
+        if expected != signature {
+            return Err(TokenError::Invalid("assinatura HMAC não confere".into()));
+        }
+        Ok(())
     }
 }
 

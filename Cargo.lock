@@ -14694,6 +14694,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "hex",
+ "hmac",
  "regex",
  "serde",
  "serde_json",
