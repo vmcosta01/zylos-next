@@ -19,6 +19,7 @@ use zylos_pensar::{Config, ErroPensar};
 pub struct BotsState {
     pub cfg: Arc<Config>,
     pub cliente: reqwest::Client,
+    pub egress: zylos_agent_shield::network_egress::NetworkEgressFilter,
 }
 
 #[derive(Debug, Deserialize)]
@@ -28,13 +29,39 @@ pub struct PedidoPergunta {
 
 /// Roteador já com estado próprio (vira `Router<()>` para o `.merge`).
 pub fn create_bots_router(cfg: Config) -> Router {
+    use zylos_agent_shield::network_egress::{EgressConfig, EgressRule, NetworkEgressFilter};
+    let mut rules = std::collections::HashMap::new();
+    rules.insert(
+        "zylos-pensar".to_string(),
+        EgressRule {
+            allowed_hosts: vec![
+                "api.anthropic.com".into(),
+                "api.openai.com".into(),
+                "integrate.api.nvidia.com".into(),
+                "*.anthropic.com".into(),
+                "*.openai.com".into(),
+                "*.nvidia.com".into(),
+            ],
+            allowed_ports: vec![443],
+            deny_all: false,
+        },
+    );
+    let egress = NetworkEgressFilter::new(EgressConfig {
+        egress_rules: rules,
+        log_blocked: true,
+        allow_dns_resolution: true,
+    });
     Router::new()
         .route("/bots/:nome/perguntar", post(post_perguntar))
         .route("/provedores", get(get_provedores))
         .route("/provedores/:nome/modelos", get(get_modelos))
         .with_state(BotsState {
             cfg: Arc::new(cfg),
-            cliente: reqwest::Client::new(),
+            cliente: reqwest::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .build()
+                .unwrap_or_else(|_| reqwest::Client::new()),
+            egress,
         })
 }
 

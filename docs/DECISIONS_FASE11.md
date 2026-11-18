@@ -12,7 +12,7 @@
 | # | Título | Status | Fase | Data Decisão |
 |---|--------|--------|------|--------------|
 | ADR-011 | Profile Release Optimization Strategy | 🟡 Pendente | 11.1 | — |
-| ADR-012 | CRDT Library Choice | 🟡 Pendente | 11.9 | — |
+| ADR-012 | CRDT Library Choice | ✅ Aceito (yrs) | 11.9 | 2026-11-17 |
 | ADR-013 | Analytics Storage Backend | 🟡 Pendente | 11.10 | — |
 | ADR-014 | Notification Delivery Guarantee | 🟡 Pendente | 11.8 | — |
 | ADR-015 | Sentinel Anomaly Detection Algorithm | 🟡 Pendente | 11.7 | — |
@@ -97,33 +97,55 @@ O build release do cockpit (`trunk build --release`) precisava ser avaliado quan
 
 ## ADR-012: CRDT Library Choice
 
-**Status:** 🟡 Pendente
+**Status:** ✅ Aceito — **yrs 0.28** (port Rust oficial do Yjs)
 **Fase:** 11.9
 **Tasks Relacionadas:** T11.9.1, T11.9.2
+**Data Decisão:** 2026-11-17
 
 ### Contexto
 Precisamos de colaboração em tempo real verdadeira para edição simultânea de skills/spaces no cockpit. A escolha da library CRDT impacta latência sync, tamanho do WASM bundle, DX e maturidade do ecossistema.
 
-### Opções em Avaliação
+### Opções Avaliadas (versões do crates.io em 2026-11-17)
 
-| Library | WASM Size | Latência Sync | Maturidade | DX Rust | Community |
-|---------|-----------|---------------|------------|---------|-----------|
-| Yjs | ~800KB | <50ms p95 | Alta (5+ anos) | Bindings oficiais | Grande (ProseMirror/TipTap) |
-| Automerge | ~1.2MB | <100ms p95 | Média (3 anos) | Crate nativo Rust | Média |
-| Diamond-types | ~400KB | <30ms p95 | Baixa (1 ano) | Crate nativo Rust | Pequena |
+| Critério | **yrs 0.28.1** (Yjs) | automerge 0.12.0 | diamond-types 1.0.0 |
+|---|---|---|---|
+| Licença | MIT | MIT | ISC |
+| WASM (cdylib mínimo, `opt-level=z`, LTO thin) | **646 907 B (~632 KB)** | 2 553 734 B (~2,4 MB) | 808 600 B (~790 KB) |
+| Build `wasm32-unknown-unknown` sem flags extras | ✅ | ❌ requer `getrandom` com feature `wasm_js` + `RUSTFLAGS=--cfg getrandom_backend="wasm_js"` | ❌ idem |
+| Replicação A→B por operação, p50 / p95 (5 000 inserts, release) | **7,70 µs / 12,30 µs** (run 2: 6,60 / 10,60) | 829,90 µs / 26 141,80 µs (run 2: 765,70 / 30 798,30) | 15,50 µs / 18,30 µs (run 2: 14,70 / 24,30) |
+| Tempo total 5 000 ops | **36,53 ms** (run 2: 41,91) | 27 550,36 ms (run 2: 29 176,47) | 329,48 ms (run 2: 270,99) |
+| Snapshot após 5 000 chars | 5 011 B | 222 B | 88 B |
+| Protocolo de sync + awareness (presença) | ✅ `yrs::sync` (compatível com `y-websocket`/`y-protocols`) | ✅ sync protocol próprio, sem awareness | ❌ apenas oplog/merge |
+| Undo/redo | ✅ `UndoManager` (com escopo e origem) | parcial (manual) | ❌ |
+| Interop JS | ✅ wire-compatível com Yjs (TipTap, ProseMirror, CodeMirror, Monaco) | ✅ automerge-js | ❌ limitado |
+
+**Metodologia do spike** (scratch fora do repo): binário nativo `--release` aplicando N=5 000 inserções de 1 caractere em `A`, codificando o delta, decodificando e aplicando em `B` a cada operação; latências por operação em µs, duas execuções. Para automerge foi usado `get_changes(&heads)` + `load_incremental` por operação — uso ingênuo (sem `sync::State`), o que penaliza o resultado; mesmo descontando isso, a ordem de grandeza e o tamanho WASM o eliminam. Tamanho WASM medido em crate `cdylib` mínimo que cria um documento, insere texto e codifica o estado.
 
 ### Critérios de Decisão
-- WASM size <1.5MB (para não impactar initial load)
-- Latência sync p95 <100ms local, <500ms remote
-- Bindings WASM estáveis e mantidos
-- Suporte a presence awareness e undo history
-- Licença compatível (MIT/Apache-2.0)
+- WASM size <1.5MB (para não impactar initial load) → yrs ✅ 632 KB; diamond ✅ 790 KB; automerge ❌ 2,4 MB
+- Latência sync p95 <100ms local, <500ms remote → custo CRDT do yrs é µs; latência ponta a ponta medida em `docs/fase11-reports/crdt-sync-benchmark.md`
+- Bindings WASM estáveis e mantidos → yrs compila para wasm32 sem configuração
+- Suporte a presence awareness e undo history → só yrs oferece ambos nativamente
+- Licença compatível (MIT/Apache-2.0) → yrs MIT ✅
 
-### Validação Planejada
-- Implementar PoC com cada library (edit text simples)
-- Benchmark latência com 2, 5, 10 clientes simultâneos
-- Medir WASM size final com bindings
-- Avaliar documentação e exemplos disponíveis
+### Decisão
+Adotar **yrs 0.28** em todas as camadas:
+- **Servidor** (`apps/zylos-gateway/src/crdt_sync.rs`): salas por documento falando o protocolo `y-websocket` (frames binários `Sync`/`Awareness`).
+- **Persistência** (`crates/zylos-auth/src/crdt_persistence.rs`): log de updates Yjs v1 + snapshots versionados em SQLite, GC de 30 dias.
+- **Cockpit WASM** (`apps/zylos-cockpit/src/components/crdt_collab_panel.rs`): `yrs::Doc` no navegador, `Awareness` para presença, `UndoManager` para desfazer.
+
+### Consequências
+- ✅ Clientes JS (`yjs` + `y-websocket`, já documentados em `playbooks/pb-crdt-onboarding.md`) e clientes Rust/WASM usam o mesmo servidor sem adaptação.
+- ✅ Um único formato binário (update v1) em rede, disco e UI de versões.
+- ⚠️ Snapshot do yrs é maior que o de diamond-types (5 KB vs 88 B para 5 000 chars) → mitigado com compactação periódica e GC (T11.9.6).
+- ⚠️ Offsets de texto em yrs default são em **bytes UTF-8** (`OffsetKind::Bytes`); índices vindos do DOM (UTF-16) precisam de conversão — tratado no componente do cockpit.
+- ⚠️ No WASM, `UndoManager::new()`/`Options::default()` não existem (dependem de `SystemClock`); usar `UndoManager::with_options` com relógio `js_sys::Date::now`.
+
+### Validação
+- PoC das 3 libs: ✅ (números acima).
+- Benchmark com 3 e 10 clientes simultâneos: ✅ ver `docs/fase11-reports/crdt-sync-benchmark.md`.
+- Tamanho WASM: ✅ medido (tabela acima).
+
 
 ---
 

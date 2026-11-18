@@ -36,13 +36,45 @@ impl ChannelsStore {
 
     /// Cria store conectando a uma URL SQLite.
     pub async fn connect(url: &str) -> Result<Self> {
+        // Garante que o diretório do arquivo exista (ex.: `sqlite://data/channels.db`
+        // num checkout limpo) — sem isso o SQLite falha com "unable to open database file".
+        if let Some(path) = url
+            .strip_prefix("sqlite://")
+            .or_else(|| url.strip_prefix("sqlite:"))
+        {
+            let path = path.split('?').next().unwrap_or(path);
+            if !path.is_empty() && !path.starts_with(':') {
+                if let Some(dir) = std::path::Path::new(path).parent() {
+                    if !dir.as_os_str().is_empty() {
+                        let _ = std::fs::create_dir_all(dir);
+                    }
+                }
+            }
+        }
+        // busy_timeout: vários processos/routers abrindo o mesmo arquivo ao
+        // mesmo tempo (ex.: migração + seed concorrentes) esperam o lock em vez
+        // de falhar na hora com "database is locked".
         let opts = SqliteConnectOptions::from_str(url)?
             .create_if_missing(true)
-            .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
-        let pool = SqlitePoolOptions::new()
-            .max_connections(5)
-            .connect_with(opts)
-            .await?;
+            .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
+            .busy_timeout(std::time::Duration::from_secs(10));
+        // `:memory:` é um banco por conexão: usar uma única conexão permanente
+        // para que as tabelas da migração sejam vistas por todas as consultas.
+        let in_memory = url.contains(":memory:") || url.contains("mode=memory");
+        let pool = if in_memory {
+            SqlitePoolOptions::new()
+                .max_connections(1)
+                .min_connections(1)
+                .idle_timeout(None)
+                .max_lifetime(None)
+                .connect_with(opts)
+                .await?
+        } else {
+            SqlitePoolOptions::new()
+                .max_connections(5)
+                .connect_with(opts)
+                .await?
+        };
         Ok(Self { pool })
     }
 

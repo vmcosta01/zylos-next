@@ -7,9 +7,8 @@
 //! - `GET /hermes/desktop/awareness/states` — estados de todos os agentes
 //! - `GET /hermes/desktop/awareness/attention` — agentes requerendo atenção
 //! - `POST /hermes/desktop/awareness/update` — atualizar estado de um agente
-//! - `GET /hermes/desktop/relay/devices` — listar dispositivos pareados
-//! - `POST /hermes/desktop/relay/pair` — parear novo dispositivo
-//! - `DELETE /hermes/desktop/relay/tokens/revoke` — revogar token de dispositivo
+//!
+//! As rotas `/hermes/desktop/relay/*` (Phone Relay) vivem em [`crate::relay_api`].
 //!
 //! Todos os endpoints publicam eventos no EventBus para visibilidade no cockpit.
 
@@ -17,7 +16,7 @@ use axum::{
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{delete, get, post},
+    routing::{get, post},
     Json, Router,
 };
 use serde_json::{json, Value};
@@ -116,37 +115,6 @@ async fn post_agent_state_update(
 }
 
 // ---------------------------------------------------------------------------
-// Relay Server
-// ---------------------------------------------------------------------------
-
-async fn get_relay_devices(State(state): State<AppState>) -> Response {
-    publish_event(&state, "relay-devices-listed", json!({}));
-    ok_json(json!({
-        "status": "ok",
-        "module": "relay_server",
-        "proxy_endpoint": "/api/v1/desktop/relay/devices"
-    }))
-}
-
-async fn post_relay_pair(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
-    publish_event(&state, "relay-device-paired", body.clone());
-    ok_json(json!({
-        "status": "accepted",
-        "device_name": body.get("device_name").and_then(|v| v.as_str()).unwrap_or("unknown"),
-        "proxy_endpoint": "/api/v1/desktop/relay/pair"
-    }))
-}
-
-async fn delete_relay_token(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
-    publish_event(&state, "relay-token-revoked", body.clone());
-    ok_json(json!({
-        "status": "accepted",
-        "token_id": body.get("token_id").and_then(|v| v.as_str()).unwrap_or("unknown"),
-        "proxy_endpoint": "/api/v1/desktop/relay/tokens/revoke"
-    }))
-}
-
-// ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
 
@@ -171,13 +139,6 @@ pub fn create_hermes_desktop_router() -> Router<AppState> {
         .route(
             "/hermes/desktop/awareness/update",
             post(post_agent_state_update),
-        )
-        // Relay Server
-        .route("/hermes/desktop/relay/devices", get(get_relay_devices))
-        .route("/hermes/desktop/relay/pair", post(post_relay_pair))
-        .route(
-            "/hermes/desktop/relay/tokens/revoke",
-            delete(delete_relay_token),
         )
 }
 

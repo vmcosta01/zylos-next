@@ -1,6 +1,7 @@
 [package]
 name = "zylos-cockpit"
 version = "0.1.0"
+license.workspace = true
 edition = "2021"
 description = "Zylos-Next Cockpit — Leptos WASM frontend (ADR-042)"
 
@@ -8,24 +9,25 @@ description = "Zylos-Next Cockpit — Leptos WASM frontend (ADR-042)"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-leptos = { version = "0.7", features = ["csr", "ssr", "hydrate"] }
+leptos = { version = "0.7", features = ["csr"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 wasm-bindgen = "0.2"
-web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "console", "Request", "RequestInit", "Response", "Storage", "DomTokenList", "HtmlInputElement", "Event", "EventSource", "MessageEvent", "Location", "MouseEvent", "SvgElement", "SvgGraphicsElement", "SvgCircleElement", "SvgLineElement", "SvgTextElement", "SvgsvgElement", "DomRect", "WheelEvent", "KeyboardEvent"] }
+web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "console", "Request", "RequestInit", "Response", "Storage", "DomTokenList", "HtmlInputElement", "Event", "EventSource", "MessageEvent", "Location", "MouseEvent", "SvgElement", "SvgGraphicsElement", "SvgCircleElement", "SvgLineElement", "SvgTextElement", "SvgsvgElement", "DomRect", "WheelEvent", "KeyboardEvent", "WebSocket", "BinaryType", "HtmlTextAreaElement", "Navigator", "MediaDevices", "MediaStream", "MediaStreamTrack", "MediaStreamConstraints", "AudioContext", "BaseAudioContext", "AudioNode", "AnalyserNode", "MediaStreamAudioSourceNode", "SpeechSynthesis", "SpeechSynthesisUtterance", "Performance"] }
 console_error_panic_hook = "0.1"
 gloo-net = { version = "0.6", features = ["http"] }
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
 uuid = { version = "1", features = ["v4", "js"] }
 gloo-timers = { version = "0.3", features = ["futures"] }
+yrs = { workspace = true, features = ["sync"] }
 
-[lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("ssr", "hydrate"))'] }
+# Build WASM (Trunk) usa só `csr`. `ssr`/`hydrate` ficam opt-in: ligar os três
+# juntos inflava o .wasm com código de servidor/hidratação nunca usado no CSR.
+[features]
+default = []
+ssr = ["leptos/ssr"]
+hydrate = ["leptos/hydrate"]
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.80"
-
-[profile.release]
-opt-level = "z"
-lto = "thin"

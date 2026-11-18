@@ -1,5 +1,7 @@
 # zylos-cockpit
 
+[![CI](https://github.com/vmcosta01/zylos-next/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/vmcosta01/zylos-next/actions/workflows/ci.yml) [![Deploy Preview](https://github.com/vmcosta01/zylos-next/actions/workflows/deploy-preview.yml/badge.svg)](https://github.com/vmcosta01/zylos-next/actions/workflows/deploy-preview.yml)
+
 **Fase:** 2.1 + ADR-042 + Fase 9 (Fases 1–4) - Dashboard Web (Leptos WASM)
 **Status:** ✅ Implementado (5000+ LOC, 25+ componentes, 32 testes cockpit + 144 testes crates)
 

@@ -1,11 +1,15 @@
 //! zylos-gateway library — exposes AppState and build_router for integration tests.
 
+pub mod agents_api;
+pub mod analytics_api;
+pub mod api_auth;
 pub mod auth_api;
 pub mod axiom_logging;
 pub mod bots_api;
 pub mod channels_api;
 pub mod computer_view_api;
 pub mod config;
+pub mod crdt_sync;
 pub mod evidence_api;
 pub mod goals_api;
 pub mod hermes_api;
@@ -13,6 +17,7 @@ pub mod hermes_desktop_api;
 pub mod hermes_employee_api;
 pub mod hermes_security_api;
 pub mod hermes_skill_evolution_api;
+pub mod integrations_api;
 pub mod local_guard;
 pub mod memory_api;
 pub mod notification_router;
@@ -20,8 +25,15 @@ pub mod orchestrate_api;
 pub mod password_masking;
 pub mod personalities_api;
 pub mod phase2_integration;
+pub mod rate_limit;
+pub mod reactions_api;
+pub mod relay_api;
+pub mod security_headers;
 pub mod sentinel_api;
+pub mod sentinel_runtime;
 pub mod soar_api;
+pub mod subagents_api;
+pub mod threads_api;
 pub mod webrtc_relay;
 
 use axum::{routing::get, Router};
@@ -90,6 +102,13 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
     let personalities = personalities_api::create_personalities_router(handles.personalities);
     let sentinel = sentinel_api::create_sentinel_router(handles.sentinel);
     let evidence = evidence_api::create_evidence_router(handles.evidence);
+    // Fase 11.7: runtime do Sentinel (métricas → regras → gate HITL → SOAR/Axiom)
+    let sentinel_rt = std::sync::Arc::new(sentinel_runtime::SentinelRuntime::from_env(Box::new(
+        sentinel_runtime::OrchestratorForwarder(state.soar_orchestrator.clone()),
+    )));
+    sentinel_rt.spawn_loop(sentinel_runtime::tick_interval_from_env());
+    let sentinel_runtime_routes =
+        sentinel_runtime::create_sentinel_runtime_router(sentinel_rt.clone());
 
     // Phase 2 aggregated status endpoint (used by cockpit components: memory, tasks, personalities, sentinel, swarm, evidence, hitl)
     let phase2_state = tokio::task::block_in_place(|| {
@@ -135,44 +154,40 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
         );
 
     // === Fase 11.4 T11.4.6: Health check endpoints padronizados ===
-    let api_health = Router::new()
-        .route(
-            "/health",
-            get(|| async {
-                axum::Json(serde_json::json!({
-                "status": "ok",
-                "service": "zylos-gateway",
-                "version": env!("CARGO_PKG_VERSION"),
-                }))
-            }),
-        )
-        .route(
-            "/cockpit/health",
-            get(|| async {
-                axum::Json(serde_json::json!({
-                "status": "ok",
-                "component": "cockpit",
-                "endpoints_available": [
-                "/api/v1/channels",
-                "/api/v1/computer-view/sessions",
-                "/api/v1/hermes/skills",
-                "/api/v1/goals",
-                "/api/v1/memory",
-                "/api/v1/personalities",
-                "/api/v1/sentinel",
-                "/api/v1/evidence",
-                "/api/v1/phase2/status"
-                ]
-                }))
-            }),
-        );
+    // `/api/v1/health` vem do router do cockpit (zylos-live-comm), que devolve
+    // status/active_streams/version/service — formato que o cockpit consome.
+    // Não registrar `/health` aqui de novo: o axum entra em pânico com rota duplicada.
+    let api_health = Router::new().route(
+        "/cockpit/health",
+        get(|| async {
+            axum::Json(serde_json::json!({
+            "status": "ok",
+            "component": "cockpit",
+            "endpoints_available": [
+            "/api/v1/channels",
+            "/api/v1/computer-view/sessions",
+            "/api/v1/hermes/skills",
+            "/api/v1/goals",
+            "/api/v1/memory",
+            "/api/v1/personalities",
+            "/api/v1/sentinel",
+            "/api/v1/evidence",
+            "/api/v1/phase2/status",
+            "/api/v1/integrations/status"
+            ]
+            }))
+        }),
+    );
 
     // New Fase 9 routers (channels + computer-view)
     let channels_store = tokio::task::block_in_place(|| {
         tokio::runtime::Handle::current().block_on(async {
-            let store = zylos_channels::ChannelsStore::connect("sqlite://data/channels.db")
-                .await
-                .expect("failed to connect channels store");
+            let store = zylos_channels::ChannelsStore::connect(
+                &std::env::var("ZYLOS_CHANNELS_DB")
+                    .unwrap_or_else(|_| "sqlite://data/channels.db".to_string()),
+            )
+            .await
+            .expect("failed to connect channels store");
             store
                 .run_migrations()
                 .await
@@ -189,7 +204,25 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
     );
     let webrtc_relay =
         webrtc_relay::create_webrtc_relay_router(webrtc_relay::WebRtcRelayState::new());
-    let auth = auth_api::create_auth_router();
+    let auth_state = auth_api::AuthState::from_env();
+    let api_auth_state = api_auth::ApiAuth::new(auth_state.token_service());
+    if !api_auth_state.enforced() {
+        tracing::warn!(
+            "ZYLOS_AUTH_SECRET ausente: /api/v1 sem login (só local); aprovações bloqueadas"
+        );
+    }
+    let auth = auth_api::create_auth_router_with(auth_state.clone());
+    let integrations = integrations_api::create_integrations_router(
+        integrations_api::IntegrationsState::from_env(),
+    );
+    let analytics =
+        analytics_api::create_analytics_router(analytics_api::AnalyticsHandle::from_env());
+    let crdt_state = crdt_sync::CrdtSyncState::with_store_path(std::path::Path::new(
+        &std::env::var("ZYLOS_CRDT_DB").unwrap_or_else(|_| "data/crdt.db".to_string()),
+    ))
+    .with_token_service(auth_state.token_service());
+    crdt_sync::spawn_gc_task(&crdt_state);
+    let crdt = crdt_sync::create_crdt_sync_router(crdt_state);
 
     Router::new()
         .merge(root_health)
@@ -211,22 +244,85 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
                 .merge(memory)
                 .merge(personalities)
                 .merge(sentinel)
+                .merge(sentinel_runtime_routes)
                 .merge(evidence)
                 .merge(phase2)
                 .merge(channels)
                 .merge(computer_view)
                 .merge(webrtc_relay)
-                .merge(auth),
-        )
-        .layer(tower_http::trace::TraceLayer::new_for_http())
-        .layer(
-            tower_http::cors::CorsLayer::new()
-                .allow_origin(tower_http::cors::AllowOrigin::predicate(
-                    local_guard::cors_origem_local,
+                .merge(auth)
+                .merge(integrations)
+                .merge(analytics)
+                .merge(crdt)
+                .merge(agents_api::create_agents_router(state.swarm.clone()))
+                .merge(subagents_api::create_subagents_router(state.swarm.clone()))
+                .merge(threads_api::create_threads_router(
+                    threads_api::ThreadsStore::from_env().expect("threads store"),
                 ))
-                .allow_methods(tower_http::cors::Any)
-                .allow_headers(tower_http::cors::Any),
+                .merge(relay_api::create_relay_router(
+                    relay_api::RelayState::from_env(),
+                ))
+                .merge(reactions_api::create_reactions_router(
+                    reactions_api::ReactionsState::from_env(),
+                )),
         )
+        .layer(axum::middleware::from_fn_with_state(
+            api_auth_state,
+            api_auth::exigir_auth,
+        ))
+        .layer(axum::middleware::from_fn_with_state(
+            sentinel_rt,
+            sentinel_runtime::track_requests,
+        ))
+        .layer(axum::middleware::from_fn(
+            security_headers::security_headers,
+        ))
+        .layer(tower_http::trace::TraceLayer::new_for_http())
+        // F15: per-IP token-bucket rate limiter (ZYLOS_RATE_LIMIT_RPS, default 100).
+        .layer(axum::middleware::from_fn_with_state(
+            rate_limit::RateLimiter::from_env(),
+            rate_limit::RateLimiter::middleware,
+        ))
+        .layer({
+            // F19: CORS com métodos/headers explícitos + origens via ZYLOS_CORS_ORIGINS.
+            use axum::http::{HeaderName, Method};
+            let mut cors = tower_http::cors::CorsLayer::new()
+                .allow_methods([
+                    Method::GET,
+                    Method::POST,
+                    Method::PATCH,
+                    Method::DELETE,
+                    Method::OPTIONS,
+                ])
+                .allow_headers([
+                    axum::http::header::AUTHORIZATION,
+                    axum::http::header::CONTENT_TYPE,
+                    HeaderName::from_static("x-requested-with"),
+                ]);
+            if let Ok(origins_env) = std::env::var("ZYLOS_CORS_ORIGINS") {
+                let origins: Vec<_> = origins_env
+                    .split(',')
+                    .map(|s| s.trim())
+                    .filter(|s| !s.is_empty())
+                    .filter_map(|s| s.parse().ok())
+                    .collect();
+                if origins.is_empty() {
+                    tracing::warn!(
+                        "ZYLOS_CORS_ORIGINS definido mas vazio — usando apenas origens locais"
+                    );
+                    cors = cors.allow_origin(tower_http::cors::AllowOrigin::predicate(
+                        local_guard::cors_origem_local,
+                    ));
+                } else {
+                    cors = cors.allow_origin(tower_http::cors::AllowOrigin::list(origins));
+                }
+            } else {
+                cors = cors.allow_origin(tower_http::cors::AllowOrigin::predicate(
+                    local_guard::cors_origem_local,
+                ));
+            }
+            cors
+        })
         // Camada mais externa: roda antes de tudo, inclusive da resposta de CORS ao preflight.
         .layer(axum::middleware::from_fn(local_guard::so_desta_maquina))
 }

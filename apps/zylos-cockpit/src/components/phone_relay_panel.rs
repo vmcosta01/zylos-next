@@ -1,210 +1,157 @@
-//! PhoneRelayPanel — UI para pareamento e relay de dispositivos móveis
+//! PhoneRelayPanel — pareamento real de dispositivos móveis.
 //!
-//! Exibe QR code placeholder, lista de dispositivos pareados com status,
-//! e controles de pair/unpair. Usa mock data; sem chrono nem dependências WASM pesadas.
+//! Consome o gateway (`apps/zylos-gateway/src/relay_api.rs`):
+//! - `POST   /api/v1/hermes/desktop/relay/pair-code` — código de 5 min + QR em SVG
+//! - `GET    /api/v1/hermes/desktop/relay/devices` — dispositivos pareados
+//! - `DELETE /api/v1/hermes/desktop/relay/tokens/revoke` — revoga dispositivo
+//!
+//! O relay de tela ainda não tem sessão no gateway: a área de preview mostra
+//! estado vazio (nenhuma imagem simulada).
 //!
 //! ## CSS Classes
 //! - `phone-relay-panel` — container raiz
-//! - `qr-placeholder` — área do QR code estilizada
-//! - `device-list` — lista de dispositivos
-//! - `device-card` — card individual de dispositivo
-//! - `device-paired` — modificador: dispositivo pareado e online
-//! - `device-offline` — modificador: dispositivo offline
-//! - `relay-screen` — preview da tela remota (placeholder)
-//! - `pair-btn` — botão de pareamento/despareamento
+//! - `qr-placeholder` — área do QR code
+//! - `device-list` / `device-card` — lista e card de dispositivo
+//! - `relay-screen relay-inactive` — preview sem sessão
+//! - `pair-btn` — botões de ação
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::{Deserialize, Serialize};
-use wasm_bindgen::closure::Closure;
 
-/// Fetch JSON genérico via gloo-net (fallback para mock se falhar).
-async fn fetch_json<T: for<'de> Deserialize<'de>>(url: &str) -> Result<T, String> {
-    use gloo_net::http::Request;
-    let resp = Request::get(url)
-        .send()
-        .await
-        .map_err(|e| format!("{:?}", e))?;
-    if !resp.ok() {
-        return Err(format!("HTTP {}", resp.status()));
-    }
-    resp.json::<T>().await.map_err(|e| format!("{:?}", e))
-}
+use crate::gateway_http::{delete_json, get_json, post_json};
+use crate::ui_error::user_message;
 
-/// Status de um dispositivo pareado
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum DeviceStatus {
-    Online,
-    Offline,
-    Pairing,
-}
+const BASE: &str = "/api/v1/hermes/desktop/relay";
 
-impl DeviceStatus {
-    pub fn label(&self) -> &'static str {
-        match self {
-            Self::Online => "Online",
-            Self::Offline => "Offline",
-            Self::Pairing => "Pareando...",
-        }
-    }
-
-    pub fn indicator(&self) -> &'static str {
-        match self {
-            Self::Online => "\u{1f7e2}",  // 🟢
-            Self::Offline => "\u{1f534}", // 🔴
-            Self::Pairing => "\u{1f7e1}", // 🟡
-        }
-    }
-}
-
-/// Plataforma do dispositivo
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Platform {
-    Android,
-    Ios,
-}
-
-impl Platform {
-    pub fn icon(&self) -> &'static str {
-        match self {
-            Self::Android => "\u{1f916}", // 🤖
-            Self::Ios => "\u{1f4f1}",     // 📱
-        }
-    }
-}
-
-/// Dispositivo pareado
+/// Dispositivo pareado, como devolvido pelo gateway.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PairedDevice {
     pub id: String,
     pub name: String,
-    pub platform: Platform,
-    /// Timestamp ISO-8601 como string (sem chrono)
-    pub paired_at: String,
-    /// Último contato como string relativa
-    pub last_seen: String,
-    pub status: DeviceStatus,
+    pub platform: String,
+    /// Unix seconds.
+    pub paired_at: u64,
+    /// Unix seconds.
+    pub last_seen: u64,
 }
 
-/// Sessão ativa de relay de tela
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct RelaySession {
-    pub device_id: String,
-    pub screen_url: String,
-    pub control_active: bool,
-}
-
-/// Métricas de qualidade do relay (recebidas via WS)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct QualityMetrics {
-    pub fps: f64,
-    pub latency_ms: u64,
-    pub bitrate_kbps: u64,
-}
-
-impl Default for QualityMetrics {
-    fn default() -> Self {
-        Self {
-            fps: 0.0,
-            latency_ms: 0,
-            bitrate_kbps: 0,
+impl PairedDevice {
+    /// Ícone da plataforma.
+    pub fn icon(&self) -> &'static str {
+        match self.platform.as_str() {
+            "android" => "\u{1f916}",
+            "ios" => "\u{1f4f1}",
+            _ => "\u{1f4df}",
         }
     }
 }
 
-/// Dados mock para demonstração
-fn mock_devices() -> Vec<PairedDevice> {
-    vec![
-        PairedDevice {
-            id: "dev-001".to_string(),
-            name: "Pixel 8 Pro".to_string(),
-            platform: Platform::Android,
-            paired_at: "2026-11-10T14:30:00Z".to_string(),
-            last_seen: "2 min atrás".to_string(),
-            status: DeviceStatus::Online,
-        },
-        PairedDevice {
-            id: "dev-002".to_string(),
-            name: "iPhone 15".to_string(),
-            platform: Platform::Ios,
-            paired_at: "2026-11-09T09:15:00Z".to_string(),
-            last_seen: "3h atrás".to_string(),
-            status: DeviceStatus::Offline,
-        },
-        PairedDevice {
-            id: "dev-003".to_string(),
-            name: "Galaxy S24".to_string(),
-            platform: Platform::Android,
-            paired_at: "2026-11-11T18:00:00Z".to_string(),
-            last_seen: "agora".to_string(),
-            status: DeviceStatus::Pairing,
-        },
-    ]
+/// Código de pareamento emitido pelo gateway.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct PairCode {
+    pub code: String,
+    pub expires_at: u64,
+    pub payload: String,
+    pub qr_svg: String,
+}
+
+#[derive(Deserialize)]
+struct DevicesResponse {
+    devices: Vec<PairedDevice>,
+}
+
+/// "há N min" a partir de dois instantes em segundos.
+pub fn relative_time(then: u64, now: u64) -> String {
+    let d = now.saturating_sub(then);
+    match d {
+        0..=59 => "agora".to_string(),
+        60..=3599 => format!("há {} min", d / 60),
+        3600..=86_399 => format!("há {} h", d / 3600),
+        _ => format!("há {} dias", d / 86_400),
+    }
+}
+
+/// Segundos restantes até `expires_at`.
+pub fn remaining_secs(expires_at: u64, now: u64) -> u64 {
+    expires_at.saturating_sub(now)
+}
+
+fn now_secs() -> u64 {
+    (js_sys::Date::now() / 1000.0) as u64
 }
 
 /// Componente principal do painel Phone Relay
 #[component]
 pub fn PhoneRelayPanel() -> impl IntoView {
-    let devices = RwSignal::new(mock_devices());
-    let active_session = RwSignal::new(None::<RelaySession>);
-    let pairing_code = RwSignal::new(Some("ZYLOS-7X4K-M9Q2".to_string()));
-    let quality_metrics = RwSignal::new(QualityMetrics::default());
+    let devices = RwSignal::new(Vec::<PairedDevice>::new());
+    let loading = RwSignal::new(true);
+    let error = RwSignal::new(None::<String>);
+    let pair_code = RwSignal::new(None::<PairCode>);
+    let now = RwSignal::new(now_secs());
 
-    // Carregar dispositivos do gateway (fallback para mock)
-    Effect::new(move |_| {
-        let devs_signal = devices;
+    let show_err = move |e: String| {
+        web_sys::console::warn_1(&format!("relay: {e}").into());
+        error.set(Some(user_message(&e)));
+    };
+
+    let reload = move || {
         spawn_local(async move {
-            match fetch_json::<serde_json::Value>(
-                "http://localhost:3000/api/v1/computer-view/sessions",
-            )
-            .await
+            match get_json::<DevicesResponse>(&format!("{BASE}/devices")).await {
+                Ok(r) => {
+                    error.set(None);
+                    devices.set(r.devices);
+                }
+                Err(e) => show_err(e),
+            }
+            loading.set(false);
+        });
+    };
+    reload();
+
+    // Relógio para contagem regressiva do código e atualização periódica da lista.
+    let ticks = StoredValue::new(0u32);
+    let interval = set_interval_with_handle(
+        move || {
+            now.set(now_secs());
+            let t = ticks.get_value() + 1;
+            ticks.set_value(t);
+            if t.is_multiple_of(10) {
+                reload();
+            }
+        },
+        std::time::Duration::from_secs(1),
+    );
+    on_cleanup(move || {
+        if let Ok(h) = interval {
+            h.clear();
+        }
+    });
+
+    let new_code = move |_| {
+        spawn_local(async move {
+            match post_json::<_, PairCode>(&format!("{BASE}/pair-code"), &serde_json::json!({}))
+                .await
             {
-                Ok(val) => {
-                    if let Some(arr) = val.get("sessions").and_then(|v| v.as_array()) {
-                        // Mapeia sessões do gateway para PairedDevice
-                        let mapped: Vec<PairedDevice> = arr
-                            .iter()
-                            .filter_map(|s| {
-                                let id = s.get("id")?.as_str()?.to_string();
-                                let bot_id =
-                                    s.get("bot_id")?.as_str().unwrap_or("unknown").to_string();
-                                let state = s.get("state")?.as_str().unwrap_or("connecting");
-                                let status = match state {
-                                    "active" | "user_control" => DeviceStatus::Online,
-                                    "terminated" | "error" => DeviceStatus::Offline,
-                                    _ => DeviceStatus::Pairing,
-                                };
-                                Some(PairedDevice {
-                                    id,
-                                    name: bot_id,
-                                    platform: Platform::Android,
-                                    paired_at: s
-                                        .get("created_at")
-                                        .and_then(|v| v.as_str())
-                                        .unwrap_or("")
-                                        .to_string(),
-                                    last_seen: s
-                                        .get("updated_at")
-                                        .and_then(|v| v.as_str())
-                                        .unwrap_or("agora")
-                                        .to_string(),
-                                    status,
-                                })
-                            })
-                            .collect();
-                        if !mapped.is_empty() {
-                            devs_signal.set(mapped);
-                        }
-                    }
+                Ok(c) => {
+                    error.set(None);
+                    pair_code.set(Some(c));
                 }
-                Err(_) => {
-                    // Fallback: mantém dados mock
-                }
+                Err(e) => show_err(e),
             }
         });
-    });
+    };
+
+    let revoke = move |id: String| {
+        spawn_local(async move {
+            let body = serde_json::json!({ "device_id": id });
+            match delete_json::<_, serde_json::Value>(&format!("{BASE}/tokens/revoke"), &body).await
+            {
+                Ok(_) => devices.update(|d| d.retain(|x| x.id != id)),
+                Err(e) => show_err(e),
+            }
+        });
+    };
 
     view! {
         <div class="phone-relay-panel">
@@ -212,84 +159,75 @@ pub fn PhoneRelayPanel() -> impl IntoView {
                 <h2>{"\u{1f4f2} Phone Relay"}</h2>
                 <p class="panel-subtitle">{"Gerencie dispositivos pareados e relay de tela"}</p>
             </header>
+            {move || error.get().map(|e| view! { <div class="relay-error" role="alert">{e}</div> })}
 
             <section class="qr-section">
                 <h3>{"Parear Novo Dispositivo"}</h3>
-                <div class="qr-placeholder">
-                    <div class="qr-inner">
-                        <span class="qr-icon">{"\u{1f4f1}"}</span>
-                        <code class="qr-code">{move || pairing_code.get().unwrap_or_else(|| "—".to_string())}</code>
-                        <p class="qr-hint">{"Escaneie com o app Zylos Mobile"}</p>
-                    </div>
-                </div>
+                {move || {
+                    let code = pair_code.get().filter(|c| remaining_secs(c.expires_at, now.get()) > 0);
+                    match code {
+                        Some(c) => {
+                            let left = remaining_secs(c.expires_at, now.get());
+                            view! {
+                                <div class="qr-placeholder">
+                                    <div class="qr-inner">
+                                        <div class="qr-svg" inner_html=c.qr_svg.clone()></div>
+                                        <code class="qr-code">{c.code.clone()}</code>
+                                        <p class="qr-hint">
+                                            {format!("Escaneie com o app Zylos Mobile — expira em {}:{:02}", left / 60, left % 60)}
+                                        </p>
+                                    </div>
+                                </div>
+                            }.into_any()
+                        }
+                        None => view! {
+                            <div class="qr-placeholder">
+                                <div class="qr-inner">
+                                    <p class="qr-hint">{"Gere um código para parear um celular (válido por 5 minutos)."}</p>
+                                    <button class="pair-btn" on:click=new_code>{"Gerar código de pareamento"}</button>
+                                </div>
+                            </div>
+                        }.into_any(),
+                    }
+                }}
             </section>
 
             <section class="devices-section">
                 <h3>{"Dispositivos Pareados"}</h3>
+                {move || {
+                    if loading.get() {
+                        view! { <p class="relay-loading">{"Carregando dispositivos..."}</p> }.into_any()
+                    } else if devices.with(|d| d.is_empty()) {
+                        view! { <p class="relay-empty">{"Nenhum dispositivo pareado."}</p> }.into_any()
+                    } else {
+                        ().into_any()
+                    }
+                }}
                 <div class="device-list">
                     <For each=move || devices.get()
                          key=|d| d.id.clone()
-                         children=move |device| {
-                             let dev = device.clone();
-                             let is_online = dev.status == DeviceStatus::Online;
-                             let card_class = move || {
-                                 if is_online {
-                                     "device-card device-paired".to_string()
-                                 } else {
-                                     "device-card device-offline".to_string()
-                                 }
-                             };
-                             let session_signal = active_session;
-                             let devs_signal = devices;
-                             let dev_id = dev.id.clone();
-                                                         let dev_id_for_relay = dev_id.clone();
-                                                         view! {
-                                                             <div class=card_class>
-                                                                 <div class="device-header">
-                                                                     <span class="device-platform">{dev.platform.icon()}</span>
-                                                                     <span class="device-name">{dev.name.clone()}</span>
-                                                                     <span class="device-status-indicator">{dev.status.indicator()}</span>
-                                                                 </div>
-                                                                 <div class="device-meta">
-                                                                     <span class="device-last-seen">{dev.last_seen.clone()}</span>
-                                                                     <span class="device-status-label">{dev.status.label()}</span>
-                                                                 </div>
-                                                                 <div class="device-actions">
-                                                                     <button
-                                                                         class="pair-btn"
-                                                                         on:click=move |_| {
-                                                                             let id = dev_id.clone();
-                                                 spawn_local(async move {
-                                                     // Toggle unpair: remove da lista mock
-                                                     let mut current = devs_signal.get();
-                                                     current.retain(|d| d.id != id);
-                                                     devs_signal.set(current);
-                                                 });
-                                             }
-                                         >
-                                             {"Desparear"}
+                         children=move |dev| {
+                             let id = dev.id.clone();
+                             let last_seen = dev.last_seen;
+                             let paired_at = dev.paired_at;
+                             view! {
+                                 <div class="device-card">
+                                     <div class="device-header">
+                                         <span class="device-platform">{dev.icon()}</span>
+                                         <span class="device-name">{dev.name.clone()}</span>
+                                     </div>
+                                     <div class="device-meta">
+                                         <span class="device-last-seen">
+                                             {move || format!("Último contato: {}", relative_time(last_seen, now.get()))}
+                                         </span>
+                                         <span class="device-status-label">
+                                             {move || format!("Pareado {}", relative_time(paired_at, now.get()))}
+                                         </span>
+                                     </div>
+                                     <div class="device-actions">
+                                         <button class="pair-btn" on:click=move |_| revoke(id.clone())>
+                                             {"Revogar"}
                                          </button>
-                                         {move || {
-                                             if is_online {
-                                                                                             let sid = dev_id_for_relay.clone();
-                                                 view! {
-                                                     <button
-                                                         class="pair-btn relay-btn"
-                                                         on:click=move |_| {
-                                                             session_signal.set(Some(RelaySession {
-                                                                 device_id: sid.clone(),
-                                                                 screen_url: format!("ws://localhost:9876/relay/{}", sid),
-                                                                 control_active: true,
-                                                             }));
-                                                         }
-                                                     >
-                                                         {"Iniciar Relay"}
-                                                     </button>
-                                                 }.into_any()
-                                             } else {
-                                              ().into_any()
-                                              }
-                                         }}
                                      </div>
                                  </div>
                              }
@@ -300,84 +238,9 @@ pub fn PhoneRelayPanel() -> impl IntoView {
 
             <section class="relay-section">
                 <h3>{"Relay de Tela"}</h3>
-                {move || match &*active_session.read() {
-                    Some(session) => {
-                        let ws_url = session.screen_url.clone();
-                        let dev_id = session.device_id.clone();
-                        let metrics = quality_metrics;
-                        let ctrl_active = session.control_active;
-                        // Conectar WebSocket e renderizar frames no canvas
-                        Effect::new(move |_| {
-                            let url = ws_url.clone();
-                            let m = metrics;
-                            spawn_local(async move {
-                                use wasm_bindgen::JsCast;
-                                use web_sys::{WebSocket, MessageEvent};
-                                let ws = match WebSocket::new(&url) {
-                                    Ok(w) => w,
-                                    Err(_) => return,
-                                };
-                                let ws_clone = ws.clone();
-                                // Handler de mensagens: frame → canvas, quality → metrics
-                                let on_msg = Closure::wrap(Box::new(move |e: MessageEvent| {
-                                    if let Ok(text) = e.data().dyn_into::<js_sys::JsString>() {
-                                        let s: String = text.into();
-                                        if let Ok(val) = serde_json::from_str::<serde_json::Value>(&s) {
-                                            match val.get("type").and_then(|t| t.as_str()) {
-                                                Some("frame") => {
-                                                    if let Some(data) = val.get("data").and_then(|d| d.as_str()) {
-                                                        // Renderizar base64 no canvas via JS inline
-                                                        let js_render = format!(
-                                                            "(function(){{var c=document.getElementById('relay-canvas');if(!c)return;var ctx=c.getContext('2d');var img=new Image();img.onload=function(){{ctx.drawImage(img,0,0,c.width,c.height)}};img.src='data:image/jpeg;base64,{}'}})()",
-                                                            data
-                                                        );
-                                                        let _ = js_sys::eval(&js_render);
-                                                    }
-                                                }
-                                                Some("quality") => {
-                                                    let fps = val.get("fps").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                                                    let latency = val.get("latency_ms").and_then(|v| v.as_u64()).unwrap_or(0);
-                                                    let bitrate = val.get("bitrate_kbps").and_then(|v| v.as_u64()).unwrap_or(0);
-                                                    m.set(QualityMetrics { fps, latency_ms: latency, bitrate_kbps: bitrate });
-                                                }
-                                                _ => {}
-                                            }
-                                        }
-                                    }
-                                }) as Box<dyn FnMut(MessageEvent)>);
-                                ws_clone.set_onmessage(Some(on_msg.as_ref().unchecked_ref()));
-                                on_msg.forget();
-                                // Manter WS vivo até componente ser descartado
-                                let _ = wasm_bindgen_futures::JsFuture::from(js_sys::Promise::new(&mut |resolve, _| {
-                                    // Nunca resolve — mantém conexão aberta
-                                    let _ = resolve;
-                                })).await;
-                            });
-                        });
-                        view! {
-                            <div class="relay-screen">
-                                <div class="relay-quality-bar">
-                                    <span class="quality-fps">{move || format!("FPS: {:.1}", quality_metrics.get().fps)}</span>
-                                    <span class="quality-latency">{move || format!("Latência: {}ms", quality_metrics.get().latency_ms)}</span>
-                                    <span class="quality-bitrate">{move || format!("Bitrate: {}kbps", quality_metrics.get().bitrate_kbps)}</span>
-                                </div>
-                                <canvas id="relay-canvas" width="1280" height="720" class="relay-canvas"></canvas>
-                                <div class="relay-info">
-                                    <p>{format!("Conectado a {}", dev_id)}</p>
-                                    <label class="relay-control-toggle">
-                                        <input type="checkbox" checked=ctrl_active />
-                                        {" Controle remoto ativo"}
-                                    </label>
-                                </div>
-                            </div>
-                        }.into_any()
-                    }
-                    None => view! {
-                        <div class="relay-screen relay-inactive">
-                            <p>{"Selecione um dispositivo online para iniciar o relay"}</p>
-                        </div>
-                    }.into_any(),
-                }}
+                <div class="relay-screen relay-inactive">
+                    <p>{"Nenhuma sessão de relay ativa."}</p>
+                </div>
             </section>
         </div>
     }
@@ -388,68 +251,42 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_mock_devices_count() {
-        let devices = mock_devices();
-        assert_eq!(devices.len(), 3);
+    fn test_parse_devices_payload() {
+        let raw = r#"{"total":1,"devices":[{"id":"dev-1","name":"Pixel","platform":"android","paired_at":10,"last_seen":20}]}"#;
+        let r: DevicesResponse = serde_json::from_str(raw).unwrap();
+        assert_eq!(r.devices.len(), 1);
+        assert_eq!(r.devices[0].icon(), "\u{1f916}");
     }
 
     #[test]
-    fn test_device_status_labels() {
-        assert_eq!(DeviceStatus::Online.label(), "Online");
-        assert_eq!(DeviceStatus::Offline.label(), "Offline");
-        assert_eq!(DeviceStatus::Pairing.label(), "Pareando...");
+    fn test_parse_pair_code_payload() {
+        let raw = r#"{"code":"ABCD-EFGH","expires_at":300,"payload":"zylos-relay://pair?code=ABCD-EFGH","qr_svg":"<svg/>"}"#;
+        let c: PairCode = serde_json::from_str(raw).unwrap();
+        assert_eq!(c.code, "ABCD-EFGH");
+        assert_eq!(remaining_secs(c.expires_at, 100), 200);
+        assert_eq!(remaining_secs(c.expires_at, 400), 0);
     }
 
     #[test]
-    fn test_device_status_indicators() {
-        assert_eq!(DeviceStatus::Online.indicator(), "\u{1f7e2}");
-        assert_eq!(DeviceStatus::Offline.indicator(), "\u{1f534}");
-        assert_eq!(DeviceStatus::Pairing.indicator(), "\u{1f7e1}");
+    fn test_relative_time() {
+        assert_eq!(relative_time(100, 120), "agora");
+        assert_eq!(relative_time(0, 180), "há 3 min");
+        assert_eq!(relative_time(0, 7200), "há 2 h");
+        assert_eq!(relative_time(0, 3 * 86_400), "há 3 dias");
+        assert_eq!(relative_time(500, 100), "agora");
     }
 
     #[test]
     fn test_platform_icons() {
-        assert_eq!(Platform::Android.icon(), "\u{1f916}");
-        assert_eq!(Platform::Ios.icon(), "\u{1f4f1}");
-    }
-
-    #[test]
-    fn test_paired_device_partial_eq() {
-        let d1 = PairedDevice {
-            id: "dev-001".to_string(),
-            name: "Test".to_string(),
-            platform: Platform::Android,
-            paired_at: "2026-01-01T00:00:00Z".to_string(),
-            last_seen: "now".to_string(),
-            status: DeviceStatus::Online,
+        let mut d = PairedDevice {
+            id: "x".into(),
+            name: "n".into(),
+            platform: "ios".into(),
+            paired_at: 0,
+            last_seen: 0,
         };
-        let d2 = d1.clone();
-        assert_eq!(d1, d2);
-    }
-
-    #[test]
-    fn test_relay_session_partial_eq() {
-        let s1 = RelaySession {
-            device_id: "dev-001".to_string(),
-            screen_url: "ws://localhost:9876/relay/dev-001".to_string(),
-            control_active: true,
-        };
-        let s2 = s1.clone();
-        assert_eq!(s1, s2);
-    }
-
-    #[test]
-    fn test_device_serde_roundtrip() {
-        let device = PairedDevice {
-            id: "dev-serde".to_string(),
-            name: "Serde Test".to_string(),
-            platform: Platform::Ios,
-            paired_at: "2026-11-11T00:00:00Z".to_string(),
-            last_seen: "1h".to_string(),
-            status: DeviceStatus::Offline,
-        };
-        let json = serde_json::to_string(&device).expect("serialize");
-        let deserialized: PairedDevice = serde_json::from_str(&json).expect("deserialize");
-        assert_eq!(device, deserialized);
+        assert_eq!(d.icon(), "\u{1f4f1}");
+        d.platform = "other".into();
+        assert_eq!(d.icon(), "\u{1f4df}");
     }
 }

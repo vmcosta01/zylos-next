@@ -1,6 +1,7 @@
 [package]
 name = "zylos-browser-takeover"
 version = "0.1.0"
+license.workspace = true
 edition = "2021"
 description = "Browser takeover console for zylos-gateway — live CDP proxy, session handoff, and audit recording"
 

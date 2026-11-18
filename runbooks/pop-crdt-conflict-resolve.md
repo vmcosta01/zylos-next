@@ -55,3 +55,38 @@ Exibir toast no cockpit: "Conflito resolvido — revisão automática aplicada" 
 - `crates/zylos-auth/src/crdt.rs`
 - `pb-crdt-onboarding`
 - `pot-crdt-sync-tuning`
+
+
+## Atualização Fase 11.9 — UI de resolução no cockpit (T11.9.5)
+
+Em edição ao vivo o CRDT (yrs/YATA) converge sozinho: não há "conflito" no sentido de perda. O fluxo abaixo é para quem quer **revisar** a divergência antes de publicar.
+
+### Procedimento no cockpit (aba Colaboração)
+1. Clicar **Editar como rascunho**: o documento é bifurcado (`CrdtClient::begin_draft`). Edições locais vão só para o rascunho; updates remotos continuam chegando ao documento principal.
+2. A seção **Local × remoto** mostra o diff por linha:
+   - `+` (verde) — linha só no rascunho local;
+   - `~` (azul) — linha só no remoto;
+   - sem marcação — igual nos dois.
+3. Escolher uma ação:
+   | Botão | Método | Efeito |
+   |---|---|---|
+   | **Mesclar (CRDT)** | `merge_draft()` | Aplica as operações do rascunho no principal; os dois lados são preservados, ordem determinística |
+   | **Manter local** | `keep_local()` | Reescreve o texto principal com o rascunho (sobrescreve edições remotas concorrentes) |
+   | **Aceitar remoto** | `accept_remote()` | Descarta o rascunho |
+4. O resultado é enviado como `Update` e retransmitido a todos os clientes da sala.
+
+### Quando usar cada opção
+- Edições em regiões diferentes → **Mesclar**.
+- Reescrita completa intencional → **Manter local** (avisar os demais: sobrescreve).
+- Rascunho obsoleto → **Aceitar remoto**.
+
+### Recuperação via servidor (perda real de dados)
+```bash
+curl http://localhost:3000/api/v1/crdt/documents/<doc_id>/versions
+curl http://localhost:3000/api/v1/crdt/documents/<doc_id>/versions/<versao>
+curl -X POST http://localhost:3000/api/v1/crdt/documents/<doc_id>/compact
+```
+Cole o texto da versão desejada em modo rascunho e use **Manter local**.
+
+### Evidência
+`crdt_client_draft_merge_keeps_both_sides` e `crdt_client_keep_local_and_accept_remote` (`apps/zylos-cockpit/src/crdt_client.rs`); `crdt_same_position_conflict_is_deterministic` (`apps/zylos-gateway/tests/crdt_multi_client.rs`).

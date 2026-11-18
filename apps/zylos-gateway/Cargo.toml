@@ -43,12 +43,23 @@ toml = "0.8"
 
 dashmap = "6.2.1"
 futures-util = "0.3"
+yrs = { workspace = true, features = ["sync"] }
 zylos-channels = { path = "../../crates/zylos-channels" }
 zylos-auth = { path = "../../crates/zylos-auth" }
+zylos-analytics = { path = "../../crates/zylos-analytics" }
 zylos-computer-view = { version = "0.1.0", path = "../../crates/zylos-computer-view" }
 sentry = { version = "0.46.2", features = ["backtrace", "contexts", "panic", "log"] }
 zylos-sentinel = { version = "0.1.0", path = "../../crates/zylos-sentinel" }
+zylos-integrations = { path = "../../crates/zylos-integrations" }
 serde_yaml = "0.9.34"
+rusqlite = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+sha2 = { workspace = true }
+hex = { workspace = true }
+rand = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+tokio-tungstenite = "0.24"

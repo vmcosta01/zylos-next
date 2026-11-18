@@ -63,7 +63,7 @@ pub fn HitlApprovalPanel() -> impl IntoView {
                     let err_msg = msg.clone();
                     view! {
                         <div class="error-banner">
-                            <p>{format!("Erro ao carregar aprovações: {}", err_msg)}</p>
+                            <p>{format!("Erro ao carregar aprovações: {}", crate::ui_error::report("Erro ao carregar aprovações", &err_msg))}</p>
                             <button class="cta-retry" on:click=move |_| {
                                 spawn_local(async move {
                                     match fetch_pending_approvals().await {
@@ -77,7 +77,67 @@ pub fn HitlApprovalPanel() -> impl IntoView {
                     }.into_any()
                 }
             }}
+            <ResolveApprovalForm />
         </div>
+    }
+}
+
+/// Formulário para resolver um pedido HITL (POST /api/v1/approval/resolve).
+#[component]
+fn ResolveApprovalForm() -> impl IntoView {
+    let approval_id = RwSignal::new(String::new());
+    let msg = RwSignal::new(None::<String>);
+
+    let decide = move |decision: &'static str| {
+        let id = approval_id.get_untracked();
+        if id.trim().is_empty() {
+            msg.set(Some("Informe o ID da aprovação.".into()));
+            return;
+        }
+        spawn_local(async move {
+            let text = match resolve_approval(&id, decision).await {
+                Ok(()) => format!("{id}: {decision}"),
+                Err(e) => crate::ui_error::report("approval resolve", &e),
+            };
+            msg.set(Some(text));
+        });
+    };
+
+    view! {
+        <div class="hitl-resolve">
+            <label for="hitl-approval-id">"ID da aprovação"</label>
+            <input
+                id="hitl-approval-id"
+                type="text"
+                prop:value=move || approval_id.get()
+                on:input=move |ev| approval_id.set(event_target_value(&ev))
+            />
+            <button class="cta-primary" on:click=move |_| decide("allow_once")>"Aprovar"</button>
+            <button class="cta-retry" on:click=move |_| decide("refuse")>"Recusar"</button>
+            {move || msg.get().map(|m| view! { <p class="hitl-resolve-msg" role="status">{m}</p> })}
+        </div>
+    }
+}
+
+/// POST /api/v1/approval/resolve. 401/403 → pede login de administrador.
+async fn resolve_approval(approval_id: &str, decision: &str) -> Result<(), String> {
+    let base = crate::gateway_config::gateway_base().ok_or("Gateway não configurado")?;
+    let url = crate::gateway_config::join_url(&base, "/api/v1/approval/resolve");
+    let body = serde_json::json!({
+        "approval_id": approval_id,
+        "decision": decision,
+        "resolved_by": "cockpit",
+    });
+    let resp = crate::auth::authed(gloo_net::http::Request::post(&url))
+        .json(&body)
+        .map_err(|e| e.to_string())?
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if resp.ok() {
+        Ok(())
+    } else {
+        Err(crate::auth::approval_error(resp.status()))
     }
 }
 
@@ -91,6 +151,8 @@ async fn fetch_pending_approvals() -> Result<u64, String> {
     let request =
         Request::new_with_str_and_init("http://localhost:3000/api/v1/phase2/status", &opts)
             .map_err(|e| format!("{:?}", e))?;
+
+    crate::auth::authed_web_request(&request);
 
     let window = web_sys::window().ok_or("no window")?;
     let resp_value = window

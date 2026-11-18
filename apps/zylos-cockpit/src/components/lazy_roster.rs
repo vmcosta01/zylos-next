@@ -149,6 +149,7 @@ pub fn LazyRoster(agents: Vec<AgentInfo>, #[prop(optional)] max_visible: usize) 
                 <input
                     type="text"
                     class="roster-search"
+                    aria-label="Buscar agentes"
                     placeholder="Buscar agentes..."
                     on:input=on_search_input
                 />

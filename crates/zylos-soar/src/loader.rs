@@ -2,9 +2,13 @@
 
 use crate::error::{Result, SoarError};
 use crate::playbook::Playbook;
+use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
+use sha2::Sha256;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+type HmacSha256 = Hmac<Sha256>;
 
 /// A runbook specification parsed from YAML.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -18,6 +22,58 @@ pub struct RunbookSpec {
     pub validation: Vec<ValidationCheck>,
     #[serde(default)]
     pub rollback: Vec<RollbackStep>,
+    /// F18: assinatura HMAC-SHA256 do conteúdo canônico do runbook.
+    /// Obrigatória quando ZYLOS_RUNBOOK_KEY está definida.
+    #[serde(default)]
+    pub signature: Option<String>,
+}
+
+/// Verifica a assinatura HMAC-SHA256 de um runbook usando uma chave explícita.
+///
+/// O payload assinado é o YAML completo **sem** o campo `signature`,
+/// normalizado com finais de linha LF.
+/// - `key`: `Some(bytes)` exige assinatura válida; `None` pula a verificação (modo dev).
+/// - `provided`: assinatura presente no YAML.
+fn verify_runbook_signature_with_key(
+    content: &str,
+    provided: &Option<String>,
+    key: Option<&[u8]>,
+) -> Result<()> {
+    let Some(key) = key else {
+        return Ok(()); // sem chave = sem exigência (dev/local)
+    };
+    let sig = provided
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| SoarError::UnsignedRunbook("assinatura ausente".into()))?;
+
+    // Remove o campo `signature:` do YAML para calcular o HMAC sobre o resto.
+    let canonical: String = content
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("signature:"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let mut mac = HmacSha256::new_from_slice(key)
+        .map_err(|e| SoarError::UnsignedRunbook(format!("chave inválida: {e}")))?;
+    mac.update(canonical.as_bytes());
+    let expected = hex::encode(mac.finalize().into_bytes());
+
+    if expected != sig {
+        return Err(SoarError::UnsignedRunbook(
+            "assinatura HMAC-SHA256 não confere".into(),
+        ));
+    }
+    Ok(())
+}
+
+/// Wrapper de produção: lê `ZYLOS_RUNBOOK_KEY` da env e delega para
+/// [`verify_runbook_signature_with_key`]. Sem a env, pula a verificação.
+fn verify_runbook_signature(content: &str, provided: &Option<String>) -> Result<()> {
+    let key = std::env::var("ZYLOS_RUNBOOK_KEY")
+        .ok()
+        .filter(|k| !k.is_empty());
+    verify_runbook_signature_with_key(content, provided, key.as_deref().map(|s| s.as_bytes()))
 }
 
 /// Runbook metadata section.
@@ -151,7 +207,24 @@ pub fn load_single_runbook(path: &Path) -> Result<RunbookSpec> {
         ))
     })?;
 
+    // F18: verifica assinatura HMAC-SHA256 quando ZYLOS_RUNBOOK_KEY está definida.
+    verify_runbook_signature(&content, &spec.signature)?;
+
     Ok(spec)
+}
+
+/// Gera a assinatura HMAC-SHA256 de um conteúdo YAML de runbook.
+/// Útil para ferramentas que assinam runbooks offline.
+pub fn sign_runbook_content(content: &str, key: &[u8]) -> Result<String> {
+    let canonical: String = content
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("signature:"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let mut mac = HmacSha256::new_from_slice(key)
+        .map_err(|e| SoarError::UnsignedRunbook(format!("chave inválida: {e}")))?;
+    mac.update(canonical.as_bytes());
+    Ok(hex::encode(mac.finalize().into_bytes()))
 }
 
 /// Load all playbooks from a directory (YAML files).
@@ -281,5 +354,48 @@ rollback: []
         assert_eq!(spec.metadata.version, "1.0");
         assert_eq!(spec.preconditions.len(), 1);
         assert_eq!(spec.steps.len(), 1);
+    }
+
+    #[test]
+    fn f18_signature_roundtrip_valid() {
+        let yaml = "metadata:\n  name: signed\n  version: \"1\"\n  trigger: t\nsteps: []\nvalidation: []\nrollback: []\npreconditions: []\n";
+        let key = b"f18-test-key-32bytes-long-ok!!";
+        let sig = sign_runbook_content(yaml, key).unwrap();
+        let with_sig = format!("{}signature: {}\n", yaml, sig);
+        let spec: RunbookSpec = serde_yaml::from_str(&with_sig).unwrap();
+        assert!(verify_runbook_signature_with_key(
+            &with_sig,
+            &spec.signature,
+            Some(key.as_slice())
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn f18_missing_signature_rejected_when_key_set() {
+        let yaml = "metadata:\n  name: unsigned\n  version: \"1\"\n  trigger: t\nsteps: []\nvalidation: []\nrollback: []\npreconditions: []\n";
+        let key = b"f18-test-key-32bytes-long-ok!!";
+        let spec: RunbookSpec = serde_yaml::from_str(yaml).unwrap();
+        let err = verify_runbook_signature_with_key(yaml, &spec.signature, Some(key.as_slice()))
+            .unwrap_err();
+        assert!(matches!(err, SoarError::UnsignedRunbook(_)));
+    }
+
+    #[test]
+    fn f18_wrong_signature_rejected() {
+        let yaml = "metadata:\n  name: bad-sig\n  version: \"1\"\n  trigger: t\nsteps: []\nvalidation: []\nrollback: []\npreconditions: []\nsignature: deadbeef\n";
+        let key = b"f18-test-key-32bytes-long-ok!!";
+        let spec: RunbookSpec = serde_yaml::from_str(yaml).unwrap();
+        let err = verify_runbook_signature_with_key(yaml, &spec.signature, Some(key.as_slice()))
+            .unwrap_err();
+        assert!(matches!(err, SoarError::UnsignedRunbook(_)));
+    }
+
+    #[test]
+    fn f18_no_key_skips_verification() {
+        let yaml = "metadata:\n  name: no-key\n  version: \"1\"\n  trigger: t\nsteps: []\nvalidation: []\nrollback: []\npreconditions: []\n";
+        let spec: RunbookSpec = serde_yaml::from_str(yaml).unwrap();
+        // key=None → modo dev, runbook sem assinatura passa
+        assert!(verify_runbook_signature_with_key(yaml, &spec.signature, None).is_ok());
     }
 }

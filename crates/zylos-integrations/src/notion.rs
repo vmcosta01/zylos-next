@@ -1,8 +1,9 @@
 //! Notion Channel Adapter (T11.8.3)
 //!
 //! Implements `ChannelAdapter` for Notion via Integration Token + API v1.
-//! Supports: send_message (as page comment), list_users, list_chats (databases), health_check.
-//! Departments and calendar are not applicable to Notion (return empty).
+//! Supports: send_message (as page comment), list_users, list_chats (databases),
+//! list_calendar_events (query of a configured calendar database), health_check.
+//! Departments are not applicable to Notion (return empty).
 
 use async_trait::async_trait;
 use reqwest::Client;
@@ -21,7 +22,12 @@ pub struct NotionAdapter {
     token: String,
     client: Client,
     base_url: String,
+    calendar_database_id: Option<String>,
+    calendar_date_property: String,
 }
+
+/// Default name of the date property used by calendar queries.
+pub const DEFAULT_CALENDAR_DATE_PROPERTY: &str = "Date";
 
 impl NotionAdapter {
     /// Create a new Notion adapter with an Internal Integration Token.
@@ -36,6 +42,36 @@ impl NotionAdapter {
                 .build()
                 .expect("failed to build reqwest client"),
             base_url: "https://api.notion.com/v1".to_string(),
+            calendar_database_id: None,
+            calendar_date_property: DEFAULT_CALENDAR_DATE_PROPERTY.to_string(),
+        }
+    }
+
+    /// Configure the database queried by [`ChannelAdapter::list_calendar_events`]
+    /// and the name of its date property (`None` = [`DEFAULT_CALENDAR_DATE_PROPERTY`]).
+    pub fn with_calendar_database(
+        mut self,
+        database_id: impl Into<String>,
+        date_property: Option<&str>,
+    ) -> Self {
+        self.calendar_database_id = Some(database_id.into());
+        if let Some(p) = date_property {
+            self.calendar_date_property = p.to_string();
+        }
+        self
+    }
+
+    /// Create adapter with custom API URL (for testing/proxy/sandbox).
+    pub fn with_base_url(token: String, base_url: String) -> Self {
+        Self {
+            token,
+            client: Client::builder()
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+                .expect("failed to build reqwest client"),
+            base_url,
+            calendar_database_id: None,
+            calendar_date_property: DEFAULT_CALENDAR_DATE_PROPERTY.to_string(),
         }
     }
 
@@ -284,11 +320,49 @@ impl ChannelAdapter for NotionAdapter {
 
     async fn list_calendar_events(
         &self,
-        _start_time: &str,
-        _end_time: &str,
+        start_time: &str,
+        end_time: &str,
     ) -> Result<Vec<CalendarEvent>> {
-        // Notion calendar requires specific database query — not implemented in base adapter
-        Ok(vec![])
+        let db = self.calendar_database_id.as_deref().ok_or_else(|| {
+            IntegrationError::ProviderExecution {
+                provider: "notion".to_string(),
+                action: "list_calendar_events".to_string(),
+                detail: "calendar database not configured (use with_calendar_database)".to_string(),
+            }
+        })?;
+        let prop = self.calendar_date_property.as_str();
+        let path = format!("/databases/{}/query", db);
+        let mut events = Vec::new();
+        let mut cursor: Option<String> = None;
+        loop {
+            let mut payload = serde_json::json!({
+                "filter": {"and": [
+                    {"property": prop, "date": {"on_or_after": start_time}},
+                    {"property": prop, "date": {"on_or_before": end_time}}
+                ]},
+                "sorts": [{"property": prop, "direction": "ascending"}],
+                "page_size": 100
+            });
+            if let Some(c) = &cursor {
+                payload["start_cursor"] = serde_json::Value::String(c.clone());
+            }
+            let resp = self.api_post(&path, &payload).await?;
+            if let Some(results) = resp.get("results").and_then(|v| v.as_array()) {
+                events.extend(results.iter().filter_map(|p| page_to_event(p, prop)));
+            }
+            let has_more = resp
+                .get("has_more")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            cursor = resp
+                .get("next_cursor")
+                .and_then(|v| v.as_str())
+                .map(str::to_string);
+            if !has_more || cursor.is_none() {
+                break;
+            }
+        }
+        Ok(events)
     }
 
     async fn health_check(&self) -> Result<bool> {
@@ -297,6 +371,93 @@ impl ChannelAdapter for NotionAdapter {
             Err(_) => Ok(false),
         }
     }
+}
+
+fn plain_text(items: Option<&serde_json::Value>) -> String {
+    items
+        .and_then(|v| v.as_array())
+        .map(|a| {
+            a.iter()
+                .filter_map(|t| t.get("plain_text").and_then(|v| v.as_str()))
+                .collect::<String>()
+        })
+        .unwrap_or_default()
+}
+
+/// Map a Notion database page into a [`CalendarEvent`].
+///
+/// Pages without a value in `date_prop` are skipped. Title comes from the
+/// `title`-typed property; location from a `Location`/`Local` property
+/// (rich_text, select or place name); attendees from all `people` properties.
+fn page_to_event(page: &serde_json::Value, date_prop: &str) -> Option<CalendarEvent> {
+    let props = page.get("properties")?.as_object()?;
+    let date = props.get(date_prop)?.get("date")?;
+    let start = date.get("start")?.as_str()?.to_string();
+    let end = date
+        .get("end")
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
+        .unwrap_or_else(|| start.clone());
+    let mut title = String::new();
+    let mut location = None;
+    let mut attendees = Vec::new();
+    for (name, value) in props {
+        match value.get("type").and_then(|v| v.as_str()) {
+            Some("title") => title = plain_text(value.get("title")),
+            Some("people") => {
+                if let Some(people) = value.get("people").and_then(|v| v.as_array()) {
+                    attendees.extend(people.iter().filter_map(|p| {
+                        p.get("person")
+                            .and_then(|x| x.get("email"))
+                            .or_else(|| p.get("name"))
+                            .or_else(|| p.get("id"))
+                            .and_then(|v| v.as_str())
+                            .map(str::to_string)
+                    }));
+                }
+            }
+            Some(kind)
+                if name.eq_ignore_ascii_case("location") || name.eq_ignore_ascii_case("local") =>
+            {
+                let text = match kind {
+                    "rich_text" => plain_text(value.get("rich_text")),
+                    "select" => value
+                        .get("select")
+                        .and_then(|s| s.get("name"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or_default()
+                        .to_string(),
+                    "place" => value
+                        .get("place")
+                        .and_then(|s| s.get("name"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or_default()
+                        .to_string(),
+                    _ => String::new(),
+                };
+                if !text.is_empty() {
+                    location = Some(text);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut extra = HashMap::new();
+    if let Some(url) = page.get("url") {
+        extra.insert("url".to_string(), url.clone());
+    }
+    if let Some(tz) = date.get("time_zone").filter(|v| !v.is_null()) {
+        extra.insert("time_zone".to_string(), tz.clone());
+    }
+    Some(CalendarEvent {
+        event_id: page.get("id")?.as_str()?.to_string(),
+        title,
+        start_time: start,
+        end_time: end,
+        location,
+        attendees,
+        extra,
+    })
 }
 
 #[cfg(test)]

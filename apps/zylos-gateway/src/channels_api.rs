@@ -259,13 +259,13 @@ async fn leave_channel(
 pub fn create_channels_router(handle: ChannelsHandle) -> Router {
     Router::new()
         .route("/channels", get(list_channels).post(create_channel))
-        .route("/channels/{id}", get(get_channel))
+        .route("/channels/:id", get(get_channel))
         .route(
-            "/channels/{id}/messages",
+            "/channels/:id/messages",
             get(list_messages).post(send_message),
         )
-        .route("/channels/{id}/join", post(join_channel))
-        .route("/channels/{id}/leave", post(leave_channel))
+        .route("/channels/:id/join", post(join_channel))
+        .route("/channels/:id/leave", post(leave_channel))
         .with_state(handle)
 }
 
@@ -313,5 +313,74 @@ mod tests {
             .unwrap();
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    async fn call(
+        app: &Router,
+        method: &str,
+        uri: &str,
+        body: Option<&str>,
+    ) -> (StatusCode, serde_json::Value) {
+        let mut b = Request::builder().method(method).uri(uri);
+        if body.is_some() {
+            b = b.header("content-type", "application/json");
+        }
+        let req = b
+            .body(
+                body.map(|s| Body::from(s.to_string()))
+                    .unwrap_or_else(Body::empty),
+            )
+            .unwrap();
+        let resp = app.clone().oneshot(req).await.unwrap();
+        let status = resp.status();
+        let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20)
+            .await
+            .unwrap();
+        (
+            status,
+            serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null),
+        )
+    }
+
+    /// Fluxo completo usado pelo cockpit: criar canal → enviar → listar → join/leave.
+    /// Garante que as rotas com parâmetro (`:id`, sintaxe do axum 0.7) casam.
+    #[tokio::test]
+    async fn test_create_send_list_join_leave() {
+        let app = test_app().await;
+        let (st, v) = call(&app, "POST", "/channels", Some(r#"{"name":"rota-teste"}"#)).await;
+        assert_eq!(st, StatusCode::CREATED);
+        let id = v["channel"]["id"].as_str().unwrap().to_string();
+
+        let (st, _) = call(&app, "POST", "/channels", Some(r#"{"name":"rota-teste"}"#)).await;
+        assert_eq!(st, StatusCode::CONFLICT);
+
+        let (st, v) = call(&app, "GET", &format!("/channels/{id}"), None).await;
+        assert_eq!(st, StatusCode::OK);
+        assert_eq!(v["channel"]["name"], "rota-teste");
+
+        let uri = format!("/channels/{id}/messages");
+        let (st, v) = call(
+            &app,
+            "POST",
+            &uri,
+            Some(r#"{"author":"ana","content":"oi"}"#),
+        )
+        .await;
+        assert_eq!(st, StatusCode::CREATED);
+        assert_eq!(v["message"]["content"], "oi");
+
+        let (st, v) = call(&app, "GET", &uri, None).await;
+        assert_eq!(st, StatusCode::OK);
+        assert_eq!(v["total"], 1);
+        assert_eq!(v["messages"][0]["author"], "ana");
+
+        let join = format!("/channels/{id}/join");
+        let (st, _) = call(&app, "POST", &join, Some(r#"{"user_id":"ana"}"#)).await;
+        assert_eq!(st, StatusCode::OK);
+        let (st, _) = call(&app, "POST", &join, Some(r#"{"user_id":"ana"}"#)).await;
+        assert_eq!(st, StatusCode::CONFLICT);
+        let leave = format!("/channels/{id}/leave");
+        let (st, _) = call(&app, "POST", &leave, Some(r#"{"user_id":"ana"}"#)).await;
+        assert_eq!(st, StatusCode::OK);
     }
 }

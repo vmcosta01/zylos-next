@@ -8,10 +8,10 @@ use leptos::prelude::*;
 
 mod app;
 mod benchmarks;
-mod components;
-mod i18n;
 mod streaming;
 use app::App;
+// Módulos compartilhados vêm da lib (evita compilar duas cópias e código morto no bin).
+use zylos_cockpit::{auth, components, gateway_config, i18n, tabs, ui_error};
 
 fn main() {
     console_error_panic_hook::set_once();

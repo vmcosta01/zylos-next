@@ -117,8 +117,7 @@ async fn status(req: Request<Body>) -> (StatusCode, axum::http::HeaderMap) {
 
 // ---------------------------------------------------------------- recusas
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn post_orchestrate_de_outro_site_e_recusado() {
     let (st, h) = status(pedido(
         Method::POST,
@@ -134,8 +133,7 @@ async fn post_orchestrate_de_outro_site_e_recusado() {
     );
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn post_soar_de_outro_site_e_recusado() {
     let (st, _) = status(pedido(
         Method::POST,
@@ -147,8 +145,7 @@ async fn post_soar_de_outro_site_e_recusado() {
     assert_eq!(st, StatusCode::FORBIDDEN);
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn get_de_outro_site_com_origin_e_recusado() {
     let (st, h) = status(pedido(
         Method::GET,
@@ -161,8 +158,7 @@ async fn get_de_outro_site_com_origin_e_recusado() {
     assert!(h.get(header::ACCESS_CONTROL_ALLOW_ORIGIN).is_none());
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn origin_null_e_recusado() {
     let (st, _) = status(pedido(
         Method::GET,
@@ -174,8 +170,7 @@ async fn origin_null_e_recusado() {
     assert_eq!(st, StatusCode::FORBIDDEN);
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn dns_rebinding_pelo_host_e_recusado() {
     // sem Origin (GET do mesmo "site" depois do rebinding), mas o Host denuncia o domínio de fora
     let (st, _) = status(pedido(
@@ -188,8 +183,7 @@ async fn dns_rebinding_pelo_host_e_recusado() {
     assert_eq!(st, StatusCode::FORBIDDEN);
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn preflight_de_outro_site_nao_recebe_cors() {
     let (st, h) = status(pedido(
         Method::OPTIONS,
@@ -208,8 +202,7 @@ async fn preflight_de_outro_site_nao_recebe_cors() {
 
 // ---------------------------------------------------------------- o que tem de continuar passando
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cliente_sem_navegador_passa() {
     // zylos-cli e plugin do Hermes: sem Origin, Host local
     let (st, _) = status(pedido(
@@ -222,8 +215,7 @@ async fn cliente_sem_navegador_passa() {
     assert_eq!(st, StatusCode::OK);
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn tela_do_cockpit_passa() {
     // pelo proxy do trunk: Origin e Host da própria máquina
     let (st, _) = status(pedido(
@@ -236,8 +228,7 @@ async fn tela_do_cockpit_passa() {
     assert_eq!(st, StatusCode::OK);
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn post_local_chega_ao_handler() {
     // a trava não pode barrar a máquina: o handler responde (200 ou 422), nunca 403
     let (st, _) = status(pedido(
@@ -250,8 +241,7 @@ async fn post_local_chega_ao_handler() {
     assert_ne!(st, StatusCode::FORBIDDEN);
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn preflight_local_recebe_cors_da_propria_origem() {
     let (_, h) = status(pedido(
         Method::OPTIONS,
@@ -271,8 +261,7 @@ async fn preflight_local_recebe_cors_da_propria_origem() {
     );
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn bots_de_outro_site_e_recusado() {
     let (st, _) = status(pedido(
         Method::POST,
@@ -284,8 +273,7 @@ async fn bots_de_outro_site_e_recusado() {
     assert_eq!(st, StatusCode::FORBIDDEN);
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn bots_local_chega_ao_handler() {
     // nome inválido: o handler responde 422 antes de tocar disco ou provedor
     let (st, h) = status(pedido(
@@ -302,8 +290,7 @@ async fn bots_local_chega_ao_handler() {
     );
 }
 
-#[tokio::test]
-#[ignore]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn hermes_continua_exigindo_token() {
     // a trava não substitui a senha das rotas do Hermes: sem Bearer, não é 200
     let (st, _) = status(pedido(

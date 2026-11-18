@@ -17,6 +17,9 @@ pub struct HealthResponse {
     pub active_streams: usize,
     /// Campo version.
     pub version: String,
+    /// Nome do serviço (monitoração externa: Caddy/nginx/docker healthcheck).
+    #[serde(default)]
+    pub service: String,
 }
 
 /// Build cockpit API router
@@ -34,6 +37,7 @@ async fn health_handler(
         status: "healthy".to_string(),
         active_streams: bus.receiver_count(),
         version: env!("CARGO_PKG_VERSION").to_string(),
+        service: "zylos-gateway".to_string(),
     })
 }
 

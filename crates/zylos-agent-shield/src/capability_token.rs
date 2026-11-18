@@ -15,6 +15,7 @@
 //! Cada operação deve ser validada contra o token do agente antes de executar.
 //! Tokens expirados ou revogados são rejeitados imediatamente.
 
+use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
@@ -22,6 +23,8 @@ use std::sync::Arc;
 use std::time::SystemTime;
 use tokio::sync::RwLock;
 use uuid::Uuid;
+
+type HmacSha256 = Hmac<Sha256>;
 
 /// Erros do sistema de capability tokens.
 #[derive(Debug, thiserror::Error, PartialEq)]
@@ -64,21 +67,74 @@ impl Capability {
     }
 
     /// Verifica se esta capacidade autoriza uma operação específica.
+    ///
+    /// Regras de least-privilege (F11.11.6):
+    /// - recursos com bytes de controle ou segmentos `..` são sempre negados
+    ///   (impede `/data/../etc/passwd` sob `filesystem:read:/data/*`);
+    /// - `filesystem`: wildcard de prefixo respeita fronteira de path —
+    ///   `/data*` autoriza `/data` e `/data/x`, mas NÃO `/database`;
+    /// - `network`: wildcard de prefixo (`api.example.com*`) é negado (permitiria
+    ///   `api.example.com.evil.net`); use `*.example.com`, que casa somente
+    ///   subdomínios com fronteira de ponto (case-insensitive);
+    /// - demais domínios: prefixo literal (`agent-*` → `agent-123`).
     pub fn authorizes(&self, domain: &str, action: &str, resource: &str) -> bool {
         if self.domain != domain || self.action != action {
+            return false;
+        }
+        if !Self::resource_is_safe(resource) {
             return false;
         }
         // Wildcard resource matches everything
         if self.resource == "*" {
             return true;
         }
+        if domain == "network" {
+            return Self::host_matches(&self.resource, resource);
+        }
         // Prefix wildcard: "agent-*" matches "agent-123"
-        if self.resource.ends_with('*') {
-            let prefix = &self.resource[..self.resource.len() - 1];
-            return resource.starts_with(prefix);
+        if let Some(prefix) = self.resource.strip_suffix('*') {
+            if !resource.starts_with(prefix) {
+                return false;
+            }
+            if domain == "filesystem" && !prefix.is_empty() && !prefix.ends_with('/') {
+                // Fronteira de path: o próximo caractere deve ser separador ou fim.
+                let rest = &resource[prefix.len()..];
+                return rest.is_empty() || rest.starts_with('/');
+            }
+            return true;
         }
         // Exact match
         self.resource == resource
+    }
+
+    /// Rejeita recursos com bytes de controle ou travessia de diretório.
+    fn resource_is_safe(resource: &str) -> bool {
+        if resource.chars().any(|c| c.is_control()) {
+            return false;
+        }
+        !resource.split(['/', '\\']).any(|seg| seg == "..")
+    }
+
+    /// Casamento de host para o domínio `network`.
+    fn host_matches(pattern: &str, host: &str) -> bool {
+        let pattern = pattern.to_ascii_lowercase();
+        let host = host.trim_end_matches('.').to_ascii_lowercase();
+        if host.is_empty() {
+            return false;
+        }
+        if let Some(suffix) = pattern.strip_prefix("*.") {
+            if suffix.is_empty() || suffix.contains('*') {
+                return false;
+            }
+            return host.len() > suffix.len() + 1
+                && host.ends_with(suffix)
+                && host.as_bytes()[host.len() - suffix.len() - 1] == b'.';
+        }
+        if pattern.contains('*') {
+            // Wildcards fora da forma `*.suffix` não são aceitos para rede.
+            return false;
+        }
+        pattern == host
     }
 }
 
@@ -151,7 +207,7 @@ impl CapabilityToken {
                     .duration_since(SystemTime::UNIX_EPOCH)
                     .unwrap_or_default()
                     .as_secs();
-                now > self.issued_at + ttl
+                now > self.issued_at.saturating_add(ttl)
             }
         }
     }
@@ -185,6 +241,43 @@ impl CapabilityToken {
         hasher.update(b":");
         hasher.update(agent_id.as_bytes());
         hex::encode(hasher.finalize())
+    }
+
+    /// F16: assina o token com HMAC-SHA256 usando a chave fornecida.
+    /// O payload assinado é `id:agent_id:issued_at:ttl_secs:fingerprint`.
+    pub fn sign(&mut self, key: &[u8]) -> Result<String, TokenError> {
+        let payload = format!(
+            "{}:{}:{}:{}:{}",
+            self.id,
+            self.agent_id,
+            self.issued_at,
+            self.ttl_secs.unwrap_or(0),
+            self.fingerprint
+        );
+        let mut mac = HmacSha256::new_from_slice(key)
+            .map_err(|e| TokenError::Invalid(format!("chave HMAC inválida: {e}")))?;
+        mac.update(payload.as_bytes());
+        Ok(hex::encode(mac.finalize().into_bytes()))
+    }
+
+    /// F16: verifica se a assinatura HMAC-SHA256 confere.
+    pub fn verify_signature(&self, signature: &str, key: &[u8]) -> Result<(), TokenError> {
+        let payload = format!(
+            "{}:{}:{}:{}:{}",
+            self.id,
+            self.agent_id,
+            self.issued_at,
+            self.ttl_secs.unwrap_or(0),
+            self.fingerprint
+        );
+        let mut mac = HmacSha256::new_from_slice(key)
+            .map_err(|e| TokenError::Invalid(format!("chave HMAC inválida: {e}")))?;
+        mac.update(payload.as_bytes());
+        let expected = hex::encode(mac.finalize().into_bytes());
+        if expected != signature {
+            return Err(TokenError::Invalid("assinatura HMAC não confere".into()));
+        }
+        Ok(())
     }
 }
 
@@ -245,13 +338,6 @@ impl CapabilityTokenStore {
         action: &str,
         resource: &str,
     ) -> Result<CapabilityToken, TokenError> {
-        // Check revocation first (fast path)
-        {
-            let revoked = self.revoked_fingerprints.read().await;
-            // We need the fingerprint, so get the token first
-            drop(revoked);
-        }
-
         let token = self
             .get(token_id)
             .await
@@ -266,6 +352,26 @@ impl CapabilityTokenStore {
         }
 
         token.authorizes(domain, action, resource)?;
+        Ok(token)
+    }
+
+    /// Valida um token exigindo que ele pertença ao agente chamador
+    /// (isolamento de escopo: um token vazado não pode ser usado por outro agente).
+    pub async fn validate_for_agent(
+        &self,
+        token_id: &str,
+        agent_id: &str,
+        domain: &str,
+        action: &str,
+        resource: &str,
+    ) -> Result<CapabilityToken, TokenError> {
+        let token = self.validate(token_id, domain, action, resource).await?;
+        if token.agent_id != agent_id {
+            return Err(TokenError::CapabilityDenied(format!(
+                "token pertence a outro agente: {}",
+                token.agent_id
+            )));
+        }
         Ok(token)
     }
 
@@ -658,5 +764,83 @@ mod tests {
         let json = serde_json::to_string(&cap).unwrap();
         let restored: Capability = serde_json::from_str(&json).unwrap();
         assert_eq!(cap, restored);
+    }
+
+    // ---- F11.11.6 least-privilege hardening ----
+    #[test]
+    fn f11_fs_prefix_respects_path_boundary() {
+        let cap = Capability::new("filesystem", "read", "/data*");
+        assert!(cap.authorizes("filesystem", "read", "/data"));
+        assert!(cap.authorizes("filesystem", "read", "/data/x.txt"));
+        assert!(!cap.authorizes("filesystem", "read", "/database"));
+        assert!(!cap.authorizes("filesystem", "read", "/data-secret/x"));
+    }
+
+    #[test]
+    fn f11_fs_traversal_denied() {
+        let cap = Capability::new("filesystem", "read", "/data/*");
+        assert!(cap.authorizes("filesystem", "read", "/data/a/b"));
+        assert!(!cap.authorizes("filesystem", "read", "/data/../etc/passwd"));
+        assert!(!cap.authorizes("filesystem", "read", "/data/a/../../etc"));
+        assert!(!cap.authorizes("filesystem", "read", "/data\\..\\x"));
+        assert!(!cap.authorizes("filesystem", "read", "/data/a\0"));
+        let any = Capability::new("filesystem", "read", "*");
+        assert!(!any.authorizes("filesystem", "read", "/x/../y"));
+    }
+
+    #[test]
+    fn f11_network_prefix_wildcard_denied() {
+        let cap = Capability::new("network", "egress", "api.example.com*");
+        assert!(!cap.authorizes("network", "egress", "api.example.com.evil.net"));
+        assert!(!cap.authorizes("network", "egress", "api.example.com"));
+    }
+
+    #[test]
+    fn f11_network_suffix_wildcard_dot_boundary() {
+        let cap = Capability::new("network", "egress", "*.example.com");
+        assert!(cap.authorizes("network", "egress", "api.example.com"));
+        assert!(cap.authorizes("network", "egress", "API.Example.COM."));
+        assert!(!cap.authorizes("network", "egress", "example.com"));
+        assert!(!cap.authorizes("network", "egress", "evilexample.com"));
+        assert!(!cap.authorizes("network", "egress", "example.com.evil.net"));
+        let exact = Capability::new("network", "egress", "api.example.com");
+        assert!(exact.authorizes("network", "egress", "Api.Example.com"));
+        assert!(!exact.authorizes("network", "egress", "api.example.com.evil.net"));
+    }
+
+    #[test]
+    fn f11_ttl_overflow_does_not_panic_and_expires_logically() {
+        let mut t = CapabilityToken::new("a", vec![]).with_ttl(u64::MAX);
+        t.issued_at = u64::MAX - 1;
+        assert!(!t.is_expired());
+    }
+
+    #[tokio::test]
+    async fn f11_validate_for_agent_rejects_foreign_agent() {
+        let store = CapabilityTokenStore::new();
+        let id = store
+            .issue(CapabilityToken::new(
+                "agent-a",
+                vec![Capability::new("exec", "docker", "run")],
+            ))
+            .await;
+        assert!(store
+            .validate_for_agent(&id, "agent-a", "exec", "docker", "run")
+            .await
+            .is_ok());
+        assert!(matches!(
+            store
+                .validate_for_agent(&id, "agent-b", "exec", "docker", "run")
+                .await,
+            Err(TokenError::CapabilityDenied(_))
+        ));
+        store.revoke(&id).await.unwrap();
+        assert_eq!(
+            store
+                .validate_for_agent(&id, "agent-a", "exec", "docker", "run")
+                .await
+                .unwrap_err(),
+            TokenError::Revoked
+        );
     }
 }

@@ -26,6 +26,10 @@ pub enum SoarError {
     // Variante Config.
     Config(String),
 
+    #[error("runbook signature invalid or missing: {0}")]
+    // Variante UnsignedRunbook (F18).
+    UnsignedRunbook(String),
+
     #[error("execution error: {0}")]
     // Variante Execution.
     Execution(String),

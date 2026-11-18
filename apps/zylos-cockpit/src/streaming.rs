@@ -135,7 +135,7 @@ pub struct StreamConfig {
 impl Default for StreamConfig {
     fn default() -> Self {
         Self {
-            endpoint: "http://localhost:3000/api/v1/events".to_string(),
+            endpoint: "/api/v1/events".to_string(),
             max_reconnect_attempts: 10,
             base_retry_ms: 1000,
             max_retry_ms: 30000,
@@ -180,6 +180,12 @@ impl StreamContext {
     /// Start SSE connection with automatic reconnection
     pub fn connect(&self) {
         let ctx = self.clone();
+        // T11.5.6: sem gateway configurado (ex.: preview público) não abre SSE —
+        // evita ERR_CONNECTION_REFUSED em loop no console.
+        if crate::gateway_config::gateway_base().is_none() {
+            ctx.state.set(StreamState::Disconnected);
+            return;
+        }
         ctx.state.set(StreamState::Connecting);
 
         spawn_local(async move {
@@ -271,15 +277,8 @@ impl StreamContext {
     async fn open_event_source(&self, endpoint: &str) -> Result<(), String> {
         use wasm_bindgen::JsCast;
 
-        let url = format!(
-            "{}{}",
-            web_sys::window()
-                .ok_or("no window")?
-                .location()
-                .origin()
-                .map_err(|e| format!("{:?}", e))?,
-            endpoint
-        );
+        let base = crate::gateway_config::gateway_base().ok_or("gateway não configurado")?;
+        let url = crate::auth::authed_url(&crate::gateway_config::join_url(&base, endpoint));
 
         let es = web_sys::EventSource::new(&url).map_err(|e| format!("{:?}", e))?;
 
@@ -606,7 +605,7 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = StreamConfig::default();
-        assert_eq!(config.endpoint, "http://localhost:3000/api/v1/events");
+        assert_eq!(config.endpoint, "/api/v1/events");
         assert_eq!(config.max_reconnect_attempts, 10);
         assert_eq!(config.base_retry_ms, 1000);
         assert_eq!(config.max_retry_ms, 30000);

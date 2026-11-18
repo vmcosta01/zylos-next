@@ -102,7 +102,7 @@ fn now_ms() -> u64 {
 async fn send_question(bot_name: &str, question: &str) -> Result<String, String> {
     let url = format!("http://localhost:3000/api/v1/bots/{}/perguntar", bot_name);
     let body = serde_json::json!({ "pergunta": question });
-    let resp = gloo_net::http::Request::post(&url)
+    let resp = crate::auth::authed(gloo_net::http::Request::post(&url))
         .header("Content-Type", "application/json")
         .body(serde_json::to_string(&body).map_err(|e| e.to_string())?)
         .map_err(|e| format!("request error: {e}"))?
@@ -352,6 +352,7 @@ pub fn ChatPanel() -> impl IntoView {
                                 <div class="chat-input-wrapper">
                                     <textarea
                                         class="chat-textarea"
+                                        aria-label="Mensagem para o bot"
                                         placeholder="Digite sua mensagem... (Enter para enviar, Shift+Enter para nova linha)"
                                         rows="2"
                                         prop:value={move || input_text.get()}

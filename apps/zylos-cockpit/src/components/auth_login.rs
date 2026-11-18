@@ -17,6 +17,8 @@ pub fn LoginForm() -> impl IntoView {
     let user_id = RwSignal::new(String::new());
     let tenant_id = RwSignal::new(String::from("tenant-default"));
     let name = RwSignal::new(String::new());
+    // F11.11.8: emissão de token exige a credencial de bootstrap do gateway.
+    let credential = RwSignal::new(String::new());
     let error_msg = RwSignal::new(None::<String>);
     let is_loading = RwSignal::new(false);
     let token = RwSignal::new(None::<String>);
@@ -29,6 +31,7 @@ pub fn LoginForm() -> impl IntoView {
         let uid = user_id.get();
         let tid = tenant_id.get();
         let n = name.get();
+        let cred = credential.get();
 
         spawn_local(async move {
             let body = serde_json::json!({
@@ -38,8 +41,13 @@ pub fn LoginForm() -> impl IntoView {
                 "name": if n.is_empty() { None } else { Some(n) },
             });
 
-            let req = gloo_net::http::Request::post("/api/v1/auth/login")
+            let url = match crate::gateway_config::gateway_base() {
+                Some(base) => crate::gateway_config::join_url(&base, "/api/v1/auth/login"),
+                None => "/api/v1/auth/login".to_string(),
+            };
+            let req = gloo_net::http::Request::post(&url)
                 .header("Content-Type", "application/json")
+                .header("Authorization", &format!("Bearer {}", cred))
                 .body(body.to_string());
 
             let resp = match req {
@@ -55,12 +63,15 @@ pub fn LoginForm() -> impl IntoView {
                 Ok(r) if r.ok() => {
                     if let Ok(auth) = r.json::<AuthResponse>().await {
                         token.set(Some(auth.access_token.clone()));
-                        // Persist token for subsequent API calls
+                        // Persiste o token (localStorage['zylos_token']) para as chamadas seguintes
+                        crate::auth::set_token(&auth.access_token);
                         if let Some(storage) =
                             web_sys::window().and_then(|w| w.local_storage().ok().flatten())
                         {
-                            let _ = storage.set_item("access_token", &auth.access_token);
                             let _ = storage.set_item("tenant_id", &tid);
+                        }
+                        if let Some(set_logged) = use_context::<RwSignal<bool>>() {
+                            set_logged.set(true);
                         }
                         is_loading.set(false);
                     } else {
@@ -94,8 +105,9 @@ pub fn LoginForm() -> impl IntoView {
                 } else {
                     view! {
                         <form on:submit=on_submit>
-                            <label>"User ID"</label>
+                            <label for="auth-user-id">"User ID"</label>
                             <input
+                                id="auth-user-id"
                                 type="text"
                                 prop:value=move || user_id.get()
                                 on:input=move |ev| user_id.set(event_target_value(&ev))
@@ -103,8 +115,9 @@ pub fn LoginForm() -> impl IntoView {
                                 required=true
                             />
 
-                            <label>"Tenant"</label>
+                            <label for="auth-tenant">"Tenant"</label>
                             <input
+                                id="auth-tenant"
                                 type="text"
                                 prop:value=move || tenant_id.get()
                                 on:input=move |ev| tenant_id.set(event_target_value(&ev))
@@ -112,8 +125,19 @@ pub fn LoginForm() -> impl IntoView {
                                 required=true
                             />
 
-                            <label>"Display Name (optional)"</label>
+                            <label for="auth-credential">"Access credential"</label>
                             <input
+                                id="auth-credential"
+                                type="password"
+                                autocomplete="off"
+                                prop:value=move || credential.get()
+                                on:input=move |ev| credential.set(event_target_value(&ev))
+                                required=true
+                            />
+
+                            <label for="auth-name">"Display Name (optional)"</label>
+                            <input
+                                id="auth-name"
                                 type="text"
                                 prop:value=move || name.get()
                                 on:input=move |ev| name.set(event_target_value(&ev))
@@ -139,6 +163,40 @@ pub fn LoginForm() -> impl IntoView {
     }
 }
 
+/// Botão Login/Sair no header; abre o [`LoginForm`] num modal.
+#[component]
+pub fn AuthHeaderButton() -> impl IntoView {
+    let logged_in = RwSignal::new(crate::auth::token().is_some());
+    provide_context(logged_in);
+    let open = RwSignal::new(false);
+
+    view! {
+        <button
+            class="auth-header-btn"
+            on:click=move |_| {
+                if logged_in.get_untracked() {
+                    crate::auth::clear_token();
+                    logged_in.set(false);
+                } else {
+                    open.set(true);
+                }
+            }
+        >
+            {move || if logged_in.get() { "Sair" } else { "Login" }}
+        </button>
+        {move || {
+            (open.get() && !logged_in.get()).then(|| view! {
+                <div class="auth-modal" role="dialog" aria-modal="true" aria-label="Login">
+                    <div class="auth-modal-content">
+                        <button class="auth-modal-close" aria-label="Fechar" on:click=move |_| open.set(false)>"×"</button>
+                        <LoginForm />
+                    </div>
+                </div>
+            })
+        }}
+    }
+}
+
 /// Presence indicator showing who is currently editing a document.
 #[allow(dead_code)]
 #[component]
@@ -151,7 +209,7 @@ pub fn PresenceIndicator(doc_id: String) -> impl IntoView {
         loop {
             if let Some(token) = web_sys::window()
                 .and_then(|w| w.local_storage().ok().flatten())
-                .and_then(|s| s.get_item("access_token").ok().flatten())
+                .and_then(|s| s.get_item(crate::auth::TOKEN_KEY).ok().flatten())
             {
                 let url = format!("/api/v1/presence/active?doc_id={}", did);
                 if let Ok(resp) = gloo_net::http::Request::get(&url)

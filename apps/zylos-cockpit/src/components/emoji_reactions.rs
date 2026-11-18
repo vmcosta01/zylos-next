@@ -1,26 +1,33 @@
-//! EmojiReactions — sistema de reações emoji em mensagens do chat
+//! EmojiReactions — reações emoji em mensagens, persistidas no gateway.
 //!
-//! Inspirado em: Slack/Discord reactions, OpenBot message reactions.
-//! Permite adicionar/remover reações emoji em mensagens com contagem agregada.
+//! Consome `apps/zylos-gateway/src/reactions_api.rs`:
+//! - `GET  /api/v1/messages/:id/reactions?user=<u>` — carrega reações agregadas
+//! - `POST /api/v1/messages/:id/reactions` `{emoji, user}` — alterna a reação do usuário
 //!
-//! ## Features
-//! - Picker de emojis frequentes
-//! - Contagem de reações por emoji
-//! - Toggle (add/remove) por usuário
-//! - Persistência via API (placeholder)
-//!
-//! ## Related Documents
-//! - Implementation Plan: [IMPLEMENTATION_PLAN_DETAILED.md](../../docs/IMPLEMENTATION_PLAN_DETAILED.md) §4.5
+//! O usuário é [`crate::auth::current_user`]; a lista exibida é sempre a devolvida
+//! pelo gateway (sem atualização otimista).
 
 use leptos::prelude::*;
+use leptos::task::spawn_local;
 use serde::{Deserialize, Serialize};
 
-/// Uma reação emoji em uma mensagem
+use crate::gateway_http::{get_json, post_json};
+use crate::ui_error::user_message;
+
+/// Uma reação emoji agregada em uma mensagem.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Reaction {
+    /// Emoji.
     pub emoji: String,
+    /// Quantos usuários reagiram.
     pub count: usize,
+    /// Se o usuário atual reagiu.
     pub user_reacted: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct ReactionsResponse {
+    reactions: Vec<Reaction>,
 }
 
 /// Emojis frequentes disponíveis no picker
@@ -28,108 +35,95 @@ const FREQUENT_EMOJIS: &[&str] = &[
     "👍", "👎", "❤️", "😂", "😮", "😢", "🔥", "🎉", "🤔", "👀", "✅", "❌", "⚡", "🚀", "💡", "🐛",
 ];
 
+/// Caminho da API de reações para uma mensagem.
+pub fn reactions_path(message_id: &str) -> String {
+    format!(
+        "/api/v1/messages/{}/reactions",
+        crate::auth::url_encode(message_id)
+    )
+}
+
+/// Reações de uma mensagem, carregadas e alternadas via gateway.
 #[component]
-pub fn EmojiReactions(
-    #[prop(into)] _message_id: String,
-    #[prop(default = vec![])] initial_reactions: Vec<Reaction>,
-) -> impl IntoView {
-    let reactions = RwSignal::new(initial_reactions);
+pub fn EmojiReactions(#[prop(into)] message_id: String) -> impl IntoView {
+    let reactions = RwSignal::new(Vec::<Reaction>::new());
     let show_picker = RwSignal::new(false);
+    let error = RwSignal::new(None::<String>);
+    let path = StoredValue::new(reactions_path(&message_id));
+
+    spawn_local(async move {
+        let user = crate::auth::current_user();
+        let url = format!(
+            "{}?user={}",
+            path.get_value(),
+            crate::auth::url_encode(&user)
+        );
+        match get_json::<ReactionsResponse>(&url).await {
+            Ok(r) => reactions.set(r.reactions),
+            Err(e) => error.set(Some(user_message(&e))),
+        }
+    });
 
     let toggle_reaction = move |emoji: String| {
-        reactions.update(|rxns| {
-            if let Some(r) = rxns.iter_mut().find(|r| r.emoji == emoji) {
-                if r.user_reacted {
-                    r.count = r.count.saturating_sub(1);
-                    r.user_reacted = false;
-                    if r.count == 0 {
-                        rxns.retain(|r| r.emoji != emoji);
-                    }
-                } else {
-                    r.count += 1;
-                    r.user_reacted = true;
+        show_picker.set(false);
+        spawn_local(async move {
+            let body = serde_json::json!({ "emoji": emoji, "user": crate::auth::current_user() });
+            match post_json::<_, ReactionsResponse>(&path.get_value(), &body).await {
+                Ok(r) => {
+                    error.set(None);
+                    reactions.set(r.reactions);
                 }
-            } else {
-                rxns.push(Reaction {
-                    emoji: emoji.clone(),
-                    count: 1,
-                    user_reacted: true,
-                });
+                Err(e) => error.set(Some(user_message(&e))),
             }
         });
-        show_picker.set(false);
     };
 
     view! {
-    <div class="emoji-reactions">
-    // Existing reactions
-    <For
-    each=move || reactions.get()
-    key=|r| r.emoji.clone()
-    children=move |reaction| {
-    let emoji = reaction.emoji.clone();
-    let count = reaction.count;
-    let reacted = reaction.user_reacted;
-    let css = if reacted {
-    "reaction-chip reaction-active".to_string()
-    } else {
-    "reaction-chip".to_string()
-    };
-
-    view! {
-    <button
-    class=css
-    on:click=move |_| {
-    let e = emoji.clone();
-    toggle_reaction(e);
-    }
-    >
-    <span class="reaction-emoji">{emoji.clone()}</span>
-    <span class="reaction-count">{count}</span>
-    </button>
-    }
-    }
-    />
-
-    // Add reaction button
-    <button
-    class="reaction-add-btn"
-    on:click=move |_| show_picker.update(|v| *v = !*v)
-    title="Adicionar reação"
-    >
-    "+"
-    </button>
-
-    // Emoji picker popup
-    {move || {
-    if show_picker.get() {
-    view! {
-    <div class="emoji-picker">
-    <For
-    each=move || FREQUENT_EMOJIS.to_vec()
-    key=|e| e.to_string()
-    children=move |emoji| {
-    let e = emoji.to_string();
-    view! {
-    <button
-    class="emoji-picker-item"
-    on:click=move |_| {
-    let em = e.clone();
-    toggle_reaction(em);
-    }
-    >
-    {emoji.to_string()}
-    </button>
-    }
-    }
-    />
-    </div>
-    }.into_any()
-    } else {
-    view! { <div></div> }.into_any()
-    }
-    }}
-    </div>
+        <div class="emoji-reactions">
+            <For
+                each=move || reactions.get()
+                key=|r| (r.emoji.clone(), r.count, r.user_reacted)
+                children=move |reaction| {
+                    let emoji = reaction.emoji.clone();
+                    let css = if reaction.user_reacted {
+                        "reaction-chip reaction-active"
+                    } else {
+                        "reaction-chip"
+                    };
+                    view! {
+                        <button class=css on:click=move |_| toggle_reaction(emoji.clone())>
+                            <span class="reaction-emoji">{reaction.emoji.clone()}</span>
+                            <span class="reaction-count">{reaction.count}</span>
+                        </button>
+                    }
+                }
+            />
+            <button
+                class="reaction-add-btn"
+                on:click=move |_| show_picker.update(|v| *v = !*v)
+                title="Adicionar reação"
+            >
+                "+"
+            </button>
+            {move || {
+                show_picker.get().then(|| view! {
+                    <div class="emoji-picker">
+                        {FREQUENT_EMOJIS
+                            .iter()
+                            .map(|e| {
+                                let em = e.to_string();
+                                view! {
+                                    <button class="emoji-picker-item" on:click=move |_| toggle_reaction(em.clone())>
+                                        {*e}
+                                    </button>
+                                }
+                            })
+                            .collect_view()}
+                    </div>
+                })
+            }}
+            {move || error.get().map(|e| view! { <span class="reaction-error" role="alert">{e}</span> })}
+        </div>
     }
 }
 
@@ -139,19 +133,20 @@ mod tests {
 
     #[test]
     fn test_frequent_emojis_not_empty() {
-        assert!(!FREQUENT_EMOJIS.is_empty());
         assert!(FREQUENT_EMOJIS.len() >= 10);
     }
 
     #[test]
-    fn test_reaction_serialization() {
-        let r = Reaction {
-            emoji: "👍".into(),
-            count: 5,
-            user_reacted: true,
-        };
-        let json = serde_json::to_string(&r).unwrap();
-        assert!(json.contains("👍"));
-        assert!(json.contains("5"));
+    fn test_parse_gateway_payload() {
+        let raw = r#"{"message_id":"m1","added":true,"reactions":[{"emoji":"👍","count":2,"user_reacted":true,"users":["a","b"]}]}"#;
+        let r: ReactionsResponse = serde_json::from_str(raw).unwrap();
+        assert_eq!(r.reactions.len(), 1);
+        assert_eq!(r.reactions[0].count, 2);
+        assert!(r.reactions[0].user_reacted);
+    }
+
+    #[test]
+    fn test_reactions_path_encodes_id() {
+        assert_eq!(reactions_path("a b"), "/api/v1/messages/a%20b/reactions");
     }
 }

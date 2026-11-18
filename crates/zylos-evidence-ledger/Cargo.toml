@@ -1,6 +1,7 @@
 [package]
 name = "zylos-evidence-ledger"
 version = "0.1.0"
+license.workspace = true
 edition = "2021"
 description = "Tamper-evident evidence ledger with Merkle tree verification and cryptographic signing for zylos-gateway"
 

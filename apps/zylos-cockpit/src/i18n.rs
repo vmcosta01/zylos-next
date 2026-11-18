@@ -33,6 +33,12 @@ fn pt_br_bundle() -> Bundle {
     m.insert("tab.tasks", "Tarefas");
     m.insert("tab.memory", "Memória");
     m.insert("tab.skills", "Skills");
+    m.insert("tab.goals", "Metas");
+    m.insert("tab.personalities", "Personalidades");
+    m.insert("tab.swarm_dag", "DAG do Swarm");
+    m.insert("tab.sentinel", "Sentinela");
+    m.insert("tab.evidence_ledger", "Livro de Evidências");
+    m.insert("tab.hitl_approval", "Aprovações HITL");
     m.insert("tab.logs", "Logs");
     m.insert("tab.soar", "SOAR");
     m.insert("tab.security", "Segurança");
@@ -52,8 +58,11 @@ fn pt_br_bundle() -> Bundle {
     m.insert("tab.chat", "Chat");
     m.insert("tab.channels", "Canais");
     m.insert("tab.phone_relay", "Phone Relay");
+    m.insert("tab.integrations", "Integrações");
     m.insert("tab.swarm_topology", "Topologia Swarm");
     m.insert("tab.skill_editor", "Editor de Skills");
+    m.insert("tab.analytics", "Analytics");
+    m.insert("tab.collab", "Colaboração");
     m.insert("health.status", "Status");
     m.insert("health.streams", "Streams Ativos");
     m.insert("health.version", "Versão");
@@ -76,6 +85,12 @@ fn en_us_bundle() -> Bundle {
     m.insert("tab.tasks", "Tasks");
     m.insert("tab.memory", "Memory");
     m.insert("tab.skills", "Skills");
+    m.insert("tab.goals", "Goals");
+    m.insert("tab.personalities", "Personalities");
+    m.insert("tab.swarm_dag", "Swarm DAG");
+    m.insert("tab.sentinel", "Sentinel");
+    m.insert("tab.evidence_ledger", "Evidence Ledger");
+    m.insert("tab.hitl_approval", "HITL Approvals");
     m.insert("tab.logs", "Logs");
     m.insert("tab.soar", "SOAR");
     m.insert("tab.security", "Security");
@@ -95,8 +110,11 @@ fn en_us_bundle() -> Bundle {
     m.insert("tab.chat", "Chat");
     m.insert("tab.channels", "Channels");
     m.insert("tab.phone_relay", "Phone Relay");
+    m.insert("tab.integrations", "Integrations");
     m.insert("tab.swarm_topology", "Swarm Topology");
     m.insert("tab.skill_editor", "Skill Editor");
+    m.insert("tab.analytics", "Analytics");
+    m.insert("tab.collab", "Collaboration");
     m.insert("health.status", "Status");
     m.insert("health.streams", "Active Streams");
     m.insert("health.version", "Version");
@@ -191,5 +209,59 @@ mod tests {
         for key in en.keys() {
             assert!(pt.contains_key(key), "Missing key {} in pt-BR bundle", key);
         }
+    }
+
+    /// Extrai as chaves literais usadas em `.t("...")` num fonte.
+    fn keys_in_source(src: &str) -> Vec<String> {
+        let mut out = Vec::new();
+        let mut rest = src;
+        while let Some(pos) = rest.find(".t(\"") {
+            rest = &rest[pos + 4..];
+            if let Some(end) = rest.find('"') {
+                out.push(rest[..end].to_string());
+                rest = &rest[end..];
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn todas_as_abas_tem_traducao() {
+        let pt = pt_br_bundle();
+        let en = en_us_bundle();
+        for tab in crate::tabs::Tab::ALL {
+            let key = tab.i18n_key();
+            assert!(pt.contains_key(key), "pt-BR sem tradução para {key}");
+            assert!(en.contains_key(key), "en-US sem tradução para {key}");
+        }
+    }
+
+    #[test]
+    fn todas_as_chaves_usadas_no_codigo_tem_traducao() {
+        let sources = [
+            include_str!("app.rs"),
+            include_str!("streaming.rs"),
+            include_str!("benchmarks.rs"),
+            include_str!("components/theme_toggle.rs"),
+            include_str!("components/agent_card.rs"),
+            include_str!("components/auth_login.rs"),
+        ];
+        let pt = pt_br_bundle();
+        let en = en_us_bundle();
+        let mut n = 0;
+        for src in sources {
+            for key in keys_in_source(src) {
+                n += 1;
+                assert!(
+                    pt.contains_key(key.as_str()),
+                    "pt-BR sem tradução para {key}"
+                );
+                assert!(
+                    en.contains_key(key.as_str()),
+                    "en-US sem tradução para {key}"
+                );
+            }
+        }
+        assert!(n > 0, "nenhuma chave encontrada — o extrator quebrou?");
     }
 }

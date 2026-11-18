@@ -184,6 +184,7 @@ mod tests {
             }],
             validation: vec![],
             rollback: vec![],
+            signature: None,
         };
 
         let runbook = YamlRunbook::new(spec);

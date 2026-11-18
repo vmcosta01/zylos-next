@@ -6,9 +6,23 @@ use crate::manifest::IntegrationSpec;
 use chrono::{DateTime, Utc};
 use oauth2::basic::BasicClient;
 use oauth2::{
-    AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, PkceCodeChallenge,
-    PkceCodeVerifier, Scope, TokenResponse, TokenUrl,
+    AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, EndpointNotSet, EndpointSet,
+    PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope, TokenResponse, TokenUrl,
 };
+
+/// Cliente OAuth2 com URL de autorização e de token configuradas (oauth2 5.x).
+type ConfiguredClient =
+    BasicClient<EndpointSet, EndpointNotSet, EndpointNotSet, EndpointNotSet, EndpointSet>;
+
+/// Cliente HTTP para a troca de tokens. Sem seguir redirecionamentos: o
+/// endpoint de token nunca deve redirecionar, e seguir abriria SSRF.
+fn token_http_client() -> Result<oauth2::reqwest::Client> {
+    oauth2::reqwest::Client::builder()
+        .redirect(oauth2::reqwest::redirect::Policy::none())
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| IntegrationError::OAuth(format!("HTTP client: {}", e)))
+}
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -53,7 +67,7 @@ pub struct OAuthFlow {
 #[derive(Debug, Clone)]
 struct PendingSession {
     pkce_verifier: String,
-    client: BasicClient,
+    client: ConfiguredClient,
     provider_slug: String,
     created_at: DateTime<Utc>,
 }
@@ -70,9 +84,15 @@ impl OAuthFlow {
     pub async fn initiate(
         &self,
         spec: &IntegrationSpec,
-        _redirect_uri: &str,
+        redirect_uri: &str,
     ) -> Result<OAuthSession> {
-        let client = build_client(spec)?;
+        let mut client = build_client(spec)?;
+        if !redirect_uri.is_empty() {
+            client = client
+                .set_redirect_uri(RedirectUrl::new(redirect_uri.to_string()).map_err(|e| {
+                    IntegrationError::OAuth(format!("Invalid redirect URI: {}", e))
+                })?);
+        }
 
         let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
 
@@ -126,7 +146,7 @@ impl OAuthFlow {
             .client
             .exchange_code(AuthorizationCode::new(code.to_string()))
             .set_pkce_verifier(pkce_verifier)
-            .request_async(oauth2::reqwest::async_http_client)
+            .request_async(&token_http_client()?)
             .await
             .map_err(|e| IntegrationError::OAuth(e.to_string()))?;
 
@@ -164,7 +184,7 @@ impl OAuthFlow {
         let client = build_client(spec)?;
         let token_result = client
             .exchange_refresh_token(&oauth2::RefreshToken::new(refresh_token.clone()))
-            .request_async(oauth2::reqwest::async_http_client)
+            .request_async(&token_http_client()?)
             .await
             .map_err(|e| IntegrationError::TokenRefresh(e.to_string()))?;
 
@@ -198,16 +218,16 @@ impl OAuthFlow {
     }
 }
 
-fn build_client(spec: &IntegrationSpec) -> Result<BasicClient> {
-    let client = BasicClient::new(
-        ClientId::new(spec.client_id.clone()),
-        Some(ClientSecret::new(spec.client_secret.clone())),
-        AuthUrl::new(spec.auth_url.clone())
-            .map_err(|e| IntegrationError::OAuth(format!("Invalid auth URL: {}", e)))?,
-        Some(
+fn build_client(spec: &IntegrationSpec) -> Result<ConfiguredClient> {
+    let client = BasicClient::new(ClientId::new(spec.client_id.clone()))
+        .set_client_secret(ClientSecret::new(spec.client_secret.clone()))
+        .set_auth_uri(
+            AuthUrl::new(spec.auth_url.clone())
+                .map_err(|e| IntegrationError::OAuth(format!("Invalid auth URL: {}", e)))?,
+        )
+        .set_token_uri(
             TokenUrl::new(spec.token_url.clone())
                 .map_err(|e| IntegrationError::OAuth(format!("Invalid token URL: {}", e)))?,
-        ),
-    );
+        );
     Ok(client)
 }

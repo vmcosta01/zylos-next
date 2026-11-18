@@ -1,10 +1,11 @@
 //! ComputerSessionManager — gerenciamento de sessões de computer view em memória
 //!
 //! Gerencia sessões ativas, leases de controle com timeout automático,
-//! e fornece fallback para screenshots estáticos quando VNC indisponível.
+//! e captura screenshots reais da tela local (xcap) quando VNC indisponível.
 //! Sessões são armazenadas em DashMap para acesso concorrente seguro.
 
 use crate::schema::*;
+use base64::Engine as _;
 use dashmap::DashMap;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -240,23 +241,25 @@ impl ComputerSessionManager {
         expired_count
     }
 
-    /// Gera screenshot placeholder (fallback quando VNC indisponível)
-    pub fn generate_placeholder_screenshot(
-        &self,
-        session_id: &str,
-    ) -> Result<ScreenshotData, String> {
+    /// Captura a tela local real (monitor primário) e devolve PNG em base64.
+    ///
+    /// Usa `xcap` (Windows/macOS/Linux X11/Wayland). Em ambientes sem display
+    /// (headless/CI) ou sem permissão de captura retorna `Err` descritivo —
+    /// nunca uma imagem falsa.
+    pub fn capture_screenshot(&self, session_id: &str) -> Result<ScreenshotData, String> {
         let _session = self
             .get_session(session_id)
             .ok_or_else(|| format!("Session not found: {}", session_id))?;
 
-        // Placeholder 1x1 pixel PNG transparente em base64
-        let placeholder_png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+        let image = capture_primary_monitor()?;
+        let (width, height) = image.dimensions();
+        let png = encode_png(&image)?;
 
         Ok(ScreenshotData {
             session_id: session_id.to_string(),
-            image_base64: placeholder_png.to_string(),
-            width: 1,
-            height: 1,
+            image_base64: base64::engine::general_purpose::STANDARD.encode(png),
+            width,
+            height,
             captured_at: chrono::Utc::now().to_rfc3339(),
             format: "png".into(),
         })
@@ -283,6 +286,39 @@ impl Default for ComputerSessionManager {
     fn default() -> Self {
         Self::new(5) // 5 minutos de lease padrão
     }
+}
+
+/// Captura o monitor primário (ou o primeiro disponível).
+fn capture_primary_monitor() -> Result<image::RgbaImage, String> {
+    let monitors = xcap::Monitor::all()
+        .map_err(|e| format!("screen capture unavailable (no display?): {e}"))?;
+    let monitor = monitors
+        .iter()
+        .find(|m| m.is_primary().unwrap_or(false))
+        .or_else(|| monitors.first())
+        .ok_or_else(|| "screen capture unavailable: no monitor found".to_string())?;
+    let img = monitor
+        .capture_image()
+        .map_err(|e| format!("screen capture failed: {e}"))?;
+    if img.width() == 0 || img.height() == 0 {
+        return Err("screen capture returned an empty image".into());
+    }
+    Ok(img)
+}
+
+/// Codifica uma imagem RGBA como PNG.
+pub(crate) fn encode_png(img: &image::RgbaImage) -> Result<Vec<u8>, String> {
+    use image::ImageEncoder;
+    let mut out = Vec::new();
+    image::codecs::png::PngEncoder::new(&mut out)
+        .write_image(
+            img.as_raw(),
+            img.width(),
+            img.height(),
+            image::ExtendedColorType::Rgba8,
+        )
+        .map_err(|e| format!("PNG encode failed: {e}"))?;
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -477,21 +513,47 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_placeholder_screenshot() {
+    fn test_capture_screenshot_real_or_clear_error() {
         let mgr = ComputerSessionManager::default();
         let session = mgr.create_session(sample_create_request());
 
-        let screenshot = mgr.generate_placeholder_screenshot(&session.id).unwrap();
-        assert_eq!(screenshot.session_id, session.id);
-        assert_eq!(screenshot.format, "png");
-        assert!(!screenshot.image_base64.is_empty());
+        match mgr.capture_screenshot(&session.id) {
+            Ok(shot) => {
+                // Display disponível: deve ser um PNG real com as dimensões da tela.
+                assert_eq!(shot.session_id, session.id);
+                assert_eq!(shot.format, "png");
+                assert!(shot.width > 1 && shot.height > 1);
+                let bytes = base64::engine::general_purpose::STANDARD
+                    .decode(&shot.image_base64)
+                    .unwrap();
+                assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n");
+                let decoded = image::load_from_memory(&bytes).unwrap();
+                assert_eq!(
+                    (decoded.width(), decoded.height()),
+                    (shot.width, shot.height)
+                );
+            }
+            // Headless/CI: erro explícito, sem imagem falsa.
+            Err(e) => assert!(e.contains("screen capture"), "{e}"),
+        }
     }
 
     #[test]
-    fn test_generate_screenshot_nonexistent_fails() {
+    fn test_encode_png_roundtrip() {
+        let mut img = image::RgbaImage::new(3, 2);
+        img.put_pixel(2, 1, image::Rgba([10, 20, 30, 255]));
+        let png = encode_png(&img).unwrap();
+        assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
+        let back = image::load_from_memory(&png).unwrap().to_rgba8();
+        assert_eq!(back.dimensions(), (3, 2));
+        assert_eq!(back.get_pixel(2, 1), &image::Rgba([10, 20, 30, 255]));
+    }
+
+    #[test]
+    fn test_capture_screenshot_nonexistent_fails() {
         let mgr = ComputerSessionManager::default();
-        let result = mgr.generate_placeholder_screenshot("nonexistent");
-        assert!(result.is_err());
+        let result = mgr.capture_screenshot("nonexistent");
+        assert_eq!(result.unwrap_err(), "Session not found: nonexistent");
     }
 
     #[test]

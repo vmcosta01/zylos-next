@@ -57,3 +57,46 @@ Renderize indicadores visuais (avatars coloridos) baseados nos eventos `Presence
 - `crates/zylos-auth/src/crdt.rs`
 - `pop-crdt-conflict-resolve`
 - `pot-crdt-sync-tuning`
+
+
+## Atualização Fase 11.9 — implementação real (yrs)
+
+> As seções acima descrevem o desenho inicial com `yjs` JS. A implementação entregue usa **yrs (Rust) compilado para wasm32** no cockpit — sem dependência JS.
+
+### Componentes
+| Camada | Arquivo | Papel |
+|---|---|---|
+| Servidor | `apps/zylos-gateway/src/crdt_sync.rs` | WS y-websocket v1, salas por documento, awareness, ping |
+| Persistência | `crates/zylos-auth/src/crdt_persistence.rs` | SQLite: log de updates + snapshots versionados, GC 30 dias |
+| Cliente (núcleo) | `apps/zylos-cockpit/src/crdt_client.rs` | Réplica yrs + Awareness, sem DOM (testável nativamente) |
+| Cliente (UI) | `apps/zylos-cockpit/src/components/collab_panel.rs` | Aba **Colaboração**: textarea, presença, resolução de conflitos |
+
+### Rota correta
+O endpoint é `GET /api/v1/crdt/sync/:doc_id` (não `/api/v1/crdt/sync` com nome de sala separado). Root de texto: `content`.
+
+### Passo a passo no cockpit
+1. Abrir a aba **Colaboração** (`Tab::Collab`).
+2. Informar o **Documento** (ex.: `cockpit-notes`) e o **Nome** exibido aos demais.
+3. Clicar **Conectar** — o cliente envia `SyncStep1` + sua presença (`{name,color,cursor}`).
+4. Editar no textarea: cada alteração vira um `Update` CRDT (diff prefixo/sufixo, offsets UTF-8 corretos).
+5. A lista **Online** mostra pares com cor determinística (`color_for(client_id)`) e cursor/seleção.
+6. Para revisar antes de publicar, usar **Editar como rascunho** (ver `runbooks/pop-crdt-conflict-resolve.md`).
+
+### Verificação
+```bash
+export CARGO_TARGET_DIR=E:/zylos-target/crdt
+cargo check -p zylos-cockpit --target wasm32-unknown-unknown
+cargo test  -p zylos-cockpit --lib crdt_client
+cargo test  -p zylos-gateway --test crdt_multi_client --test crdt_latency_bench -- --nocapture
+```
+
+### Observação técnica
+`yrs::sync::Awareness::new` não existe em `wasm32-unknown-unknown` (depende de `SystemTime`). O cliente usa `Awareness::with_clock(doc, now_ms)` com `js_sys::Date::now()`.
+
+### Pendências conhecidas
+- Autenticação JWT no handshake WS ainda não aplicada pelo servidor (seção 2 acima é desenho).
+- Sem teste E2E em navegador; apenas `cargo check` wasm32 + testes nativos da lógica.
+
+## Referências adicionais
+- `docs/fase11-reports/crdt-sync-benchmark.md`
+- ADR-012 em `docs/DECISIONS_FASE11.md`

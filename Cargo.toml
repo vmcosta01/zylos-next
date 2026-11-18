@@ -37,6 +37,7 @@ members = [
     "tests/zylos-e2e", "crates/zylos-independent-verifier", "crates/zylos-approval", "crates/zylos-egress", "crates/zylos-audit-log", "crates/zylos-brief", "crates/zylos-model-config", "crates/zylos-computer-view", "crates/zylos-spaces",
     "crates/zylos-channels",
     "crates/zylos-auth",
+    "crates/zylos-analytics",
 ]
 
 [workspace.package]
@@ -74,6 +75,9 @@ tower-http = { version = "0.6", features = ["cors", "trace"] }
 
 # Database
 rusqlite = { version = "0.32", features = ["bundled"] }
+
+# CRDT (Fase 11.9 — ADR-012)
+yrs = "0.28"
 
 # Graph
 petgraph = "0.6"
@@ -118,6 +122,18 @@ serde_urlencoded = "0.7"
 opt-level = 3
 lto = true
 codegen-units = 1
+
+# Perfil do cockpit WASM (Trunk: index.html `data-cargo-profile="wasm-release"`).
+# O [profile.*] dentro de apps/zylos-cockpit/Cargo.toml é ignorado pelo Cargo
+# (só o workspace root vale), por isso o perfil vive aqui. Otimiza tamanho:
+# o download + compile do .wasm domina o LCP mobile (Slow 4G + CPU 4x).
+[profile.wasm-release]
+inherits = "release"
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = "debuginfo"
 
 [workspace.lints.rust]
 unsafe_code = "warn"

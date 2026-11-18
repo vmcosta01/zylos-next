@@ -184,6 +184,9 @@ pub enum AdapterError {
     /// The framework runtime or SDK is not installed or reachable.
     #[error("Framework not available: {0}")]
     FrameworkUnavailable(String),
+    /// Network egress check failed or URL is not allowed.
+    #[error("Network error: {0}")]
+    Network(String),
     /// The supplied configuration is invalid for this framework.
     #[error("Invalid configuration: {0}")]
     InvalidConfig(String),
@@ -305,6 +308,7 @@ pub struct AdkAdapter {
     base_url: String,
     client: reqwest::Client,
     api_key: Option<String>,
+    egress: zylos_agent_shield::network_egress::NetworkEgressFilter,
 }
 
 impl AdkAdapter {
@@ -312,10 +316,45 @@ impl AdkAdapter {
     ///
     /// An optional API key is sent as a Bearer token on every request when provided.
     pub fn new(base_url: &str, api_key: Option<String>) -> Self {
+        use zylos_agent_shield::network_egress::{EgressConfig, EgressRule, NetworkEgressFilter};
+        let mut rules = std::collections::HashMap::new();
+        rules.insert(
+            "zylos-adapters".to_string(),
+            EgressRule {
+                allowed_hosts: vec!["*".to_string()],
+                allowed_ports: vec![80, 443, 8080, 8443],
+                deny_all: false,
+            },
+        );
+        let egress = NetworkEgressFilter::new(EgressConfig {
+            egress_rules: rules,
+            log_blocked: true,
+            allow_dns_resolution: true,
+        });
         Self {
             base_url: base_url.trim_end_matches('/').to_string(),
-            client: reqwest::Client::new(),
+            client: reqwest::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .build()
+                .unwrap_or_else(|_| reqwest::Client::new()),
             api_key,
+            egress,
+        }
+    }
+
+    async fn check_egress(&self, url: &str) -> Result<(), crate::AdapterError> {
+        use zylos_agent_shield::network_egress::parse_url_target;
+        let (host, port) = parse_url_target(url)
+            .map_err(|e| crate::AdapterError::Network(format!("invalid URL: {}", e)))?;
+        let (decision, _ips) = self
+            .egress
+            .check_with_dns("zylos-adapters", &host, port)
+            .await;
+        match decision {
+            zylos_agent_shield::network_egress::EgressDecision::Allowed => Ok(()),
+            zylos_agent_shield::network_egress::EgressDecision::Blocked { reason } => Err(
+                crate::AdapterError::Network(format!("egress blocked: {}", reason)),
+            ),
         }
     }
 
@@ -334,6 +373,16 @@ impl FrameworkAdapter for AdkAdapter {
 
     async fn health(&self) -> Result<AdapterHealth, AdapterError> {
         let url = format!("{}/health", self.base_url);
+        if let Err(e) = self.check_egress(&url).await {
+            return Ok(AdapterHealth {
+                framework: Framework::Adk,
+                available: false,
+                version: None,
+                active_agents: 0,
+                error_count: 1,
+                last_error: Some(e.to_string()),
+            });
+        }
         let mut req = self.client.get(&url);
         if let Some((k, v)) = self.auth_header() {
             req = req.header(k, v);
@@ -372,6 +421,7 @@ impl FrameworkAdapter for AdkAdapter {
 
     async fn spawn(&self, request: &SpawnRequest) -> Result<AgentInstance, AdapterError> {
         let url = format!("{}/agents", self.base_url);
+        self.check_egress(&url).await?;
         let body = serde_json::json!({
             "name": request.name,
             "config": request.config,
@@ -398,6 +448,7 @@ impl FrameworkAdapter for AdkAdapter {
         message: &AgentMessage,
     ) -> Result<AgentMessage, AdapterError> {
         let url = format!("{}/agents/{}/messages", self.base_url, agent_id);
+        self.check_egress(&url).await?;
         let mut req = self.client.post(&url).json(message);
         if let Some((k, v)) = self.auth_header() {
             req = req.header(k, v);

@@ -278,10 +278,12 @@ fn js_timestamp() -> String {
 
 async fn fetch_needs_you() -> Result<Vec<TriageItem>, String> {
     // Approvals pendentes
-    let resp = gloo_net::http::Request::get("http://localhost:3000/api/v1/approvals/pending")
-        .send()
-        .await
-        .map_err(|e| format!("Network error: {}", e))?;
+    let resp = crate::auth::authed(gloo_net::http::Request::get(
+        "http://localhost:3000/api/v1/approvals/pending",
+    ))
+    .send()
+    .await
+    .map_err(|e| format!("Network error: {}", e))?;
 
     if !resp.ok() {
         return Ok(vec![]); // Endpoint pode não existir ainda
@@ -316,9 +318,9 @@ async fn fetch_needs_you() -> Result<Vec<TriageItem>, String> {
 }
 
 async fn fetch_errors() -> Result<Vec<TriageItem>, String> {
-    let resp = gloo_net::http::Request::get(
+    let resp = crate::auth::authed(gloo_net::http::Request::get(
         "http://localhost:3000/api/v1/audit/actions?approval_status=refused&limit=5",
-    )
+    ))
     .send()
     .await
     .map_err(|e| format!("Network error: {}", e))?;
@@ -367,9 +369,9 @@ async fn fetch_can_wait() -> Result<Vec<TriageItem>, String> {
 }
 
 async fn fetch_done() -> Result<Vec<TriageItem>, String> {
-    let resp = gloo_net::http::Request::get(
+    let resp = crate::auth::authed(gloo_net::http::Request::get(
         "http://localhost:3000/api/v1/audit/actions?approval_status=approved&limit=10",
-    )
+    ))
     .send()
     .await
     .map_err(|e| format!("Network error: {}", e))?;

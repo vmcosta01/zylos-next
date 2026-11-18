@@ -1,5 +1,7 @@
 # zylos-gateway
 
+[![CI](https://github.com/vmcosta01/zylos-next/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/vmcosta01/zylos-next/actions/workflows/ci.yml) [![Deploy Preview](https://github.com/vmcosta01/zylos-next/actions/workflows/deploy-preview.yml/badge.svg)](https://github.com/vmcosta01/zylos-next/actions/workflows/deploy-preview.yml)
+
 **Fase:** 6.1.1 + 7.1.1 - API Gateway Consolidada
 **Status:** ✅ Implementado (972 LOC, 6 arquivos Rust, 36 testes)
 
@@ -29,8 +31,8 @@ zylos-gateway/
 export ZYLOS_CONFIG=/etc/zylos/gateway.toml
 
 # Ou via env vars
-export ZYLOS_LISTEN_ADDR=0.0.0.0:3000
-export ZYLOS_SHUTDOWN_TIMEOUT=5
+export ZYLOS_LISTEN=0.0.0.0:3000
+export ZYLOS_SHUTDOWN_TIMEOUT_SECS=5
 
 # Run
 cargo run --bin zylos-gateway

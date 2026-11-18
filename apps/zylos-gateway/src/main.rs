@@ -206,17 +206,21 @@ async fn main() -> anyhow::Result<()> {
     ready.store(true, std::sync::atomic::Ordering::Relaxed);
     info!("Gateway marked as READY");
 
-    axum::serve(listener, app)
-        .with_graceful_shutdown(async move {
-            shutdown_token.cancelled().await;
-            info!("Graceful shutdown initiated, draining requests...");
-            tokio::time::sleep(std::time::Duration::from_secs(
-                cfg.server.shutdown_timeout_secs,
-            ))
-            .await;
-            info!("Shutdown timeout reached, forcing stop");
-        })
-        .await?;
+    // ConnectInfo: o rate limiter (F15) precisa do IP real do cliente.
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(async move {
+        shutdown_token.cancelled().await;
+        info!("Graceful shutdown initiated, draining requests...");
+        tokio::time::sleep(std::time::Duration::from_secs(
+            cfg.server.shutdown_timeout_secs,
+        ))
+        .await;
+        info!("Shutdown timeout reached, forcing stop");
+    })
+    .await?;
 
     info!("zylos-gateway stopped cleanly");
     Ok(())

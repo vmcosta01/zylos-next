@@ -91,7 +91,7 @@ pub fn MemoryTimeline() -> impl IntoView {
                     let err_msg = msg.clone();
                     view! {
                         <div class="error-banner">
-                            <p>{format!("Erro ao carregar memória: {}", err_msg)}</p>
+                            <p>{format!("Erro ao carregar memória: {}", crate::ui_error::report("Erro ao carregar memória", &err_msg))}</p>
                             <button class="cta-retry" on:click=move |_| {
                                 spawn_local(async move {
                                     match fetch_memory_stats().await {
@@ -130,6 +130,8 @@ async fn fetch_memory_stats() -> Result<MemoryStats, String> {
     let request =
         Request::new_with_str_and_init("http://localhost:3000/api/v1/phase2/status", &opts)
             .map_err(|e| format!("{:?}", e))?;
+
+    crate::auth::authed_web_request(&request);
 
     let window = web_sys::window().ok_or("no window")?;
     let resp_value = window

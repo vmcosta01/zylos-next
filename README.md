@@ -2,7 +2,7 @@
 
 **Multi-agent orchestration platform for Hermes** — Rust-native, memory-first, verification-gated.
 
-[![Tests](https://img.shields.io/badge/tests-592+-green)]() [![Crates](https://img.shields.io/badge/crates-18-blue)]() [![License](https://img.shields.io/badge/license-MIT-orange)]()
+[![CI](https://github.com/vmcosta01/zylos-next/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/vmcosta01/zylos-next/actions/workflows/ci.yml) [![Deploy Preview](https://github.com/vmcosta01/zylos-next/actions/workflows/deploy-preview.yml/badge.svg)](https://github.com/vmcosta01/zylos-next/actions/workflows/deploy-preview.yml) [![Tests](https://img.shields.io/badge/tests-592+-green)]() [![Crates](https://img.shields.io/badge/crates-18-blue)]() [![License](https://img.shields.io/badge/license-MIT-orange)]()
 
 ## Quick Start (<5 min)
 

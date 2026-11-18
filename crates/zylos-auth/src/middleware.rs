@@ -36,14 +36,23 @@ pub async fn auth_middleware(
         .and_then(|v| v.to_str().ok())
         .ok_or(StatusCode::UNAUTHORIZED)?;
 
-    let token = auth_header
-        .strip_prefix("Bearer ")
-        .ok_or(StatusCode::UNAUTHORIZED)?;
+    // RFC 6750 / RFC 9110: auth scheme is case-insensitive.
+    let token = match auth_header.split_once(' ') {
+        Some((scheme, tok)) if scheme.eq_ignore_ascii_case("bearer") => tok.trim(),
+        _ => return Err(StatusCode::UNAUTHORIZED),
+    };
+    if token.is_empty() {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
 
     match token_service.validate_token(token) {
         Ok(claims) => {
             request.extensions_mut().insert(AuthContext { claims });
             Ok(next.run(request).await)
+        }
+        Err(TokenError::Revoked) => {
+            warn!("revoked JWT presented");
+            Err(StatusCode::UNAUTHORIZED)
         }
         Err(TokenError::Expired) => {
             warn!("expired JWT presented");
@@ -86,7 +95,7 @@ mod tests {
 
     fn test_service() -> TokenService {
         TokenService::new(TokenConfig {
-            secret: "middleware-test-secret".into(),
+            secret: "middleware-test-secret-0123456789abcdef".into(),
             default_ttl_secs: 3600,
             ..TokenConfig::default()
         })

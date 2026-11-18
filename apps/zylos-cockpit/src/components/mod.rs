@@ -2,11 +2,13 @@
 
 pub mod agent_awareness_panel;
 pub mod agent_card;
+pub mod agents_panel;
 pub mod chat_panel;
 pub mod employee_governance_panel;
 pub mod evidence_ledger_panel;
 pub mod goals_panel;
 pub mod hitl_approval_panel;
+pub use agents_panel::AgentsPanel;
 pub mod lazy_roster;
 pub mod memory_timeline;
 pub mod personalities_panel;
@@ -28,7 +30,10 @@ pub use voice_panel::VoicePanel;
 pub mod emoji_reactions;
 pub use emoji_reactions::EmojiReactions;
 pub mod agent_avatars;
+pub mod analytics_charts;
+pub mod analytics_panel;
 pub use agent_avatars::AgentAvatarsGrid;
+pub use analytics_panel::AnalyticsPanel;
 pub mod skin_themes;
 pub use skin_themes::SkinThemesPanel;
 pub mod fleet_auditor;
@@ -44,8 +49,13 @@ pub mod tasks_dag;
 pub use channel_panel::ChannelPanel;
 pub mod phone_relay_panel;
 pub use phone_relay_panel::PhoneRelayPanel;
+pub mod integrations_panel;
+pub use integrations_panel::IntegrationsPanel;
 pub mod auth_login;
+pub use auth_login::AuthHeaderButton;
+pub mod collab_panel;
 pub mod theme_toggle;
+pub use collab_panel::CollabPanel;
 
 pub use agent_awareness_panel::AgentAwarenessPanel;
 #[allow(unused_imports)]

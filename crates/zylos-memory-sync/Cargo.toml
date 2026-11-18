@@ -1,6 +1,7 @@
 [package]
 name = "zylos-memory-sync"
 version = "0.1.0"
+license.workspace = true
 edition = "2021"
 description = "Cross-harness memory synchronization for zylos-gateway"
 

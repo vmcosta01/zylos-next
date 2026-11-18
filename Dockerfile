@@ -15,6 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsqlite3-dev \
     protobuf-compiler \
     curl \
+    libclang-dev libpipewire-0.3-dev libspa-0.2-dev libxcb1-dev libxrandr-dev \
+    libdbus-1-dev libgbm-dev libegl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install wasm-pack for cockpit WASM build
@@ -41,6 +43,7 @@ FROM debian:bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libssl3 \
+    libpipewire-0.3-0 libxcb1 libxcb-randr0 libxrandr2 libdbus-1-3 libgbm1 libegl1 \
     libsqlite3-0 \
     tini \
     curl \
@@ -61,8 +64,7 @@ RUN mkdir -p /var/lib/zylos/data /var/lib/zylos/logs /etc/zylos \
 # Default config
 COPY <<'EOF' /etc/zylos/config.toml
 [server]
-host = "0.0.0.0"
-port = 8080
+listen_addr = "0.0.0.0:8080"
 
 [database]
 path = "/var/lib/zylos/data/zylos.db"
@@ -73,6 +75,8 @@ format = "json"
 EOF
 
 USER zylos
+# O gateway lê ZYLOS_LISTEN (padrão do binário: 127.0.0.1:3000, inacessível de fora do container)
+ENV ZYLOS_LISTEN=0.0.0.0:8080
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

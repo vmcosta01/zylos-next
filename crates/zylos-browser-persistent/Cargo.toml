@@ -1,6 +1,7 @@
 [package]
 name = "zylos-browser-persistent"
 version = "0.1.0"
+license.workspace = true
 edition = "2021"
 description = "Per-agent persistent browser sessions with cookie/storage isolation"
 

@@ -324,6 +324,18 @@ pub struct SwarmStats {
     pub used_capacity: usize,
 }
 
+/// Per-agent task counters returned by
+/// [`SwarmOrchestrator::agent_task_summaries`].
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentTaskSummary {
+    /// Tasks ever assigned to the agent.
+    pub total_tasks: usize,
+    /// Tasks currently in `running` state.
+    pub running_tasks: usize,
+    /// Most recent `updated_at` among the agent's tasks.
+    pub last_task_update: Option<DateTime<Utc>>,
+}
+
 /// Query filter for task lookups.
 #[derive(Debug, Clone, Default)]
 pub struct TaskQuery {
@@ -390,6 +402,12 @@ pub struct SwarmOrchestrator {
     hop_guard: hop_count::HopCountGuard,
 }
 
+/// `true` se o caminho SQLite aponta para um banco em memória.
+fn is_memory_path(path: &str) -> bool {
+    let p = path.trim_start_matches("sqlite:").trim_start_matches("//");
+    p == ":memory:" || p.starts_with(":memory:?") || p.contains("mode=memory")
+}
+
 impl SwarmOrchestrator {
     /// Opens or creates the swarm orchestrator store at the given path.
     ///
@@ -399,7 +417,21 @@ impl SwarmOrchestrator {
         let options = SqliteConnectOptions::from_str(path)?
             .create_if_missing(true)
             .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
-        let pool = SqlitePool::connect_with(options).await?;
+        // `:memory:` cria um banco separado por conexão: com um pool de várias
+        // conexões, as tabelas criadas pela migração só existem em uma delas e
+        // as demais falham com "no such table". Para memória, usamos uma única
+        // conexão que nunca é reciclada.
+        let pool = if is_memory_path(path) {
+            sqlx::sqlite::SqlitePoolOptions::new()
+                .max_connections(1)
+                .min_connections(1)
+                .idle_timeout(None)
+                .max_lifetime(None)
+                .connect_with(options)
+                .await?
+        } else {
+            SqlitePool::connect_with(options).await?
+        };
         let orch = Self {
             pool,
             hop_guard: hop_count::HopCountGuard::default_limit(),
@@ -988,6 +1020,54 @@ impl SwarmOrchestrator {
         Ok(())
     }
 
+    // -- Per-agent views --
+
+    /// Counts tasks per assigned agent (total, running) plus the latest task
+    /// `updated_at` for each agent. Agents without tasks are absent from the map.
+    pub async fn agent_task_summaries(
+        &self,
+    ) -> Result<HashMap<AgentId, AgentTaskSummary>, SwarmError> {
+        let rows = sqlx::query(
+            r#"SELECT assigned_agent AS agent,
+                      COUNT(*) AS total,
+                      SUM(CASE WHEN state = 'running' THEN 1 ELSE 0 END) AS running,
+                      MAX(updated_at) AS last_update
+               FROM swarm_tasks
+               WHERE assigned_agent IS NOT NULL
+               GROUP BY assigned_agent"#,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        let mut out = HashMap::new();
+        for r in rows {
+            let agent: String = r.get("agent");
+            let total: i64 = r.get("total");
+            let running: i64 = r.get("running");
+            let last: Option<String> = r.get("last_update");
+            out.insert(
+                agent,
+                AgentTaskSummary {
+                    total_tasks: total.max(0) as usize,
+                    running_tasks: running.max(0) as usize,
+                    last_task_update: last
+                        .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+                        .map(|d| d.with_timezone(&Utc)),
+                },
+            );
+        }
+        Ok(out)
+    }
+
+    /// Lists every child task (tasks with a `parent_id`), newest first.
+    pub async fn list_child_tasks(&self) -> Result<Vec<Task>, SwarmError> {
+        let rows = sqlx::query(
+            "SELECT * FROM swarm_tasks WHERE parent_id IS NOT NULL ORDER BY created_at DESC",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.iter().map(row_to_task).collect())
+    }
+
     // -- Stats --
 
     /// Returns aggregate swarm statistics.
@@ -1517,5 +1597,70 @@ mod tests {
         orch.add_task(&task).await.unwrap();
         orch.release_agent_slot(&task.id).await.unwrap();
         assert_eq!(orch.hop_guard().current(), 0);
+    }
+
+    #[tokio::test]
+    async fn agent_task_summaries_conta_por_agente() {
+        let orch = test_orchestrator().await;
+        let mut agent = SwarmAgent::new("a1", "Agente 1");
+        agent.max_concurrent_tasks = 5;
+        orch.register_agent(&agent).await.unwrap();
+        for i in 0..2 {
+            orch.add_task(&Task::new(format!("T{i}"), "x"))
+                .await
+                .unwrap();
+        }
+        orch.initialize_ready_tasks().await.unwrap();
+        orch.schedule().await.unwrap();
+        let sums = orch.agent_task_summaries().await.unwrap();
+        let s = sums.get("a1").expect("resumo do a1");
+        assert_eq!(s.total_tasks, 2);
+        assert_eq!(s.running_tasks, 2);
+        assert!(s.last_task_update.is_some());
+        assert!(!sums.contains_key("ninguem"));
+    }
+
+    #[tokio::test]
+    async fn list_child_tasks_so_traz_filhas() {
+        let orch = test_orchestrator().await;
+        let pai = Task::new("Pai", "raiz");
+        orch.add_task(&pai).await.unwrap();
+        let filha = Task::new("Filha", "sub").with_parent(pai.id.clone());
+        orch.add_task(&filha).await.unwrap();
+        let filhas = orch.list_child_tasks().await.unwrap();
+        assert_eq!(filhas.len(), 1);
+        assert_eq!(filhas[0].id, filha.id);
+        assert_eq!(filhas[0].parent_id.as_deref(), Some(pai.id.as_str()));
+    }
+}
+
+#[cfg(test)]
+mod memory_pool_tests {
+    use super::*;
+    use std::sync::Arc;
+
+    /// Regressão: com `:memory:` e pool de várias conexões, consultas
+    /// concorrentes caíam em conexões sem as tabelas ("no such table").
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn memory_store_survives_concurrent_queries() {
+        let orch = Arc::new(SwarmOrchestrator::open(":memory:").await.unwrap());
+        let mut handles = Vec::new();
+        for _ in 0..32 {
+            let o = orch.clone();
+            handles.push(tokio::spawn(async move { o.list_agents().await }));
+        }
+        for h in handles {
+            h.await
+                .unwrap()
+                .expect("list_agents em :memory: deve funcionar");
+        }
+    }
+
+    #[test]
+    fn detects_memory_paths() {
+        assert!(is_memory_path(":memory:"));
+        assert!(is_memory_path("sqlite::memory:"));
+        assert!(is_memory_path("file:x?mode=memory&cache=shared"));
+        assert!(!is_memory_path("data/swarm.db"));
     }
 }

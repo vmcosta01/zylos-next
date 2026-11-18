@@ -64,31 +64,61 @@ pub enum RelayClientMsg {
     Ping { ts: u64 },
 }
 
+/// Limite padrão de sessões WS relay simultâneas (F15).
+const DEFAULT_MAX_RELAY_SESSIONS: usize = 64;
+
 /// Estado compartilhado do relay: broadcast channels por sessão.
 #[derive(Clone)]
 pub struct WebRtcRelayState {
     /// Canal de broadcast por session_id para frames de tela.
     pub sessions: Arc<DashMap<String, broadcast::Sender<RelayServerMsg>>>,
+    /// F15: limite máximo de sessões simultâneas.
+    pub max_sessions: usize,
 }
 
 impl WebRtcRelayState {
     pub fn new() -> Self {
+        let max_sessions = std::env::var("ZYLOS_MAX_RELAY_SESSIONS")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .filter(|v| *v > 0)
+            .unwrap_or(DEFAULT_MAX_RELAY_SESSIONS);
         Self {
             sessions: Arc::new(DashMap::new()),
+            max_sessions,
         }
     }
 
     /// Obtém ou cria um canal de broadcast para a sessão.
-    pub fn get_or_create_channel(&self, session_id: &str) -> broadcast::Sender<RelayServerMsg> {
-        self.sessions
-            .entry(session_id.to_string())
-            .or_insert_with(|| {
-                let (tx, _) = broadcast::channel(64);
-                info!(session_id = %session_id, "WebRTC relay channel created");
-                tx
-            })
-            .value()
-            .clone()
+    /// F15: retorna `None` se o limite de sessões simultâneas for atingido.
+    pub fn get_or_create_channel(
+        &self,
+        session_id: &str,
+    ) -> Option<broadcast::Sender<RelayServerMsg>> {
+        // Se já existe, retorna sem checar limite (reconexão na mesma sessão).
+        if let Some(tx) = self.sessions.get(session_id) {
+            return Some(tx.value().clone());
+        }
+        // Limite de sessões simultâneas.
+        if self.sessions.len() >= self.max_sessions {
+            warn!(
+                session_id = %session_id,
+                max = self.max_sessions,
+                "F15: relay session limit reached, rejecting new connection"
+            );
+            return None;
+        }
+        Some(
+            self.sessions
+                .entry(session_id.to_string())
+                .or_insert_with(|| {
+                    let (tx, _) = broadcast::channel(64);
+                    info!(session_id = %session_id, "WebRTC relay channel created");
+                    tx
+                })
+                .value()
+                .clone(),
+        )
     }
 
     /// Remove canal quando não há mais consumidores.
@@ -127,11 +157,18 @@ async fn ws_computer_view(
     State(state): State<WebRtcRelayState>,
 ) -> impl IntoResponse {
     info!(session_id = %session_id, "WebSocket upgrade requested for computer-view relay");
-    let tx = state.get_or_create_channel(&session_id);
+    let Some(tx) = state.get_or_create_channel(&session_id) else {
+        return (
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            "relay session limit reached",
+        )
+            .into_response();
+    };
     let session_id_clone = session_id.clone();
     let state_clone = state.clone();
 
     ws.on_upgrade(move |socket| handle_ws_socket(socket, session_id_clone, tx, state_clone))
+        .into_response()
 }
 
 /// Gerencia conexão WebSocket individual: lê comandos do cliente e envia frames.
@@ -238,19 +275,32 @@ mod tests {
     #[test]
     fn test_get_or_create_channel() {
         let state = WebRtcRelayState::new();
-        let _tx = state.get_or_create_channel("test-session");
+        assert!(state.get_or_create_channel("test-session").is_some());
         assert_eq!(state.sessions.len(), 1);
-        let _tx2 = state.get_or_create_channel("test-session");
+        // Same session returns existing channel without hitting limit.
+        assert!(state.get_or_create_channel("test-session").is_some());
         assert_eq!(state.sessions.len(), 1);
     }
 
     #[test]
     fn test_cleanup_session() {
         let state = WebRtcRelayState::new();
-        let _tx = state.get_or_create_channel("cleanup-test");
+        assert!(state.get_or_create_channel("cleanup-test").is_some());
         assert_eq!(state.sessions.len(), 1);
         state.cleanup_session("cleanup-test");
         assert!(state.sessions.is_empty());
+    }
+
+    #[test]
+    fn f15_relay_session_cap_enforced() {
+        let mut state = WebRtcRelayState::new();
+        state.max_sessions = 2;
+        assert!(state.get_or_create_channel("s1").is_some());
+        assert!(state.get_or_create_channel("s2").is_some());
+        // Third distinct session must be rejected.
+        assert!(state.get_or_create_channel("s3").is_none());
+        // Reconnecting to an existing session still works.
+        assert!(state.get_or_create_channel("s1").is_some());
     }
 
     #[test]
