@@ -89,16 +89,30 @@
     </div>
     <div id="app"></div>
     <script>
-        // T11.5.3: preconnect ao gateway somente quando configurado.
-        (function () {
-            var m = document.querySelector('meta[name="zylos-gateway-url"]');
-            var u = m && m.content.trim();
-            if (u) {
-                var l = document.createElement('link');
-                l.rel = 'preconnect'; l.href = u; l.crossOrigin = 'anonymous';
-                document.head.appendChild(l);
-            }
-        })();
+            // Fallback JS para esconder splash quando body:has() não é suportado.
+            // O Leptos 0.7 CSR monta .shell-layout fora do #app, direto no body.
+            (function() {
+                var checkInterval = setInterval(function() {
+                    if (document.querySelector('.shell-layout')) {
+                        var splash = document.getElementById('app-splash');
+                        if (splash) splash.style.display = 'none';
+                        clearInterval(checkInterval);
+                    }
+                }, 100);
+                // Safety timeout: parar de verificar após 30s
+                setTimeout(function() { clearInterval(checkInterval); }, 30000);
+            })();
+
+            // T11.5.3: preconnect ao gateway somente quando configurado.
+            (function () {
+                var m = document.querySelector('meta[name="zylos-gateway-url"]');
+                var u = m && m.content.trim();
+                if (u) {
+                    var l = document.createElement('link');
+                    l.rel = 'preconnect'; l.href = u; l.crossOrigin = 'anonymous';
+                    document.head.appendChild(l);
+                }
+            })();
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function () {
                 navigator.serviceWorker.register('/sw.js')
