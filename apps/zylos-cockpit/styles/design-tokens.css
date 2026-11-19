@@ -4,27 +4,66 @@
    Proibido adicionar cores/valores hardcoded em qualquer outro lugar.
    ═══════════════════════════════════════════════════════════════════ */
 
-:root {
-  /* ── Colors ── */
-  --color-bg-primary: #0f172a;
-  --color-bg-secondary: #1e293b;
-  --color-bg-tertiary: #334155;
-  --color-bg-translucent: rgba(15, 23, 42, 0.7);
-  --color-text-primary: #f8fafc;
-  --color-text-secondary: #94a3b8;
-  --color-text-tertiary: #64748b;
-  --color-border-default: #334155;
-  --color-border-strong: #475569;
-  --color-accent-primary: #3b82f6;
-  --color-accent-hover: #2563eb;
-  --color-status-success: #22c55e;
-  --color-status-warning: #f59e0b;
-  --color-status-error: #ef4444;
-  --color-status-info: #3b82f6;
-  --color-status-idle: #6b7280;
+/* ── Fontes auto-hospedadas (DESIGN_SYSTEM v2.1 §3): sem CDN, funcionam offline ── */
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/geist.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('/fonts/geist-mono.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
 
-  /* ── Agent Role Colors (21 roles) ── */
-  --role-engineering: #3b82f6;
+:root {
+  /* ── Colors (DESIGN_SYSTEM v2.1 §2: OKLCH, claro por padrão) ──
+     Contrastes calculados (WCAG): ink/paper 16,2 · ink-2 7,5 · ink-3 5,8 · signal/paper 5,3
+     · border-strong/paper 3,5. Nomes legados (--color-*) mantidos para não quebrar componentes. */
+  color-scheme: light;
+  --paper: oklch(98.6% 0.004 260);
+  --surface: oklch(99.6% 0.002 260);
+  --sunken: oklch(96.2% 0.006 260);
+  --ink: oklch(23% 0.02 260);
+  --ink-2: oklch(44% 0.02 260);
+  --ink-3: oklch(50% 0.02 260);
+  --border: oklch(90% 0.008 260);
+  --border-strong: oklch(62% 0.015 260);
+  --signal: oklch(54% 0.19 38);
+  --signal-bg: oklch(96% 0.03 50);
+  --on-signal: oklch(99% 0.005 50);
+  --ok: oklch(48% 0.13 155);
+  --err: oklch(50% 0.2 27);
+  --outline-image: oklch(0 0 0 / 0.1);
+  /* Camadas sobre conteúdo (stream do computador, fundo de modal): iguais nos dois temas */
+  --vnc-surface: oklch(12% 0.01 260);
+  --vnc-scrim: oklch(12% 0.01 260 / 0.8);
+  --vnc-on-scrim: oklch(98% 0.004 260);
+  --scrim: oklch(12% 0.01 260 / 0.5);
+  --scrim-strong: oklch(12% 0.01 260 / 0.7);
+
+  --color-bg-primary: var(--paper);
+  --color-bg-secondary: var(--surface);
+  --color-bg-tertiary: var(--sunken);
+  --color-bg-translucent: color-mix(in oklch, var(--paper) 78%, transparent);
+  --color-text-primary: var(--ink);
+  --color-text-secondary: var(--ink-2);
+  --color-text-tertiary: var(--ink-3);
+  --color-border-default: var(--border);
+  --color-border-strong: var(--border-strong);
+  /* Ação primária é tinta (neutra); o destaque quente (--signal) só pede ação humana. */
+  --color-accent-primary: var(--ink);
+  --color-accent-hover: var(--ink-2);
+  --color-on-accent: var(--paper);
+  --color-status-success: var(--ok);
+  --color-status-warning: var(--signal);
+  --color-status-error: var(--err);
+  --color-status-info: var(--ink-2);
+  --color-status-idle: var(--ink-3);
+
+  /* ── Agent Role Colors-engineering: #3b82f6;
   --role-security: #ef4444;
   --role-devops: #f59e0b;
   --role-data: #8b5cf6;
@@ -77,12 +116,12 @@
   --peer-8: #d6336c;
 
   /* ── Accent Semantic Aliases ── */
-  --accent-blue: #3e63dd;
-  --accent-red: #e5484d;
+  --accent-blue: var(--ink-2);
+  --accent-red: var(--err);
 
   /* ── Typography ── */
-  --font-family-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-family-mono: 'JetBrains Mono', ui-monospace, 'Fira Code', 'Consolas', monospace;
+  --font-family-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-family-mono: 'Geist Mono', ui-monospace, 'Fira Code', 'Consolas', monospace;
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-base: 1rem;
@@ -109,11 +148,11 @@
   --space-16: 4rem;
 
   /* ── Shadows ── */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.4);
-  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.5);
-  --shadow-glow-blue: 0 0 20px rgba(59, 130, 246, 0.3);
+  --shadow-sm: 0 1px 2px oklch(20% 0.02 260 / 0.08);
+  --shadow-md: 0 4px 6px oklch(20% 0.02 260 / 0.08);
+  --shadow-lg: 0 10px 15px oklch(20% 0.02 260 / 0.1);
+  --shadow-xl: 0 20px 25px oklch(20% 0.02 260 / 0.14);
+  --shadow-glow-blue: none;
 
   /* ── Border Radius ── */
   --radius-sm: 4px;
@@ -161,21 +200,49 @@
   --z-command-palette: 1200;
 }
 
-/* ── Light Theme Override ── */
-[data-theme="light"] {
-  --color-bg-primary: #ffffff;
-  --color-bg-secondary: #f8fafc;
-  --color-bg-tertiary: #f1f5f9;
-  --color-bg-translucent: rgba(255, 255, 255, 0.7);
-  --color-text-primary: #0f172a;
-  --color-text-secondary: #475569;
-  --color-text-tertiary: #94a3b8;
-  --color-border-default: #e2e8f0;
-  --color-border-strong: #cbd5e1;
-  --color-accent-primary: #2563eb;
-  --color-accent-hover: #1d4ed8;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
-  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15);
+/* ── Tema escuro: segue o sistema; [data-theme] escolhido pela pessoa vence (theme.js / ThemeContext) ── */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: oklch(17% 0.012 260);
+    --surface: oklch(21% 0.014 260);
+    --sunken: oklch(14.5% 0.01 260);
+    --ink: oklch(95% 0.008 260);
+    --ink-2: oklch(74% 0.015 260);
+    --ink-3: oklch(66% 0.015 260);
+    --border: oklch(30% 0.015 260);
+    --border-strong: oklch(55% 0.02 260);
+    --signal: oklch(72% 0.17 45);
+    --signal-bg: oklch(26% 0.05 45);
+    --on-signal: oklch(17% 0.012 260);
+    --ok: oklch(74% 0.15 155);
+    --err: oklch(72% 0.17 25);
+    --outline-image: oklch(1 0 0 / 0.1);
+    --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.3);
+    --shadow-md: 0 4px 6px oklch(0% 0 0 / 0.3);
+    --shadow-lg: 0 10px 15px oklch(0% 0 0 / 0.4);
+    --shadow-xl: 0 20px 25px oklch(0% 0 0 / 0.5);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: oklch(17% 0.012 260);
+  --surface: oklch(21% 0.014 260);
+  --sunken: oklch(14.5% 0.01 260);
+  --ink: oklch(95% 0.008 260);
+  --ink-2: oklch(74% 0.015 260);
+  --ink-3: oklch(66% 0.015 260);
+  --border: oklch(30% 0.015 260);
+  --border-strong: oklch(55% 0.02 260);
+  --signal: oklch(72% 0.17 45);
+  --signal-bg: oklch(26% 0.05 45);
+  --on-signal: oklch(17% 0.012 260);
+  --ok: oklch(74% 0.15 155);
+  --err: oklch(72% 0.17 25);
+  --outline-image: oklch(1 0 0 / 0.1);
+  --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.3);
+  --shadow-md: 0 4px 6px oklch(0% 0 0 / 0.3);
+  --shadow-lg: 0 10px 15px oklch(0% 0 0 / 0.4);
+  --shadow-xl: 0 20px 25px oklch(0% 0 0 / 0.5);
 }

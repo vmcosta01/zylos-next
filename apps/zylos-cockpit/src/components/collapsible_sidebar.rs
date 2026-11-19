@@ -190,7 +190,7 @@ pub fn CollapsibleSidebar(
                                                         }
                                                     }
                                                 >
-                                                    <span class="item-icon">{tab_icon(tab)}</span>
+                                                    <span class="item-icon"><i class=format!("ph ph-{}", tab_icon(tab)) aria-hidden="true"></i></span>
                                                     <span class="item-label">{move || i18n.t(tab.i18n_key())}</span>
                                                 </button>
                                             </li>
@@ -206,23 +206,43 @@ pub fn CollapsibleSidebar(
     }
 }
 
-/// Ícone simples por aba (placeholder até Fase 7 com ícones SVG reais).
+/// Ícone Phosphor por aba (nome sem o prefixo `ph-`). Novos nomes entram em
+/// `scripts/build-icons.py`, que gera o subconjunto da fonte servido em `fonts/`.
 fn tab_icon(tab: Tab) -> &'static str {
     match tab {
-        Tab::Agents => "👤",
-        Tab::Tasks => "✓",
-        Tab::Memory => "🧠",
-        Tab::Goals => "🎯",
-        Tab::SwarmDag => "⚡",
-        Tab::Sentinel => "🛡",
-        Tab::Soar => "🔄",
-        Tab::Channels => "📢",
-        Tab::PhoneRelay => "📱",
-        Tab::Chat => "💬",
-        Tab::Threads => "🧵",
-        Tab::Personalities => "🎭",
-        Tab::Skins => "🎨",
-        Tab::Integrations => "⚙️",
-        _ => "•",
+        Tab::Agents => "robot",
+        Tab::Tasks => "check-square",
+        Tab::Memory => "brain",
+        Tab::Goals => "target",
+        Tab::Personalities => "user-circle",
+        Tab::SwarmDag => "graph",
+        Tab::SwarmTopology => "share-network",
+        Tab::Sentinel => "shield-check",
+        Tab::Soar => "lightning",
+        Tab::Subagents => "tree-structure",
+        Tab::TaskTriage => "funnel",
+        Tab::Security => "lock-key",
+        Tab::HitlApproval => "hand-palm",
+        Tab::EvidenceLedger => "books",
+        Tab::Awareness => "eye",
+        Tab::EmployeeGovernance => "scales",
+        Tab::Channels => "megaphone",
+        Tab::PhoneRelay => "device-mobile",
+        Tab::Chat => "chats-circle",
+        Tab::Threads => "chat-teardrop-text",
+        Tab::Reactions => "smiley",
+        Tab::Skills => "toolbox",
+        Tab::SkillEditor => "pencil-simple",
+        Tab::SkillEvolution => "git-branch",
+        Tab::Files => "folder-simple",
+        Tab::Analytics => "chart-line-up",
+        Tab::Collab => "users-three",
+        Tab::Logs => "scroll",
+        Tab::Voice => "microphone",
+        Tab::Avatars => "user-focus",
+        Tab::Skins => "palette",
+        Tab::Fleet => "buildings",
+        Tab::Federation => "globe-hemisphere-west",
+        Tab::Integrations => "plugs-connected",
     }
 }

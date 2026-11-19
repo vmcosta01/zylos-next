@@ -5,10 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Zylos Cockpit</title>
     <meta name="description" content="Zylos Cockpit — painel de orquestração multi-agente do Zylos-Next: agentes, tarefas, memória, aprovações HITL e observabilidade." />
-    <meta name="theme-color" content="#0f1117" />
+    <meta name="theme-color" content="#f9fafd" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0c1015" media="(prefers-color-scheme: dark)" />
     <!-- URL base do gateway (T11.5.6). Vazio = só usa http://localhost:3000 quando servido de localhost.
          Em produção, preencher no deploy (ex.: https://gateway.zylos.example). -->
     <meta name="zylos-gateway-url" content="" />
+    <script src="/theme.js"></script>
 
     <!-- T11.5.3 resource hints: o Trunk injeta <link rel="modulepreload"> do JS e
          <link rel="preload" as="fetch" type="application/wasm"> do WASM automaticamente. -->
@@ -21,35 +23,38 @@
     <style>
         /* Reset + base (espelha style.css:16-23 sem depender de design-tokens) */
         *{margin:0;padding:0;box-sizing:border-box}
-        html,body{background:#0f1117;color:#e4e6ed;font-family:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;line-height:1.5}
+        html,body{background:var(--paper);color:var(--ink);font-family:'Geist',system-ui,-apple-system,'Segoe UI',sans-serif;line-height:1.5}
         /* Shell layout (espelha .cockpit-root/.cockpit-header/.cockpit-main) */
         #app-splash{max-width:1280px;margin:0 auto;padding:24px;display:flex;flex-direction:column;gap:16px}
-        #app-splash .splash-header{display:flex;align-items:center;justify-content:space-between;padding-bottom:16px;border-bottom:1px solid #2a2d3a}
+        #app-splash .splash-header{display:flex;align-items:center;justify-content:space-between;padding-bottom:16px;border-bottom:1px solid var(--border)}
         #app-splash .splash-header h1{font-size:24px;font-weight:700;letter-spacing:-.01em}
-        #app-splash .splash-version{font-family:'JetBrains Mono','Fira Code',monospace;font-size:12px;color:#8b8fa3;background:#1a1d27;border:1px solid #2a2d3a;padding:2px 8px;border-radius:9999px}
+        #app-splash .splash-version{font-family:'Geist Mono',monospace;font-size:12px;color:var(--ink-2);background:var(--surface);border:1px solid var(--border);padding:2px 8px;border-radius:9999px}
         /* Skeleton grid (espelha .skeleton-grid/.skeleton-card/.pulse — LCP candidate) */
         #app-splash .skeleton-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
-        #app-splash .skeleton-card{height:110px;border-radius:8px;background:#1a1d27;animation:splash-pulse 1.4s ease-in-out infinite}
+        #app-splash .skeleton-card{height:110px;border-radius:8px;background:var(--surface);animation:splash-pulse 1.4s ease-in-out infinite}
         @keyframes splash-pulse{0%,100%{opacity:1}50%{opacity:.4}}
         /* Error banner estático: VISÍVEL imediatamente como LCP candidate.
            Quando o Leptos monta .cockpit-root, body:has() esconde todo o #app-splash.
            Se o gateway responder com sucesso, o Leptos substitui o conteúdo; se falhar,
            este banner já está pintado desde o first paint (~375ms), não após 4s de fetch. */
-        #app-splash .error-banner{border:1px solid #ef4444;border-left-width:4px;border-radius:8px;padding:24px;background:#1a1d27;display:flex;flex-direction:column;gap:12px;align-items:flex-start;min-height:120px}
-        #app-splash .error-banner p{color:#e4e6ed;font-size:16px;line-height:1.5}
-        #app-splash .error-banner .error-title{font-size:18px;font-weight:600;color:#ef4444;margin-bottom:4px}
-        #app-splash .cta-retry{border:1px solid #2563EB;border-radius:6px;padding:10px 20px;font:500 14px 'Inter',system-ui,sans-serif;cursor:pointer;background:#2563EB;color:#fff;margin-top:8px}
+        #app-splash .error-banner{border:1px solid var(--err);border-left-width:4px;border-radius:8px;padding:24px;background:var(--surface);display:flex;flex-direction:column;gap:12px;align-items:flex-start;min-height:120px}
+        #app-splash .error-banner p{color:var(--ink);font-size:16px;line-height:1.5}
+        #app-splash .error-banner .error-title{font-size:18px;font-weight:600;color:var(--err);margin-bottom:4px}
+        #app-splash .cta-retry{border:1px solid var(--ink);border-radius:6px;padding:10px 20px;font:500 14px 'Geist',system-ui,sans-serif;cursor:pointer;background:var(--ink);color:var(--paper);margin-top:8px}
         /* Quando o Leptos monta .shell-layout (v2.0), esconde o splash imediatamente */
                 body:has(.shell-layout) #app-splash{display:none}
             </style>
     <!-- rel="inline" do Trunk 0.22 embute o arquivo num <style> no HTML final
          (o `rel="css" data-inline` não tinha efeito e gerava 2 <link> bloqueantes). -->
     <link data-trunk rel="inline" type="css" href="styles/design-tokens.css" />
+    <link data-trunk rel="inline" type="css" href="fonts/phosphor.css" />
     <link data-trunk rel="inline" type="css" href="styles/base.css" />
 
     <!-- T11.5.4 assets estáticos (a seção [[copy]] do Trunk.toml é ignorada pelo Trunk 0.22) -->
     <link data-trunk rel="copy-file" href="manifest.json" />
     <link data-trunk rel="copy-file" href="sw.js" />
+    <link data-trunk rel="copy-file" href="theme.js" />
+    <link data-trunk rel="copy-dir" href="fonts" />
     <link data-trunk rel="copy-file" href="robots.txt" />
     <link data-trunk rel="copy-file" href="_headers" />
     <link data-trunk rel="copy-dir" href="icons" />
