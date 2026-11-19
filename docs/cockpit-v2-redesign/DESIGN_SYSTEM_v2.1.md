@@ -2,7 +2,7 @@
 
 **Versão:** 2.1.0 (proposta, substitui a direção visual de [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md) v2.0)
 **Data:** 2026-11-19
-**Status:** Proposta para aprovação. Nada foi implementado no código.
+**Status:** Implementado no cockpit (tokens, tema, fontes, ícones, navegação, cartão de aprovação, computador inline). Ver §11 para o que ficou de fora.
 **Par:** [APP_FLOW_v2.1.md](./APP_FLOW_v2.1.md) · mockup: [mockup-v2.1.html](./mockup-v2.1.html)
 **Fonte única de tokens (mantida de ADR-008):** `apps/zylos-cockpit/styles/design-tokens.css`
 
@@ -276,14 +276,27 @@ Removidos da v2.0: elevação de 2px no hover do cartão, "ripple" no clique, en
 | D4 | Skins extras (Ocean, Forest etc.) | Adiar para depois do lançamento; sem tocar `--signal`, `--ok`, `--err`. |
 | D5 | Personagens dos agentes: gerar (imagem) ou usar monograma no lançamento | Monograma no lançamento, personagens na fase seguinte. |
 
-## 11. Pendências e o que NÃO foi feito
+## 11. Estado da implementação (2026-11-19)
 
-- **Nada implementado em Rust/CSS.** Este arquivo e o mockup são especificação. `design-tokens.css` e `base.css` seguem como estavam.
-- Avatares-personagem não existem (D5).
-- O mockup foi aberto no navegador em desktop claro e celular 375px escuro: sem rolagem horizontal, aba Inbox, painel Computador e fluxo de aprovação até o recibo funcionam. **Não verificado:** tablet 768px, 320px, escuro em desktop, leitor de tela, e o brilho do esqueleto a 10% de velocidade.
-- A fonte Geist precisa ser baixada e hospedada em `apps/zylos-cockpit/static/` antes do uso real.
-- Os 82 hex fora de `design-tokens.css` (principalmente `sentinel_panel.rs`) continuam e devem ser migrados na implementação.
-- Metas de Lighthouse e "nota Apple" da v2.0 devem ser trocadas por critérios medidos (captura de tela, axe, Lighthouse).
+**Feito e verificado no navegador (claro, escuro e celular 375px):**
+- Tokens OKLCH com nomes legados mantidos, claro por padrão e escuro pelo sistema ou por `data-theme`; `ThemeContext` aplica `data-theme` (antes só a classe no `body`, que o CSS não lia, então o tema claro nunca aparecia); `theme.js` aplica o tema salvo antes da primeira pintura.
+- Geist e Geist Mono auto-hospedadas; Phosphor em subconjunto de 53 glifos (6,6 KB) gerado por `scripts/build-icons.py`.
+- Navegação: Chat, Inbox e Activity no cabeçalho e em barra inferior no celular; Inbox com contador ao vivo.
+- Cartão de aprovação: Recusar, Permitir uma vez, Sempre permitir (confirmação inline; desabilitado para risco alto, decisão D1); regras permanentes com Revogar.
+- Computador do agente como cartão no chat, com Expandir.
+- Palette sem animação; hover do card de agente sem elevação; 12 faixas laterais coloridas viraram borda completa.
+
+**Divergências em relação à especificação:**
+- O **Rail de Spaces não foi implementado**: a sidebar continua agrupada por função (6 grupos, 34 abas). Spaces exigem modelo de dados e API que não existem.
+- Activity mostra **decisões da pessoa** (recibos de 7 dias) e os avisos do SSE **desta sessão** (em memória). A seção "Resolvido por você e pelos agentes" com `Desfazer` não existe: o backend não registra o que os agentes resolveram sozinhos.
+- Avatares-personagem (D5): ficou o monograma/ícone; os personagens não foram produzidos.
+- Muitos painéis antigos ainda usam emoji como ícone (chat, VNC, avatares); só a sidebar e o botão de tema foram migrados para Phosphor.
+- A cor de papel por função (`--role-*`) e os skins continuam no código como dados; deixaram de colorir a interface principal.
+- Contraste foi calculado para os tokens; o Lighthouse mede Accessibility 100.
+
+**Medições (release, localhost, Lighthouse mobile):** Performance 47 (LCP 13,8 s, TBT 2,18 s), Accessibility 100, Best Practices 96, SEO 63 (robots.txt bloqueia indexação de propósito). O gargalo é o WASM de 2,14 MB (582 KB em brotli); reduzir exige dividir o bundle, que o Leptos CSR não faz hoje.
+
+**Decisões D1 a D5:** adotados os padrões propostos em §10 (D1 sem "Sempre permitir" para risco alto; D2 escopo agente + ferramenta + categoria no backend; D3 PT-BR; D4 skins adiados; D5 monograma). Revise se algum não for o que você quer.
 
 ## 12. O que mudou em relação à v2.0
 

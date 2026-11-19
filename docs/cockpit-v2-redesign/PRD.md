@@ -96,28 +96,36 @@ Transformar o Cockpit em dashboard de orquestração de agentes IA com qualidade
 ## 5. Definition of Done (Critérios Objetivos)
 
 ### Critérios Funcionais
-- [ ] Inline approval cards renderizam no fluxo de chat com approve/reject/escalate funcionais
-- [ ] VNC stream conecta via WebSocket e exibe frames em Canvas com <200ms latency
-- [ ] Screenshot fallback ativa automaticamente quando VNC falha (timeout 3s)
-- [ ] Command palette abre com Cmd/Ctrl+K, busca em <100ms, executa ação sem sair do contexto
-- [ ] Sidebar agrupa itens em Core/Orquestração/Comunicação/Configuração com colapso persistente
-- [ ] Toast notifications aparecem para eventos assíncronos (approval timeout, agent error, sentinel alert)
+Estado em 2026-11-19, verificado no navegador contra o gateway real (ver "Evidências" abaixo).
+
+- [x] Inline approval cards renderizam no fluxo de chat com ações funcionais (v2.1: **Recusar / Permitir uma vez / Sempre permitir**; "Escalar" foi removido porque o backend nunca aceitou `escalate`)
+- [ ] VNC stream conecta via WebSocket e exibe frames em Canvas com <200ms de latência (WS conecta e mostra "Ao vivo"; **frames e latência não foram medidos**, não há fonte de frames no ambiente de teste)
+- [ ] Screenshot fallback ativa automaticamente quando VNC falha (timeout 3s) (rota do screenshot responde 200; o timeout de 3s está "simplificado" no código e **não foi exercitado**)
+- [x] Command palette abre com Cmd/Ctrl+K e executa ação sem sair do contexto (tema, atualizar, limpar notificações, aprovar em lote com confirmação, navegação). **Tempo de busca <100ms não foi medido**
+- [x] Sidebar agrupa itens com colapso persistente (implementada com 6 grupos, não 4)
+- [x] Toasts para eventos assíncronos: aprovação pedida, resolvida e expirada e alerta do Sentinela chegam do gateway pelo SSE; erro de agente é tratado quando o backend emitir `AgentStateChanged` com estado de erro (ainda não emitido)
 
 ### Critérios de Performance
-- [ ] Lighthouse Mobile score ≥90 (Performance, Accessibility, Best Practices, SEO)
-- [ ] Largest Contentful Paint (LCP) <2s em 3G throttling
-- [ ] Total Blocking Time (TBT) <300ms
-- [ ] Cumulative Layout Shift (CLS) <0.1
-- [ ] WASM bundle size <800KB gzipped (atual ~1.2MB)
-- [ ] Spring animations mantêm 60fps em dispositivos mid-range (Snapdragon 7 Gen 1 ou equivalente)
+Medido em `trunk build --release` servido em localhost, Lighthouse mobile padrão (throttling simulado).
+
+- [ ] Lighthouse Mobile ≥90: **Performance 47**, Accessibility 100, Best Practices 96, **SEO 63** (o SEO cai por `robots.txt` bloqueando indexação, intencional para um painel privado)
+- [ ] LCP <2s em 3G: **13,8 s** no Lighthouse mobile simulado
+- [ ] TBT <300ms: **2.180 ms** (parse e execução de ~2,1 MB de WASM sob CPU 4x mais lenta)
+- [x] CLS <0.1: **0**
+- [x] Bundle WASM <800KB comprimido: 2,14 MB bruto, **582 KB em brotli** (o que o Cloudflare Pages serve) e 801 KB em gzip -9
+- [ ] Spring animations a 60fps em aparelho intermediário (não medido; a v2.1 removeu a maior parte da animação)
 
 ### Critérios de Design
-- [ ] Zero conflitos CSS: único arquivo `design-tokens.css` como single source of truth
-- [ ] backdrop-filter: blur(20px) saturate(180%) em header e sidebar
-- [ ] 6 estados obrigatórios documentados e implementados para cada componente crítico
-- [ ] prefers-reduced-motion respeitado: zero animações quando ativo
-- [ ] prefers-reduced-transparency respeitado: fundos opacos quando ativo
-- [ ] prefers-contrast respeitado: bordas e texto com contraste aumentado quando ativo
+- [x] Cores só em `styles/design-tokens.css` (sem hex em `base.css`; `index.html` só tem os `meta theme-color`; skins são dados de tema)
+- [x] Vidro (`backdrop-filter`) no cabeçalho flutuante (v2.1 revisou: blur 16px, só no cabeçalho; sidebar e palette são opacos)
+- [ ] 6 estados documentados e implementados em cada componente crítico (cobertos: carregando, vazio, erro e sucesso nas telas novas; a matriz completa não foi auditada componente a componente)
+- [x] `prefers-reduced-motion` respeitado
+- [x] `prefers-reduced-transparency` respeitado
+
+### Evidências (2026-11-19)
+- Gateway real iniciado com `ZYLOS_AUTH_SECRET`; login, criar aprovação (201), SSE com `ApprovalRequested`, `ApprovalResolved`, `ApprovalTimeout` e `SentinelAlert`, resolver sem token (401) e com admin (200).
+- Navegador: aprovação criada pelo backend aparece no painel e no chat sem recarregar; Permitir uma vez e Sempre permitir (grava regra no SQLite; Revogar remove); Inbox e Activity; computador do agente expande e conecta (101 no WebSocket).
+- Testes: cockpit 157 (lib) + 19 (bin) + 25 (wasm-pack em Chrome headless), gateway 125, live-comm 183, computer-view 24. Clippy sem avisos novos.
 
 ### Critérios de Qualidade
 - [ ] TESTING.md com checklist de 8 tipos completo e verde

@@ -2,7 +2,7 @@
 
 **Versão:** 2.1.0 (proposta, substitui a arquitetura de telas de [APP_FLOW.md](./APP_FLOW.md) v2.0)
 **Data:** 2026-11-19
-**Status:** Proposta para aprovação
+**Status:** Implementado (ver §14 para o que ficou de fora)
 **Par:** [DESIGN_SYSTEM_v2.1.md](./DESIGN_SYSTEM_v2.1.md) · [mockup-v2.1.html](./mockup-v2.1.html)
 
 ---
@@ -251,16 +251,29 @@ Mantido da v2.0 com as mudanças de [DESIGN_SYSTEM_v2.1.md §6.8](./DESIGN_SYSTE
 | Toast | §6.8 | AF-11 |
 | Vistas de Space | §5 | AF-03, AF-04, AF-05 |
 
-## 14. Pendências e riscos
+## 14. Estado da implementação (2026-11-19)
 
 | Item | Situação |
 |---|---|
-| Endpoint de lease do computador | **A criar** (já pendente na v2.0) |
-| Endpoints de Spaces, Inbox e Activity | Precisam de contrato com o backend; podem agregar dados existentes na primeira entrega |
-| Redirecionamento das rotas antigas | A implementar (302) |
-| Mapeamento dos 40+ componentes do código para as novas telas | Não foi feito; é a primeira tarefa da implementação |
-| Decisões D1 a D5 | Aguardam o Victor ([DESIGN_SYSTEM_v2.1.md §10](./DESIGN_SYSTEM_v2.1.md)) |
-| Nada disto foi implementado ou testado em código | Especificação apenas |
+| Abas Chat / Inbox / Activity | **Feitas**, com barra inferior no celular |
+| Aprovação com 3 ações, regras permanentes e revogação | **Feitas** (rotas `POST /approvals`, `POST /approvals/resolve`, `GET /approvals/rules`, `POST /approvals/rules/revoke`) |
+| Eventos SSE de aprovação e alerta | **Feitos** no gateway (`ApprovalRequested`, `ApprovalResolved`, `ApprovalTimeout`, `SentinelAlert`) |
+| Painel Computador inline | **Feito** como cartão no chat; WS e lease funcionam. Frames reais e latência não testados |
+| Endpoint de lease | **Já existia** (`/computer-view/sessions/:id/control`), mas as rotas `{id}` do axum 0.7 respondiam 404; corrigido |
+| Spaces e Rail de Spaces | **Não feitos** (precisam de modelo de dados e API) |
+| "Resolvido por você e pelos agentes" com Desfazer | **Não feito** (o backend não registra ações autônomas dos agentes) |
+| Redirecionamento 302 das rotas antigas | **Não feito**: o cockpit navega por estado, não por rotas de URL |
+| Mapeamento dos 40+ componentes às telas novas | Parcial: as 34 abas antigas continuam na sidebar |
+
+## 14.1 Bugs do backend encontrados ao implementar (corrigidos)
+
+1. `POST /api/v1/approval/resolve` (singular) usa outro store e outro enum; resolver pelo cockpit dava 404/422. A resolução ficou em `/approvals/resolve`.
+2. Gateway não migrava o SQLite de aprovações: banco novo respondia 500.
+3. `/approvals/resolve` ficou de fora de `rota_admin` (qualquer papel aprovava).
+4. O cockpit enviava a decisão `escalate`, que o backend recusa com 400.
+5. Rotas `{id}` (sintaxe do axum 0.8) no axum 0.7: sessão, screenshot, lease e `/goals/:id` sempre 404.
+6. WebSocket do computador pedido em `/ws/...` quando o gateway monta em `/api/v1/ws/...`, e sem autenticação por `?access_token=`.
+7. `trunk build` falhava: o hook do wasm-opt recebia `$WASM_FILE` literal.
 
 ## 15. Changelog
 
