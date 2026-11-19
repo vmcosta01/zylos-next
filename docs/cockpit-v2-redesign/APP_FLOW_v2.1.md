@@ -260,8 +260,8 @@ Mantido da v2.0 com as mudanças de [DESIGN_SYSTEM_v2.1.md §6.8](./DESIGN_SYSTE
 | Eventos SSE de aprovação e alerta | **Feitos** no gateway (`ApprovalRequested`, `ApprovalResolved`, `ApprovalTimeout`, `SentinelAlert`) |
 | Painel Computador inline | **Feito** como cartão no chat; WS e lease funcionam. Frames reais e latência não testados |
 | Endpoint de lease | **Já existia** (`/computer-view/sessions/:id/control`), mas as rotas `{id}` do axum 0.7 respondiam 404; corrigido |
-| Spaces e Rail de Spaces | **Não feitos** (precisam de modelo de dados e API) |
-| "Resolvido por você e pelos agentes" com Desfazer | **Não feito** (o backend não registra ações autônomas dos agentes) |
+| Spaces e Rail de Spaces | **Feitos**: `GET/POST /spaces`, `PUT/DELETE /spaces/:id`, Rail na sidebar, filtro por agente. Conversas e memória por Space **não** |
+| "Resolvido por você e pelos agentes" | **Parcial**: "Resolvido por regras" (`GET /approvals/handled`) com **Revogar regra**; sem `Desfazer` (a ação já foi liberada) |
 | Redirecionamento 302 das rotas antigas | **Não feito**: o cockpit navega por estado, não por rotas de URL |
 | Mapeamento dos 40+ componentes às telas novas | Parcial: as 34 abas antigas continuam na sidebar |
 

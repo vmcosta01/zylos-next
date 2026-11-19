@@ -283,14 +283,18 @@ Removidos da v2.0: elevação de 2px no hover do cartão, "ripple" no clique, en
 - Geist e Geist Mono auto-hospedadas; Phosphor em subconjunto de 53 glifos (6,6 KB) gerado por `scripts/build-icons.py`.
 - Navegação: Chat, Inbox e Activity no cabeçalho e em barra inferior no celular; Inbox com contador ao vivo.
 - Cartão de aprovação: Recusar, Permitir uma vez, Sempre permitir (confirmação inline; desabilitado para risco alto, decisão D1); regras permanentes com Revogar.
-- Computador do agente como cartão no chat, com Expandir.
+- Computador do agente como cartão no chat, com Expandir; sem frame em 3 s cai no screenshot estático (verificado: 1920x1080 carregado do gateway) e tenta reconectar a cada 5 s; o rótulo diz "Conectado, aguardando imagem" em vez de "Ao vivo" enquanto não há imagem.
+- **Spaces**: Rail na sidebar para listar, criar, apagar e definir os agentes com acesso; o Space ativo (guardado no navegador) filtra Inbox, aprovações no chat, contador do cabeçalho e bots do chat. O "Geral" é aberto e protegido.
+- **Resolvido por regras**: pedido coberto por uma regra "Sempre permitir" nasce aprovado, gera aviso e aparece na Activity com "Revogar regra".
+- Emoji do chrome (toast, sidebar, chat, VNC, palette, cards, erro) trocados por Phosphor (62 glifos, 7,7 KB).
 - Palette sem animação; hover do card de agente sem elevação; 12 faixas laterais coloridas viraram borda completa.
 
 **Divergências em relação à especificação:**
-- O **Rail de Spaces não foi implementado**: a sidebar continua agrupada por função (6 grupos, 34 abas). Spaces exigem modelo de dados e API que não existem.
-- Activity mostra **decisões da pessoa** (recibos de 7 dias) e os avisos do SSE **desta sessão** (em memória). A seção "Resolvido por você e pelos agentes" com `Desfazer` não existe: o backend não registra o que os agentes resolveram sozinhos.
+- Spaces filtram por **nome de agente** (bot_id). Não há ainda conversas nem memória por Space: o filtro vale para aprovações e bots.
+- "Resolvido por regras" substitui "Resolvido por você e pelos agentes": só o que uma regra liberou é registrado, e o controle é **Revogar regra**. `Desfazer` não existe porque a ação já foi liberada.
+- Activity mostra decisões da pessoa (recibos de 7 dias) e os avisos do SSE **desta sessão** (em memória).
 - Avatares-personagem (D5): ficou o monograma/ícone; os personagens não foram produzidos.
-- Muitos painéis antigos ainda usam emoji como ícone (chat, VNC, avatares); só a sidebar e o botão de tema foram migrados para Phosphor.
+- Cerca de 110 emoji de **conteúdo** continuam (reações, tipos de arquivo, status de painéis secundários); só o chrome foi migrado.
 - A cor de papel por função (`--role-*`) e os skins continuam no código como dados; deixaram de colorir a interface principal.
 - Contraste foi calculado para os tokens; o Lighthouse mede Accessibility 100.
 

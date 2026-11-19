@@ -68,21 +68,27 @@ pub fn InlineComputers() -> impl IntoView {
 
     view! {
         <div class="chat-inline-computers">
-            {move || {
-                sessions
-                    .get()
-                    .into_iter()
-                    .map(|s| {
+            // Lista com chave: ao atualizar a cada 10 s, as sessões que continuam existindo mantêm o
+            // seu componente (antes o stream remontava e reiniciava a conexão a cada atualização).
+            <For
+                each=move || sessions.get()
+                key=|s| s.id.clone()
+                children=move |s| {
+                    {
                         let id = s.id.clone();
                         let id_toggle = s.id.clone();
                         let is_open = Memo::new(move |_| open_id.get().as_deref() == Some(id.as_str()));
                         let id_view = s.id.clone();
+                        let state_id = s.id.clone();
                         view! {
                             <section class="computer-mini" aria-label=format!("Computador de {}", s.bot_id)>
                                 <header class="computer-mini-head">
                                     <i class="ph ph-device-mobile" aria-hidden="true"></i>
                                     <strong>{format!("Computador de {}", s.bot_id)}</strong>
-                                    <span class="computer-mini-state">{state_label(&s.state)}</span>
+                                    <span class="computer-mini-state">{move || {
+                                        let id = state_id.clone();
+                                        sessions.get().iter().find(|x| x.id == id).map(|x| state_label(&x.state)).unwrap_or("")
+                                    }}</span>
                                     <button
                                         class="cta-secondary"
                                         aria-expanded=move || is_open.get().to_string()
@@ -105,9 +111,9 @@ pub fn InlineComputers() -> impl IntoView {
                                 })}
                             </section>
                         }
-                    })
-                    .collect_view()
-            }}
+                    }
+                }
+            />
         </div>
     }
 }

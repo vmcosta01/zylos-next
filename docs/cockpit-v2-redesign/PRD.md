@@ -100,7 +100,7 @@ Estado em 2026-11-19, verificado no navegador contra o gateway real (ver "Evidê
 
 - [x] Inline approval cards renderizam no fluxo de chat com ações funcionais (v2.1: **Recusar / Permitir uma vez / Sempre permitir**; "Escalar" foi removido porque o backend nunca aceitou `escalate`)
 - [ ] VNC stream conecta via WebSocket e exibe frames em Canvas com <200ms de latência (WS conecta e mostra "Ao vivo"; **frames e latência não foram medidos**, não há fonte de frames no ambiente de teste)
-- [ ] Screenshot fallback ativa automaticamente quando VNC falha (timeout 3s) (rota do screenshot responde 200; o timeout de 3s está "simplificado" no código e **não foi exercitado**)
+- [x] Screenshot fallback ativa automaticamente quando não chega frame em 3 s: verificado no navegador (imagem 1920x1080 do gateway, com tentativa de reconexão a cada 5 s)
 - [x] Command palette abre com Cmd/Ctrl+K e executa ação sem sair do contexto (tema, atualizar, limpar notificações, aprovar em lote com confirmação, navegação). **Tempo de busca <100ms não foi medido**
 - [x] Sidebar agrupa itens com colapso persistente (implementada com 6 grupos, não 4)
 - [x] Toasts para eventos assíncronos: aprovação pedida, resolvida e expirada e alerta do Sentinela chegam do gateway pelo SSE; erro de agente é tratado quando o backend emitir `AgentStateChanged` com estado de erro (ainda não emitido)
@@ -125,7 +125,8 @@ Medido em `trunk build --release` servido em localhost, Lighthouse mobile padrã
 ### Evidências (2026-11-19)
 - Gateway real iniciado com `ZYLOS_AUTH_SECRET`; login, criar aprovação (201), SSE com `ApprovalRequested`, `ApprovalResolved`, `ApprovalTimeout` e `SentinelAlert`, resolver sem token (401) e com admin (200).
 - Navegador: aprovação criada pelo backend aparece no painel e no chat sem recarregar; Permitir uma vez e Sempre permitir (grava regra no SQLite; Revogar remove); Inbox e Activity; computador do agente expande e conecta (101 no WebSocket).
-- Testes: cockpit 157 (lib) + 19 (bin) + 25 (wasm-pack em Chrome headless), gateway 125, live-comm 183, computer-view 24. Clippy sem avisos novos.
+- Spaces (criar, definir agente, Inbox filtrado, persistência da escolha) e pedido resolvido por regra com Revogar verificados no navegador contra o gateway real.
+- Testes: cockpit 161 (lib) + 20 (bin) + 25 (wasm-pack em Chrome headless, rodado antes de Spaces), gateway 130, live-comm 183, computer-view 24. Clippy sem avisos novos.
 
 ### Critérios de Qualidade
 - [ ] TESTING.md com checklist de 8 tipos completo e verde

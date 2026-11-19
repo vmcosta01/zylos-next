@@ -107,7 +107,15 @@ pub fn VncStream(
             crate::auth::authed_url(&format!("{ws_base}/api/v1/ws/computer-view/{sid}"))
         };
 
-        let screenshot_path = format!("/api/v1/computer-view/sessions/{sid}/screenshot");
+        // URL absoluta no gateway, com o token na query: <img> não envia Authorization e o
+        // caminho relativo apontava para a origem do cockpit (404).
+        let screenshot_path = {
+            let base = crate::gateway_config::gateway_base().unwrap_or_default();
+            crate::auth::authed_url(&crate::gateway_config::join_url(
+                &base,
+                &format!("/api/v1/computer-view/sessions/{sid}/screenshot"),
+            ))
+        };
 
         // Reset state.
         state.set(VncState::Connecting);
@@ -125,9 +133,25 @@ pub fn VncStream(
 
         // Track frame timing for FPS.
         let frame_times: StoredValue<Vec<f64>> = StoredValue::new(Vec::new());
-        // Note: frame timeout simplified — timeout handle not stored to avoid
-        // leptos::reactive::owner::TimeoutHandle which doesn't exist in Leptos 0.7.
-        // Fallback is triggered on WS error/close instead.
+        // Sem nenhum frame em 3 s (ADR-003), cai no screenshot estático; o WebSocket segue aberto
+        // e, se um frame chegar depois, o canvas volta a aparecer.
+        {
+            let (state_t, has_frame_t, fallback_t, shot_t) =
+                (state, has_frame, fallback_url, screenshot_path.clone());
+            let cb = Closure::once(move || {
+                if !has_frame_t.get_value() && state_t.get_untracked() == VncState::Connected {
+                    state_t.set(VncState::Fallback);
+                    fallback_t.set(Some(shot_t));
+                }
+            });
+            if let Some(w) = web_sys::window() {
+                let _ = w.set_timeout_with_callback_and_timeout_and_arguments_0(
+                    cb.as_ref().unchecked_ref(),
+                    3000,
+                );
+            }
+            cb.forget();
+        }
 
         // onopen
         let state_clone = state;
@@ -141,8 +165,17 @@ pub fn VncStream(
         let fps_sig = fps;
         let frame_times_clone = frame_times;
         let has_frame_clone = has_frame;
+        let state_msg = state;
         let on_message = Closure::wrap(Box::new(move |e: MessageEvent| {
+            // Só frame binário conta: mensagens de texto (status do relay) não são imagem.
+            if !e.data().is_instance_of::<Blob>() {
+                return;
+            }
             has_frame_clone.set_value(true);
+            // Frame depois do fallback de 3 s: volta do screenshot para o stream.
+            if state_msg.get_untracked() != VncState::Connected {
+                state_msg.set(VncState::Connected);
+            }
 
             // Calcular FPS.
             let now = js_sys::Date::now();
@@ -292,7 +325,8 @@ pub fn VncStream(
                 <span class="vnc-status-text">
                     {move || match state.get() {
                         VncState::Connecting => "Conectando...".to_string(),
-                        VncState::Connected => format!("Ao vivo ({:.0} FPS)", fps.get()),
+                        VncState::Connected if fps.get() > 0.0 => format!("Ao vivo ({:.0} FPS)", fps.get()),
+                        VncState::Connected => "Conectado, aguardando imagem".to_string(),
                         VncState::Fallback => "Screenshot fallback".to_string(),
                         VncState::Disconnected => "Desconectado".to_string(),
                     }}
