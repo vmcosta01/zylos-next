@@ -24,6 +24,7 @@ toolbox pencil-simple git-branch folder-simple chart-line-up users-three scroll 
 palette buildings globe-hemisphere-west plugs-connected tray pulse
 sun moon circle-half caret-down caret-right caret-left x check warning-circle shield-warning
 magnifying-glass plus arrows-out-simple hand-grabbing camera list folder
+check-circle x-circle info warning clock-counter-clockwise file-text game-controller hand-waving clipboard-text
 """.split()
 
 css = (SRC / "phosphor-full.css").read_text(encoding="utf-8")

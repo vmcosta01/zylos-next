@@ -177,7 +177,7 @@ pub fn CollapsibleSidebar(
                     aria-label=move || if collapsed.get() { "Expandir sidebar" } else { "Recolher sidebar" }
                     title=move || if collapsed.get() { "Expandir" } else { "Recolher" }
                 >
-                    {move || if collapsed.get() { "☰" } else { "◀" }}
+                    {move || if collapsed.get() { view! { <i class="ph ph-list" aria-hidden="true"></i> } } else { view! { <i class="ph ph-caret-left" aria-hidden="true"></i> } }}
                 </button>
             </div>
 
@@ -203,7 +203,7 @@ pub fn CollapsibleSidebar(
                                 <span class="group-label">{group.label()}</span>
                                 <span class=move || {
                                     if is_expanded.get() { "group-chevron expanded" } else { "group-chevron" }
-                                }>"▾"</span>
+                                }><i class="ph ph-caret-down" aria-hidden="true"></i></span>
                             </button>
                             <Show when=move || is_expanded.get() || collapsed.get()>
                                 <ul class="sidebar-items" role="list">

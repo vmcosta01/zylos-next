@@ -298,7 +298,7 @@ pub fn VncStream(
                     }}
                 </span>
                 {move || controlling.get().then(|| view! {
-                    <span class="vnc-badge vnc-badge-controlling">{"🎮 Controlando"}</span>
+                    <span class="vnc-badge vnc-badge-controlling"><i class="ph ph-game-controller" aria-hidden="true"></i>" Controlando"</span>
                 })}
             </div>
 
@@ -395,7 +395,7 @@ pub fn VncStream(
                     </button>
                 </Show>
                 <button class="cta-secondary" aria-label="Capturar screenshot da sessão remota" on:click=capture_screenshot>
-                    {"📷 Capturar Tela"}
+                    <i class="ph ph-camera" aria-hidden="true"></i>" Capturar Tela"
                 </button>
             </div>
         </div>

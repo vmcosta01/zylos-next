@@ -69,3 +69,12 @@
 .ph-camera::before { content: "\e10e"; }
 .ph-list::before { content: "\e2f0"; }
 .ph-folder::before { content: "\e24a"; }
+.ph-check-circle::before { content: "\e184"; }
+.ph-x-circle::before { content: "\e4f8"; }
+.ph-info::before { content: "\e2ce"; }
+.ph-warning::before { content: "\e4e0"; }
+.ph-clock-counter-clockwise::before { content: "\e1a0"; }
+.ph-file-text::before { content: "\e23a"; }
+.ph-game-controller::before { content: "\e26e"; }
+.ph-hand-waving::before { content: "\e580"; }
+.ph-clipboard-text::before { content: "\e198"; }

@@ -36,6 +36,16 @@ impl ToastVariant {
         }
     }
 
+    /// Nome do ícone Phosphor (sem o prefixo `ph-`).
+    pub fn icon_name(self) -> &'static str {
+        match self {
+            ToastVariant::Success => "check-circle",
+            ToastVariant::Error => "x-circle",
+            ToastVariant::Warning => "warning",
+            ToastVariant::Info => "info",
+        }
+    }
+
     /// Auto-dismiss duration: 5s for success/info, None for error/warning (manual)
     pub fn auto_dismiss_ms(self) -> Option<u32> {
         match self {
@@ -138,7 +148,7 @@ fn ToastItem(toast: Toast) -> impl IntoView {
     let variant = toast.variant;
     let message = toast.message.clone();
     let css_class = variant.css_class().to_string();
-    let icon = variant.icon().to_string();
+    let icon_class = format!("ph ph-{}", variant.icon_name());
 
     // Timer handle for auto-dismiss (web_sys setTimeout returns i32)
     let timer_handle: StoredValue<Option<i32>> = StoredValue::new(None);
@@ -212,7 +222,7 @@ fn ToastItem(toast: Toast) -> impl IntoView {
             on:mouseenter=on_mouse_enter
             on:mouseleave=on_mouse_leave
         >
-            <span class="toast-icon">{icon}</span>
+            <span class="toast-icon"><i class=icon_class aria-hidden="true"></i></span>
             <span class="toast-message">{message}</span>
             <button
                 class="toast-close"

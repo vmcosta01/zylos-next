@@ -665,10 +665,10 @@ pub fn CommandPalette(open: RwSignal<bool>, set_active_tab: WriteSignal<Tab>) ->
                                                 flat_idx += 1;
                                                 let _sel = is_selected(idx);
                                                 let icon = match item.category {
-                                                    Category::Recent => "🕐",
-                                                    Category::Page => "📄",
-                                                    Category::Agent => "🤖",
-                                                    Category::Command => "⚡",
+                                                    Category::Recent => "clock-counter-clockwise",
+                                                    Category::Page => "file-text",
+                                                    Category::Agent => "robot",
+                                                    Category::Command => "lightning",
                                                 };
                                                 view! {
                                                     <button
@@ -684,7 +684,7 @@ pub fn CommandPalette(open: RwSignal<bool>, set_active_tab: WriteSignal<Tab>) ->
                                                         role="option"
                                                         aria-selected=move || is_selected(idx)
                                                     >
-                                                        <span class="cmd-palette-item-icon">{icon}</span>
+                                                        <span class="cmd-palette-item-icon"><i class=format!("ph ph-{}", icon) aria-hidden="true"></i></span>
                                                         <span class="cmd-palette-item-label">{item.label.clone()}</span>
                                                         {match item.category {
                                                             Category::Page | Category::Agent => view! {

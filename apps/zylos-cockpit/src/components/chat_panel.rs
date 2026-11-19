@@ -192,7 +192,7 @@ pub fn ChatPanel() -> impl IntoView {
             // Sidebar: agent/bot list (design-system: .cockpit-sidebar)
             <div class="cockpit-sidebar">
                 <div class="sidebar-header">
-                    <span>"💬"</span>
+                    <span><i class="ph ph-chats-circle" aria-hidden="true"></i></span>
                     <span>"Bots"</span>
                 </div>
 
@@ -267,13 +267,13 @@ pub fn ChatPanel() -> impl IntoView {
                         match state.get() {
                             ChatState::Empty => view! {
                                 <div class="empty-state">
-                                    <div class="empty-state-icon">"💬"</div>
+                                    <div class="empty-state-icon"><i class="ph ph-chats-circle" aria-hidden="true"></i></div>
                                     <div class="empty-state-text">"Selecione um bot na barra lateral para iniciar uma conversa"</div>
                                 </div>
                             }.into_any(),
                             ChatState::Error(err) => view! {
                                 <div class="empty-state">
-                                    <div class="empty-state-icon">"❌"</div>
+                                    <div class="empty-state-icon"><i class="ph ph-x-circle" aria-hidden="true"></i></div>
                                     <div class="empty-state-text" style="color:var(--status-error);">{err}</div>
                                     <button
                                         class="btn btn-primary"
@@ -290,7 +290,7 @@ pub fn ChatPanel() -> impl IntoView {
                                 if msgs.is_empty() && matches!(state.get(), ChatState::Active) {
                                     view! {
                                         <div class="empty-state">
-                                            <div class="empty-state-icon">"👋"</div>
+                                            <div class="empty-state-icon"><i class="ph ph-hand-waving" aria-hidden="true"></i></div>
                                             <div class="empty-state-text">"Envie uma mensagem para começar"</div>
                                         </div>
                                     }.into_any()
@@ -434,7 +434,7 @@ pub fn ChatPanel() -> impl IntoView {
                         } else {
                             view! {
                                 <div class="empty-state" style="padding:var(--space-4);">
-                                    <div class="empty-state-icon" style="font-size:32px;">"📋"</div>
+                                    <div class="empty-state-icon" style="font-size:32px;"><i class="ph ph-clipboard-text" aria-hidden="true"></i></div>
                                     <div class="empty-state-text">"Selecione um agente para ver detalhes"</div>
                                 </div>
                             }.into_any()

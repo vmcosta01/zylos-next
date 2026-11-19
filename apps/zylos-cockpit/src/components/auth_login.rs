@@ -98,7 +98,7 @@ pub fn LoginForm() -> impl IntoView {
                 if let Some(t) = token.get() {
                     view! {
                         <div class="auth-success">
-                            <p>"✓ Authenticated successfully"</p>
+                            <p>"Authenticated successfully"</p>
                             <p class="token-preview">{format!("Token: {}...", &t[..20.min(t.len())])}</p>
                         </div>
                     }.into_any()
@@ -270,9 +270,9 @@ pub fn ConflictResolver(_doc_id: String) -> impl IntoView {
     view! {
         <div class="conflict-panel" class:hidden=move || !has_conflict.get()>
             <div class="conflict-header">
-                <span>"⚠ Merge conflict detected"</span>
+                <span>"Merge conflict detected"</span>
                 <button on:click=on_resolve disabled=move || resolved.get()>
-                    {move || if resolved.get() { "✓ Resolved" } else { "Accept Auto-Merge" }}
+                    {move || if resolved.get() { "Resolved" } else { "Accept Auto-Merge" }}
                 </button>
             </div>
             <p class="conflict-hint">
