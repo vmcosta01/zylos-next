@@ -131,7 +131,7 @@ fn en_us_bundle() -> Bundle {
 }
 
 /// Global i18n context
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct I18n {
     locale: RwSignal<Locale>,
 }

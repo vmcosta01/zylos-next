@@ -7,6 +7,7 @@
 
 use leptos::prelude::*;
 
+use crate::i18n::use_i18n;
 use crate::spring::{create_spring, SpringConfig};
 use crate::tabs::Tab;
 
@@ -77,6 +78,8 @@ pub fn CollapsibleSidebar(
     active_tab: ReadSignal<Tab>,
     set_active_tab: WriteSignal<Tab>,
 ) -> impl IntoView {
+    let i18n = use_i18n();
+
     // Estado global: sidebar colapsada (mostra só ícones).
     let collapsed = RwSignal::new(ls_get_bool("zylos-sidebar-collapsed", false));
 
@@ -135,6 +138,7 @@ pub fn CollapsibleSidebar(
 
             <div class="sidebar-groups">
                 {SidebarGroup::ALL.iter().map(|&group| {
+                    let i18n = i18n;
                     let tabs = group.tabs();
                     let is_expanded = Signal::derive(move || {
                         group_states.with_value(|m| m.get(&group).copied().unwrap_or(true))
@@ -156,7 +160,6 @@ pub fn CollapsibleSidebar(
                                 <ul class="sidebar-items" role="list">
                                     {tabs.iter().map(|&tab| {
                                         let is_active = Signal::derive(move || active_tab.get() == tab);
-                                        let tab_label = StoredValue::new(tab.i18n_key());
                                         view! {
                                             <li>
                                                 <button
@@ -171,14 +174,14 @@ pub fn CollapsibleSidebar(
                                                     aria-current=move || is_active.get().then_some("page")
                                                     title=move || {
                                                         if collapsed.get() {
-                                                            tab_label.with_value(|k| k.to_string())
+                                                            i18n.t(tab.i18n_key())
                                                         } else {
                                                             String::new()
                                                         }
                                                     }
                                                 >
                                                     <span class="item-icon">{tab_icon(tab)}</span>
-                                                    <span class="item-label">{tab_label.with_value(|k| k.to_string())}</span>
+                                                    <span class="item-label">{move || i18n.t(tab.i18n_key())}</span>
                                                 </button>
                                             </li>
                                         }
