@@ -39,9 +39,9 @@
         #app-splash .error-banner p{color:#e4e6ed;font-size:16px;line-height:1.5}
         #app-splash .error-banner .error-title{font-size:18px;font-weight:600;color:#ef4444;margin-bottom:4px}
         #app-splash .cta-retry{border:1px solid #2563EB;border-radius:6px;padding:10px 20px;font:500 14px 'Inter',system-ui,sans-serif;cursor:pointer;background:#2563EB;color:#fff;margin-top:8px}
-        /* Quando o Leptos monta .cockpit-root, esconde o splash imediatamente */
-        body:has(.cockpit-root) #app-splash{display:none}
-    </style>
+        /* Quando o Leptos monta .shell-layout (v2.0), esconde o splash imediatamente */
+                body:has(.shell-layout) #app-splash{display:none}
+            </style>
     <!-- rel="inline" do Trunk 0.22 embute o arquivo num <style> no HTML final
          (o `rel="css" data-inline` não tinha efeito e gerava 2 <link> bloqueantes). -->
     <link data-trunk rel="inline" type="css" href="styles/design-tokens.css" />

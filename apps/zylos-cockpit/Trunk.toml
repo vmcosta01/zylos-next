@@ -7,10 +7,12 @@ stage = "pre_build"
 command = "rustup"
 command_arguments = ["target", "add", "wasm32-unknown-unknown"]
 
-[[hooks]]
-stage = "post_build"
-command = "wasm-opt"
-command_arguments = ["-Oz", "--strip-debug", "--strip-producers", "$WASM_FILE", "-o", "$WASM_FILE"]
+# wasm-opt hook desativado: wasm-opt não está instalado no PATH.
+# O profile wasm-release já aplica opt-level="z" + LTO + strip via Cargo.
+# [[hooks]]
+# stage = "post_build"
+# command = "wasm-opt"
+# command_arguments = ["-Oz", "--strip-debug", "--strip-producers", "$WASM_FILE", "-o", "$WASM_FILE"]
 
 [tools]
 
