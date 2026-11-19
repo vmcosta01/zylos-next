@@ -48,7 +48,7 @@ async fn fetch_sessions() -> Result<Vec<SessionRow>, String> {
     Ok(data.sessions)
 }
 
-/// Cartões "Computador de <agente>" no chat. Atualiza a lista a cada 10 s.
+/// Cartões "Computador de `<agente>`" no chat. Atualiza a lista a cada 10 s.
 #[component]
 pub fn InlineComputers() -> impl IntoView {
     let (sessions, set_sessions) = signal(Vec::<SessionRow>::new());

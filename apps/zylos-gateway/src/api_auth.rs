@@ -62,8 +62,6 @@ fn aceita_token_na_query(path: &str) -> bool {
         || path == "/api/v1/events"
         || path.starts_with("/api/v1/crdt/sync/")
         || path.starts_with("/api/v1/ws/computer-view/")
-        // <img> não manda cabeçalho: o screenshot de reserva do computador também usa ?access_token=.
-        || (path.starts_with("/api/v1/computer-view/sessions/") && path.ends_with("/screenshot"))
 }
 
 /// Rotas de decisão humana: exigem papel admin. Retorna o campo de autoria do corpo.
@@ -365,11 +363,9 @@ mod tests {
         // O stream do computador do agente (WebSocket) também autentica por ?access_token=.
         assert!(aceita_token_na_query("/api/v1/ws/computer-view/abc"));
         assert!(!aceita_token_na_query("/api/v1/computer-view/sessions"));
-        assert!(aceita_token_na_query(
-            "/api/v1/computer-view/sessions/abc/screenshot"
-        ));
+        // O screenshot NÃO aceita token na URL (iria para log e histórico): o cockpit baixa com Authorization.
         assert!(!aceita_token_na_query(
-            "/api/v1/computer-view/sessions/abc/control"
+            "/api/v1/computer-view/sessions/abc/screenshot"
         ));
         assert_eq!(
             rota_admin(&Method::POST, "/api/v1/sentinel/remediations/a/b/approve"),

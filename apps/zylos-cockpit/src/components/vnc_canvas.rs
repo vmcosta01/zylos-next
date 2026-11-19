@@ -59,6 +59,40 @@ struct ReleaseControlReq {
     user_id: String,
 }
 
+/// Baixa o screenshot com `Authorization` e põe um `blob:` local em `target` (libera o anterior).
+fn show_screenshot(target: RwSignal<Option<String>>, path: String) {
+    spawn_local(async move {
+        let Some(base) = crate::gateway_config::gateway_base() else {
+            return;
+        };
+        let url = crate::gateway_config::join_url(&base, &path);
+        let Ok(resp) = crate::auth::authed(gloo_net::http::Request::get(&url))
+            .send()
+            .await
+        else {
+            return;
+        };
+        if !resp.ok() {
+            return;
+        }
+        let Ok(bytes) = resp.binary().await else {
+            return;
+        };
+        let array = js_sys::Uint8Array::from(bytes.as_slice());
+        let parts = js_sys::Array::of1(&array);
+        let Ok(blob) = Blob::new_with_u8_array_sequence(&parts) else {
+            return;
+        };
+        let Ok(object_url) = web_sys::Url::create_object_url_with_blob(&blob) else {
+            return;
+        };
+        if let Some(old) = target.get_untracked().filter(|u| u.starts_with("blob:")) {
+            let _ = web_sys::Url::revoke_object_url(&old);
+        }
+        target.set(Some(object_url));
+    });
+}
+
 /// Componente VNC stream com fallback automático.
 #[component]
 pub fn VncStream(
@@ -107,15 +141,9 @@ pub fn VncStream(
             crate::auth::authed_url(&format!("{ws_base}/api/v1/ws/computer-view/{sid}"))
         };
 
-        // URL absoluta no gateway, com o token na query: <img> não envia Authorization e o
-        // caminho relativo apontava para a origem do cockpit (404).
-        let screenshot_path = {
-            let base = crate::gateway_config::gateway_base().unwrap_or_default();
-            crate::auth::authed_url(&crate::gateway_config::join_url(
-                &base,
-                &format!("/api/v1/computer-view/sessions/{sid}/screenshot"),
-            ))
-        };
+        // Caminho no gateway: o screenshot é baixado com Authorization e exibido como blob local
+        // (o token não vai na URL, onde acabaria em log e histórico).
+        let screenshot_path = format!("/api/v1/computer-view/sessions/{sid}/screenshot");
 
         // Reset state.
         state.set(VncState::Connecting);
@@ -141,7 +169,7 @@ pub fn VncStream(
             let cb = Closure::once(move || {
                 if !has_frame_t.get_value() && state_t.get_untracked() == VncState::Connected {
                     state_t.set(VncState::Fallback);
-                    fallback_t.set(Some(shot_t));
+                    show_screenshot(fallback_t, shot_t);
                 }
             });
             if let Some(w) = web_sys::window() {
@@ -244,7 +272,7 @@ pub fn VncStream(
         let error_msg_err = error_msg;
         let on_error = Closure::wrap(Box::new(move |_: ErrorEvent| {
             state_err.set(VncState::Fallback);
-            fallback_url_err.set(Some(screenshot_path_err.clone()));
+            show_screenshot(fallback_url_err, screenshot_path_err.clone());
             error_msg_err.set(Some("WebSocket error".into()));
         }) as Box<dyn FnMut(ErrorEvent)>);
         ws.set_onerror(Some(on_error.as_ref().unchecked_ref()));
@@ -256,7 +284,7 @@ pub fn VncStream(
         let screenshot_path_close = screenshot_path.clone();
         let on_close = Closure::wrap(Box::new(move |_: CloseEvent| {
             state_close.set(VncState::Disconnected);
-            fallback_url_close.set(Some(screenshot_path_close.clone()));
+            show_screenshot(fallback_url_close, screenshot_path_close.clone());
         }) as Box<dyn FnMut(CloseEvent)>);
         ws.set_onclose(Some(on_close.as_ref().unchecked_ref()));
         on_close.forget();

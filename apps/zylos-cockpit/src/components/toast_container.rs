@@ -63,7 +63,7 @@ pub struct Toast {
     pub message: String,
 }
 
-/// Global toast store — RwSignal<Vec<Toast>> provided via context
+/// Global toast store — `RwSignal<Vec<Toast>>` provided via context
 #[derive(Clone)]
 pub struct ToastStore {
     toasts: RwSignal<Vec<Toast>>,

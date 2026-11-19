@@ -207,7 +207,7 @@ fn prefers_reduced_motion() -> bool {
 /// Cria um spring animator reutilizável.
 ///
 /// Retorna `(output_signal, handle)` onde:
-/// - `output_signal`: ReadSignal<f64> que contém o valor interpolado atual
+/// - `output_signal`: `ReadSignal<f64>` que contém o valor interpolado atual
 /// - `handle`: SpringHandle para controlar target/velocity/snap
 ///
 /// # Exemplo
