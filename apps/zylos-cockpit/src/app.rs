@@ -11,13 +11,14 @@ use wasm_bindgen_futures::spawn_local;
 use crate::benchmarks::BenchmarkPanel;
 use crate::components::analytics_panel::AnalyticsPanel;
 use crate::components::{
-    provide_theme, AgentAvatarsGrid, AgentAwarenessPanel, AgentsPanel, ChannelPanel, ChatPanel,
-    CollabPanel, CollapsibleSidebar, CommandPalette, EmployeeGovernancePanel, EvidenceLedgerPanel,
-    FederationDashboard, FileManager, FleetAuditorPanel, GatewayStatus, GoalsPanel,
-    HitlApprovalPanel, IntegrationsPanel, MemoryTimeline, PersonalitiesPanel, PhoneRelayPanel,
-    SecurityPanel, SentinelPanel, SkillEditorPanel, SkillEvolutionPanel, SkinThemesPanel,
-    SoarDashboard, SubagentStatusCards, SwarmDagPanel, SwarmTopologyPanel, TaskTriagePanel,
-    TasksDag, ThreadManager, TranslucentHeader, VoicePanel,
+    provide_theme, provide_toast_store, AgentAvatarsGrid, AgentAwarenessPanel, AgentsPanel,
+    ChannelPanel, ChatPanel, CollabPanel, CollapsibleSidebar, CommandPalette,
+    EmployeeGovernancePanel, ErrorBoundary, EvidenceLedgerPanel, FederationDashboard, FileManager,
+    FleetAuditorPanel, GatewayStatus, GoalsPanel, HitlApprovalPanel, IntegrationsPanel,
+    MemoryTimeline, PersonalitiesPanel, PhoneRelayPanel, SecurityPanel, SentinelPanel,
+    SkillEditorPanel, SkillEvolutionPanel, SkinThemesPanel, SoarDashboard, SubagentStatusCards,
+    SwarmDagPanel, SwarmTopologyPanel, TaskTriagePanel, TasksDag, ThreadManager, ToastContainer,
+    TranslucentHeader, VoicePanel,
 };
 use crate::i18n::{provide_i18n, use_i18n, Locale};
 use crate::streaming::{provide_stream, LiveEventFeed, StreamConfig};
@@ -48,6 +49,7 @@ pub use crate::tabs::Tab;
 pub fn App() -> impl IntoView {
     // Initialize global contexts
     let _theme_ctx = provide_theme();
+    let _toast_ctx = provide_toast_store();
     let _i18n_ctx = provide_i18n(Locale::PtBr);
     let stream_ctx = provide_stream(StreamConfig::default());
     stream_ctx.connect(); // abre o SSE em /api/v1/events
@@ -169,6 +171,7 @@ pub fn App() -> impl IntoView {
             </div>
 
             <CommandPalette open=palette_open set_active_tab=set_active_tab />
+            <ToastContainer />
         </div>
     }
 }
