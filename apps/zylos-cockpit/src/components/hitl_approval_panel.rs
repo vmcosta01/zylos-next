@@ -320,13 +320,13 @@ fn InlineApprovalCard(
 
                         view! {
                             <>
-                                <button class="cta-primary approval-btn-approve" on:click=approve_handler>
+                                <button class="cta-primary approval-btn-approve" aria-label="Aprovar esta ação" on:click=approve_handler>
                                     "✓ Aprovar"
                                 </button>
-                                <button class="cta-secondary approval-btn-reject" on:click=reject_handler>
+                                <button class="cta-secondary approval-btn-reject" aria-label="Recusar esta ação" on:click=reject_handler>
                                     "✕ Recusar"
                                 </button>
-                                <button class="cta-secondary approval-btn-escalate" on:click=escalate_handler>
+                                <button class="cta-secondary approval-btn-escalate" aria-label="Escalar para revisão humana" on:click=escalate_handler>
                                     "⚠ Escalar"
                                 </button>
                             </>

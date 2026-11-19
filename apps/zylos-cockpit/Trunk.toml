@@ -7,6 +7,11 @@ stage = "pre_build"
 command = "rustup"
 command_arguments = ["target", "add", "wasm32-unknown-unknown"]
 
+[[hooks]]
+stage = "post_build"
+command = "wasm-opt"
+command_arguments = ["-Oz", "--strip-debug", "--strip-producers", "$WASM_FILE", "-o", "$WASM_FILE"]
+
 [tools]
 
 # Assets estáticos (sw.js, manifest.json, robots.txt, _headers, icons/) são copiados

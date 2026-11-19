@@ -28,6 +28,31 @@ body {
 
 #app:empty { display: none; }
 
+/* ── Skip-to-Content Link (WCAG AA) ── */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  z-index: 10000;
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-accent-primary);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 0 0 var(--radius-md) 0;
+  transition: top var(--transition-fast);
+}
+.skip-link:focus {
+  top: 0;
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+/* ── Sidebar Wrapper Landmark ── */
+.shell-sidebar-wrapper {
+  flex-shrink: 0;
+}
+
 /* ── Focus States (WCAG AA) ── */
 :focus-visible {
   outline: 2px solid var(--color-accent-primary);

@@ -99,13 +99,16 @@ pub fn App() -> impl IntoView {
     });
 
     view! {
+        <a href="#main-content" class="skip-link">"Pular para o conteúdo"</a>
         <div class="shell-layout">
             <TranslucentHeader version=version.get() gateway_status=gateway_status.get() />
 
             <div class="shell-body">
-                <CollapsibleSidebar active_tab=active_tab set_active_tab=set_active_tab />
+                <aside class="shell-sidebar-wrapper">
+                    <CollapsibleSidebar active_tab=active_tab set_active_tab=set_active_tab />
+                </aside>
 
-                <main class="shell-main" role="main">
+                <main id="main-content" class="shell-main" role="main">
                     {move || match &*state.read() {
                         DashboardState::Loading => view! {
                             <div class="skeleton-grid">

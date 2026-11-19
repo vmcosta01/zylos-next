@@ -350,7 +350,7 @@ pub fn VncStream(
             <div class="vnc-controls">
                 <Show when=move || controlling.get()
                       fallback=move || view! {
-                          <button class="cta-primary" on:click=move |_: web_sys::MouseEvent| {
+                          <button class="cta-primary" aria-label="Assumir controle do computador remoto" on:click=move |_: web_sys::MouseEvent| {
                               let sid = active_session.get().unwrap_or_default();
                               let ctrl = controlling;
                               let err = error_msg;
@@ -372,7 +372,7 @@ pub fn VncStream(
                               {"Assumir Controle"}
                           </button>
                       }>
-                    <button class="cta-secondary" on:click=move |_: web_sys::MouseEvent| {
+                    <button class="cta-secondary" aria-label="Liberar controle do computador remoto" on:click=move |_: web_sys::MouseEvent| {
                         let sid = active_session.get().unwrap_or_default();
                         let ctrl = controlling;
                         let err = error_msg;
@@ -392,7 +392,7 @@ pub fn VncStream(
                         {"Liberar Controle"}
                     </button>
                 </Show>
-                <button class="cta-secondary" on:click=capture_screenshot>
+                <button class="cta-secondary" aria-label="Capturar screenshot da sessão remota" on:click=capture_screenshot>
                     {"📷 Capturar Tela"}
                 </button>
             </div>
