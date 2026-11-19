@@ -58,8 +58,8 @@ impl Phase2State {
             .map_err(|e| anyhow::anyhow!("personalities seed: {}", e))?;
 
         // Swarm Orchestrator — task DAG scheduling (persistent DB)
-        let swarm_path = std::env::var("ZYLOS_SWARM_DB")
-            .unwrap_or_else(|_| "sqlite:data/swarm.db".to_string());
+        let swarm_path =
+            std::env::var("ZYLOS_SWARM_DB").unwrap_or_else(|_| "sqlite:data/swarm.db".to_string());
         if let Some(parent) = std::path::Path::new(&swarm_path).parent() {
             if !parent.as_os_str().is_empty() {
                 let _ = std::fs::create_dir_all(parent);
