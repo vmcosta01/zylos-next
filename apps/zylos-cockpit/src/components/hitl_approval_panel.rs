@@ -12,7 +12,6 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::components::toast_container::ToastStore;
 use crate::spring::{create_spring, SpringConfig};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -62,7 +61,6 @@ pub fn HitlApprovalPanel() -> impl IntoView {
 
     // Busca ao montar e de novo a cada evento de aprovação do SSE (approvals_tick).
     let tick = approvals_tick();
-    let toasts = use_context::<ToastStore>();
     let mut first_load = true;
     Effect::new(move |_| {
         if let Some(t) = tick {
@@ -71,14 +69,13 @@ pub fn HitlApprovalPanel() -> impl IntoView {
         // Só a primeira carga mostra o esqueleto; as seguintes atualizam sem piscar.
         let initial = first_load;
         first_load = false;
-        let toasts = toasts.clone();
         spawn_local(async move {
             if initial {
                 set_loading.set(true);
             }
             match fetch_approvals().await {
                 Ok(list) => {
-                    schedule_expiry_toasts(&list, tick, toasts);
+                    schedule_expiry_refresh(&list, tick);
                     set_approvals.set(list);
                     set_error.set(None);
                 }
@@ -417,17 +414,15 @@ thread_local! {
         std::cell::RefCell::new(std::collections::HashSet::new());
 }
 
-/// Agenda um toast "Aprovação expirou" para cada pendente (uma vez por id) e refaz a lista ao expirar.
+/// Agenda, para cada pendente (uma vez por id), a atualização da lista no instante em que expira.
+/// O toast "Aprovação expirou" vem do gateway (`ApprovalTimeout` pelo SSE); isto só garante que o
+/// cartão some mesmo se o SSE estiver fora do ar.
 #[cfg(target_arch = "wasm32")]
-fn schedule_expiry_toasts(
-    list: &[ApprovalRequest],
-    tick: Option<RwSignal<u32>>,
-    toasts: Option<ToastStore>,
-) {
+fn schedule_expiry_refresh(list: &[ApprovalRequest], tick: Option<RwSignal<u32>>) {
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::JsCast;
 
-    let (Some(window), Some(toasts)) = (web_sys::window(), toasts) else {
+    let Some(window) = web_sys::window() else {
         return;
     };
     let now = chrono::Utc::now();
@@ -438,13 +433,7 @@ fn schedule_expiry_toasts(
         if !EXPIRY_SCHEDULED.with(|s| s.borrow_mut().insert(a.id.clone())) {
             continue;
         }
-        let summary = a.summary.clone();
-        let toasts = toasts.clone();
         let cb = Closure::once(move || {
-            toasts.dispatch(
-                crate::components::toast_container::ToastVariant::Warning,
-                format!("Aprovação expirou: {summary}"),
-            );
             if let Some(t) = tick {
                 crate::approvals_sync::bump(t);
             }
@@ -458,12 +447,8 @@ fn schedule_expiry_toasts(
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn schedule_expiry_toasts(
-    list: &[ApprovalRequest],
-    tick: Option<RwSignal<u32>>,
-    toasts: Option<ToastStore>,
-) {
-    let _ = (list, tick, toasts);
+fn schedule_expiry_refresh(list: &[ApprovalRequest], tick: Option<RwSignal<u32>>) {
+    let _ = (list, tick);
 }
 
 /// Aprovações pendentes dentro do chat (ADR-001): os mesmos cartões do painel HITL, sem métricas.
@@ -471,17 +456,15 @@ fn schedule_expiry_toasts(
 pub fn InlineApprovals() -> impl IntoView {
     let (approvals, set_approvals) = signal(Vec::<ApprovalRequest>::new());
     let tick = approvals_tick();
-    let toasts = use_context::<ToastStore>();
 
     Effect::new(move |_| {
         if let Some(t) = tick {
             let _ = t.get();
         }
-        let toasts = toasts.clone();
         spawn_local(async move {
             // Sem gateway ou com erro, o chat segue sem cartões (o painel HITL mostra o erro).
             if let Ok(list) = fetch_approvals().await {
-                schedule_expiry_toasts(&list, tick, toasts);
+                schedule_expiry_refresh(&list, tick);
                 set_approvals.set(list);
             }
         });
