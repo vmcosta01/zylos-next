@@ -1,7 +1,7 @@
 //! Command Palette (ADR-009) — Omnibar Cmd+K para navegação rápida.
 //!
 //! Indexa telas (tabs), comandos e histórico recente. Busca fuzzy pura em Rust
-//! sem dependências externas. Spring animation de entrada/saída via `spring.rs`.
+//! sem dependências externas. Abre e fecha sem animação (uso muito frequente).
 
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -10,7 +10,6 @@ use wasm_bindgen::JsCast;
 
 use crate::components::theme_toggle::ThemeContext;
 use crate::components::toast_container::ToastStore;
-use crate::spring::{create_spring, SpringConfig};
 use crate::tabs::Tab;
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
@@ -386,9 +385,9 @@ pub fn CommandPalette(open: RwSignal<bool>, set_active_tab: WriteSignal<Tab>) ->
     let selected_idx = RwSignal::new(0usize);
     let input_ref = NodeRef::<leptos::html::Input>::new();
 
-    // Spring animation para opacity e scale
-    let (opacity_val, opacity_spring) = create_spring(0.0, SpringConfig::ENTRANCE);
-    let (scale_val, scale_spring) = create_spring(0.95, SpringConfig::ENTRANCE);
+    // Sem animação: o palette abre e fecha dezenas de vezes por dia (DESIGN_SYSTEM v2.1 §6.7).
+    let opacity_val = RwSignal::new(0.0_f64);
+    let scale_val = RwSignal::new(1.0_f64);
 
     // Index estático (construído uma vez) + agentes dinâmicos (carregados ao abrir)
     let static_items = StoredValue::new_local(build_static_index());
@@ -452,8 +451,7 @@ pub fn CommandPalette(open: RwSignal<bool>, set_active_tab: WriteSignal<Tab>) ->
     // Animação de entrada/saída
     Effect::new(move |_| {
         if open.get() {
-            opacity_spring.set_target(1.0);
-            scale_spring.set_target(1.0);
+            opacity_val.set(1.0);
             // Recarrega histórico e agentes (erro de rede mantém a lista anterior)
             history.set(load_history());
             wasm_bindgen_futures::spawn_local(async move {
@@ -464,8 +462,7 @@ pub fn CommandPalette(open: RwSignal<bool>, set_active_tab: WriteSignal<Tab>) ->
             query.set(String::new());
             selected_idx.set(0);
         } else {
-            opacity_spring.set_target(0.0);
-            scale_spring.set_target(0.95);
+            opacity_val.set(0.0);
         }
     });
 

@@ -1099,11 +1099,13 @@ body {
   overflow: hidden;
 }
 
-.agent-card-success:hover,
-.agent-card-validation:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
-  border-color: var(--color-border-strong);
+/* Hover só em dispositivos com mouse e sem elevação (v2.1 §8: movimento decorativo removido) */
+@media (hover: hover) and (pointer: fine) {
+  .agent-card-success:hover,
+  .agent-card-validation:hover {
+    box-shadow: var(--shadow-md);
+    border-color: var(--color-border-strong);
+  }
 }
 
 .agent-card-success:active,
