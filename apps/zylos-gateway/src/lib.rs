@@ -87,9 +87,15 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
                     let _ = std::fs::create_dir_all(parent);
                 }
             }
-            zylos_approval::ApprovalStore::connect(&path)
+            let store = zylos_approval::ApprovalStore::connect(&path)
                 .await
-                .expect("failed to connect approvals store")
+                .expect("failed to connect approvals store");
+            // Banco novo não tem a tabela: sem isto, criar/listar/resolver davam 500.
+            store
+                .run_migrations()
+                .await
+                .expect("failed to migrate approvals store");
+            store
         })
     }));
     let approvals = approvals_api::create_approvals_router(

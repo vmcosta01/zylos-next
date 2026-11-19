@@ -66,7 +66,7 @@ pub fn rota_admin(method: &Method, path: &str) -> Option<&'static str> {
     if method != Method::POST {
         return None;
     }
-    if path == "/api/v1/approval/resolve" {
+    if path == "/api/v1/approval/resolve" || path == "/api/v1/approvals/resolve" {
         return Some("resolved_by");
     }
     if let Some(resto) = path.strip_prefix("/api/v1/sentinel/remediations/") {
@@ -342,6 +342,12 @@ mod tests {
         assert_eq!(
             rota_admin(&Method::POST, "/api/v1/sentinel/remediations/a/reject"),
             Some("approver")
+        );
+        // A rota que o cockpit usa para decidir também exige admin (sem isso, em modo local
+        // ficaria aberta e, com segredo, aceitaria qualquer papel).
+        assert_eq!(
+            rota_admin(&Method::POST, "/api/v1/approvals/resolve"),
+            Some("resolved_by")
         );
         assert_eq!(rota_admin(&Method::GET, "/api/v1/approval/resolve"), None);
         assert_eq!(
