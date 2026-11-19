@@ -155,6 +155,9 @@ pub struct CustomEvent {
 // Schema Registry
 // ---------------------------------------------------------------------------
 
+/// Nomes de eventos `Custom` tratados como aviso pelo cockpit (toast e atualização do HITL).
+pub const NOTICE_EVENT_NAMES: [&str; 3] = ["ApprovalResolved", "ApprovalTimeout", "SentinelAlert"];
+
 /// In-process JSON Schema registry. Producers validate before publish;
 /// consumers receive `schema_version` in the envelope header.
 pub struct SchemaRegistry {
@@ -240,9 +243,14 @@ impl SchemaRegistry {
                 serde_json::to_value(schema_for!(CustomEvent)).unwrap(),
             ),
         ];
+        let custom = serde_json::to_value(schema_for!(CustomEvent)).unwrap();
         let mut map = self.schemas.write().unwrap();
         for (name, schema) in pairs {
             map.insert((name.to_string(), 1), schema);
+        }
+        // Avisos que o cockpit mostra como toast (publicados como `Custom` com o nome abaixo).
+        for name in NOTICE_EVENT_NAMES {
+            map.insert((name.to_string(), 1), custom.clone());
         }
     }
 }

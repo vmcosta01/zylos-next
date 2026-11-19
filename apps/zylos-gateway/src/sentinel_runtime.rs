@@ -305,6 +305,8 @@ pub struct SentinelRuntime {
     in_flight: AtomicI64,
     sink: Box<dyn MetricsSink>,
     soar: Box<dyn SoarForwarder>,
+    /// Barramento SSE: cada alerta disparado vira um aviso `SentinelAlert` no cockpit.
+    bus: Option<zylos_live_comm::EventBus>,
 }
 
 /// Handle compartilhado.
@@ -333,7 +335,36 @@ impl SentinelRuntime {
             in_flight: AtomicI64::new(0),
             sink,
             soar,
+            bus: None,
         }
+    }
+
+    /// Liga o barramento de eventos para publicar `SentinelAlert` a cada alerta disparado.
+    pub fn with_event_bus(mut self, bus: zylos_live_comm::EventBus) -> Self {
+        self.bus = Some(bus);
+        self
+    }
+
+    /// Publica um aviso no SSE (ignora silenciosamente fora de um runtime tokio, como em testes sync).
+    fn publish_alerts(&self, messages: Vec<String>) {
+        let Some(bus) = self.bus.clone() else { return };
+        if messages.is_empty() {
+            return;
+        }
+        let Ok(handle) = tokio::runtime::Handle::try_current() else {
+            return;
+        };
+        handle.spawn(async move {
+            for message in messages {
+                let event = zylos_live_comm::ZylosEvent::Custom(zylos_live_comm::CustomEvent {
+                    name: "SentinelAlert".to_string(),
+                    payload: json!({ "message": message }),
+                });
+                if let Err(e) = bus.publish("sentinel.alert", event, 1).await {
+                    warn!(error = %e, "falha ao publicar SentinelAlert");
+                }
+            }
+        });
     }
 
     /// Constrói a partir do ambiente (gateway real).
@@ -390,7 +421,7 @@ impl SentinelRuntime {
     pub fn tick(&self, timestamp_ms: u64) -> (usize, usize, usize) {
         let now_secs = timestamp_ms / 1000;
         let depth = self.in_flight.load(Ordering::Relaxed).max(0) as f64;
-        let (events, soar_events, counts) = {
+        let (events, soar_events, counts, alert_messages) = {
             let mut g = self.lock();
             let inner = &mut *g;
             inner.collector.set_queue_depth(depth);
@@ -421,8 +452,23 @@ impl SentinelRuntime {
             }
             inner.last = Some(snap);
             let counts = (anomalies.len(), alerts.len(), proposals.len());
-            (events, inner.gate.drain_soar_events(), counts)
+            let alert_messages: Vec<String> = alerts
+                .iter()
+                .map(|a| {
+                    format!(
+                        "{}: valor {:.1}, limite {:.1}",
+                        a.rule_name, a.current_value, a.threshold
+                    )
+                })
+                .collect();
+            (
+                events,
+                inner.gate.drain_soar_events(),
+                counts,
+                alert_messages,
+            )
         };
+        self.publish_alerts(alert_messages);
         self.sink.push(events);
         if !soar_events.is_empty() {
             self.soar.forward(soar_events);

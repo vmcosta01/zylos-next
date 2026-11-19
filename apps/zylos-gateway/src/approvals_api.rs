@@ -2,7 +2,9 @@
 //!
 //! Endpoints:
 //! - `GET  /api/v1/approvals` — list pending approval requests
-//! - `POST /api/v1/approval/resolve` — resolve an approval (existing, wired to store)
+//! - `POST /api/v1/approvals` — create an approval request (agents / services); publishes
+//!   `ApprovalRequested` on the SSE bus and schedules an `ApprovalTimeout` notice
+//! - `POST /api/v1/approvals/resolve` — resolve an approval; publishes `ApprovalResolved`
 
 use axum::{
     extract::State,
@@ -12,17 +14,149 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use zylos_approval::{ApprovalDecision, ApprovalRequest, ApprovalStore};
+use zylos_approval::{ApprovalDecision, ApprovalRequest, ApprovalStore, CreateApprovalRequest};
+use zylos_live_comm::event_types::ApprovalRequested;
+use zylos_live_comm::{CustomEvent, EventBus, ZylosEvent};
 
 #[derive(Clone)]
 pub struct ApprovalsState {
     store: Arc<ApprovalStore>,
+    bus: Option<EventBus>,
 }
 
 impl ApprovalsState {
     pub fn new(store: Arc<ApprovalStore>) -> Self {
-        Self { store }
+        Self { store, bus: None }
     }
+
+    /// Liga o barramento de eventos: o cockpit recebe aprovações em tempo real pelo SSE.
+    pub fn with_event_bus(mut self, bus: EventBus) -> Self {
+        self.bus = Some(bus);
+        self
+    }
+
+    async fn notify(&self, topic: &str, event: ZylosEvent) {
+        if let Some(bus) = &self.bus {
+            if let Err(e) = bus.publish(topic, event, 1).await {
+                tracing::warn!(error = %e, topic, "failed to publish approval event");
+            }
+        }
+    }
+
+    async fn notify_custom(&self, topic: &str, name: &str, payload: serde_json::Value) {
+        self.notify(
+            topic,
+            ZylosEvent::Custom(CustomEvent {
+                name: name.to_string(),
+                payload,
+            }),
+        )
+        .await;
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct CreateBody {
+    bot_id: String,
+    tool_name: String,
+    action_category: String,
+    summary: String,
+    #[serde(default = "empty_args")]
+    arguments_json: String,
+    expires_in_seconds: Option<u64>,
+}
+
+fn empty_args() -> String {
+    "{}".to_string()
+}
+
+#[derive(Debug, Serialize)]
+struct CreateResponse {
+    id: String,
+    status: String,
+    expires_at: Option<String>,
+}
+
+/// `POST /approvals` — cria um pedido de aprovação, avisa o cockpit e agenda o aviso de expiração.
+async fn create_approval(
+    State(state): State<ApprovalsState>,
+    Json(body): Json<CreateBody>,
+) -> impl IntoResponse {
+    if body.summary.trim().is_empty() || body.bot_id.trim().is_empty() {
+        return axum::http::StatusCode::BAD_REQUEST.into_response();
+    }
+    let id = match state
+        .store
+        .create(CreateApprovalRequest {
+            bot_id: body.bot_id.clone(),
+            tool_name: body.tool_name,
+            action_category: body.action_category,
+            summary: body.summary.clone(),
+            arguments_json: body.arguments_json,
+            expires_in_seconds: body.expires_in_seconds,
+        })
+        .await
+    {
+        Ok(id) => id,
+        Err(zylos_approval::ApprovalError::InvalidCategory(_)) => {
+            return axum::http::StatusCode::BAD_REQUEST.into_response();
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "failed to create approval");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+
+    let created = state.store.get(&id).await.ok();
+    let expires_at = created.as_ref().and_then(|r| r.expires_at.clone());
+
+    state
+        .notify(
+            "approvals.requested",
+            ZylosEvent::ApprovalRequested(ApprovalRequested {
+                approval_id: id.clone(),
+                requester_id: body.bot_id,
+                action_description: body.summary.clone(),
+                expires_at: expires_at
+                    .as_deref()
+                    .and_then(|e| chrono::DateTime::parse_from_rfc3339(e).ok())
+                    .map(|d| d.with_timezone(&chrono::Utc)),
+            }),
+        )
+        .await;
+
+    if let Some(secs) = body.expires_in_seconds {
+        let (st, aid, summary) = (state.clone(), id.clone(), body.summary);
+        tokio::spawn(async move {
+            // Margem de 250 ms: `get_pending` só marca expirada depois de `expires_at`.
+            tokio::time::sleep(
+                std::time::Duration::from_secs(secs) + std::time::Duration::from_millis(250),
+            )
+            .await;
+            // Só avisa se ninguém decidiu: `get_pending` marca como expirada.
+            if matches!(
+                st.store.get_pending(&aid).await,
+                Err(zylos_approval::ApprovalError::Expired(_))
+            ) {
+                st.notify_custom(
+                    "approvals.timeout",
+                    "ApprovalTimeout",
+                    serde_json::json!({ "approval_id": aid, "summary": summary }),
+                )
+                .await;
+            }
+        });
+    }
+
+    (
+        axum::http::StatusCode::CREATED,
+        Json(CreateResponse {
+            id,
+            status: "pending".to_string(),
+            expires_at,
+        }),
+    )
+        .into_response()
 }
 
 #[derive(Debug, Serialize)]
@@ -103,19 +237,28 @@ async fn resolve_approval(
         .decide(&body.approval_id, decision, body.refuse_reason)
         .await
     {
-        Ok(decided_at) => Json(
-            serde_json::to_value(ResolveResponse {
-                id: body.approval_id,
-                status: match decision {
-                    ApprovalDecision::Refuse => "refused",
-                    _ => "approved",
-                }
-                .to_string(),
-                decided_at,
-            })
-            .unwrap(),
-        )
-        .into_response(),
+        Ok(decided_at) => {
+            let status = match decision {
+                ApprovalDecision::Refuse => "refused",
+                _ => "approved",
+            };
+            state
+                .notify_custom(
+                    "approvals.resolved",
+                    "ApprovalResolved",
+                    serde_json::json!({ "approval_id": body.approval_id, "status": status }),
+                )
+                .await;
+            Json(
+                serde_json::to_value(ResolveResponse {
+                    id: body.approval_id,
+                    status: status.to_string(),
+                    decided_at,
+                })
+                .unwrap(),
+            )
+            .into_response()
+        }
         Err(e) => {
             tracing::error!(error = %e, "failed to resolve approval");
             axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
@@ -125,7 +268,7 @@ async fn resolve_approval(
 
 pub fn create_approvals_router(state: ApprovalsState) -> Router {
  Router::new()
- .route("/approvals", get(list_approvals))
+ .route("/approvals", get(list_approvals).post(create_approval))
  // POST /approval/resolve (singular) é do roteador SSE e usa o store em memória e o enum
  // Approved/Denied; o cockpit decide aprovações do store SQLite (allow_once, refuse etc.),
  // por isso a resolução fica aqui, em /approvals/resolve (plural).
@@ -250,5 +393,143 @@ mod tests {
     async fn resolve_approval_refuse_and_invalid_decision() {
         assert_eq!(resolve_with("refuse").await, StatusCode::OK);
         assert_eq!(resolve_with("talvez").await, StatusCode::BAD_REQUEST);
+    }
+
+    // --- criação + eventos SSE ------------------------------------------------
+
+    use futures_util::StreamExt;
+
+    async fn setup_with_bus() -> (ApprovalsState, EventBus) {
+        let store = ApprovalStore::connect("sqlite::memory:").await.unwrap();
+        store.run_migrations().await.unwrap();
+        let bus = EventBus::new(32, None);
+        (
+            ApprovalsState::new(Arc::new(store)).with_event_bus(bus.clone()),
+            bus,
+        )
+    }
+
+    async fn post_json(state: ApprovalsState, path: &str, body: serde_json::Value) -> StatusCode {
+        create_approvals_router(state)
+            .oneshot(
+                Request::post(path)
+                    .header("content-type", "application/json")
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
+            .status()
+    }
+
+    fn new_body(expires: Option<u64>) -> serde_json::Value {
+        serde_json::json!({
+            "bot_id": "backend",
+            "tool_name": "deploy",
+            "action_category": "deploy",
+            "summary": "Publicar gateway 2.1.0",
+            "expires_in_seconds": expires,
+        })
+    }
+
+    async fn next_envelope<S, E: std::fmt::Debug>(
+        rx: &mut S,
+    ) -> zylos_live_comm::event_types::EventEnvelope
+    where
+        S: futures_util::Stream<Item = Result<zylos_live_comm::event_types::EventEnvelope, E>>
+            + Unpin,
+    {
+        tokio::time::timeout(std::time::Duration::from_secs(5), rx.next())
+            .await
+            .expect("evento em até 5s")
+            .expect("stream aberto")
+            .expect("sem lag")
+    }
+
+    #[tokio::test]
+    async fn criar_aprovacao_publica_approval_requested_e_aparece_na_lista() {
+        let (state, bus) = setup_with_bus().await;
+        let mut rx = bus.subscribe_legacy();
+
+        assert_eq!(
+            post_json(state.clone(), "/approvals", new_body(Some(300))).await,
+            StatusCode::CREATED
+        );
+
+        match next_envelope(&mut rx).await.payload {
+            ZylosEvent::ApprovalRequested(r) => {
+                assert_eq!(r.action_description, "Publicar gateway 2.1.0");
+                assert_eq!(r.requester_id, "backend");
+                assert!(r.expires_at.is_some());
+            }
+            outro => panic!("esperava ApprovalRequested, veio {outro:?}"),
+        }
+        assert_eq!(state.store.list_pending().await.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn criar_rejeita_categoria_invalida_e_resumo_vazio() {
+        let (state, _) = setup_with_bus().await;
+        let mut ruim = new_body(None);
+        ruim["action_category"] = "inexistente".into();
+        assert_eq!(
+            post_json(state.clone(), "/approvals", ruim).await,
+            StatusCode::BAD_REQUEST
+        );
+        let mut vazio = new_body(None);
+        vazio["summary"] = "  ".into();
+        assert_eq!(
+            post_json(state, "/approvals", vazio).await,
+            StatusCode::BAD_REQUEST
+        );
+    }
+
+    #[tokio::test]
+    async fn resolver_publica_approval_resolved() {
+        let (state, bus) = setup_with_bus().await;
+        let id = state
+            .store
+            .create(CreateApprovalRequest {
+                bot_id: "backend".into(),
+                tool_name: "deploy".into(),
+                action_category: "deploy".into(),
+                summary: "Publicar".into(),
+                arguments_json: "{}".into(),
+                expires_in_seconds: Some(300),
+            })
+            .await
+            .unwrap();
+        let mut rx = bus.subscribe_legacy();
+        let body = serde_json::json!({ "approval_id": id, "decision": "allow_once" });
+        assert_eq!(
+            post_json(state, "/approvals/resolve", body).await,
+            StatusCode::OK
+        );
+        match next_envelope(&mut rx).await.payload {
+            ZylosEvent::Custom(c) => {
+                assert_eq!(c.name, "ApprovalResolved");
+                assert_eq!(c.payload["status"], "approved");
+            }
+            outro => panic!("esperava ApprovalResolved, veio {outro:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn aprovacao_sem_decisao_publica_approval_timeout() {
+        let (state, bus) = setup_with_bus().await;
+        let mut rx = bus.subscribe_legacy();
+        assert_eq!(
+            post_json(state, "/approvals", new_body(Some(1))).await,
+            StatusCode::CREATED
+        );
+        // 1º evento: ApprovalRequested; 2º (após ~1,25 s): ApprovalTimeout.
+        let _requested = next_envelope(&mut rx).await;
+        match next_envelope(&mut rx).await.payload {
+            ZylosEvent::Custom(c) => {
+                assert_eq!(c.name, "ApprovalTimeout");
+                assert_eq!(c.payload["summary"], "Publicar gateway 2.1.0");
+            }
+            outro => panic!("esperava ApprovalTimeout, veio {outro:?}"),
+        }
     }
 }

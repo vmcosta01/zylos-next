@@ -92,9 +92,10 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
                 .expect("failed to connect approvals store")
         })
     }));
-    let approvals = approvals_api::create_approvals_router(approvals_api::ApprovalsState::new(
-        approval_sqlite_store,
-    ));
+    let approvals = approvals_api::create_approvals_router(
+        approvals_api::ApprovalsState::new(approval_sqlite_store)
+            .with_event_bus(state.event_bus.clone()),
+    );
     let sse = create_sse_router(state.event_bus.clone(), approval_store);
     let skills = create_skills_router(state.skills_state.clone());
     // SOAR router needs AppState — resolve it here so it becomes Router<()> for merging
@@ -123,9 +124,12 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
     let sentinel = sentinel_api::create_sentinel_router(handles.sentinel);
     let evidence = evidence_api::create_evidence_router(handles.evidence);
     // Fase 11.7: runtime do Sentinel (métricas → regras → gate HITL → SOAR/Axiom)
-    let sentinel_rt = std::sync::Arc::new(sentinel_runtime::SentinelRuntime::from_env(Box::new(
-        sentinel_runtime::OrchestratorForwarder(state.soar_orchestrator.clone()),
-    )));
+    let sentinel_rt = std::sync::Arc::new(
+        sentinel_runtime::SentinelRuntime::from_env(Box::new(
+            sentinel_runtime::OrchestratorForwarder(state.soar_orchestrator.clone()),
+        ))
+        .with_event_bus(state.event_bus.clone()),
+    );
     sentinel_rt.spawn_loop(sentinel_runtime::tick_interval_from_env());
     let sentinel_runtime_routes =
         sentinel_runtime::create_sentinel_runtime_router(sentinel_rt.clone());
