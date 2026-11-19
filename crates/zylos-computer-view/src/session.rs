@@ -35,7 +35,7 @@ impl ComputerSessionManager {
             bot_id: req.bot_id,
             state: SessionState::Connecting.as_str().to_string(),
             vnc_url: req.vnc_endpoint,
-            screenshot_url: Some(format!("/api/v1/computer/sessions/{}/screenshot", id)),
+            screenshot_url: Some(format!("/api/v1/computer-view/sessions/{}/screenshot", id)),
             control_lease: None,
             created_at: now.clone(),
             updated_at: now,

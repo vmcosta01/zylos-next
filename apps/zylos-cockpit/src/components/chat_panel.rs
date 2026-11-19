@@ -346,6 +346,9 @@ pub fn ChatPanel() -> impl IntoView {
                 // Aprovações HITL pendentes inline no chat (ADR-001)
                 <super::hitl_approval_panel::InlineApprovals />
 
+                // Computador do agente inline (ADR-003)
+                <super::inline_computer::InlineComputers />
+
                 // Input area (design-system: .chat-input-area)
                 <div class="chat-input-area">
                     {move || {

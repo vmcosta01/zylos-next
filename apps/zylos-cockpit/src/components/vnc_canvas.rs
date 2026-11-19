@@ -1,6 +1,6 @@
 //! VncCanvas — stream VNC via WebSocket com screenshot fallback (ADR-003).
 //!
-//! Conecta a `ws://gateway/ws/computer-view/{session_id}` e renderiza frames
+//! Conecta a `ws://gateway/api/v1/ws/computer-view/{session_id}` e renderiza frames
 //! binários (JPEG) em um `<canvas>`. Se o WS falhar ou ficar 3s sem frames,
 //! ativa fallback automático via GET `/api/v1/computer-view/sessions/:id/screenshot`.
 //!
@@ -102,7 +102,9 @@ pub fn VncStream(
             let ws_base = base
                 .replace("http://", "ws://")
                 .replace("https://", "wss://");
-            format!("{ws_base}/ws/computer-view/{sid}")
+            // O gateway monta o relay sob /api/v1 (antes o cockpit pedia /ws/... e recebia 404)
+            // e o navegador só consegue autenticar WebSocket por ?access_token=.
+            crate::auth::authed_url(&format!("{ws_base}/api/v1/ws/computer-view/{sid}"))
         };
 
         let screenshot_path = format!("/api/v1/computer-view/sessions/{sid}/screenshot");
