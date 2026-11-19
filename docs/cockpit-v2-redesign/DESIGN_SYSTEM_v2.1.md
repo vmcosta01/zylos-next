@@ -298,7 +298,7 @@ Removidos da v2.0: elevação de 2px no hover do cartão, "ripple" no clique, en
 - A cor de papel por função (`--role-*`) e os skins continuam no código como dados; deixaram de colorir a interface principal.
 - Contraste foi calculado para os tokens; o Lighthouse mede Accessibility 100.
 
-**Medições (release, localhost, Lighthouse mobile):** Performance 47 (LCP 13,8 s, TBT 2,18 s), Accessibility 100, Best Practices 96, SEO 63 (robots.txt bloqueia indexação de propósito). O gargalo é o WASM de 2,14 MB (582 KB em brotli); reduzir exige dividir o bundle, que o Leptos CSR não faz hoje.
+**Medições (release, Lighthouse mobile, servido com brotli):** Performance 69 (LCP 5,4 s, TBT 60 ms, CLS 0), Accessibility 100, Best Practices 96, SEO 63 (robots.txt bloqueia indexação de propósito). O TBT caiu de 2.180 ms para 60 ms ao trocar o seletor `body:has()` do splash por remoção via código. O que sobra do LCP é o download de ~600 KB de WASM (2,22 MB bruto). Dividir o bundle de verdade exige um segundo módulo wasm com runtime Leptos próprio (ver análise de tamanho: ~38% do código são instâncias de view do `tachys`, espalhadas pelos 36 painéis); não foi feito.
 
 **Decisões D1 a D5:** adotados os padrões propostos em §10 (D1 sem "Sempre permitir" para risco alto; D2 escopo agente + ferramenta + categoria no backend; D3 PT-BR; D4 skins adiados; D5 monograma). Revise se algum não for o que você quer.
 

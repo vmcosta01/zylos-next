@@ -44,9 +44,22 @@ pub enum DashboardState {
 
 pub use crate::tabs::Tab;
 
+/// Remove o splash estático do `index.html`, se ainda estiver na página.
+fn remove_splash() {
+    if let Some(el) = web_sys::window()
+        .and_then(|w| w.document())
+        .and_then(|d| d.get_element_by_id("app-splash"))
+    {
+        el.remove();
+    }
+}
+
 /// Root application component
 #[component]
 pub fn App() -> impl IntoView {
+    // O app montou: o splash estático (LCP provisório) sai do DOM.
+    Effect::new(move |_| remove_splash());
+
     // Initialize global contexts
     let _theme_ctx = provide_theme();
     let _toast_ctx = provide_toast_store();

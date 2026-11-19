@@ -106,13 +106,23 @@ Estado em 2026-11-19, verificado no navegador contra o gateway real (ver "Evidê
 - [x] Toasts para eventos assíncronos: aprovação pedida, resolvida e expirada e alerta do Sentinela chegam do gateway pelo SSE; erro de agente é tratado quando o backend emitir `AgentStateChanged` com estado de erro (ainda não emitido)
 
 ### Critérios de Performance
-Medido em `trunk build --release` servido em localhost, Lighthouse mobile padrão (throttling simulado).
+Medido em `trunk build --release`, Lighthouse mobile padrão (Slow 4G, CPU 4x). **Servido com brotli**, como o Cloudflare Pages serve: a primeira medição (Performance 47, LCP 13,8 s, TBT 2.180 ms) usou um servidor sem compressão e, por isso, exagerava o tempo de download do WASM de 2,2 MB.
 
-- [ ] Lighthouse Mobile ≥90: **Performance 47**, Accessibility 100, Best Practices 96, **SEO 63** (o SEO cai por `robots.txt` bloqueando indexação, intencional para um painel privado)
-- [ ] LCP <2s em 3G: **13,8 s** no Lighthouse mobile simulado
-- [ ] TBT <300ms: **2.180 ms** (parse e execução de ~2,1 MB de WASM sob CPU 4x mais lenta)
+| Métrica | Antes (sem compressão) | Depois do ajuste de CSS (sem compressão) | Depois, com brotli |
+|---|---|---|---|
+| Performance | 47 | 55 | **69** |
+| TBT | 2.180 ms | 80 ms | **60 ms** |
+| Style & Layout (CPU 4x) | 1.488 ms | 173 ms | 182 ms |
+| LCP | 13,8 s | 13,5 s | **5,4 s** |
+| FCP e LCP reais, sem throttling | 744 ms e 1.351 ms | 124 ms e 178 ms | |
+
+A causa do TBT era o seletor `body:has(.shell-layout) #app-splash`: `:has()` num ancestral reavalia o estilo a cada mutação do DOM durante a montagem. O splash agora sai do DOM por código (`remove_splash`).
+
+- [ ] Lighthouse Mobile ≥90: **Performance 69**, Accessibility 100, Best Practices 96, **SEO 63** (o SEO cai por `robots.txt` bloqueando indexação, intencional para um painel privado)
+- [ ] LCP <2s em 3G: **5,4 s** no Lighthouse mobile simulado (limitado pelo download de ~600 KB de WASM em Slow 4G)
+- [x] TBT <300ms: **60 ms**
 - [x] CLS <0.1: **0**
-- [x] Bundle WASM <800KB comprimido: 2,14 MB bruto, **582 KB em brotli** (o que o Cloudflare Pages serve) e 801 KB em gzip -9
+- [ ] Bundle WASM <800KB comprimido: 2,22 MB bruto, **599 KB em brotli nível 11** (677 KB em nível 9) e 832 KB em gzip -9. Passa em brotli; **não** passa em gzip -9
 - [ ] Spring animations a 60fps em aparelho intermediário (não medido; a v2.1 removeu a maior parte da animação)
 
 ### Critérios de Design
