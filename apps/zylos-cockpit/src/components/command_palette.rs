@@ -222,6 +222,8 @@ fn build_static_index() -> Vec<PaletteItem> {
             Tab::SkillEditor => "Editor de Skills",
             Tab::Analytics => "Analytics",
             Tab::Collab => "Colaboração",
+            Tab::Inbox => "Inbox",
+            Tab::Activity => "Activity",
         };
         items.push(PaletteItem {
             id: format!("page-{}", tab.css_class()),

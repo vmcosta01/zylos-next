@@ -8,6 +8,7 @@ pub mod employee_governance_panel;
 pub mod evidence_ledger_panel;
 pub mod goals_panel;
 pub mod hitl_approval_panel;
+pub mod inbox_panel;
 pub use agents_panel::AgentsPanel;
 pub mod lazy_roster;
 pub mod memory_timeline;
@@ -75,6 +76,7 @@ pub use goals_panel::GoalsPanel;
 pub use hitl_approval_panel::{
     approve_all_pending, pending_approvals_count, HitlApprovalPanel, InlineApprovals,
 };
+pub use inbox_panel::{ActivityPanel, InboxPanel};
 pub use lazy_roster::LazyRoster;
 pub use memory_timeline::MemoryTimeline;
 pub use personalities_panel::PersonalitiesPanel;

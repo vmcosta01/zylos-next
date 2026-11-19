@@ -51,6 +51,18 @@ impl GatewayNotice {
         }
     }
 
+    /// Categoria na linha do tempo da aba Activity.
+    pub fn activity_kind(&self) -> zylos_cockpit::approvals_sync::ActivityKind {
+        use zylos_cockpit::approvals_sync::ActivityKind;
+        match self {
+            Self::ApprovalRequested { .. }
+            | Self::ApprovalResolved { .. }
+            | Self::ApprovalTimeout { .. } => ActivityKind::Approval,
+            Self::SentinelAlert { .. } => ActivityKind::Alert,
+            Self::AgentError { .. } => ActivityKind::Agent,
+        }
+    }
+
     /// Variante do toast (erro e aviso ficam até dispensar).
     pub fn variant(&self) -> ToastVariant {
         match self {
@@ -251,6 +263,7 @@ pub struct StreamContext {
     stats: RwSignal<StreamStats>,
     messages: RwSignal<Vec<MessageBuffer>>,
     approvals_tick: RwSignal<u32>,
+    activity: RwSignal<Vec<zylos_cockpit::approvals_sync::ActivityEntry>>,
     /// Capturado em `connect()` (dentro do dono reativo); callbacks do EventSource não têm contexto.
     toasts: Option<ToastStore>,
     config: StreamConfig,
@@ -264,6 +277,7 @@ impl StreamContext {
             stats: RwSignal::new(StreamStats::default()),
             messages: RwSignal::new(Vec::new()),
             approvals_tick: RwSignal::new(0),
+            activity: RwSignal::new(Vec::new()),
             toasts: None,
             config,
         }
@@ -409,6 +423,7 @@ impl StreamContext {
         let messages_signal = self.messages;
         let approvals_tick = self.approvals_tick;
         let toasts_msg = self.toasts.clone();
+        let activity_log = self.activity;
         let on_message = Closure::wrap(Box::new(move |ev: web_sys::MessageEvent| {
             let data = match ev.data().as_string() {
                 Some(d) => d,
@@ -425,6 +440,14 @@ impl StreamContext {
                 if notice.is_approval() {
                     zylos_cockpit::approvals_sync::bump(approvals_tick);
                 }
+                zylos_cockpit::approvals_sync::record_activity(
+                    activity_log,
+                    zylos_cockpit::approvals_sync::ActivityEntry {
+                        kind: notice.activity_kind(),
+                        text: notice.message(),
+                        at: chrono::Utc::now().to_rfc3339(),
+                    },
+                );
                 if let Some(t) = &toasts_msg {
                     t.dispatch(notice.variant(), notice.message());
                 }
@@ -549,6 +572,7 @@ pub fn provide_stream(config: StreamConfig) -> StreamContext {
     let ctx = StreamContext::new(config);
     // Painel HITL e chat (lib) leem o mesmo contador, sem depender do módulo do bin.
     provide_context(zylos_cockpit::approvals_sync::ApprovalsTick(ctx.approvals_tick));
+    provide_context(zylos_cockpit::approvals_sync::ActivityLog(ctx.activity));
     provide_context(ctx.clone());
     ctx
 }
@@ -783,6 +807,23 @@ mod tests {
         let n = classify_gateway_event(alerta).unwrap();
         assert!(!n.is_approval());
         assert_eq!(n.message(), "Alerta do Sentinela: CPU alta");
+    }
+
+    #[test]
+    fn avisos_viram_a_categoria_certa_na_atividade() {
+        use zylos_cockpit::approvals_sync::ActivityKind;
+        assert_eq!(
+            GatewayNotice::ApprovalTimeout { summary: "x".into() }.activity_kind(),
+            ActivityKind::Approval
+        );
+        assert_eq!(
+            GatewayNotice::SentinelAlert { message: "x".into() }.activity_kind(),
+            ActivityKind::Alert
+        );
+        assert_eq!(
+            GatewayNotice::AgentError { agent_id: "a".into(), reason: String::new() }.activity_kind(),
+            ActivityKind::Agent
+        );
     }
 
     #[test]

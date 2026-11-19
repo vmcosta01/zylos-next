@@ -11,11 +11,11 @@ use wasm_bindgen_futures::spawn_local;
 use crate::benchmarks::BenchmarkPanel;
 use crate::components::analytics_panel::AnalyticsPanel;
 use crate::components::{
-    provide_theme, provide_toast_store, AgentAvatarsGrid, AgentAwarenessPanel, AgentsPanel,
+    provide_theme, provide_toast_store, ActivityPanel, AgentAvatarsGrid, AgentAwarenessPanel, AgentsPanel,
     ChannelPanel, ChatPanel, CollabPanel, CollapsibleSidebar, CommandPalette,
     EmployeeGovernancePanel, EvidenceLedgerPanel, FederationDashboard, FileManager,
     FleetAuditorPanel, GatewayStatus, GoalsPanel, HitlApprovalPanel, IntegrationsPanel,
-    MemoryTimeline, PersonalitiesPanel, PhoneRelayPanel, SecurityPanel, SentinelPanel,
+    InboxPanel, MemoryTimeline, PersonalitiesPanel, PhoneRelayPanel, SecurityPanel, SentinelPanel,
     SkillEditorPanel, SkillEvolutionPanel, SkinThemesPanel, SoarDashboard, SubagentStatusCards,
     SwarmDagPanel, SwarmTopologyPanel, TaskTriagePanel, TasksDag, ThreadManager, ToastContainer,
     TranslucentHeader, VoicePanel,
@@ -101,7 +101,12 @@ pub fn App() -> impl IntoView {
     view! {
         <a href="#main-content" class="skip-link">"Pular para o conteúdo"</a>
         <div class="shell-layout">
-            <TranslucentHeader version=version.get() gateway_status=gateway_status.get() />
+            <TranslucentHeader
+                version=version.get()
+                gateway_status=gateway_status.get()
+                active_tab=active_tab
+                set_active_tab=set_active_tab
+            />
 
             <div class="shell-body">
                 <aside class="shell-sidebar-wrapper">
@@ -390,6 +395,18 @@ fn TabContent(tab: Tab) -> impl IntoView {
         <div class="tab-panel tab-panel-federation">
         <FederationDashboard />
         </div>
+        }
+        .into_any(),
+        Tab::Inbox => view! {
+            <div class="tab-panel tab-panel-inbox">
+                <InboxPanel />
+            </div>
+        }
+        .into_any(),
+        Tab::Activity => view! {
+            <div class="tab-panel tab-panel-activity">
+                <ActivityPanel />
+            </div>
         }
         .into_any(),
         Tab::Chat => view! {

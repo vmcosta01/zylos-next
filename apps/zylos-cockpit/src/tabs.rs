@@ -41,11 +41,13 @@ pub enum Tab {
     SkillEditor,
     Analytics,
     Collab,
+    Inbox,
+    Activity,
 }
 
 impl Tab {
     /// Todas as abas, na ordem exibida na barra de navegação.
-    pub const ALL: [Tab; 34] = [
+    pub const ALL: [Tab; 36] = [
         Tab::Agents,
         Tab::Tasks,
         Tab::Memory,
@@ -80,6 +82,8 @@ impl Tab {
         Tab::SkillEditor,
         Tab::Analytics,
         Tab::Collab,
+        Tab::Inbox,
+        Tab::Activity,
     ];
 
     pub fn css_class(&self) -> &'static str {
@@ -118,6 +122,8 @@ impl Tab {
             Tab::SkillEditor => "tab-skill-editor",
             Tab::Analytics => "tab-analytics",
             Tab::Collab => "tab-collab",
+            Tab::Inbox => "tab-inbox",
+            Tab::Activity => "tab-activity",
         }
     }
 
@@ -157,6 +163,8 @@ impl Tab {
             Tab::SkillEditor => "tab.skill_editor",
             Tab::Analytics => "tab.analytics",
             Tab::Collab => "tab.collab",
+            Tab::Inbox => "tab.inbox",
+            Tab::Activity => "tab.activity",
         }
     }
 }

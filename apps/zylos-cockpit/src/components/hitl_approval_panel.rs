@@ -681,6 +681,118 @@ pub fn InlineApprovals() -> impl IntoView {
     }
 }
 
+/// Linha de recibo para a aba Activity: o que a pessoa decidiu.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DecisionLine {
+    pub summary: String,
+    pub decision: String,
+    pub at: String,
+}
+
+fn decision_text(decision: &str) -> String {
+    match decision {
+        "allow_once" => "permitiu uma vez".to_string(),
+        "allow_session" => "permitiu na sessão".to_string(),
+        "allow_always" => "permitiu sempre".to_string(),
+        "refuse" => "recusou".to_string(),
+        other => other.to_string(),
+    }
+}
+
+/// Decisões recentes (recibos guardados no navegador por 7 dias), mais novas primeiro.
+pub fn recent_decisions() -> Vec<DecisionLine> {
+    let mut v: Vec<DecisionLine> = load_receipts()
+        .into_iter()
+        .map(|r| DecisionLine {
+            summary: r.summary,
+            decision: decision_text(&r.decision),
+            at: r.timestamp,
+        })
+        .collect();
+    v.sort_by(|a, b| b.at.cmp(&a.at));
+    v
+}
+
+/// Pendências agrupadas por agente (aba Inbox). Mesmos cartões e ações do painel HITL.
+#[component]
+pub fn InboxApprovals() -> impl IntoView {
+    let (approvals, set_approvals) = signal(Vec::<ApprovalRequest>::new());
+    let (loaded, set_loaded) = signal(false);
+    let (error, set_error) = signal(None::<String>);
+    let tick = approvals_tick();
+
+    Effect::new(move |_| {
+        if let Some(t) = tick {
+            let _ = t.get();
+        }
+        spawn_local(async move {
+            match fetch_approvals().await {
+                Ok(list) => {
+                    schedule_expiry_refresh(&list, tick);
+                    set_approvals.set(list);
+                    set_error.set(None);
+                }
+                Err(e) => set_error.set(Some(e)),
+            }
+            set_loaded.set(true);
+        });
+    });
+
+    view! {
+        <div class="inbox-approvals">
+            {move || {
+                if !loaded.get() {
+                    view! { <div class="skeleton-grid"><div class="skeleton-card pulse"></div></div> }.into_any()
+                } else if let Some(e) = error.get() {
+                    view! {
+                        <div class="error-banner">
+                            <p>{format!("Não foi possível carregar o Inbox: {}", crate::ui_error::report("Inbox", &e))}</p>
+                            <button class="cta-retry" on:click=move |_| {
+                                if let Some(t) = tick { crate::approvals_sync::bump(t); }
+                            }>"Tentar novamente"</button>
+                        </div>
+                    }.into_any()
+                } else if approvals.get().is_empty() {
+                    view! {
+                        <div class="empty-state">
+                            <p>"Nada esperando por você"</p>
+                            <p class="muted">"Quando um agente precisar de uma aprovação, ela aparece aqui e no chat."</p>
+                        </div>
+                    }.into_any()
+                } else {
+                    let mut groups: Vec<(String, Vec<ApprovalRequest>)> = Vec::new();
+                    for a in approvals.get() {
+                        match groups.iter_mut().find(|(bot, _)| *bot == a.bot_id) {
+                            Some((_, list)) => list.push(a),
+                            None => groups.push((a.bot_id.clone(), vec![a])),
+                        }
+                    }
+                    groups
+                        .into_iter()
+                        .map(|(bot, list)| {
+                            view! {
+                                <section class="inbox-group" aria-label=format!("Pendências de {}", bot)>
+                                    <h3 class="inbox-group-title">{bot.clone()}</h3>
+                                    {list.into_iter().map(|approval| {
+                                        let summary = approval.summary.clone();
+                                        let on_resolve: Arc<dyn Fn(String, String) + Send + Sync> =
+                                            Arc::new(move |id: String, decision: String| {
+                                                set_approvals.update(|l| l.retain(|a| a.id != id));
+                                                save_receipt(&id, &decision, &summary);
+                                            });
+                                        view! { <InlineApprovalCard approval=approval on_resolve=on_resolve /> }
+                                    }).collect::<Vec<_>>()}
+                                </section>
+                            }
+                        })
+                        .collect_view()
+                        .into_any()
+                }
+            }}
+        </div>
+    }
+}
+
 /// Aprova (uma vez) todas as pendentes. Devolve `(aprovadas, falhas)`. Quem chama deve confirmar antes.
 pub async fn approve_all_pending() -> Result<(usize, usize), String> {
     let list = fetch_approvals().await?;
@@ -845,5 +957,18 @@ mod risk_tests {
         assert!(!Risk::Alto.allows_always());
         assert!(Risk::Medio.allows_always());
         assert!(Risk::Baixo.allows_always());
+    }
+}
+
+#[cfg(test)]
+mod decision_tests {
+    use super::*;
+
+    #[test]
+    fn texto_da_decisao() {
+        assert_eq!(decision_text("allow_once"), "permitiu uma vez");
+        assert_eq!(decision_text("allow_always"), "permitiu sempre");
+        assert_eq!(decision_text("refuse"), "recusou");
+        assert_eq!(decision_text("outra"), "outra");
     }
 }

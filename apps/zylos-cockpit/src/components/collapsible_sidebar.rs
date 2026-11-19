@@ -244,5 +244,7 @@ fn tab_icon(tab: Tab) -> &'static str {
         Tab::Fleet => "buildings",
         Tab::Federation => "globe-hemisphere-west",
         Tab::Integrations => "plugs-connected",
+        Tab::Inbox => "tray",
+        Tab::Activity => "pulse",
     }
 }
