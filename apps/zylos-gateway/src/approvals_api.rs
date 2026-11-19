@@ -91,8 +91,8 @@ async fn create_approval(
         .store
         .create(CreateApprovalRequest {
             bot_id: body.bot_id.clone(),
-            tool_name: body.tool_name,
-            action_category: body.action_category,
+            tool_name: body.tool_name.clone(),
+            action_category: body.action_category.clone(),
             summary: body.summary.clone(),
             arguments_json: body.arguments_json,
             expires_in_seconds: body.expires_in_seconds,
@@ -108,6 +108,37 @@ async fn create_approval(
             return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
+
+    // Regra "sempre permitir" cobre o pedido: resolve sem perguntar e avisa (aba Activity).
+    if let Ok(Some(rule)) = state
+        .store
+        .find_allow_always_rule(&body.bot_id, &body.tool_name, &body.action_category)
+        .await
+    {
+        if state.store.auto_resolve(&id, &rule.id).await.is_ok() {
+            state
+                .notify_custom(
+                    "approvals.auto",
+                    "ApprovalAutoResolved",
+                    serde_json::json!({
+                        "approval_id": id,
+                        "bot_id": body.bot_id,
+                        "summary": body.summary,
+                        "rule_id": rule.id,
+                    }),
+                )
+                .await;
+            return (
+                axum::http::StatusCode::CREATED,
+                Json(CreateResponse {
+                    id,
+                    status: "auto_approved".to_string(),
+                    expires_at: None,
+                }),
+            )
+                .into_response();
+        }
+    }
 
     let created = state.store.get(&id).await.ok();
     let expires_at = created.as_ref().and_then(|r| r.expires_at.clone());
@@ -210,6 +241,47 @@ struct ResolveResponse {
     decided_at: String,
 }
 
+#[derive(Debug, Serialize)]
+struct HandledItem {
+    id: String,
+    bot_id: String,
+    tool_name: String,
+    summary: String,
+    decided_at: Option<String>,
+    rule_id: Option<String>,
+}
+
+/// `GET /approvals/handled` — pedidos que uma regra "sempre permitir" resolveu sem perguntar.
+async fn list_handled(State(state): State<ApprovalsState>) -> impl IntoResponse {
+    match state.store.list_auto_resolved(50).await {
+        Ok(rows) => {
+            let items: Vec<HandledItem> = rows
+                .into_iter()
+                .map(|r| {
+                    let rule_id = r
+                        .receipt_json
+                        .as_deref()
+                        .and_then(|j| serde_json::from_str::<serde_json::Value>(j).ok())
+                        .and_then(|v| v["rule_id"].as_str().map(str::to_string));
+                    HandledItem {
+                        id: r.id,
+                        bot_id: r.bot_id,
+                        tool_name: r.tool_name,
+                        summary: r.summary,
+                        decided_at: r.decided_at,
+                        rule_id,
+                    }
+                })
+                .collect();
+            Json(serde_json::json!({ "items": items })).into_response()
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "failed to list handled approvals");
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
 /// `GET /approvals/rules` — regras permanentes criadas por "Sempre permitir".
 async fn list_rules(State(state): State<ApprovalsState>) -> impl IntoResponse {
     match state.store.list_all_rules().await {
@@ -309,6 +381,7 @@ pub fn create_approvals_router(state: ApprovalsState) -> Router {
         // por isso a resolução fica aqui, em /approvals/resolve (plural).
         .route("/approvals/resolve", post(resolve_approval))
         .route("/approvals/rules", get(list_rules))
+        .route("/approvals/handled", get(list_handled))
         .route("/approvals/rules/revoke", post(revoke_rule))
         .with_state(state)
 }
@@ -467,6 +540,71 @@ mod tests {
             post_json(state, "/approvals/rules/revoke", revogar).await,
             StatusCode::NOT_FOUND
         );
+    }
+
+    #[tokio::test]
+    async fn regra_resolve_pedido_novo_sem_perguntar_e_aparece_em_handled() {
+        let (state, bus) = setup_with_bus().await;
+        // 1) cria e aprova "sempre" um pedido, gerando a regra
+        let first = state
+            .store
+            .create(CreateApprovalRequest {
+                bot_id: "chief".into(),
+                tool_name: "send_email".into(),
+                action_category: "send_message".into(),
+                summary: "Enviar resumo".into(),
+                arguments_json: "{}".into(),
+                expires_in_seconds: Some(300),
+            })
+            .await
+            .unwrap();
+        let body = serde_json::json!({ "approval_id": first, "decision": "allow_always" });
+        assert_eq!(
+            post_json(state.clone(), "/approvals/resolve", body).await,
+            StatusCode::OK
+        );
+
+        // 2) pedido igual: nasce resolvido pela regra e publica o aviso
+        let mut rx = bus.subscribe_legacy();
+        let novo = serde_json::json!({
+            "bot_id": "chief", "tool_name": "send_email", "action_category": "send_message",
+            "summary": "Enviar resumo de novo", "expires_in_seconds": 300,
+        });
+        assert_eq!(
+            post_json(state.clone(), "/approvals", novo).await,
+            StatusCode::CREATED
+        );
+        assert!(state.store.list_pending().await.unwrap().is_empty());
+        match next_envelope(&mut rx).await.payload {
+            ZylosEvent::Custom(c) => {
+                assert_eq!(c.name, "ApprovalAutoResolved");
+                assert_eq!(c.payload["bot_id"], "chief");
+            }
+            outro => panic!("esperava ApprovalAutoResolved, veio {outro:?}"),
+        }
+
+        // 3) listado em /approvals/handled com a regra para revogar
+        let handled = state.store.list_auto_resolved(10).await.unwrap();
+        assert_eq!(handled.len(), 1);
+        assert_eq!(handled[0].summary, "Enviar resumo de novo");
+        let rule_id = state.store.list_all_rules().await.unwrap()[0].id.clone();
+        assert!(handled[0]
+            .receipt_json
+            .as_deref()
+            .unwrap()
+            .contains(&rule_id));
+
+        // 4) sem a regra, volta a perguntar
+        state.store.delete_rule(&rule_id).await.unwrap();
+        let outro = serde_json::json!({
+            "bot_id": "chief", "tool_name": "send_email", "action_category": "send_message",
+            "summary": "Depois de revogar", "expires_in_seconds": 300,
+        });
+        assert_eq!(
+            post_json(state.clone(), "/approvals", outro).await,
+            StatusCode::CREATED
+        );
+        assert_eq!(state.store.list_pending().await.unwrap().len(), 1);
     }
 
     // --- criação + eventos SSE ------------------------------------------------

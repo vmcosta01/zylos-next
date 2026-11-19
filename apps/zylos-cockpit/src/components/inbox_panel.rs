@@ -6,7 +6,7 @@
 
 use leptos::prelude::*;
 
-use super::hitl_approval_panel::{recent_decisions, InboxApprovals};
+use super::hitl_approval_panel::{fetch_handled, recent_decisions, HandledRow, InboxApprovals};
 use crate::approvals_sync::{use_activity_log, ActivityEntry, ActivityKind};
 
 /// Aba Inbox.
@@ -74,10 +74,76 @@ pub fn ActivityPanel() -> impl IntoView {
     let log = use_activity_log();
     let (filter, set_filter) = signal(Filter::All);
 
+    // "Resolvido por regras": o que "Sempre permitir" liberou sem perguntar, com Revogar regra.
+    let (handled, set_handled) = signal(Vec::<HandledRow>::new());
+    let (handled_error, set_handled_error) = signal(None::<String>);
+    let tick = crate::approvals_sync::use_approvals_tick();
+    let reload_handled = move || {
+        wasm_bindgen_futures::spawn_local(async move {
+            match fetch_handled().await {
+                Ok(v) => {
+                    set_handled.set(v);
+                    set_handled_error.set(None);
+                }
+                Err(e) => set_handled_error.set(Some(e)),
+            }
+        });
+    };
+    Effect::new(move |_| {
+        if let Some(t) = tick {
+            let _ = t.get();
+        }
+        reload_handled();
+    });
+
     view! {
         <section class="activity-panel" aria-labelledby="activity-title">
             <h2 id="activity-title" class="page-title">"Activity"</h2>
             <p class="page-sub">"O que você decidiu e o que o gateway avisou"</p>
+
+            <h3 class="activity-heading">"Resolvido por regras (sem perguntar)"</h3>
+            {move || {
+                let spaces = crate::spaces::use_spaces();
+                let rows: Vec<HandledRow> = handled
+                    .get()
+                    .into_iter()
+                    .filter(|r| spaces.map(|s| s.allows(&r.bot_id)).unwrap_or(true))
+                    .collect();
+                if let Some(e) = handled_error.get() {
+                    view! { <p class="muted">{format!("Não foi possível carregar: {}", crate::ui_error::report("Regras", &e))}</p> }.into_any()
+                } else if rows.is_empty() {
+                    view! { <p class="muted">"Nada ainda. Quando uma regra Sempre permitir liberar um pedido, ele aparece aqui, e você pode revogar a regra."</p> }.into_any()
+                } else {
+                    view! {
+                        <ul class="activity-list">
+                            {rows.into_iter().map(|r| {
+                                let rule = r.rule_id.clone();
+                                view! {
+                                    <li class="activity-row activity-row-action">
+                                        <i class="ph ph-shield-check" aria-hidden="true"></i>
+                                        <span class="activity-text">{format!("{}: {}", r.bot_id, r.summary)}</span>
+                                        <time class="activity-time">{short_time(r.decided_at.as_deref().unwrap_or(""))}</time>
+                                        {rule.map(|rule_id| view! {
+                                            <button
+                                                class="cta-secondary"
+                                                on:click=move |_| {
+                                                    let rule_id = rule_id.clone();
+                                                    wasm_bindgen_futures::spawn_local(async move {
+                                                        match crate::components::hitl_approval_panel::revoke_rule(&rule_id).await {
+                                                            Ok(()) => reload_handled(),
+                                                            Err(e) => set_handled_error.set(Some(e)),
+                                                        }
+                                                    });
+                                                }
+                                            >"Revogar regra"</button>
+                                        })}
+                                    </li>
+                                }
+                            }).collect::<Vec<_>>()}
+                        </ul>
+                    }.into_any()
+                }
+            }}
 
             <h3 class="activity-heading">"Decisões suas (7 dias)"</h3>
             {move || {

@@ -53,6 +53,7 @@ pub fn App() -> impl IntoView {
     let _i18n_ctx = provide_i18n(Locale::PtBr);
     let stream_ctx = provide_stream(StreamConfig::default());
     stream_ctx.connect(); // abre o SSE em /api/v1/events
+    let _spaces_ctx = crate::spaces::provide_spaces();
 
     let (state, set_state) = signal(DashboardState::Loading);
     let (active_tab, set_active_tab) = signal(Tab::Agents);

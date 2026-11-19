@@ -33,6 +33,7 @@ pub mod security_headers;
 pub mod sentinel_api;
 pub mod sentinel_runtime;
 pub mod soar_api;
+pub mod spaces_api;
 pub mod subagents_api;
 pub mod threads_api;
 pub mod webrtc_relay;
@@ -102,6 +103,23 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
         approvals_api::ApprovalsState::new(approval_sqlite_store)
             .with_event_bus(state.event_bus.clone()),
     );
+    // Spaces: grupos de agentes que filtram Inbox e chat no cockpit (banco próprio, `ZYLOS_SPACES_DB`).
+    let spaces_store = tokio::task::block_in_place(|| {
+        tokio::runtime::Handle::current().block_on(async {
+            let path = std::env::var("ZYLOS_SPACES_DB")
+                .unwrap_or_else(|_| "sqlite:data/spaces.db".to_string());
+            if let Some(parent) = std::path::Path::new(path.trim_start_matches("sqlite:")).parent()
+            {
+                if !parent.as_os_str().is_empty() {
+                    let _ = std::fs::create_dir_all(parent);
+                }
+            }
+            spaces_api::SpacesStore::connect(&path)
+                .await
+                .expect("failed to open spaces store")
+        })
+    });
+    let spaces = spaces_api::create_spaces_router(spaces_store);
     let sse = create_sse_router(state.event_bus.clone(), approval_store);
     let skills = create_skills_router(state.skills_state.clone());
     // SOAR router needs AppState — resolve it here so it becomes Router<()> for merging
@@ -285,6 +303,7 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
                 .merge(analytics)
                 .merge(crdt)
                 .merge(approvals)
+                .merge(spaces)
                 .merge(agents_api::create_agents_router(state.swarm.clone()))
                 .merge(subagents_api::create_subagents_router(state.swarm.clone()))
                 .merge(threads_api::create_threads_router(
@@ -321,6 +340,7 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
                 .allow_methods([
                     Method::GET,
                     Method::POST,
+                    Method::PUT,
                     Method::PATCH,
                     Method::DELETE,
                     Method::OPTIONS,

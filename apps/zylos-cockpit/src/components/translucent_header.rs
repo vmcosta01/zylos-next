@@ -12,7 +12,7 @@
 use leptos::prelude::*;
 
 #[allow(unused_imports)]
-use crate::components::{pending_approvals_count, AuthHeaderButton, ThemeToggle};
+use crate::components::{pending_approvals_count_where, AuthHeaderButton, ThemeToggle};
 use crate::tabs::Tab;
 
 /// Status do gateway derivado do StreamContext.
@@ -60,8 +60,14 @@ pub fn TranslucentHeader(
         if let Some(t) = tick {
             let _ = t.get();
         }
+        // Refaz o número também ao trocar de Space.
+        let space = crate::spaces::use_spaces().and_then(|s| s.active());
         wasm_bindgen_futures::spawn_local(async move {
-            if let Ok(n) = pending_approvals_count().await {
+            if let Ok(n) = pending_approvals_count_where(|bot| {
+                crate::spaces::space_allows(space.as_ref(), bot)
+            })
+            .await
+            {
                 set_pending.set(n);
             }
         });

@@ -226,6 +226,56 @@ impl ApprovalStore {
         Ok(rows)
     }
 
+    /// Regra "sempre permitir" que cobre bot + ferramenta + categoria, se existir.
+    pub async fn find_allow_always_rule(
+        &self,
+        bot_id: &str,
+        tool_name: &str,
+        action_category: &str,
+    ) -> Result<Option<ApprovalRule>, ApprovalError> {
+        let row = sqlx::query_as::<_, ApprovalRule>(
+            "SELECT * FROM approval_rules WHERE bot_id = ? AND tool_name = ? AND action_category = ? AND decision = 'allow_always' ORDER BY created_at ASC LIMIT 1",
+        )
+        .bind(bot_id)
+        .bind(tool_name)
+        .bind(action_category)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row)
+    }
+
+    /// Aprova um pedido pendente por causa de uma regra, sem perguntar à pessoa.
+    /// O recibo guarda `{"auto":true,"rule_id":...}` para a aba Activity listar e permitir revogar.
+    pub async fn auto_resolve(&self, id: &str, rule_id: &str) -> Result<String, ApprovalError> {
+        self.get_pending(id).await?;
+        let now = chrono::Utc::now().to_rfc3339();
+        let receipt = serde_json::json!({ "auto": true, "rule_id": rule_id }).to_string();
+        sqlx::query(
+            "UPDATE approval_requests SET status = 'approved', decision = 'allow_always', decided_at = ?, receipt_json = ? WHERE id = ?",
+        )
+        .bind(&now)
+        .bind(&receipt)
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
+        tracing::info!(approval_id = %id, rule_id = %rule_id, "Approval resolved by rule");
+        Ok(now)
+    }
+
+    /// Pedidos resolvidos por regra, do mais novo para o mais antigo.
+    pub async fn list_auto_resolved(
+        &self,
+        limit: i64,
+    ) -> Result<Vec<ApprovalRequest>, ApprovalError> {
+        let rows = sqlx::query_as::<_, ApprovalRequest>(
+            "SELECT * FROM approval_requests WHERE receipt_json LIKE '%\"auto\":true%' ORDER BY decided_at DESC LIMIT ?",
+        )
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows)
+    }
+
     /// Remove regra persistente
     pub async fn delete_rule(&self, rule_id: &str) -> Result<(), ApprovalError> {
         let result = sqlx::query("DELETE FROM approval_rules WHERE id = ?")

@@ -238,7 +238,7 @@ async fn fetch_rules() -> Result<Vec<ApprovalRuleView>, String> {
     Ok(data.rules)
 }
 
-async fn revoke_rule(rule_id: &str) -> Result<(), String> {
+pub(crate) async fn revoke_rule(rule_id: &str) -> Result<(), String> {
     let base = crate::gateway_config::gateway_base().ok_or("Gateway não configurado")?;
     let url = crate::gateway_config::join_url(&base, "/api/v1/approvals/rules/revoke");
     let resp = crate::auth::authed(gloo_net::http::Request::post(&url))
@@ -252,6 +252,36 @@ async fn revoke_rule(rule_id: &str) -> Result<(), String> {
     } else {
         Err(crate::auth::approval_error(resp.status()))
     }
+}
+
+/// Pedido que uma regra "sempre permitir" resolveu sem perguntar (aba Activity).
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct HandledRow {
+    pub id: String,
+    pub bot_id: String,
+    pub summary: String,
+    pub decided_at: Option<String>,
+    pub rule_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct HandledResponse {
+    items: Vec<HandledRow>,
+}
+
+/// `GET /api/v1/approvals/handled`.
+pub async fn fetch_handled() -> Result<Vec<HandledRow>, String> {
+    let base = crate::gateway_config::gateway_base().ok_or("Gateway não configurado")?;
+    let url = crate::gateway_config::join_url(&base, "/api/v1/approvals/handled");
+    let resp = crate::auth::authed(gloo_net::http::Request::get(&url))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !resp.ok() {
+        return Err(crate::auth::approval_error(resp.status()));
+    }
+    let data: HandledResponse = resp.json().await.map_err(|e| e.to_string())?;
+    Ok(data.items)
 }
 
 /// Lista as regras "Sempre permitir" ativas, com botão para revogar (o próximo pedido volta a perguntar).
@@ -664,9 +694,11 @@ pub fn InlineApprovals() -> impl IntoView {
     view! {
         <div class="chat-inline-approvals" role="region" aria-label="Aprovações pendentes">
             {move || {
+                let spaces = crate::spaces::use_spaces();
                 approvals
                     .get()
                     .into_iter()
+                    .filter(|a| spaces.map(|s| s.allows(&a.bot_id)).unwrap_or(true))
                     .map(|approval| {
                         let summary = approval.summary.clone();
                         let on_resolve: Arc<dyn Fn(String, String) + Send + Sync> =
@@ -721,6 +753,14 @@ pub fn InboxApprovals() -> impl IntoView {
     let (loaded, set_loaded) = signal(false);
     let (error, set_error) = signal(None::<String>);
     let tick = approvals_tick();
+    // Só as pendências de agentes com acesso ao Space ativo.
+    let visible = move |list: &[ApprovalRequest]| -> Vec<ApprovalRequest> {
+        let spaces = crate::spaces::use_spaces();
+        list.iter()
+            .filter(|a| spaces.map(|s| s.allows(&a.bot_id)).unwrap_or(true))
+            .cloned()
+            .collect()
+    };
 
     Effect::new(move |_| {
         if let Some(t) = tick {
@@ -753,7 +793,7 @@ pub fn InboxApprovals() -> impl IntoView {
                             }>"Tentar novamente"</button>
                         </div>
                     }.into_any()
-                } else if approvals.get().is_empty() {
+                } else if visible(&approvals.get()).is_empty() {
                     view! {
                         <div class="empty-state">
                             <p>"Nada esperando por você"</p>
@@ -762,7 +802,7 @@ pub fn InboxApprovals() -> impl IntoView {
                     }.into_any()
                 } else {
                     let mut groups: Vec<(String, Vec<ApprovalRequest>)> = Vec::new();
-                    for a in approvals.get() {
+                    for a in visible(&approvals.get()) {
                         match groups.iter_mut().find(|(bot, _)| *bot == a.bot_id) {
                             Some((_, list)) => list.push(a),
                             None => groups.push((a.bot_id.clone(), vec![a])),
@@ -813,6 +853,13 @@ pub async fn approve_all_pending() -> Result<(usize, usize), String> {
 /// Quantas aprovações estão pendentes agora (para o palette confirmar o lote).
 pub async fn pending_approvals_count() -> Result<usize, String> {
     fetch_approvals().await.map(|l| l.len())
+}
+
+/// Pendentes cujo agente passa no filtro (contador do Inbox respeita o Space ativo).
+pub async fn pending_approvals_count_where(allow: impl Fn(&str) -> bool) -> Result<usize, String> {
+    fetch_approvals()
+        .await
+        .map(|l| l.iter().filter(|a| allow(&a.bot_id)).count())
 }
 
 async fn fetch_approvals() -> Result<Vec<ApprovalRequest>, String> {

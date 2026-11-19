@@ -27,6 +27,8 @@ pub mod app {
 /// Componentes do cockpit — expostos publicamente para testes E2E e integração.
 pub mod approvals_sync;
 
+pub mod spaces;
+
 pub mod auth;
 
 pub mod components;

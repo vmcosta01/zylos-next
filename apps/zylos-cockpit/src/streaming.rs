@@ -14,11 +14,27 @@ use crate::components::toast_container::{ToastStore, ToastVariant};
 /// Aviso extraído de um evento SSE do gateway (PRD F8: toasts para eventos assíncronos).
 #[derive(Debug, Clone, PartialEq)]
 pub enum GatewayNotice {
-    ApprovalRequested { summary: String },
-    ApprovalResolved { status: String },
-    ApprovalTimeout { summary: String },
-    AgentError { agent_id: String, reason: String },
-    SentinelAlert { message: String },
+    ApprovalRequested {
+        summary: String,
+    },
+    ApprovalResolved {
+        status: String,
+    },
+    ApprovalTimeout {
+        summary: String,
+    },
+    /// Uma regra "sempre permitir" resolveu o pedido sem perguntar.
+    ApprovalAutoResolved {
+        bot_id: String,
+        summary: String,
+    },
+    AgentError {
+        agent_id: String,
+        reason: String,
+    },
+    SentinelAlert {
+        message: String,
+    },
 }
 
 impl GatewayNotice {
@@ -29,6 +45,7 @@ impl GatewayNotice {
             Self::ApprovalRequested { .. }
                 | Self::ApprovalResolved { .. }
                 | Self::ApprovalTimeout { .. }
+                | Self::ApprovalAutoResolved { .. }
         )
     }
 
@@ -41,6 +58,9 @@ impl GatewayNotice {
             Self::ApprovalRequested { summary } => format!("Nova aprovação pendente: {summary}"),
             Self::ApprovalResolved { status } => format!("Aprovação resolvida ({status})"),
             Self::ApprovalTimeout { summary } => format!("Aprovação expirou: {summary}"),
+            Self::ApprovalAutoResolved { bot_id, summary } => {
+                format!("Regra permitiu sem perguntar ({bot_id}): {summary}")
+            }
             Self::AgentError { agent_id, reason } if reason.is_empty() => {
                 format!("Agente {agent_id} entrou em erro")
             }
@@ -57,7 +77,8 @@ impl GatewayNotice {
         match self {
             Self::ApprovalRequested { .. }
             | Self::ApprovalResolved { .. }
-            | Self::ApprovalTimeout { .. } => ActivityKind::Approval,
+            | Self::ApprovalTimeout { .. }
+            | Self::ApprovalAutoResolved { .. } => ActivityKind::Approval,
             Self::SentinelAlert { .. } => ActivityKind::Alert,
             Self::AgentError { .. } => ActivityKind::Agent,
         }
@@ -66,7 +87,9 @@ impl GatewayNotice {
     /// Variante do toast (erro e aviso ficam até dispensar).
     pub fn variant(&self) -> ToastVariant {
         match self {
-            Self::ApprovalRequested { .. } | Self::ApprovalResolved { .. } => ToastVariant::Info,
+            Self::ApprovalRequested { .. }
+            | Self::ApprovalResolved { .. }
+            | Self::ApprovalAutoResolved { .. } => ToastVariant::Info,
             Self::ApprovalTimeout { .. } | Self::SentinelAlert { .. } => ToastVariant::Warning,
             Self::AgentError { .. } => ToastVariant::Error,
         }
@@ -105,6 +128,10 @@ pub fn classify_gateway_event(raw: &str) -> Option<GatewayNotice> {
                     status: text(payload, "status"),
                 }),
                 "ApprovalTimeout" => Some(GatewayNotice::ApprovalTimeout {
+                    summary: text(payload, "summary"),
+                }),
+                "ApprovalAutoResolved" => Some(GatewayNotice::ApprovalAutoResolved {
+                    bot_id: text(payload, "bot_id"),
                     summary: text(payload, "summary"),
                 }),
                 "SentinelAlert" => Some(GatewayNotice::SentinelAlert {
@@ -835,6 +862,17 @@ mod tests {
             }
             .activity_kind(),
             ActivityKind::Agent
+        );
+    }
+
+    #[test]
+    fn classifica_resolucao_automatica_por_regra() {
+        let raw = r#"{"event_type":"Custom","data":{"name":"ApprovalAutoResolved","payload":{"bot_id":"chief","summary":"Enviar resumo","rule_id":"r1"}}}"#;
+        let n = classify_gateway_event(raw).unwrap();
+        assert!(n.is_approval());
+        assert_eq!(
+            n.message(),
+            "Regra permitiu sem perguntar (chief): Enviar resumo"
         );
     }
 

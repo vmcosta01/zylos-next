@@ -156,7 +156,12 @@ pub struct CustomEvent {
 // ---------------------------------------------------------------------------
 
 /// Nomes de eventos `Custom` tratados como aviso pelo cockpit (toast e atualização do HITL).
-pub const NOTICE_EVENT_NAMES: [&str; 3] = ["ApprovalResolved", "ApprovalTimeout", "SentinelAlert"];
+pub const NOTICE_EVENT_NAMES: [&str; 4] = [
+    "ApprovalResolved",
+    "ApprovalTimeout",
+    "ApprovalAutoResolved",
+    "SentinelAlert",
+];
 
 /// In-process JSON Schema registry. Producers validate before publish;
 /// consumers receive `schema_version` in the envelope header.

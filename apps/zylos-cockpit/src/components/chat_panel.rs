@@ -199,7 +199,8 @@ pub fn ChatPanel() -> impl IntoView {
                 <div class="sidebar-section">
                     <div class="sidebar-section-title">"Agentes"</div>
                     {move || {
-                        bots.get().iter().map(|bot| {
+                        let spaces = crate::spaces::use_spaces();
+                        bots.get().iter().filter(|b| spaces.map(|s| s.allows(&b.name)).unwrap_or(true)).map(|bot| {
                             let name = bot.name.clone();
                             let display = bot.display_name.clone();
                             let provider = bot.provider.clone();

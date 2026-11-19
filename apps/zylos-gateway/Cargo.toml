@@ -49,6 +49,7 @@ zylos-auth = { path = "../../crates/zylos-auth" }
 zylos-analytics = { path = "../../crates/zylos-analytics" }
 zylos-computer-view = { version = "0.1.0", path = "../../crates/zylos-computer-view" }
 zylos-approval = { path = "../../crates/zylos-approval" }
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite"] }
 sentry = { version = "0.46.2", features = ["backtrace", "contexts", "panic", "log"] }
 zylos-sentinel = { version = "0.1.0", path = "../../crates/zylos-sentinel" }
 zylos-integrations = { path = "../../crates/zylos-integrations" }

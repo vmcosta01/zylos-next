@@ -181,6 +181,10 @@ pub fn CollapsibleSidebar(
                 </button>
             </div>
 
+            <Show when=move || !collapsed.get()>
+                <super::spaces_rail::SpacesRail />
+            </Show>
+
             <div class="sidebar-groups">
                 {SidebarGroup::ALL.iter().map(|&group| {
                     let i18n = i18n;

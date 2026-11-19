@@ -10,6 +10,7 @@ pub mod goals_panel;
 pub mod hitl_approval_panel;
 pub mod inbox_panel;
 pub mod inline_computer;
+pub mod spaces_rail;
 pub use agents_panel::AgentsPanel;
 pub mod lazy_roster;
 pub mod memory_timeline;
@@ -75,7 +76,8 @@ pub use employee_governance_panel::EmployeeGovernancePanel;
 pub use evidence_ledger_panel::EvidenceLedgerPanel;
 pub use goals_panel::GoalsPanel;
 pub use hitl_approval_panel::{
-    approve_all_pending, pending_approvals_count, HitlApprovalPanel, InlineApprovals,
+    approve_all_pending, fetch_handled, pending_approvals_count, pending_approvals_count_where,
+    HandledRow, HitlApprovalPanel, InlineApprovals,
 };
 pub use inbox_panel::{ActivityPanel, InboxPanel};
 pub use inline_computer::InlineComputers;
@@ -86,6 +88,7 @@ pub use security_panel::SecurityPanel;
 pub use sentinel_panel::SentinelPanel;
 pub use skill_evolution_panel::SkillEvolutionPanel;
 pub use soar_dashboard::SoarDashboard;
+pub use spaces_rail::SpacesRail;
 pub use swarm_dag_panel::SwarmDagPanel;
 pub use tasks_dag::TasksDag;
 pub use theme_toggle::{provide_theme, ThemeToggle};
