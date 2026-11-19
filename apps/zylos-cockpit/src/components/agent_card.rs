@@ -123,21 +123,24 @@ pub fn AgentCard(
             let status_class = agent.status.css_class().to_string();
             let status_label = agent.status.label().to_string();
             let name = agent.name.clone();
+            let name_aria = name.clone();
             let task_count = agent.task_count.to_string();
             let last_active = agent.last_active.clone();
             let sparkline = sparkline_points(&agent.activity, 60.0, 20.0);
             let agent_id = agent.id.clone();
+            let agent_id2 = agent_id.clone();
+            let warning_clone = warning.clone();
 
             view! {
                 <div
                     class="agent-card agent-card-validation"
                     tabindex="0"
                     role="button"
-                    aria-label=format!("Agente {} — aviso: {}", name, warning)
+                    aria-label=format!("Agente {} — aviso: {}", name_aria, warning_clone)
                     on:click=move |_| navigate_to_agent(&agent_id)
                     on:keydown=move |ev| {
                         if ev.key() == "Enter" || ev.key() == " " {
-                            navigate_to_agent(&agent_id);
+                            navigate_to_agent(&agent_id2);
                         }
                     }
                 >
@@ -170,14 +173,18 @@ pub fn AgentCard(
             .into_any()
         }
 
-        CardState::Disabled(reason) => view! {
-            <div class="agent-card agent-card-disabled" aria-disabled="true" title=reason>
-                <div class="agent-card-header">
-                    <span class="agent-name">{agent.name.clone()}</span>
-                    <span class="agent-status status-archived">"Disabled"</span>
+        CardState::Disabled(reason) => {
+            let name = agent.name.clone();
+            let reason_clone = reason.clone();
+            view! {
+                <div class="agent-card agent-card-disabled" aria-disabled="true" title=reason_clone>
+                    <div class="agent-card-header">
+                        <span class="agent-name">{name}</span>
+                        <span class="agent-status status-archived">"Disabled"</span>
+                    </div>
+                    <p class="disabled-reason">{reason}</p>
                 </div>
-                <p class="disabled-reason">{reason}</p>
-            </div>
+            }
         }
         .into_any(),
 
@@ -189,17 +196,20 @@ pub fn AgentCard(
             let last_active = agent.last_active.clone();
             let sparkline = sparkline_points(&agent.activity, 60.0, 20.0);
             let agent_id = agent.id.clone();
+            let agent_id2 = agent_id.clone();
+            let name_label = name.clone();
+            let status_label_aria = status_label.clone();
 
             view! {
                 <div
                     class="agent-card agent-card-success"
                     tabindex="0"
                     role="button"
-                    aria-label=format!("Agente {} — {}", name, status_label)
+                    aria-label=format!("Agente {} — {}", name_label, status_label_aria)
                     on:click=move |_| navigate_to_agent(&agent_id)
                     on:keydown=move |ev| {
                         if ev.key() == "Enter" || ev.key() == " " {
-                            navigate_to_agent(&agent_id);
+                            navigate_to_agent(&agent_id2);
                         }
                     }
                 >

@@ -13,7 +13,7 @@ use crate::components::analytics_panel::AnalyticsPanel;
 use crate::components::{
     provide_theme, provide_toast_store, AgentAvatarsGrid, AgentAwarenessPanel, AgentsPanel,
     ChannelPanel, ChatPanel, CollabPanel, CollapsibleSidebar, CommandPalette,
-    EmployeeGovernancePanel, ErrorBoundary, EvidenceLedgerPanel, FederationDashboard, FileManager,
+    EmployeeGovernancePanel, EvidenceLedgerPanel, FederationDashboard, FileManager,
     FleetAuditorPanel, GatewayStatus, GoalsPanel, HitlApprovalPanel, IntegrationsPanel,
     MemoryTimeline, PersonalitiesPanel, PhoneRelayPanel, SecurityPanel, SentinelPanel,
     SkillEditorPanel, SkillEvolutionPanel, SkinThemesPanel, SoarDashboard, SubagentStatusCards,

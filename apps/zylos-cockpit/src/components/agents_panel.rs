@@ -55,6 +55,7 @@ pub fn to_agent_info(a: GatewayAgent) -> AgentInfo {
         id: a.id,
         name: a.name,
         task_count: a.task_count,
+        activity: Vec::new(), // API não fornece sparkline data ainda
     }
 }
 

@@ -75,6 +75,7 @@ pub fn generate_agents(count: usize) -> Vec<AgentInfo> {
                 status,
                 task_count: i % 20,
                 last_active: format!("{}m ago", i % 60),
+                activity: Vec::new(),
             }
         })
         .collect()

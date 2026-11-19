@@ -238,6 +238,7 @@ mod tests {
             status,
             task_count: 0,
             last_active: "now".to_string(),
+            activity: Vec::new(),
         }
     }
 

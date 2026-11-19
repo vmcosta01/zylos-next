@@ -15,13 +15,13 @@ pub fn ErrorBoundary(
     #[prop(default = "Algo deu errado".to_string())]
     fallback_title: String,
     /// Children to render
-    children: Children,
+    children: ChildrenFn,
 ) -> impl IntoView {
     let (error, set_error) = signal::<Option<String>>(None);
 
     // Set panic hook to capture error messages
     let set_err_clone = set_error;
-    let _hook = std::panic::set_hook(Box::new(move |info| {
+    std::panic::set_hook(Box::new(move |info| {
         let msg = if let Some(s) = info.payload().downcast_ref::<&str>() {
             s.to_string()
         } else if let Some(s) = info.payload().downcast_ref::<String>() {
@@ -52,7 +52,7 @@ pub fn ErrorBoundary(
                     </div>
                 }.into_any()
             } else {
-                view! { <>{children()}</> }.into_any()
+                view! { <div>{children()}</div> }.into_any()
             }
         }}
     }

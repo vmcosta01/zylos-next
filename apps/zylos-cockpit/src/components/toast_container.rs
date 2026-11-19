@@ -4,7 +4,9 @@
 //! and spring entrance/exit animations per DESIGN_SYSTEM.md §7.2.
 
 use leptos::prelude::*;
-use std::time::Duration;
+use std::sync::atomic::{AtomicU64, Ordering};
+use wasm_bindgen::closure::Closure;
+use wasm_bindgen::JsCast;
 
 /// Toast variant determines color, icon, and dismiss behavior
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,20 +57,19 @@ pub struct Toast {
 #[derive(Clone)]
 pub struct ToastStore {
     toasts: RwSignal<Vec<Toast>>,
-    next_id: std::cell::Cell<u64>,
+    next_id: std::sync::Arc<AtomicU64>,
 }
 
 impl ToastStore {
     pub fn new() -> Self {
         Self {
             toasts: RwSignal::new(Vec::new()),
-            next_id: std::cell::Cell::new(1),
+            next_id: std::sync::Arc::new(AtomicU64::new(1)),
         }
     }
 
     pub fn dispatch(&self, variant: ToastVariant, message: impl Into<String>) {
-        let id = self.next_id.get();
-        self.next_id.set(id + 1);
+        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let toast = Toast {
             id,
             variant,
@@ -139,39 +140,47 @@ fn ToastItem(toast: Toast) -> impl IntoView {
     let css_class = variant.css_class().to_string();
     let icon = variant.icon().to_string();
 
-    // Timer handle for auto-dismiss
-    let timer_handle: StoredValue<Option<web_sys::TimeoutHandle>> = StoredValue::new(None);
+    // Timer handle for auto-dismiss (web_sys setTimeout returns i32)
+    let timer_handle: StoredValue<Option<i32>> = StoredValue::new(None);
     // Track remaining time for pause-on-hover
     let remaining_ms: StoredValue<Option<u32>> = StoredValue::new(variant.auto_dismiss_ms());
     let paused: StoredValue<bool> = StoredValue::new(false);
 
-    let start_timer = move || {
+    let store_for_timer = store.clone();
+    let start_timer = std::rc::Rc::new(move || {
         if let Some(ms) = remaining_ms.get_value() {
-            let handle = web_sys::window()
-                .and_then(|w| {
-                    let cb = Closure::once_into_js(move || {
-                        store.remove(id);
-                    });
-                    w.set_timeout_with_callback_and_timeout_and_arguments_0(
+            let store_clone = store_for_timer.clone();
+            let id_clone = id;
+            let cb = Closure::wrap(Box::new(move || {
+                store_clone.remove(id_clone);
+            }) as Box<dyn FnMut()>);
+
+            if let Some(window) = web_sys::window() {
+                let handle = window
+                    .set_timeout_with_callback_and_timeout_and_arguments_0(
                         cb.as_ref().unchecked_ref(),
                         ms as i32,
                     )
-                    .ok()
-                });
-            timer_handle.set_value(handle);
+                    .ok();
+                timer_handle.set_value(handle);
+            }
+            cb.forget();
         }
-    };
+    });
 
     let clear_timer = move || {
         if let Some(handle) = timer_handle.get_value() {
-            web_sys::window().map(|w| w.clear_timeout_with_handle(handle));
+            if let Some(window) = web_sys::window() {
+                window.clear_timeout_with_handle(handle);
+            }
             timer_handle.set_value(None);
         }
     };
 
     // Start auto-dismiss timer on mount
+    let start_timer_effect = start_timer.clone();
     Effect::new(move |_| {
-        start_timer();
+        start_timer_effect();
     });
 
     // Cleanup on unmount
@@ -184,9 +193,10 @@ fn ToastItem(toast: Toast) -> impl IntoView {
         clear_timer();
     };
 
+    let start_timer_mouse = start_timer.clone();
     let on_mouse_leave = move |_| {
         paused.set_value(false);
-        start_timer();
+        start_timer_mouse();
     };
 
     let on_close = move |_| {
