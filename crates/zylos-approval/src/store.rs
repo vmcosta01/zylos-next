@@ -19,6 +19,21 @@ impl ApprovalStore {
         Self { pool }
     }
 
+    /// Conecta ao banco SQLite no path fornecido (ex: `sqlite:data/approvals.db` ou `sqlite::memory:`).
+    /// O chamador deve garantir que o diretório pai existe antes de chamar.
+    pub async fn connect(path: &str) -> Result<Self, ApprovalError> {
+        use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode};
+        use std::str::FromStr;
+
+        let options = SqliteConnectOptions::from_str(path)?
+            .create_if_missing(true)
+            .journal_mode(SqliteJournalMode::Wal);
+
+        let pool = SqlitePool::connect_with(options).await?;
+
+        Ok(Self { pool })
+    }
+
     /// Cria nova requisição de aprovação pendente
     pub async fn create(&self, req: CreateApprovalRequest) -> Result<String, ApprovalError> {
         let id = Uuid::new_v4().to_string();

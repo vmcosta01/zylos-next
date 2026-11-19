@@ -34,6 +34,199 @@ body {
   outline-offset: 2px;
 }
 
+/* ── Inline Approval Cards (Fase 4, ADR-001) ── */
+.approval-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.inline-approval-card {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-md);
+  transition: border-color var(--transition-fast);
+}
+
+.inline-approval-card.pending {
+  border-left: 4px solid var(--color-status-info);
+}
+
+.inline-approval-card.resolving {
+  opacity: 0.7;
+  border-left: 4px solid var(--color-status-info);
+}
+
+.inline-approval-card.resolved {
+  border-left: 4px solid var(--color-status-success);
+  opacity: 0.8;
+}
+
+.inline-approval-card.rejected {
+  border-left: 4px solid var(--color-status-error);
+  opacity: 0.8;
+}
+
+.inline-approval-card.escalated {
+  border-left: 4px solid var(--color-status-warning);
+  opacity: 0.8;
+}
+
+.inline-approval-card.error {
+  border-left: 4px solid var(--color-status-error);
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.approval-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-3);
+}
+
+.approval-title {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.approval-title strong {
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.approval-meta {
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+.approval-category {
+  font-size: var(--text-xs);
+  padding: 2px 8px;
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-full);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.approval-details {
+  margin-bottom: var(--space-3);
+}
+
+.approval-details details {
+  margin-bottom: var(--space-2);
+}
+
+.approval-details summary {
+  cursor: pointer;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.approval-args {
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-family-mono);
+  font-size: var(--text-xs);
+  overflow-x: auto;
+  max-height: 200px;
+}
+
+.approval-time {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+}
+
+.approval-reason {
+  margin-bottom: var(--space-3);
+}
+
+.approval-reason label {
+  display: block;
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-1);
+  color: var(--color-text-secondary);
+}
+
+.approval-reason input {
+  width: 100%;
+  padding: var(--space-2);
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  font-size: var(--text-sm);
+}
+
+.approval-error {
+  margin-bottom: var(--space-3);
+  padding: var(--space-2);
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.approval-error p {
+  font-size: var(--text-sm);
+  color: var(--color-status-error);
+}
+
+.approval-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.approval-resolving {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+}
+
+.approval-btn-approve {
+  background: var(--color-status-success) !important;
+  border-color: var(--color-status-success) !important;
+}
+
+.approval-btn-reject {
+  color: var(--color-status-error) !important;
+  border-color: var(--color-status-error) !important;
+}
+
+.approval-btn-escalate {
+  color: var(--color-status-warning) !important;
+  border-color: var(--color-status-warning) !important;
+}
+
+.approval-receipt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+}
+
+.approval-receipt strong {
+  font-weight: 600;
+}
+
+.receipt-decision {
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.receipt-time {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+}
+
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
