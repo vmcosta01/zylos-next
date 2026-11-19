@@ -69,6 +69,9 @@ pub fn rota_admin(method: &Method, path: &str) -> Option<&'static str> {
     if path == "/api/v1/approval/resolve" || path == "/api/v1/approvals/resolve" {
         return Some("resolved_by");
     }
+    if path == "/api/v1/approvals/rules/revoke" {
+        return Some("revoked_by");
+    }
     if let Some(resto) = path.strip_prefix("/api/v1/sentinel/remediations/") {
         let mut partes = resto.split('/');
         let id = partes.next().unwrap_or("");
@@ -348,6 +351,10 @@ mod tests {
         assert_eq!(
             rota_admin(&Method::POST, "/api/v1/approvals/resolve"),
             Some("resolved_by")
+        );
+        assert_eq!(
+            rota_admin(&Method::POST, "/api/v1/approvals/rules/revoke"),
+            Some("revoked_by")
         );
         assert_eq!(rota_admin(&Method::GET, "/api/v1/approval/resolve"), None);
         assert_eq!(

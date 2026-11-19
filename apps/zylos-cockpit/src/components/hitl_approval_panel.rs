@@ -50,6 +50,45 @@ struct ApprovalReceipt {
     summary: String,
 }
 
+/// Nível de risco mostrado no cartão, derivado da categoria da ação.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Risk {
+    Alto,
+    Medio,
+    Baixo,
+}
+
+impl Risk {
+    fn from_category(category: &str) -> Self {
+        match category {
+            "deploy" | "payment" | "sign_document" => Risk::Alto,
+            "send_message" | "delete_resource" | "read_sensitive" => Risk::Medio,
+            _ => Risk::Baixo,
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Risk::Alto => "Risco alto",
+            Risk::Medio => "Risco médio",
+            Risk::Baixo => "Risco baixo",
+        }
+    }
+
+    fn css(self) -> &'static str {
+        match self {
+            Risk::Alto => "risk-alto",
+            Risk::Medio => "risk-medio",
+            Risk::Baixo => "risk-baixo",
+        }
+    }
+
+    /// "Sempre permitir" não existe para risco alto (DESIGN_SYSTEM v2.1, decisão D1).
+    fn allows_always(self) -> bool {
+        self != Risk::Alto
+    }
+}
+
 const RECEIPTS_KEY: &str = "zylos_approval_receipts";
 const RECEIPT_MAX_AGE_DAYS: i64 = 7;
 
@@ -164,7 +203,122 @@ pub fn HitlApprovalPanel() -> impl IntoView {
                     }
                 }
             }}
+            <ApprovalRules />
         </div>
+    }
+}
+
+// ─── Regras permanentes ("Sempre permitir") ──────────────────────────────────
+
+#[derive(Debug, Clone, Deserialize)]
+struct ApprovalRuleView {
+    id: String,
+    bot_id: String,
+    tool_name: String,
+    action_category: String,
+    created_at: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct RulesResponse {
+    rules: Vec<ApprovalRuleView>,
+}
+
+async fn fetch_rules() -> Result<Vec<ApprovalRuleView>, String> {
+    let base = crate::gateway_config::gateway_base().ok_or("Gateway não configurado")?;
+    let url = crate::gateway_config::join_url(&base, "/api/v1/approvals/rules");
+    let resp = crate::auth::authed(gloo_net::http::Request::get(&url))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !resp.ok() {
+        return Err(crate::auth::approval_error(resp.status()));
+    }
+    let data: RulesResponse = resp.json().await.map_err(|e| e.to_string())?;
+    Ok(data.rules)
+}
+
+async fn revoke_rule(rule_id: &str) -> Result<(), String> {
+    let base = crate::gateway_config::gateway_base().ok_or("Gateway não configurado")?;
+    let url = crate::gateway_config::join_url(&base, "/api/v1/approvals/rules/revoke");
+    let resp = crate::auth::authed(gloo_net::http::Request::post(&url))
+        .json(&serde_json::json!({ "rule_id": rule_id }))
+        .map_err(|e| e.to_string())?
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if resp.ok() {
+        Ok(())
+    } else {
+        Err(crate::auth::approval_error(resp.status()))
+    }
+}
+
+/// Lista as regras "Sempre permitir" ativas, com botão para revogar (o próximo pedido volta a perguntar).
+#[component]
+fn ApprovalRules() -> impl IntoView {
+    let (rules, set_rules) = signal(Vec::<ApprovalRuleView>::new());
+    let (error, set_error) = signal(None::<String>);
+    let tick = approvals_tick();
+
+    let reload = move || {
+        spawn_local(async move {
+            match fetch_rules().await {
+                Ok(list) => {
+                    set_rules.set(list);
+                    set_error.set(None);
+                }
+                Err(e) => set_error.set(Some(e)),
+            }
+        });
+    };
+    Effect::new(move |_| {
+        if let Some(t) = tick {
+            let _ = t.get();
+        }
+        reload();
+    });
+
+    view! {
+        <section class="approval-rules" aria-labelledby="approval-rules-title">
+            <h3 id="approval-rules-title">"Regras permanentes"</h3>
+            {move || {
+                if let Some(e) = error.get() {
+                    view! { <p class="approval-hint">{format!("Não foi possível carregar as regras: {}", crate::ui_error::report("Regras", &e))}</p> }.into_any()
+                } else if rules.get().is_empty() {
+                    view! { <p class="approval-hint">"Nenhuma regra. \"Sempre permitir\" cria uma aqui, e você pode revogar quando quiser."</p> }.into_any()
+                } else {
+                    view! {
+                        <ul class="approval-rules-list">
+                            {rules.get().into_iter().map(|r| {
+                                let id = r.id.clone();
+                                view! {
+                                    <li class="approval-rule-row">
+                                        <span class="approval-rule-text">
+                                            <strong>{format!("{} · {}", r.bot_id, r.tool_name)}</strong>
+                                            <span class="approval-meta">{format!("{} · criada {}", r.action_category, r.created_at)}</span>
+                                        </span>
+                                        <button
+                                            class="cta-secondary"
+                                            aria-label=format!("Revogar regra de {}", r.tool_name)
+                                            on:click=move |_| {
+                                                let id = id.clone();
+                                                spawn_local(async move {
+                                                    match revoke_rule(&id).await {
+                                                        Ok(()) => reload(),
+                                                        Err(e) => set_error.set(Some(e)),
+                                                    }
+                                                });
+                                            }
+                                        >"Revogar"</button>
+                                    </li>
+                                }
+                            }).collect::<Vec<_>>()}
+                        </ul>
+                    }.into_any()
+                }
+            }}
+        </section>
     }
 }
 
@@ -207,7 +361,10 @@ fn InlineApprovalCard(
     let id_clone = approval.id.clone();
     let on_resolve_approve = on_resolve.clone();
     let on_resolve_reject = on_resolve.clone();
-    let on_resolve_escalate = on_resolve.clone();
+    let on_resolve_always = on_resolve.clone();
+    let risk = Risk::from_category(&approval.action_category);
+    let (show_always_confirm, set_show_always_confirm) = signal(false);
+    let always_scope = format!("{} · {}", approval.bot_id, approval.tool_name);
 
     view! {
         <div class=card_class style=scale_style>
@@ -218,7 +375,10 @@ fn InlineApprovalCard(
                         {format!("{} · {}", approval.bot_id, approval.tool_name)}
                     </span>
                 </div>
-                <span class="approval-category">{approval.action_category.clone()}</span>
+                <span class=format!("approval-risk {}", risk.css())>
+                    <i class="ph ph-shield-warning" aria-hidden="true"></i>
+                    {risk.label()}
+                </span>
             </div>
 
             <div class="approval-details">
@@ -311,15 +471,16 @@ fn InlineApprovalCard(
                         };
 
                         let id = id_clone.clone();
-                        let on_resolve = on_resolve_escalate.clone();
-                        let escalate_handler = move |_| {
+                        let on_resolve = on_resolve_always.clone();
+                        let always_handler = move |_| {
                             set_state.set(CardState::Resolving);
+                            set_show_always_confirm.set(false);
                             let id = id.clone();
                             let on_resolve = on_resolve.clone();
                             spawn_local(async move {
-                                match resolve_approval(&id, "escalate", None).await {
+                                match resolve_approval(&id, "allow_always", None).await {
                                     Ok(_) => {
-                                        on_resolve(id, "escalate".to_string());
+                                        on_resolve(id, "allow_always".to_string());
                                     }
                                     Err(e) => {
                                         set_state.set(CardState::Error);
@@ -328,18 +489,47 @@ fn InlineApprovalCard(
                                 }
                             });
                         };
+                        let always_scope = always_scope.clone();
 
                         view! {
                             <>
-                                <button class="cta-primary approval-btn-approve" aria-label="Aprovar esta ação" on:click=approve_handler>
-                                    "✓ Aprovar"
-                                </button>
                                 <button class="cta-secondary approval-btn-reject" aria-label="Recusar esta ação" on:click=reject_handler>
-                                    "✕ Recusar"
+                                    <i class="ph ph-x" aria-hidden="true"></i>
+                                    "Recusar"
                                 </button>
-                                <button class="cta-secondary approval-btn-escalate" aria-label="Escalar para revisão humana" on:click=escalate_handler>
-                                    "⚠ Escalar"
+                                <button class="cta-primary approval-btn-approve" aria-label="Permitir esta ação uma vez" on:click=approve_handler>
+                                    <i class="ph ph-check" aria-hidden="true"></i>
+                                    "Permitir uma vez"
                                 </button>
+                                <button
+                                    class="cta-secondary approval-btn-always"
+                                    aria-label="Sempre permitir ações como esta"
+                                    disabled=!risk.allows_always()
+                                    title=if risk.allows_always() { "" } else { "Indisponível para risco alto" }
+                                    on:click=move |_| set_show_always_confirm.set(true)
+                                >
+                                    <i class="ph ph-shield-check" aria-hidden="true"></i>
+                                    "Sempre permitir"
+                                </button>
+                                {move || if show_always_confirm.get() {
+                                    let confirm = always_handler.clone();
+                                    view! {
+                                        <div class="approval-always-confirm" role="alertdialog" aria-label="Confirmar regra permanente">
+                                            <p>{format!("Permitir sempre ações como esta ({}) sem perguntar de novo? Você pode revogar na seção Regras permanentes, nesta tela.", always_scope)}</p>
+                                            <div class="approval-actions">
+                                                <button class="cta-primary" on:click=confirm>"Confirmar regra"</button>
+                                                <button class="cta-secondary" on:click=move |_| set_show_always_confirm.set(false)>"Cancelar"</button>
+                                            </div>
+                                        </div>
+                                    }.into_any()
+                                } else {
+                                    ().into_any()
+                                }}
+                                {if risk.allows_always() {
+                                    ().into_any()
+                                } else {
+                                    view! { <p class="approval-hint">"\"Sempre permitir\" fica indisponível para risco alto."</p> }.into_any()
+                                }}
                             </>
                         }.into_any()
                     } else if state.get() == CardState::Resolving {
@@ -368,9 +558,9 @@ fn ApprovalReceiptCard(receipt: ApprovalReceipt) -> impl IntoView {
     };
 
     let decision_text = match receipt.decision.as_str() {
-        "allow_once" => "Aprovado (uma vez)".to_string(),
+        "allow_once" => "Permitido uma vez".to_string(),
         "allow_session" => "Aprovado (sessão)".to_string(),
-        "allow_always" => "Aprovado (sempre)".to_string(),
+        "allow_always" => "Permitido sempre".to_string(),
         "refuse" => "Recusado".to_string(),
         "escalate" => "Escalado".to_string(),
         other => other.to_string(),
@@ -634,5 +824,26 @@ mod expiry_tests {
         assert_eq!(expiry_delay_ms("2026-11-19T11:59:00+00:00", now()), None);
         assert_eq!(expiry_delay_ms("2026-11-21T12:00:00+00:00", now()), None);
         assert_eq!(expiry_delay_ms("amanha", now()), None);
+    }
+}
+
+#[cfg(test)]
+mod risk_tests {
+    use super::*;
+
+    #[test]
+    fn risco_por_categoria() {
+        assert_eq!(Risk::from_category("deploy"), Risk::Alto);
+        assert_eq!(Risk::from_category("payment"), Risk::Alto);
+        assert_eq!(Risk::from_category("send_message"), Risk::Medio);
+        assert_eq!(Risk::from_category("low_risk"), Risk::Baixo);
+        assert_eq!(Risk::from_category("desconhecida"), Risk::Baixo);
+    }
+
+    #[test]
+    fn sempre_permitir_so_fora_do_risco_alto() {
+        assert!(!Risk::Alto.allows_always());
+        assert!(Risk::Medio.allows_always());
+        assert!(Risk::Baixo.allows_always());
     }
 }

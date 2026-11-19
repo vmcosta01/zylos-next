@@ -5,6 +5,8 @@
 //! - `POST /api/v1/approvals` — create an approval request (agents / services); publishes
 //!   `ApprovalRequested` on the SSE bus and schedules an `ApprovalTimeout` notice
 //! - `POST /api/v1/approvals/resolve` — resolve an approval; publishes `ApprovalResolved`
+//! - `GET  /api/v1/approvals/rules` — regras "sempre permitir" ativas
+//! - `POST /api/v1/approvals/rules/revoke` — revoga uma regra (admin)
 
 use axum::{
     extract::State,
@@ -208,6 +210,39 @@ struct ResolveResponse {
     decided_at: String,
 }
 
+/// `GET /approvals/rules` — regras permanentes criadas por "Sempre permitir".
+async fn list_rules(State(state): State<ApprovalsState>) -> impl IntoResponse {
+    match state.store.list_all_rules().await {
+        Ok(rules) => Json(serde_json::json!({ "rules": rules })).into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, "failed to list approval rules");
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct RevokeBody {
+    rule_id: String,
+}
+
+/// `POST /approvals/rules/revoke` — remove a regra; o próximo pedido volta a perguntar.
+async fn revoke_rule(
+    State(state): State<ApprovalsState>,
+    Json(body): Json<RevokeBody>,
+) -> impl IntoResponse {
+    match state.store.delete_rule(&body.rule_id).await {
+        Ok(()) => axum::http::StatusCode::NO_CONTENT.into_response(),
+        Err(zylos_approval::ApprovalError::NotFound(_)) => {
+            axum::http::StatusCode::NOT_FOUND.into_response()
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "failed to revoke approval rule");
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
 async fn list_approvals(State(state): State<ApprovalsState>) -> impl IntoResponse {
     match state.store.list_pending().await {
         Ok(approvals) => {
@@ -273,6 +308,8 @@ pub fn create_approvals_router(state: ApprovalsState) -> Router {
  // Approved/Denied; o cockpit decide aprovações do store SQLite (allow_once, refuse etc.),
  // por isso a resolução fica aqui, em /approvals/resolve (plural).
  .route("/approvals/resolve", post(resolve_approval))
+ .route("/approvals/rules", get(list_rules))
+ .route("/approvals/rules/revoke", post(revoke_rule))
  .with_state(state)
 }
 
@@ -393,6 +430,43 @@ mod tests {
     async fn resolve_approval_refuse_and_invalid_decision() {
         assert_eq!(resolve_with("refuse").await, StatusCode::OK);
         assert_eq!(resolve_with("talvez").await, StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn regra_sempre_permitir_aparece_na_lista_e_pode_ser_revogada() {
+        let (state, _bus) = setup_with_bus().await;
+        let id = state
+            .store
+            .create(CreateApprovalRequest {
+                bot_id: "chief".into(),
+                tool_name: "send_email".into(),
+                action_category: "send_message".into(),
+                summary: "Enviar resumo".into(),
+                arguments_json: "{}".into(),
+                expires_in_seconds: Some(300),
+            })
+            .await
+            .unwrap();
+        let body = serde_json::json!({ "approval_id": id, "decision": "allow_always" });
+        assert_eq!(
+            post_json(state.clone(), "/approvals/resolve", body).await,
+            StatusCode::OK
+        );
+
+        let regras = state.store.list_all_rules().await.unwrap();
+        assert_eq!(regras.len(), 1);
+        assert_eq!(regras[0].decision, "allow_always");
+
+        let revogar = serde_json::json!({ "rule_id": regras[0].id });
+        assert_eq!(
+            post_json(state.clone(), "/approvals/rules/revoke", revogar.clone()).await,
+            StatusCode::NO_CONTENT
+        );
+        assert!(state.store.list_all_rules().await.unwrap().is_empty());
+        assert_eq!(
+            post_json(state, "/approvals/rules/revoke", revogar).await,
+            StatusCode::NOT_FOUND
+        );
     }
 
     // --- criação + eventos SSE ------------------------------------------------

@@ -216,6 +216,16 @@ impl ApprovalStore {
         Ok(count.0 > 0)
     }
 
+    /// Lista todas as regras persistentes (tela de permissões do cockpit).
+    pub async fn list_all_rules(&self) -> Result<Vec<ApprovalRule>, ApprovalError> {
+        let rows = sqlx::query_as::<_, ApprovalRule>(
+            "SELECT * FROM approval_rules ORDER BY created_at DESC",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows)
+    }
+
     /// Remove regra persistente
     pub async fn delete_rule(&self, rule_id: &str) -> Result<(), ApprovalError> {
         let result = sqlx::query("DELETE FROM approval_rules WHERE id = ?")
