@@ -16,15 +16,19 @@ use crate::tabs::Tab;
 pub enum SidebarGroup {
     Core,
     Orquestracao,
+    Seguranca,
     Comunicacao,
+    Ferramentas,
     Configuracao,
 }
 
 impl SidebarGroup {
-    pub const ALL: [SidebarGroup; 4] = [
+    pub const ALL: [SidebarGroup; 6] = [
         SidebarGroup::Core,
         SidebarGroup::Orquestracao,
+        SidebarGroup::Seguranca,
         SidebarGroup::Comunicacao,
+        SidebarGroup::Ferramentas,
         SidebarGroup::Configuracao,
     ];
 
@@ -32,7 +36,9 @@ impl SidebarGroup {
         match self {
             Self::Core => "CORE",
             Self::Orquestracao => "ORQUESTRAÇÃO",
+            Self::Seguranca => "SEGURANÇA",
             Self::Comunicacao => "COMUNICAÇÃO",
+            Self::Ferramentas => "FERRAMENTAS",
             Self::Configuracao => "CONFIGURAÇÃO",
         }
     }
@@ -40,9 +46,11 @@ impl SidebarGroup {
     pub fn tabs(self) -> &'static [Tab] {
         match self {
             Self::Core => &[Tab::Agents, Tab::Tasks, Tab::Memory, Tab::Goals],
-            Self::Orquestracao => &[Tab::SwarmDag, Tab::Sentinel, Tab::Soar],
-            Self::Comunicacao => &[Tab::Channels, Tab::PhoneRelay, Tab::Chat, Tab::Threads],
-            Self::Configuracao => &[Tab::Personalities, Tab::Skins, Tab::Integrations],
+            Self::Orquestracao => &[Tab::SwarmDag, Tab::SwarmTopology, Tab::Sentinel, Tab::Soar, Tab::Subagents, Tab::TaskTriage],
+            Self::Seguranca => &[Tab::Security, Tab::HitlApproval, Tab::EvidenceLedger, Tab::Awareness, Tab::EmployeeGovernance],
+            Self::Comunicacao => &[Tab::Channels, Tab::PhoneRelay, Tab::Chat, Tab::Threads, Tab::Reactions],
+            Self::Ferramentas => &[Tab::Skills, Tab::SkillEditor, Tab::SkillEvolution, Tab::Files, Tab::Analytics, Tab::Collab, Tab::Logs],
+            Self::Configuracao => &[Tab::Personalities, Tab::Avatars, Tab::Skins, Tab::Fleet, Tab::Federation, Tab::Voice, Tab::Integrations],
         }
     }
 
@@ -50,7 +58,9 @@ impl SidebarGroup {
         match self {
             Self::Core => "core",
             Self::Orquestracao => "orquestracao",
+            Self::Seguranca => "seguranca",
             Self::Comunicacao => "comunicacao",
+            Self::Ferramentas => "ferramentas",
             Self::Configuracao => "configuracao",
         }
     }

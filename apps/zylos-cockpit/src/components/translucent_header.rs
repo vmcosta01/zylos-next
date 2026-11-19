@@ -10,6 +10,7 @@
 //! - feature detection JS: .no-backdrop → fundo opaco
 
 use leptos::prelude::*;
+use wasm_bindgen::JsCast;
 
 #[allow(unused_imports)]
 use crate::components::{AuthHeaderButton, ThemeToggle};
@@ -47,15 +48,26 @@ impl GatewayStatus {
 /// - `gateway_status`: status atual da conexão SSE
 #[component]
 pub fn TranslucentHeader(version: String, gateway_status: GatewayStatus) -> impl IntoView {
-    // Feature detection: adiciona .no-backdrop se backdrop-filter não suportado.
+    // Feature detection: cria elemento de teste para verificar se backdrop-filter é suportado.
     Effect::new(move |_| {
         if let Some(window) = web_sys::window() {
             if let Some(doc) = window.document() {
                 if let Some(body) = doc.body() {
-                    if let Ok(Some(s)) = window.get_computed_style(&body.clone().into()) {
-                        let bf = s.get_property_value("backdrop-filter").unwrap_or_default();
-                        if bf.is_empty() || bf == "none" {
-                            let _ = body.class_list().add_1("no-backdrop");
+                    // Criar elemento de teste temporário e converter para HtmlElement
+                    if let Ok(test_el) = doc.create_element("div") {
+                        if let Ok(html_el) = test_el.dyn_into::<web_sys::HtmlElement>() {
+                            let style = html_el.style();
+                            // Tentar definir backdrop-filter
+                            let _ = style.set_property("backdrop-filter", "blur(1px)");
+                            // Verificar se o browser aceitou a propriedade
+                            let computed_bf = style.get_property_value("backdrop-filter").unwrap_or_default();
+                            let webkit_bf = style.get_property_value("-webkit-backdrop-filter").unwrap_or_default();
+                            
+                            // Se ambas estão vazias ou "none", browser não suporta
+                            if (computed_bf.is_empty() || computed_bf == "none") 
+                                && (webkit_bf.is_empty() || webkit_bf == "none") {
+                                let _ = body.class_list().add_1("no-backdrop");
+                            }
                         }
                     }
                 }

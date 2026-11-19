@@ -124,10 +124,11 @@ async fn resolve_approval(
 }
 
 pub fn create_approvals_router(state: ApprovalsState) -> Router {
-    Router::new()
-        .route("/approvals", get(list_approvals))
-        .route("/approval/resolve", post(resolve_approval))
-        .with_state(state)
+ Router::new()
+ .route("/approvals", get(list_approvals))
+ // NOTE: POST /approval/resolve is already provided by the SSE router (zylos-live-comm).
+ // Only GET /approvals (list pending) is added here.
+ .with_state(state)
 }
 
 #[cfg(test)]
