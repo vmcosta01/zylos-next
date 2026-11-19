@@ -11,8 +11,11 @@ command_arguments = ["target", "add", "wasm32-unknown-unknown"]
 # binaryen version_121 instalado em $LOCALAPPDATA/Temp/binaryen-version_121/bin/
 [[hooks]]
 stage = "post_build"
-command = "C:\\Users\\Paulo\\AppData\\Local\\Temp\\binaryen-version_121\\bin\\wasm-opt.exe"
-command_arguments = ["-Oz", "--strip-debug", "--strip-producers", "$WASM_FILE", "-o", "$WASM_FILE"]
+# O Trunk não expande `$WASM_FILE` nos argumentos do hook (o wasm-opt abria o arquivo literal
+# "$WASM_FILE" e o build inteiro falhava). O script expande TRUNK_STAGING_DIR e pula se o
+# wasm-opt não estiver instalado.
+command = "cmd"
+command_arguments = ['/C', 'scripts\wasm-opt.cmd']
 
 [tools]
 
