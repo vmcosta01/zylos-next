@@ -179,17 +179,18 @@ async fn get_screenshot(
 ) -> Response {
     match handle.manager.capture_screenshot(&id) {
         Ok(data) => {
-            let bytes: Vec<u8> = match base64::engine::general_purpose::STANDARD.decode(&data.image_base64) {
-                Ok(b) => b,
-                Err(e) => {
-                    return error_response(
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        "screenshot_decode_failed",
-                        Some(e.to_string()),
-                    )
-                    .into_response();
-                }
-            };
+            let bytes: Vec<u8> =
+                match base64::engine::general_purpose::STANDARD.decode(&data.image_base64) {
+                    Ok(b) => b,
+                    Err(e) => {
+                        return error_response(
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            "screenshot_decode_failed",
+                            Some(e.to_string()),
+                        )
+                        .into_response();
+                    }
+                };
             (StatusCode::OK, [(header::CONTENT_TYPE, "image/png")], bytes).into_response()
         }
         Err(e) if e.contains("not found") => {

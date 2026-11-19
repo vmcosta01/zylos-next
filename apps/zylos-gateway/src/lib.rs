@@ -2,8 +2,8 @@
 
 pub mod agents_api;
 pub mod analytics_api;
-pub mod approvals_api;
 pub mod api_auth;
+pub mod approvals_api;
 pub mod auth_api;
 pub mod axiom_logging;
 pub mod bots_api;
@@ -77,26 +77,24 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
     let cockpit = create_cockpit_router(state.event_bus.clone());
     let approval_store = std::sync::Arc::new(ApprovalStore::new(ApprovalConfig::default()));
     // Separate SQLite-backed approval store for the REST API (list/resolve)
-    let approval_sqlite_store = std::sync::Arc::new(
-        tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async {
-                let path = std::env::var("ZYLOS_APPROVALS_DB")
-                    .unwrap_or_else(|_| "sqlite:data/approvals.db".to_string());
-                // Ensure parent directory exists
-                if let Some(parent) = std::path::Path::new(&path).parent() {
-                    if !parent.as_os_str().is_empty() {
-                        let _ = std::fs::create_dir_all(parent);
-                    }
+    let approval_sqlite_store = std::sync::Arc::new(tokio::task::block_in_place(|| {
+        tokio::runtime::Handle::current().block_on(async {
+            let path = std::env::var("ZYLOS_APPROVALS_DB")
+                .unwrap_or_else(|_| "sqlite:data/approvals.db".to_string());
+            // Ensure parent directory exists
+            if let Some(parent) = std::path::Path::new(&path).parent() {
+                if !parent.as_os_str().is_empty() {
+                    let _ = std::fs::create_dir_all(parent);
                 }
-                zylos_approval::ApprovalStore::connect(&path)
-                    .await
-                    .expect("failed to connect approvals store")
-            })
+            }
+            zylos_approval::ApprovalStore::connect(&path)
+                .await
+                .expect("failed to connect approvals store")
         })
-    );
-    let approvals = approvals_api::create_approvals_router(
-        approvals_api::ApprovalsState::new(approval_sqlite_store),
-    );
+    }));
+    let approvals = approvals_api::create_approvals_router(approvals_api::ApprovalsState::new(
+        approval_sqlite_store,
+    ));
     let sse = create_sse_router(state.event_bus.clone(), approval_store);
     let skills = create_skills_router(state.skills_state.clone());
     // SOAR router needs AppState — resolve it here so it becomes Router<()> for merging

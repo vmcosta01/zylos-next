@@ -55,6 +55,7 @@ struct HistoryEntry {
     command: Option<String>,
 }
 
+#[allow(dead_code)]
 const HISTORY_KEY: &str = "zylos_command_history";
 const MAX_HISTORY: usize = 10;
 const MAX_VISIBLE: usize = 20;
@@ -116,7 +117,7 @@ fn search_items(items: &[PaletteItem], query: &str) -> Vec<(PaletteItem, u32)> {
             }
         })
         .collect();
-    results.sort_by(|a, b| b.1.cmp(&a.1));
+    results.sort_by_key(|a| std::cmp::Reverse(a.1));
     results.truncate(MAX_VISIBLE);
     results
 }
@@ -488,7 +489,7 @@ pub fn CommandPalette(open: RwSignal<bool>, set_active_tab: WriteSignal<Tab>) ->
                                             .map(|(item, _score)| {
                                                 let idx = flat_idx;
                                                 flat_idx += 1;
-                                                let sel = is_selected(idx);
+                                                let _sel = is_selected(idx);
                                                 let icon = match item.category {
                                                     Category::Recent => "🕐",
                                                     Category::Page => "📄",

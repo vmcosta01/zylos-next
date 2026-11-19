@@ -43,8 +43,6 @@ struct SessionsResponse {
 #[derive(Debug, Clone, Deserialize)]
 struct SessionInfo {
     id: String,
-    state: String,
-    vnc_url: Option<String>,
 }
 
 /// Request body para take-control.
@@ -163,17 +161,17 @@ pub fn VncStream(
             // Renderizar blob como imagem no canvas.
             let data = e.data();
             if let Ok(blob) = data.dyn_into::<Blob>() {
-                let promise = web_sys::window().and_then(|w| w.create_image_bitmap_with_blob(&blob).ok());
+                let promise =
+                    web_sys::window().and_then(|w| w.create_image_bitmap_with_blob(&blob).ok());
                 if let Some(promise) = promise {
-                    let _ = wasm_bindgen_futures::spawn_local(async move {
+                    wasm_bindgen_futures::spawn_local(async move {
                         if let Ok(bitmap) = wasm_bindgen_futures::JsFuture::from(promise).await {
                             if let Some(window) = web_sys::window() {
                                 if let Some(document) = window.document() {
-                                    if let Some(canvas) = document.get_element_by_id("vnc-canvas-el")
+                                    if let Some(canvas) =
+                                        document.get_element_by_id("vnc-canvas-el")
                                     {
-                                        if let Ok(canvas) =
-                                            canvas.dyn_into::<HtmlCanvasElement>()
-                                        {
+                                        if let Ok(canvas) = canvas.dyn_into::<HtmlCanvasElement>() {
                                             if let Some(ctx) =
                                                 canvas.get_context("2d").ok().flatten()
                                             {
@@ -185,10 +183,9 @@ pub fn VncStream(
                                                     {
                                                         canvas.set_width(bmp.width());
                                                         canvas.set_height(bmp.height());
-                                                        let _ = ctx
-                                                            .draw_image_with_image_bitmap(
-                                                                &bmp, 0.0, 0.0,
-                                                            );
+                                                        let _ = ctx.draw_image_with_image_bitmap(
+                                                            &bmp, 0.0, 0.0,
+                                                        );
                                                         bmp.close();
                                                     }
                                                 }

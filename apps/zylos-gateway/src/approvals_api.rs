@@ -5,10 +5,10 @@
 //! - `POST /api/v1/approval/resolve` — resolve an approval (existing, wired to store)
 
 use axum::{
- extract::State,
- response::IntoResponse,
- routing::{get, post},
- Json, Router,
+    extract::State,
+    response::IntoResponse,
+    routing::{get, post},
+    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -98,17 +98,23 @@ async fn resolve_approval(
         }
     };
 
-    match state.store.decide(&body.approval_id, decision, body.refuse_reason).await {
-        Ok(decided_at) => Json(serde_json::to_value(ResolveResponse {
-            id: body.approval_id,
-            status: match decision {
-                ApprovalDecision::Refuse => "refused",
-                _ => "approved",
-            }
-            .to_string(),
-            decided_at,
-        })
-        .unwrap())
+    match state
+        .store
+        .decide(&body.approval_id, decision, body.refuse_reason)
+        .await
+    {
+        Ok(decided_at) => Json(
+            serde_json::to_value(ResolveResponse {
+                id: body.approval_id,
+                status: match decision {
+                    ApprovalDecision::Refuse => "refused",
+                    _ => "approved",
+                }
+                .to_string(),
+                decided_at,
+            })
+            .unwrap(),
+        )
         .into_response(),
         Err(e) => {
             tracing::error!(error = %e, "failed to resolve approval");
@@ -126,11 +132,11 @@ pub fn create_approvals_router(state: ApprovalsState) -> Router {
 
 #[cfg(test)]
 mod tests {
- use super::*;
- use axum::body::Body;
- use axum::http::{Request, StatusCode};
- use tower::ServiceExt;
- use zylos_approval::{ApprovalStore, CreateApprovalRequest};
+    use super::*;
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use tower::ServiceExt;
+    use zylos_approval::{ApprovalStore, CreateApprovalRequest};
 
     async fn setup() -> (ApprovalsState, ApprovalStore) {
         let store = ApprovalStore::connect("sqlite::memory:").await.unwrap();
