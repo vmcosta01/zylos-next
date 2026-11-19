@@ -72,7 +72,7 @@ pub fn TranslucentHeader(
         let supports = js_sys::eval(
             "typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && (CSS.supports('backdrop-filter', 'blur(1px)') || CSS.supports('-webkit-backdrop-filter', 'blur(1px)'))"
         ).ok().and_then(|v| v.as_bool()).unwrap_or(false);
-        
+
         if !supports {
             if let Some(window) = web_sys::window() {
                 if let Some(doc) = window.document() {

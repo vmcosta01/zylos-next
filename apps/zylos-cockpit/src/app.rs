@@ -11,11 +11,11 @@ use wasm_bindgen_futures::spawn_local;
 use crate::benchmarks::BenchmarkPanel;
 use crate::components::analytics_panel::AnalyticsPanel;
 use crate::components::{
-    provide_theme, provide_toast_store, ActivityPanel, AgentAvatarsGrid, AgentAwarenessPanel, AgentsPanel,
-    ChannelPanel, ChatPanel, CollabPanel, CollapsibleSidebar, CommandPalette,
+    provide_theme, provide_toast_store, ActivityPanel, AgentAvatarsGrid, AgentAwarenessPanel,
+    AgentsPanel, ChannelPanel, ChatPanel, CollabPanel, CollapsibleSidebar, CommandPalette,
     EmployeeGovernancePanel, EvidenceLedgerPanel, FederationDashboard, FileManager,
-    FleetAuditorPanel, GatewayStatus, GoalsPanel, HitlApprovalPanel, IntegrationsPanel,
-    InboxPanel, MemoryTimeline, PersonalitiesPanel, PhoneRelayPanel, SecurityPanel, SentinelPanel,
+    FleetAuditorPanel, GatewayStatus, GoalsPanel, HitlApprovalPanel, InboxPanel, IntegrationsPanel,
+    MemoryTimeline, PersonalitiesPanel, PhoneRelayPanel, SecurityPanel, SentinelPanel,
     SkillEditorPanel, SkillEvolutionPanel, SkinThemesPanel, SoarDashboard, SubagentStatusCards,
     SwarmDagPanel, SwarmTopologyPanel, TaskTriagePanel, TasksDag, ThreadManager, ToastContainer,
     TranslucentHeader, VoicePanel,

@@ -81,10 +81,7 @@ pub fn classify_gateway_event(raw: &str) -> Option<GatewayNotice> {
     let v: serde_json::Value = serde_json::from_str(raw).ok()?;
     let d = v.get("data")?;
     let text = |x: &serde_json::Value, k: &str| {
-        x.get(k)
-            .and_then(|y| y.as_str())
-            .unwrap_or("")
-            .to_string()
+        x.get(k).and_then(|y| y.as_str()).unwrap_or("").to_string()
     };
     match v.get("event_type")?.as_str()? {
         "ApprovalRequested" => Some(GatewayNotice::ApprovalRequested {
@@ -471,7 +468,10 @@ impl StreamContext {
             // The readyState check distinguishes closed vs connecting
             state_signal_err.set(StreamState::Connecting);
             if let Some(t) = &toasts_err {
-                t.dispatch(ToastVariant::Warning, "Conexão SSE perdida, reconectando...");
+                t.dispatch(
+                    ToastVariant::Warning,
+                    "Conexão SSE perdida, reconectando...",
+                );
             }
         }) as Box<dyn FnMut(web_sys::Event)>);
         es.set_onerror(Some(on_error.as_ref().unchecked_ref()));
@@ -571,7 +571,9 @@ impl StreamContext {
 pub fn provide_stream(config: StreamConfig) -> StreamContext {
     let ctx = StreamContext::new(config);
     // Painel HITL e chat (lib) leem o mesmo contador, sem depender do módulo do bin.
-    provide_context(zylos_cockpit::approvals_sync::ApprovalsTick(ctx.approvals_tick));
+    provide_context(zylos_cockpit::approvals_sync::ApprovalsTick(
+        ctx.approvals_tick,
+    ));
     provide_context(zylos_cockpit::approvals_sync::ActivityLog(ctx.activity));
     provide_context(ctx.clone());
     ctx
@@ -813,15 +815,25 @@ mod tests {
     fn avisos_viram_a_categoria_certa_na_atividade() {
         use zylos_cockpit::approvals_sync::ActivityKind;
         assert_eq!(
-            GatewayNotice::ApprovalTimeout { summary: "x".into() }.activity_kind(),
+            GatewayNotice::ApprovalTimeout {
+                summary: "x".into()
+            }
+            .activity_kind(),
             ActivityKind::Approval
         );
         assert_eq!(
-            GatewayNotice::SentinelAlert { message: "x".into() }.activity_kind(),
+            GatewayNotice::SentinelAlert {
+                message: "x".into()
+            }
+            .activity_kind(),
             ActivityKind::Alert
         );
         assert_eq!(
-            GatewayNotice::AgentError { agent_id: "a".into(), reason: String::new() }.activity_kind(),
+            GatewayNotice::AgentError {
+                agent_id: "a".into(),
+                reason: String::new()
+            }
+            .activity_kind(),
             ActivityKind::Agent
         );
     }

@@ -589,10 +589,7 @@ const DAY_MS: i64 = 86_400_000;
 
 /// Milissegundos até `expires_at` (RFC 3339), se ainda estiver no futuro e a menos de 24 h.
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
-pub(crate) fn expiry_delay_ms(
-    expires_at: &str,
-    now: chrono::DateTime<chrono::Utc>,
-) -> Option<u32> {
+pub(crate) fn expiry_delay_ms(expires_at: &str, now: chrono::DateTime<chrono::Utc>) -> Option<u32> {
     let exp = chrono::DateTime::parse_from_rfc3339(expires_at).ok()?;
     let delta = exp.signed_duration_since(now).num_milliseconds();
     (delta > 0 && delta <= DAY_MS).then_some(delta as u32)
@@ -617,7 +614,11 @@ fn schedule_expiry_refresh(list: &[ApprovalRequest], tick: Option<RwSignal<u32>>
     };
     let now = chrono::Utc::now();
     for a in list {
-        let Some(delay) = a.expires_at.as_deref().and_then(|e| expiry_delay_ms(e, now)) else {
+        let Some(delay) = a
+            .expires_at
+            .as_deref()
+            .and_then(|e| expiry_delay_ms(e, now))
+        else {
             continue;
         };
         if !EXPIRY_SCHEDULED.with(|s| s.borrow_mut().insert(a.id.clone())) {
@@ -923,12 +924,17 @@ mod expiry_tests {
     use chrono::TimeZone;
 
     fn now() -> chrono::DateTime<chrono::Utc> {
-        chrono::Utc.with_ymd_and_hms(2026, 11, 19, 12, 0, 0).unwrap()
+        chrono::Utc
+            .with_ymd_and_hms(2026, 11, 19, 12, 0, 0)
+            .unwrap()
     }
 
     #[test]
     fn expira_no_futuro_proximo() {
-        assert_eq!(expiry_delay_ms("2026-11-19T12:05:00+00:00", now()), Some(300_000));
+        assert_eq!(
+            expiry_delay_ms("2026-11-19T12:05:00+00:00", now()),
+            Some(300_000)
+        );
     }
 
     #[test]

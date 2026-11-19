@@ -277,7 +277,9 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::CREATED);
-        let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
+        let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20)
+            .await
+            .unwrap();
         let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         v["session"]["id"].as_str().unwrap().to_string()
     }
@@ -318,12 +320,21 @@ mod tests {
         let id = create(&app).await;
         let list = app
             .clone()
-            .oneshot(Request::get("/computer-view/sessions").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::get("/computer-view/sessions")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
-        let bytes = axum::body::to_bytes(list.into_body(), 1 << 20).await.unwrap();
+        let bytes = axum::body::to_bytes(list.into_body(), 1 << 20)
+            .await
+            .unwrap();
         let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         let url = v["sessions"][0]["screenshot_url"].as_str().unwrap();
-        assert_eq!(url, format!("/api/v1/computer-view/sessions/{id}/screenshot"));
+        assert_eq!(
+            url,
+            format!("/api/v1/computer-view/sessions/{id}/screenshot")
+        );
     }
 }

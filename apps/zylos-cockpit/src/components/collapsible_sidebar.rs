@@ -46,11 +46,46 @@ impl SidebarGroup {
     pub fn tabs(self) -> &'static [Tab] {
         match self {
             Self::Core => &[Tab::Agents, Tab::Tasks, Tab::Memory, Tab::Goals],
-            Self::Orquestracao => &[Tab::SwarmDag, Tab::SwarmTopology, Tab::Sentinel, Tab::Soar, Tab::Subagents, Tab::TaskTriage],
-            Self::Seguranca => &[Tab::Security, Tab::HitlApproval, Tab::EvidenceLedger, Tab::Awareness, Tab::EmployeeGovernance],
-            Self::Comunicacao => &[Tab::Channels, Tab::PhoneRelay, Tab::Chat, Tab::Threads, Tab::Reactions],
-            Self::Ferramentas => &[Tab::Skills, Tab::SkillEditor, Tab::SkillEvolution, Tab::Files, Tab::Analytics, Tab::Collab, Tab::Logs],
-            Self::Configuracao => &[Tab::Personalities, Tab::Avatars, Tab::Skins, Tab::Fleet, Tab::Federation, Tab::Voice, Tab::Integrations],
+            Self::Orquestracao => &[
+                Tab::SwarmDag,
+                Tab::SwarmTopology,
+                Tab::Sentinel,
+                Tab::Soar,
+                Tab::Subagents,
+                Tab::TaskTriage,
+            ],
+            Self::Seguranca => &[
+                Tab::Security,
+                Tab::HitlApproval,
+                Tab::EvidenceLedger,
+                Tab::Awareness,
+                Tab::EmployeeGovernance,
+            ],
+            Self::Comunicacao => &[
+                Tab::Channels,
+                Tab::PhoneRelay,
+                Tab::Chat,
+                Tab::Threads,
+                Tab::Reactions,
+            ],
+            Self::Ferramentas => &[
+                Tab::Skills,
+                Tab::SkillEditor,
+                Tab::SkillEvolution,
+                Tab::Files,
+                Tab::Analytics,
+                Tab::Collab,
+                Tab::Logs,
+            ],
+            Self::Configuracao => &[
+                Tab::Personalities,
+                Tab::Avatars,
+                Tab::Skins,
+                Tab::Fleet,
+                Tab::Federation,
+                Tab::Voice,
+                Tab::Integrations,
+            ],
         }
     }
 

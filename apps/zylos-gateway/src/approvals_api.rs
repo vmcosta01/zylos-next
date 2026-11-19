@@ -302,15 +302,15 @@ async fn resolve_approval(
 }
 
 pub fn create_approvals_router(state: ApprovalsState) -> Router {
- Router::new()
- .route("/approvals", get(list_approvals).post(create_approval))
- // POST /approval/resolve (singular) é do roteador SSE e usa o store em memória e o enum
- // Approved/Denied; o cockpit decide aprovações do store SQLite (allow_once, refuse etc.),
- // por isso a resolução fica aqui, em /approvals/resolve (plural).
- .route("/approvals/resolve", post(resolve_approval))
- .route("/approvals/rules", get(list_rules))
- .route("/approvals/rules/revoke", post(revoke_rule))
- .with_state(state)
+    Router::new()
+        .route("/approvals", get(list_approvals).post(create_approval))
+        // POST /approval/resolve (singular) é do roteador SSE e usa o store em memória e o enum
+        // Approved/Denied; o cockpit decide aprovações do store SQLite (allow_once, refuse etc.),
+        // por isso a resolução fica aqui, em /approvals/resolve (plural).
+        .route("/approvals/resolve", post(resolve_approval))
+        .route("/approvals/rules", get(list_rules))
+        .route("/approvals/rules/revoke", post(revoke_rule))
+        .with_state(state)
 }
 
 #[cfg(test)]

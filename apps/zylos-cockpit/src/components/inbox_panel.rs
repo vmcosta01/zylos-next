@@ -144,7 +144,11 @@ mod tests {
     use super::*;
 
     fn e(kind: ActivityKind, text: &str) -> ActivityEntry {
-        ActivityEntry { kind, text: text.into(), at: "2026-11-19T12:00:00Z".into() }
+        ActivityEntry {
+            kind,
+            text: text.into(),
+            at: "2026-11-19T12:00:00Z".into(),
+        }
     }
 
     #[test]
@@ -157,7 +161,10 @@ mod tests {
         assert_eq!(filtered(&all, Filter::All).len(), 3);
         assert_eq!(filtered(&all, Filter::Approvals).len(), 1);
         let alertas = filtered(&all, Filter::Alerts);
-        assert_eq!(alertas.iter().map(|x| x.text.as_str()).collect::<Vec<_>>(), ["b", "c"]);
+        assert_eq!(
+            alertas.iter().map(|x| x.text.as_str()).collect::<Vec<_>>(),
+            ["b", "c"]
+        );
     }
 
     #[test]

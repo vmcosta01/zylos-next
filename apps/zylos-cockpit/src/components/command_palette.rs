@@ -304,7 +304,11 @@ struct CommandEnv {
     approvals_tick: Option<RwSignal<u32>>,
 }
 
-fn notify(env: &CommandEnv, variant: crate::components::toast_container::ToastVariant, msg: String) {
+fn notify(
+    env: &CommandEnv,
+    variant: crate::components::toast_container::ToastVariant,
+    msg: String,
+) {
     if let Some(t) = &env.toasts {
         t.dispatch(variant, msg);
     }
@@ -336,12 +340,20 @@ fn run_command(cmd: &str, env: &CommandEnv, set_active_tab: WriteSignal<Tab>) {
                 let n = match crate::components::pending_approvals_count().await {
                     Ok(n) => n,
                     Err(e) => {
-                        notify(&env, ToastVariant::Error, format!("Não foi possível listar aprovações: {e}"));
+                        notify(
+                            &env,
+                            ToastVariant::Error,
+                            format!("Não foi possível listar aprovações: {e}"),
+                        );
                         return;
                     }
                 };
                 if n == 0 {
-                    notify(&env, ToastVariant::Info, "Nenhuma aprovação pendente".to_string());
+                    notify(
+                        &env,
+                        ToastVariant::Info,
+                        "Nenhuma aprovação pendente".to_string(),
+                    );
                     return;
                 }
                 // Confirmação explícita: aprovar em lote é uma ação de risco.
@@ -357,7 +369,11 @@ fn run_command(cmd: &str, env: &CommandEnv, set_active_tab: WriteSignal<Tab>) {
                     return;
                 }
                 match crate::components::approve_all_pending().await {
-                    Ok((ok, 0)) => notify(&env, ToastVariant::Success, format!("{ok} aprovação(ões) concedida(s)")),
+                    Ok((ok, 0)) => notify(
+                        &env,
+                        ToastVariant::Success,
+                        format!("{ok} aprovação(ões) concedida(s)"),
+                    ),
                     Ok((ok, failed)) => notify(
                         &env,
                         ToastVariant::Warning,
@@ -547,9 +563,10 @@ pub fn CommandPalette(open: RwSignal<bool>, set_active_tab: WriteSignal<Tab>) ->
             q.set(v.clone());
         }) as Box<dyn FnMut()>);
         if let Some(window) = web_sys::window() {
-            if let Ok(handle) = window
-                .set_timeout_with_callback_and_timeout_and_arguments_0(cb.as_ref().unchecked_ref(), 50)
-            {
+            if let Ok(handle) = window.set_timeout_with_callback_and_timeout_and_arguments_0(
+                cb.as_ref().unchecked_ref(),
+                50,
+            ) {
                 debounce_handle.set_value(Some(handle));
             }
         }
@@ -832,8 +849,14 @@ mod tests {
     #[test]
     fn agentes_viram_itens_que_levam_a_aba_agentes() {
         let itens = agent_items(vec![
-            PaletteAgent { id: "a1".into(), name: "Backend Engineer".into() },
-            PaletteAgent { id: "a2".into(), name: "Chief of Staff".into() },
+            PaletteAgent {
+                id: "a1".into(),
+                name: "Backend Engineer".into(),
+            },
+            PaletteAgent {
+                id: "a2".into(),
+                name: "Chief of Staff".into(),
+            },
         ]);
         assert_eq!(itens.len(), 2);
         assert!(itens.iter().all(|i| i.category == Category::Agent));
