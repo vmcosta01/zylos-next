@@ -238,9 +238,7 @@ pub fn PhoneRelayPanel() -> impl IntoView {
 
             <section class="relay-section">
                 <h3>{"Relay de Tela"}</h3>
-                <div class="relay-screen relay-inactive">
-                    <p>{"Nenhuma sessão de relay ativa."}</p>
-                </div>
+                <crate::components::vnc_canvas::VncStream />
             </section>
         </div>
     }

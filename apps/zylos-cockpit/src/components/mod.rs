@@ -49,6 +49,8 @@ pub mod tasks_dag;
 pub use channel_panel::ChannelPanel;
 pub mod phone_relay_panel;
 pub use phone_relay_panel::PhoneRelayPanel;
+pub mod vnc_canvas;
+pub use vnc_canvas::VncStream;
 pub mod integrations_panel;
 pub use integrations_panel::IntegrationsPanel;
 pub mod auth_login;

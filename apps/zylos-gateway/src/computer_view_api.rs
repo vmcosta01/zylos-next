@@ -17,11 +17,12 @@
 
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
-    response::IntoResponse,
+    http::{header, StatusCode},
+    response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
+use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use zylos_computer_view::{
@@ -171,6 +172,38 @@ async fn release_control(
     }
 }
 
+/// `GET /computer-view/sessions/{id}/screenshot` — captura tela atual como PNG binário.
+async fn get_screenshot(
+    State(handle): State<ComputerViewHandle>,
+    Path(id): Path<String>,
+) -> Response {
+    match handle.manager.capture_screenshot(&id) {
+        Ok(data) => {
+            let bytes: Vec<u8> = match base64::engine::general_purpose::STANDARD.decode(&data.image_base64) {
+                Ok(b) => b,
+                Err(e) => {
+                    return error_response(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "screenshot_decode_failed",
+                        Some(e.to_string()),
+                    )
+                    .into_response();
+                }
+            };
+            (StatusCode::OK, [(header::CONTENT_TYPE, "image/png")], bytes).into_response()
+        }
+        Err(e) if e.contains("not found") => {
+            error_response(StatusCode::NOT_FOUND, "session_not_found", Some(e)).into_response()
+        }
+        Err(e) => error_response(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "screenshot_unavailable",
+            Some(e),
+        )
+        .into_response(),
+    }
+}
+
 /// Cria o router de computer-view com seu próprio handle.
 pub fn create_computer_view_router(handle: ComputerViewHandle) -> Router {
     Router::new()
@@ -185,6 +218,10 @@ pub fn create_computer_view_router(handle: ComputerViewHandle) -> Router {
         .route(
             "/computer-view/sessions/{id}/control",
             post(take_control).delete(release_control),
+        )
+        .route(
+            "/computer-view/sessions/{id}/screenshot",
+            get(get_screenshot),
         )
         .with_state(handle)
 }
