@@ -72,7 +72,9 @@ pub use chat_panel::ChatPanel;
 pub use employee_governance_panel::EmployeeGovernancePanel;
 pub use evidence_ledger_panel::EvidenceLedgerPanel;
 pub use goals_panel::GoalsPanel;
-pub use hitl_approval_panel::HitlApprovalPanel;
+pub use hitl_approval_panel::{
+    approve_all_pending, pending_approvals_count, HitlApprovalPanel, InlineApprovals,
+};
 pub use lazy_roster::LazyRoster;
 pub use memory_timeline::MemoryTimeline;
 pub use personalities_panel::PersonalitiesPanel;

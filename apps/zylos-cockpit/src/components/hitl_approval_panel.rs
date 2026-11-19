@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use wasm_bindgen_futures::spawn_local;
 
+use crate::components::toast_container::ToastStore;
 use crate::spring::{create_spring, SpringConfig};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,12 +60,25 @@ pub fn HitlApprovalPanel() -> impl IntoView {
     let (loading, set_loading) = signal(true);
     let (error, set_error) = signal(None::<String>);
 
-    // Fetch pending approvals on mount
+    // Busca ao montar e de novo a cada evento de aprovação do SSE (approvals_tick).
+    let tick = approvals_tick();
+    let toasts = use_context::<ToastStore>();
+    let mut first_load = true;
     Effect::new(move |_| {
+        if let Some(t) = tick {
+            let _ = t.get();
+        }
+        // Só a primeira carga mostra o esqueleto; as seguintes atualizam sem piscar.
+        let initial = first_load;
+        first_load = false;
+        let toasts = toasts.clone();
         spawn_local(async move {
-            set_loading.set(true);
+            if initial {
+                set_loading.set(true);
+            }
             match fetch_approvals().await {
                 Ok(list) => {
+                    schedule_expiry_toasts(&list, tick, toasts);
                     set_approvals.set(list);
                     set_error.set(None);
                 }
@@ -376,6 +390,145 @@ fn ApprovalReceiptCard(receipt: ApprovalReceipt) -> impl IntoView {
     }
 }
 
+// ─── Sincronização com o SSE, expiração e uso no chat ────────────────────────
+
+/// Sinal que sobe a cada evento de aprovação do SSE (`None` sem contexto de stream, ex.: testes).
+fn approvals_tick() -> Option<RwSignal<u32>> {
+    crate::approvals_sync::use_approvals_tick()
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+const DAY_MS: i64 = 86_400_000;
+
+/// Milissegundos até `expires_at` (RFC 3339), se ainda estiver no futuro e a menos de 24 h.
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+pub(crate) fn expiry_delay_ms(
+    expires_at: &str,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Option<u32> {
+    let exp = chrono::DateTime::parse_from_rfc3339(expires_at).ok()?;
+    let delta = exp.signed_duration_since(now).num_milliseconds();
+    (delta > 0 && delta <= DAY_MS).then_some(delta as u32)
+}
+
+#[cfg(target_arch = "wasm32")]
+thread_local! {
+    static EXPIRY_SCHEDULED: std::cell::RefCell<std::collections::HashSet<String>> =
+        std::cell::RefCell::new(std::collections::HashSet::new());
+}
+
+/// Agenda um toast "Aprovação expirou" para cada pendente (uma vez por id) e refaz a lista ao expirar.
+#[cfg(target_arch = "wasm32")]
+fn schedule_expiry_toasts(
+    list: &[ApprovalRequest],
+    tick: Option<RwSignal<u32>>,
+    toasts: Option<ToastStore>,
+) {
+    use wasm_bindgen::closure::Closure;
+    use wasm_bindgen::JsCast;
+
+    let (Some(window), Some(toasts)) = (web_sys::window(), toasts) else {
+        return;
+    };
+    let now = chrono::Utc::now();
+    for a in list {
+        let Some(delay) = a.expires_at.as_deref().and_then(|e| expiry_delay_ms(e, now)) else {
+            continue;
+        };
+        if !EXPIRY_SCHEDULED.with(|s| s.borrow_mut().insert(a.id.clone())) {
+            continue;
+        }
+        let summary = a.summary.clone();
+        let toasts = toasts.clone();
+        let cb = Closure::once(move || {
+            toasts.dispatch(
+                crate::components::toast_container::ToastVariant::Warning,
+                format!("Aprovação expirou: {summary}"),
+            );
+            if let Some(t) = tick {
+                crate::approvals_sync::bump(t);
+            }
+        });
+        let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(
+            cb.as_ref().unchecked_ref(),
+            delay as i32,
+        );
+        cb.forget();
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn schedule_expiry_toasts(
+    list: &[ApprovalRequest],
+    tick: Option<RwSignal<u32>>,
+    toasts: Option<ToastStore>,
+) {
+    let _ = (list, tick, toasts);
+}
+
+/// Aprovações pendentes dentro do chat (ADR-001): os mesmos cartões do painel HITL, sem métricas.
+#[component]
+pub fn InlineApprovals() -> impl IntoView {
+    let (approvals, set_approvals) = signal(Vec::<ApprovalRequest>::new());
+    let tick = approvals_tick();
+    let toasts = use_context::<ToastStore>();
+
+    Effect::new(move |_| {
+        if let Some(t) = tick {
+            let _ = t.get();
+        }
+        let toasts = toasts.clone();
+        spawn_local(async move {
+            // Sem gateway ou com erro, o chat segue sem cartões (o painel HITL mostra o erro).
+            if let Ok(list) = fetch_approvals().await {
+                schedule_expiry_toasts(&list, tick, toasts);
+                set_approvals.set(list);
+            }
+        });
+    });
+
+    view! {
+        <div class="chat-inline-approvals" role="region" aria-label="Aprovações pendentes">
+            {move || {
+                approvals
+                    .get()
+                    .into_iter()
+                    .map(|approval| {
+                        let summary = approval.summary.clone();
+                        let on_resolve: Arc<dyn Fn(String, String) + Send + Sync> =
+                            Arc::new(move |id: String, decision: String| {
+                                set_approvals.update(|list| list.retain(|a| a.id != id));
+                                save_receipt(&id, &decision, &summary);
+                            });
+                        view! { <InlineApprovalCard approval=approval on_resolve=on_resolve /> }
+                    })
+                    .collect::<Vec<_>>()
+            }}
+        </div>
+    }
+}
+
+/// Aprova (uma vez) todas as pendentes. Devolve `(aprovadas, falhas)`. Quem chama deve confirmar antes.
+pub async fn approve_all_pending() -> Result<(usize, usize), String> {
+    let list = fetch_approvals().await?;
+    let (mut ok, mut failed) = (0, 0);
+    for a in list {
+        match resolve_approval(&a.id, "allow_once", None).await {
+            Ok(()) => {
+                save_receipt(&a.id, "allow_once", &a.summary);
+                ok += 1;
+            }
+            Err(_) => failed += 1,
+        }
+    }
+    Ok((ok, failed))
+}
+
+/// Quantas aprovações estão pendentes agora (para o palette confirmar o lote).
+pub async fn pending_approvals_count() -> Result<usize, String> {
+    fetch_approvals().await.map(|l| l.len())
+}
+
 async fn fetch_approvals() -> Result<Vec<ApprovalRequest>, String> {
     let base = crate::gateway_config::gateway_base().ok_or("Gateway não configurado")?;
     let url = crate::gateway_config::join_url(&base, "/api/v1/approvals");
@@ -400,7 +553,7 @@ async fn resolve_approval(
     refuse_reason: Option<String>,
 ) -> Result<(), String> {
     let base = crate::gateway_config::gateway_base().ok_or("Gateway não configurado")?;
-    let url = crate::gateway_config::join_url(&base, "/api/v1/approval/resolve");
+    let url = crate::gateway_config::join_url(&base, "/api/v1/approvals/resolve");
 
     let body = serde_json::json!({
         "approval_id": approval_id,
@@ -476,5 +629,27 @@ fn save_receipt(id: &str, decision: &str, summary: &str) {
 
     if let Ok(json) = serde_json::to_string(&receipts) {
         let _ = storage.set_item(RECEIPTS_KEY, &json);
+    }
+}
+
+#[cfg(test)]
+mod expiry_tests {
+    use super::*;
+    use chrono::TimeZone;
+
+    fn now() -> chrono::DateTime<chrono::Utc> {
+        chrono::Utc.with_ymd_and_hms(2026, 11, 19, 12, 0, 0).unwrap()
+    }
+
+    #[test]
+    fn expira_no_futuro_proximo() {
+        assert_eq!(expiry_delay_ms("2026-11-19T12:05:00+00:00", now()), Some(300_000));
+    }
+
+    #[test]
+    fn ignora_passado_e_muito_distante_e_invalido() {
+        assert_eq!(expiry_delay_ms("2026-11-19T11:59:00+00:00", now()), None);
+        assert_eq!(expiry_delay_ms("2026-11-21T12:00:00+00:00", now()), None);
+        assert_eq!(expiry_delay_ms("amanha", now()), None);
     }
 }

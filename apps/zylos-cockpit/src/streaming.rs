@@ -9,7 +9,104 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
-use crate::components::toast_container::{toast_success, toast_warning};
+use crate::components::toast_container::{ToastStore, ToastVariant};
+
+/// Aviso extraído de um evento SSE do gateway (PRD F8: toasts para eventos assíncronos).
+#[derive(Debug, Clone, PartialEq)]
+pub enum GatewayNotice {
+    ApprovalRequested { summary: String },
+    ApprovalResolved { status: String },
+    ApprovalTimeout { summary: String },
+    AgentError { agent_id: String, reason: String },
+    SentinelAlert { message: String },
+}
+
+impl GatewayNotice {
+    /// Avisos de aprovação mandam o painel/chat HITL buscar a lista de novo.
+    pub fn is_approval(&self) -> bool {
+        matches!(
+            self,
+            Self::ApprovalRequested { .. }
+                | Self::ApprovalResolved { .. }
+                | Self::ApprovalTimeout { .. }
+        )
+    }
+
+    /// Texto curto do toast, sem detalhes técnicos.
+    pub fn message(&self) -> String {
+        match self {
+            Self::ApprovalRequested { summary } if summary.is_empty() => {
+                "Nova aprovação pendente".to_string()
+            }
+            Self::ApprovalRequested { summary } => format!("Nova aprovação pendente: {summary}"),
+            Self::ApprovalResolved { status } => format!("Aprovação resolvida ({status})"),
+            Self::ApprovalTimeout { summary } => format!("Aprovação expirou: {summary}"),
+            Self::AgentError { agent_id, reason } if reason.is_empty() => {
+                format!("Agente {agent_id} entrou em erro")
+            }
+            Self::AgentError { agent_id, reason } => {
+                format!("Agente {agent_id} entrou em erro: {reason}")
+            }
+            Self::SentinelAlert { message } => format!("Alerta do Sentinela: {message}"),
+        }
+    }
+
+    /// Variante do toast (erro e aviso ficam até dispensar).
+    pub fn variant(&self) -> ToastVariant {
+        match self {
+            Self::ApprovalRequested { .. } | Self::ApprovalResolved { .. } => ToastVariant::Info,
+            Self::ApprovalTimeout { .. } | Self::SentinelAlert { .. } => ToastVariant::Warning,
+            Self::AgentError { .. } => ToastVariant::Error,
+        }
+    }
+}
+
+static NULL_JSON: serde_json::Value = serde_json::Value::Null;
+
+/// Classifica o JSON de um evento do gateway (`EventEnvelope` com `event_type` + `data`).
+/// Devolve `None` para eventos que não geram aviso (texto de chat, heartbeat etc.).
+pub fn classify_gateway_event(raw: &str) -> Option<GatewayNotice> {
+    let v: serde_json::Value = serde_json::from_str(raw).ok()?;
+    let d = v.get("data")?;
+    let text = |x: &serde_json::Value, k: &str| {
+        x.get(k)
+            .and_then(|y| y.as_str())
+            .unwrap_or("")
+            .to_string()
+    };
+    match v.get("event_type")?.as_str()? {
+        "ApprovalRequested" => Some(GatewayNotice::ApprovalRequested {
+            summary: text(d, "action_description"),
+        }),
+        "AgentStateChanged" => {
+            let new_state = text(d, "new_state");
+            if new_state == "error" || new_state == "failed" {
+                Some(GatewayNotice::AgentError {
+                    agent_id: text(d, "agent_id"),
+                    reason: text(d, "reason"),
+                })
+            } else {
+                None
+            }
+        }
+        "Custom" => {
+            let payload = d.get("payload").unwrap_or(&NULL_JSON);
+            match text(d, "name").as_str() {
+                "ApprovalResolved" => Some(GatewayNotice::ApprovalResolved {
+                    status: text(payload, "status"),
+                }),
+                "ApprovalTimeout" => Some(GatewayNotice::ApprovalTimeout {
+                    summary: text(payload, "summary"),
+                }),
+                "SentinelAlert" => Some(GatewayNotice::SentinelAlert {
+                    message: text(payload, "message"),
+                }),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
 
 /// AG-UI event types matching backend AgUiEvent enum
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -153,6 +250,9 @@ pub struct StreamContext {
     state: RwSignal<StreamState>,
     stats: RwSignal<StreamStats>,
     messages: RwSignal<Vec<MessageBuffer>>,
+    approvals_tick: RwSignal<u32>,
+    /// Capturado em `connect()` (dentro do dono reativo); callbacks do EventSource não têm contexto.
+    toasts: Option<ToastStore>,
     config: StreamConfig,
 }
 
@@ -163,6 +263,8 @@ impl StreamContext {
             state: RwSignal::new(StreamState::Disconnected),
             stats: RwSignal::new(StreamStats::default()),
             messages: RwSignal::new(Vec::new()),
+            approvals_tick: RwSignal::new(0),
+            toasts: None,
             config,
         }
     }
@@ -175,13 +277,19 @@ impl StreamContext {
         self.stats
     }
 
+    /// Contador que sobe a cada evento de aprovação; painel e chat HITL refazem o GET quando muda.
+    pub fn approvals_tick(&self) -> RwSignal<u32> {
+        self.approvals_tick
+    }
+
     pub fn messages(&self) -> RwSignal<Vec<MessageBuffer>> {
         self.messages
     }
 
     /// Start SSE connection with automatic reconnection
     pub fn connect(&self) {
-        let ctx = self.clone();
+        let mut ctx = self.clone();
+        ctx.toasts = use_context::<ToastStore>();
         // T11.5.6: sem gateway configurado (ex.: preview público) não abre SSE —
         // evita ERR_CONNECTION_REFUSED em loop no console.
         if crate::gateway_config::gateway_base().is_none() {
@@ -286,9 +394,12 @@ impl StreamContext {
 
         // Mark connected on open + dispatch success toast
         let state_signal = self.state;
+        let toasts_open = self.toasts.clone();
         let on_open = Closure::wrap(Box::new(move |_: web_sys::Event| {
             state_signal.set(StreamState::Connected);
-            toast_success("Conectado ao gateway (SSE)");
+            if let Some(t) = &toasts_open {
+                t.dispatch(ToastVariant::Success, "Conectado ao gateway (SSE)");
+            }
         }) as Box<dyn FnMut(web_sys::Event)>);
         es.set_onopen(Some(on_open.as_ref().unchecked_ref()));
         on_open.forget();
@@ -296,6 +407,8 @@ impl StreamContext {
         // Handle incoming messages
         let stats_signal = self.stats;
         let messages_signal = self.messages;
+        let approvals_tick = self.approvals_tick;
+        let toasts_msg = self.toasts.clone();
         let on_message = Closure::wrap(Box::new(move |ev: web_sys::MessageEvent| {
             let data = match ev.data().as_string() {
                 Some(d) => d,
@@ -307,6 +420,15 @@ impl StreamContext {
                 s.bytes_received += data.len() as u64;
                 s.last_event_at = Some(js_sys::Date::new_0().to_iso_string().into());
             });
+
+            if let Some(notice) = classify_gateway_event(&data) {
+                if notice.is_approval() {
+                    zylos_cockpit::approvals_sync::bump(approvals_tick);
+                }
+                if let Some(t) = &toasts_msg {
+                    t.dispatch(notice.variant(), notice.message());
+                }
+            }
 
             if let Ok(event) = serde_json::from_str::<AgUiStreamEvent>(&data) {
                 Self::process_event(messages_signal, &event);
@@ -320,11 +442,14 @@ impl StreamContext {
 
         // Handle errors — will trigger reconnection when EventSource closes
         let state_signal_err = self.state;
+        let toasts_err = self.toasts.clone();
         let on_error = Closure::wrap(Box::new(move |_: web_sys::Event| {
             // EventSource auto-reconnects on some errors; we handle persistent ones
             // The readyState check distinguishes closed vs connecting
             state_signal_err.set(StreamState::Connecting);
-            toast_warning("Conexão SSE perdida — reconectando...");
+            if let Some(t) = &toasts_err {
+                t.dispatch(ToastVariant::Warning, "Conexão SSE perdida, reconectando...");
+            }
         }) as Box<dyn FnMut(web_sys::Event)>);
         es.set_onerror(Some(on_error.as_ref().unchecked_ref()));
         on_error.forget();
@@ -422,6 +547,8 @@ impl StreamContext {
 /// Provide stream context to component tree
 pub fn provide_stream(config: StreamConfig) -> StreamContext {
     let ctx = StreamContext::new(config);
+    // Painel HITL e chat (lib) leem o mesmo contador, sem depender do módulo do bin.
+    provide_context(zylos_cockpit::approvals_sync::ApprovalsTick(ctx.approvals_tick));
     provide_context(ctx.clone());
     ctx
 }
@@ -613,5 +740,56 @@ mod tests {
         assert_eq!(config.max_reconnect_attempts, 10);
         assert_eq!(config.base_retry_ms, 1000);
         assert_eq!(config.max_retry_ms, 30000);
+    }
+
+    #[test]
+    fn classifica_aprovacao_pedida() {
+        let raw = r#"{"id":"1","topic":"t","event_type":"ApprovalRequested","data":{"approval_id":"a1","requester_id":"b","action_description":"Publicar em produção","expires_at":null}}"#;
+        let n = classify_gateway_event(raw).unwrap();
+        assert_eq!(
+            n,
+            GatewayNotice::ApprovalRequested {
+                summary: "Publicar em produção".into()
+            }
+        );
+        assert!(n.is_approval());
+        assert!(n.message().contains("Publicar em produção"));
+    }
+
+    #[test]
+    fn classifica_erro_de_agente_so_em_estado_de_erro() {
+        let erro = r#"{"event_type":"AgentStateChanged","data":{"agent_id":"backend","previous_state":"running","new_state":"error","reason":"timeout"}}"#;
+        assert_eq!(
+            classify_gateway_event(erro),
+            Some(GatewayNotice::AgentError {
+                agent_id: "backend".into(),
+                reason: "timeout".into()
+            })
+        );
+        let ok = r#"{"event_type":"AgentStateChanged","data":{"agent_id":"backend","previous_state":"idle","new_state":"running","reason":null}}"#;
+        assert_eq!(classify_gateway_event(ok), None);
+    }
+
+    #[test]
+    fn classifica_eventos_custom_conhecidos() {
+        let timeout = r#"{"event_type":"Custom","data":{"name":"ApprovalTimeout","payload":{"summary":"Deploy"}}}"#;
+        assert_eq!(
+            classify_gateway_event(timeout),
+            Some(GatewayNotice::ApprovalTimeout {
+                summary: "Deploy".into()
+            })
+        );
+        let alerta = r#"{"event_type":"Custom","data":{"name":"SentinelAlert","payload":{"message":"CPU alta"}}}"#;
+        let n = classify_gateway_event(alerta).unwrap();
+        assert!(!n.is_approval());
+        assert_eq!(n.message(), "Alerta do Sentinela: CPU alta");
+    }
+
+    #[test]
+    fn ignora_texto_de_chat_e_json_invalido() {
+        let agui = r#"{"event_type":"Custom","data":{"name":"AgUiEvent","payload":{"type":"TextMessageContent","data":{"delta":"oi"}}}}"#;
+        assert_eq!(classify_gateway_event(agui), None);
+        assert_eq!(classify_gateway_event("heartbeat"), None);
+        assert_eq!(classify_gateway_event("{}"), None);
     }
 }

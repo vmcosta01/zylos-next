@@ -126,8 +126,10 @@ async fn resolve_approval(
 pub fn create_approvals_router(state: ApprovalsState) -> Router {
  Router::new()
  .route("/approvals", get(list_approvals))
- // NOTE: POST /approval/resolve is already provided by the SSE router (zylos-live-comm).
- // Only GET /approvals (list pending) is added here.
+ // POST /approval/resolve (singular) é do roteador SSE e usa o store em memória e o enum
+ // Approved/Denied; o cockpit decide aprovações do store SQLite (allow_once, refuse etc.),
+ // por isso a resolução fica aqui, em /approvals/resolve (plural).
+ .route("/approvals/resolve", post(resolve_approval))
  .with_state(state)
 }
 
@@ -207,7 +209,7 @@ mod tests {
 
         let response = app
             .oneshot(
-                Request::post("/approval/resolve")
+                Request::post("/approvals/resolve")
                     .header("content-type", "application/json")
                     .body(Body::from(serde_json::to_string(&body).unwrap()))
                     .unwrap(),
@@ -216,5 +218,37 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    async fn resolve_with(decision: &str) -> StatusCode {
+        let (state, store) = setup().await;
+        let id = store
+            .create(CreateApprovalRequest {
+                bot_id: "test-bot".to_string(),
+                tool_name: "send_email".to_string(),
+                action_category: "send_message".to_string(),
+                summary: "Send email".to_string(),
+                arguments_json: "{}".to_string(),
+                expires_in_seconds: Some(300),
+            })
+            .await
+            .unwrap();
+        let body = serde_json::json!({ "approval_id": id, "decision": decision });
+        create_approvals_router(state)
+            .oneshot(
+                Request::post("/approvals/resolve")
+                    .header("content-type", "application/json")
+                    .body(Body::from(serde_json::to_string(&body).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
+            .status()
+    }
+
+    #[tokio::test]
+    async fn resolve_approval_refuse_and_invalid_decision() {
+        assert_eq!(resolve_with("refuse").await, StatusCode::OK);
+        assert_eq!(resolve_with("talvez").await, StatusCode::BAD_REQUEST);
     }
 }

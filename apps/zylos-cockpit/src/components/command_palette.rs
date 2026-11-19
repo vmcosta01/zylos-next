@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
 
+use crate::components::theme_toggle::ThemeContext;
+use crate::components::toast_container::ToastStore;
 use crate::spring::{create_spring, SpringConfig};
 use crate::tabs::Tab;
 
@@ -18,6 +20,7 @@ use crate::tabs::Tab;
 pub enum Category {
     Recent,
     Page,
+    Agent,
     Command,
 }
 
@@ -26,6 +29,7 @@ impl Category {
         match self {
             Category::Recent => "RECENT",
             Category::Page => "PAGES",
+            Category::Agent => "AGENTS",
             Category::Command => "COMMANDS",
         }
     }
@@ -233,7 +237,7 @@ fn build_static_index() -> Vec<PaletteItem> {
         ("cmd-toggle-theme", "Alternar Tema Claro/Escuro"),
         ("cmd-refresh", "Atualizar Dados"),
         ("cmd-clear-notifications", "Limpar Notificações"),
-        ("cmd-export-data", "Exportar Dados"),
+        ("cmd-approve-all", "Aprovar todas as pendentes (uma vez)"),
         ("cmd-open-settings", "Abrir Configurações"),
     ];
     for (id, label) in commands {
@@ -247,6 +251,126 @@ fn build_static_index() -> Vec<PaletteItem> {
     }
 
     items
+}
+
+// ─── Agentes dinâmicos e execução de comandos ────────────────────────────────
+
+/// Agente como devolvido por `GET /api/v1/agents` (só o que o palette precisa).
+#[derive(Debug, Clone, Deserialize)]
+struct PaletteAgent {
+    id: String,
+    name: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct PaletteAgentsResponse {
+    agents: Vec<PaletteAgent>,
+}
+
+/// Converte a lista de agentes em itens do palette; selecionar leva à aba Agentes.
+fn agent_items(agents: Vec<PaletteAgent>) -> Vec<PaletteItem> {
+    agents
+        .into_iter()
+        .map(|a| PaletteItem {
+            id: format!("agent-{}", a.id),
+            label: a.name,
+            category: Category::Agent,
+            tab: Some(Tab::Agents),
+            command: None,
+        })
+        .collect()
+}
+
+async fn fetch_palette_agents() -> Result<Vec<PaletteItem>, String> {
+    let base = crate::gateway_config::gateway_base().ok_or("Gateway não configurado")?;
+    let url = crate::gateway_config::join_url(&base, "/api/v1/agents");
+    let resp = crate::auth::authed(gloo_net::http::Request::get(&url))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !resp.ok() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    let data: PaletteAgentsResponse = resp.json().await.map_err(|e| e.to_string())?;
+    Ok(agent_items(data.agents))
+}
+
+/// Contextos capturados na montagem (callbacks do palette rodam fora do dono reativo).
+#[derive(Clone)]
+struct CommandEnv {
+    theme: Option<ThemeContext>,
+    toasts: Option<ToastStore>,
+    approvals_tick: Option<RwSignal<u32>>,
+}
+
+fn notify(env: &CommandEnv, variant: crate::components::toast_container::ToastVariant, msg: String) {
+    if let Some(t) = &env.toasts {
+        t.dispatch(variant, msg);
+    }
+}
+
+/// Executa um comando do palette. Comandos sem efeito real não existem no índice.
+fn run_command(cmd: &str, env: &CommandEnv, set_active_tab: WriteSignal<Tab>) {
+    use crate::components::toast_container::ToastVariant;
+    match cmd {
+        "cmd-toggle-theme" => {
+            if let Some(t) = &env.theme {
+                t.toggle();
+            }
+        }
+        "cmd-refresh" => {
+            if let Some(w) = web_sys::window() {
+                let _ = w.location().reload();
+            }
+        }
+        "cmd-clear-notifications" => {
+            if let Some(t) = &env.toasts {
+                t.toasts().set(Vec::new());
+            }
+        }
+        "cmd-open-settings" => set_active_tab.set(Tab::Skins),
+        "cmd-approve-all" => {
+            let env = env.clone();
+            wasm_bindgen_futures::spawn_local(async move {
+                let n = match crate::components::pending_approvals_count().await {
+                    Ok(n) => n,
+                    Err(e) => {
+                        notify(&env, ToastVariant::Error, format!("Não foi possível listar aprovações: {e}"));
+                        return;
+                    }
+                };
+                if n == 0 {
+                    notify(&env, ToastVariant::Info, "Nenhuma aprovação pendente".to_string());
+                    return;
+                }
+                // Confirmação explícita: aprovar em lote é uma ação de risco.
+                let confirmed = web_sys::window()
+                    .and_then(|w| {
+                        w.confirm_with_message(&format!(
+                            "Aprovar {n} ação(ões) pendente(s), uma vez cada?"
+                        ))
+                        .ok()
+                    })
+                    .unwrap_or(false);
+                if !confirmed {
+                    return;
+                }
+                match crate::components::approve_all_pending().await {
+                    Ok((ok, 0)) => notify(&env, ToastVariant::Success, format!("{ok} aprovação(ões) concedida(s)")),
+                    Ok((ok, failed)) => notify(
+                        &env,
+                        ToastVariant::Warning,
+                        format!("{ok} aprovada(s), {failed} falharam; tente de novo"),
+                    ),
+                    Err(e) => notify(&env, ToastVariant::Error, format!("Falha ao aprovar: {e}")),
+                }
+                if let Some(t) = env.approvals_tick {
+                    crate::approvals_sync::bump(t);
+                }
+            });
+        }
+        _ => {}
+    }
 }
 
 // ─── Componente ──────────────────────────────────────────────────────────────
@@ -264,13 +388,20 @@ pub fn CommandPalette(open: RwSignal<bool>, set_active_tab: WriteSignal<Tab>) ->
     let (opacity_val, opacity_spring) = create_spring(0.0, SpringConfig::ENTRANCE);
     let (scale_val, scale_spring) = create_spring(0.95, SpringConfig::ENTRANCE);
 
-    // Index estático (construído uma vez)
+    // Index estático (construído uma vez) + agentes dinâmicos (carregados ao abrir)
     let static_items = StoredValue::new_local(build_static_index());
+    let agents = RwSignal::new(Vec::<PaletteItem>::new());
+    let env = StoredValue::new_local(CommandEnv {
+        theme: use_context::<ThemeContext>(),
+        toasts: use_context::<ToastStore>(),
+        approvals_tick: crate::approvals_sync::use_approvals_tick(),
+    });
 
     // Resultados filtrados
     let filtered = Memo::new(move |_| {
         let q = query.get();
-        let items = static_items.with_value(|items| items.clone());
+        let mut items = static_items.with_value(|items| items.clone());
+        items.extend(agents.get());
         search_items(&items, &q)
     });
 
@@ -321,8 +452,13 @@ pub fn CommandPalette(open: RwSignal<bool>, set_active_tab: WriteSignal<Tab>) ->
         if open.get() {
             opacity_spring.set_target(1.0);
             scale_spring.set_target(1.0);
-            // Recarrega histórico
+            // Recarrega histórico e agentes (erro de rede mantém a lista anterior)
             history.set(load_history());
+            wasm_bindgen_futures::spawn_local(async move {
+                if let Ok(list) = fetch_palette_agents().await {
+                    agents.set(list);
+                }
+            });
             query.set(String::new());
             selected_idx.set(0);
         } else {
@@ -353,7 +489,9 @@ pub fn CommandPalette(open: RwSignal<bool>, set_active_tab: WriteSignal<Tab>) ->
         if let Some(tab) = item.tab {
             set_active_tab.set(tab);
         }
-        // Comandos são executados aqui (futuro: dispatch via context)
+        if let Some(cmd) = &item.command {
+            run_command(cmd, &env.get_value(), set_active_tab);
+        }
         open.set(false);
         query.set(String::new());
     };
@@ -513,6 +651,7 @@ pub fn CommandPalette(open: RwSignal<bool>, set_active_tab: WriteSignal<Tab>) ->
                                                 let icon = match item.category {
                                                     Category::Recent => "🕐",
                                                     Category::Page => "📄",
+                                                    Category::Agent => "🤖",
                                                     Category::Command => "⚡",
                                                 };
                                                 view! {
@@ -532,7 +671,7 @@ pub fn CommandPalette(open: RwSignal<bool>, set_active_tab: WriteSignal<Tab>) ->
                                                         <span class="cmd-palette-item-icon">{icon}</span>
                                                         <span class="cmd-palette-item-label">{item.label.clone()}</span>
                                                         {match item.category {
-                                                            Category::Page => view! {
+                                                            Category::Page | Category::Agent => view! {
                                                                 <kbd class="cmd-palette-item-hint">"↵"</kbd>
                                                             }.into_any(),
                                                             Category::Command => view! {
@@ -670,5 +809,39 @@ mod tests {
             .count();
         assert_eq!(pages, Tab::ALL.len());
         assert!(cmds >= 5, "deve ter pelo menos 5 comandos estáticos");
+    }
+
+    #[test]
+    fn todo_comando_do_indice_tem_acao_real() {
+        // Comandos sem ação em run_command não podem existir no índice.
+        let conhecidos = [
+            "cmd-toggle-theme",
+            "cmd-refresh",
+            "cmd-clear-notifications",
+            "cmd-open-settings",
+            "cmd-approve-all",
+        ];
+        for item in build_static_index()
+            .into_iter()
+            .filter(|i| i.category == Category::Command)
+        {
+            let cmd = item.command.expect("comando tem identificador");
+            assert!(conhecidos.contains(&cmd.as_str()), "sem ação para {cmd}");
+        }
+    }
+
+    #[test]
+    fn agentes_viram_itens_que_levam_a_aba_agentes() {
+        let itens = agent_items(vec![
+            PaletteAgent { id: "a1".into(), name: "Backend Engineer".into() },
+            PaletteAgent { id: "a2".into(), name: "Chief of Staff".into() },
+        ]);
+        assert_eq!(itens.len(), 2);
+        assert!(itens.iter().all(|i| i.category == Category::Agent));
+        assert!(itens.iter().all(|i| i.tab == Some(Tab::Agents)));
+        assert_eq!(itens[0].id, "agent-a1");
+        let achados = search_items(&itens, "chief");
+        assert_eq!(achados.len(), 1);
+        assert_eq!(achados[0].0.label, "Chief of Staff");
     }
 }

@@ -343,6 +343,9 @@ pub fn ChatPanel() -> impl IntoView {
                     }}
                 </div>
 
+                // Aprovações HITL pendentes inline no chat (ADR-001)
+                <super::hitl_approval_panel::InlineApprovals />
+
                 // Input area (design-system: .chat-input-area)
                 <div class="chat-input-area">
                     {move || {
