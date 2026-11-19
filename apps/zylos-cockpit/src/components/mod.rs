@@ -57,10 +57,12 @@ pub mod auth_login;
 pub use auth_login::AuthHeaderButton;
 pub mod collab_panel;
 pub mod collapsible_sidebar;
+pub mod command_palette;
 pub mod theme_toggle;
 pub mod translucent_header;
 pub use collab_panel::CollabPanel;
 pub use collapsible_sidebar::{CollapsibleSidebar, SidebarGroup};
+pub use command_palette::CommandPalette;
 pub use translucent_header::{GatewayStatus, TranslucentHeader};
 
 pub use agent_awareness_panel::AgentAwarenessPanel;
