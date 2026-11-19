@@ -5,6 +5,8 @@
 
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
+use wasm_bindgen::closure::Closure;
+use wasm_bindgen::JsCast;
 
 use crate::spring::{create_spring, SpringConfig};
 use crate::tabs::Tab;
@@ -390,13 +392,31 @@ pub fn CommandPalette(open: RwSignal<bool>, set_active_tab: WriteSignal<Tab>) ->
         _ => {}
     };
 
-    // Debounce: resetamos o query signal apenas após 50ms de inatividade.
-    // Leptos já é reativo; o debounce é implementado via timeout no input handler.
-    // Simplified: debounce handle removed as the fuzzy search is <1ms for <100 items.
+    // Debounce 50ms: cancela timeout anterior e agenda novo a cada keystroke.
+    let debounce_handle: StoredValue<Option<i32>> = StoredValue::new(None);
 
     let on_input = move |ev: leptos::ev::Event| {
         let value = event_target_value(&ev);
-        query.set(value);
+        // Cancela debounce anterior
+        if let Some(handle) = debounce_handle.get_value() {
+            if let Some(window) = web_sys::window() {
+                window.clear_timeout_with_handle(handle);
+            }
+        }
+        // Agenda novo debounce de 50ms
+        let q = query;
+        let v = value.clone();
+        let cb = Closure::wrap(Box::new(move || {
+            q.set(v.clone());
+        }) as Box<dyn FnMut()>);
+        if let Some(window) = web_sys::window() {
+            if let Ok(handle) = window
+                .set_timeout_with_callback_and_timeout_and_arguments_0(cb.as_ref().unchecked_ref(), 50)
+            {
+                debounce_handle.set_value(Some(handle));
+            }
+        }
+        cb.forget();
     };
 
     // Agrupamento dos resultados por categoria

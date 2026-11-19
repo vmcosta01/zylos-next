@@ -7,7 +7,7 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::Deserialize;
 
-use super::{AgentInfo, AgentStatus, LazyRoster};
+use super::{AgentInfo, AgentStatus, EmptyState, LazyRoster};
 
 /// Agente como devolvido pelo gateway.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -100,7 +100,11 @@ pub fn AgentsPanel() -> impl IntoView {
                 </div>
             }.into_any(),
             Some(Ok(agents)) if agents.is_empty() => view! {
-                <div class="roster-empty"><p>"Nenhum agente registrado"</p></div>
+                <EmptyState
+                    icon=crate::components::empty_state::icons::ROBOT
+                    title="Nenhum agente registrado".to_string()
+                    description="Agentes aparecerão aqui quando registrados no swarm.".to_string()
+                />
             }.into_any(),
             Some(Ok(agents)) => view! { <LazyRoster agents=agents max_visible=20 /> }.into_any(),
         }}

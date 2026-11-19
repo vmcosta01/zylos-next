@@ -7,12 +7,12 @@ stage = "pre_build"
 command = "rustup"
 command_arguments = ["target", "add", "wasm32-unknown-unknown"]
 
-# wasm-opt hook desativado: wasm-opt não está instalado no PATH.
-# O profile wasm-release já aplica opt-level="z" + LTO + strip via Cargo.
-# [[hooks]]
-# stage = "post_build"
-# command = "wasm-opt"
-# command_arguments = ["-Oz", "--strip-debug", "--strip-producers", "$WASM_FILE", "-o", "$WASM_FILE"]
+# wasm-opt hook: otimiza o bundle WASM com flags agressivos
+# binaryen version_121 instalado em $LOCALAPPDATA/Temp/binaryen-version_121/bin/
+[[hooks]]
+stage = "post_build"
+command = "C:\\Users\\Paulo\\AppData\\Local\\Temp\\binaryen-version_121\\bin\\wasm-opt.exe"
+command_arguments = ["-Oz", "--strip-debug", "--strip-producers", "$WASM_FILE", "-o", "$WASM_FILE"]
 
 [tools]
 

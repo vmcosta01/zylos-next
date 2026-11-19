@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
+use crate::components::toast_container::{toast_success, toast_warning};
+
 /// AG-UI event types matching backend AgUiEvent enum
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data")]
@@ -282,10 +284,11 @@ impl StreamContext {
 
         let es = web_sys::EventSource::new(&url).map_err(|e| format!("{:?}", e))?;
 
-        // Mark connected on open
+        // Mark connected on open + dispatch success toast
         let state_signal = self.state;
         let on_open = Closure::wrap(Box::new(move |_: web_sys::Event| {
             state_signal.set(StreamState::Connected);
+            toast_success("Conectado ao gateway (SSE)");
         }) as Box<dyn FnMut(web_sys::Event)>);
         es.set_onopen(Some(on_open.as_ref().unchecked_ref()));
         on_open.forget();
@@ -321,6 +324,7 @@ impl StreamContext {
             // EventSource auto-reconnects on some errors; we handle persistent ones
             // The readyState check distinguishes closed vs connecting
             state_signal_err.set(StreamState::Connecting);
+            toast_warning("Conexão SSE perdida — reconectando...");
         }) as Box<dyn FnMut(web_sys::Event)>);
         es.set_onerror(Some(on_error.as_ref().unchecked_ref()));
         on_error.forget();

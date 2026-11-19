@@ -7,6 +7,7 @@ use leptos::prelude::*;
 use std::collections::HashMap;
 
 use crate::components::agent_card::{AgentCard, AgentInfo, AgentStatus};
+use crate::components::empty_state::{self, EmptyState};
 
 /// Filter state for roster
 #[derive(Debug, Clone, PartialEq)]
@@ -181,9 +182,11 @@ pub fn LazyRoster(agents: Vec<AgentInfo>, #[prop(optional)] max_visible: usize) 
                     let groups = grouped.get();
                     if groups.is_empty() {
                         view! {
-                            <div class="roster-empty">
-                                <p>"Nenhum agente encontrado"</p>
-                            </div>
+                            <EmptyState
+                                icon=empty_state::icons::SEARCH
+                                title="Nenhum agente encontrado".to_string()
+                                description="Tente ajustar os filtros ou buscar por outro termo.".to_string()
+                            />
                         }.into_any()
                     } else {
                         let mut sorted_tenants: Vec<_> = groups.iter().collect();
