@@ -257,6 +257,8 @@ fn AgentsRail(set_active_tab: WriteSignal<Tab>) -> impl IntoView {
         return ().into_any();
     };
     let spaces = crate::spaces::use_spaces();
+    // Estado ao vivo (SSE); sem ele (testes/preview) vale o da última leitura da lista.
+    let live = crate::agent_state::use_agent_states();
     view! {
         <section class="rail-section" aria-label="Agentes">
             <h2 class="rail-title">"Agentes"</h2>
@@ -266,6 +268,11 @@ fn AgentsRail(set_active_tab: WriteSignal<Tab>) -> impl IntoView {
                     .map(|bot| {
                         let name = bot.name.clone();
                         let name_click = bot.name.clone();
+                        let name_live = bot.name.clone();
+                        let listed = bot.working;
+                        let working = Signal::derive(move || {
+                            live.and_then(|l| l.with(|m| m.get(&name_live).copied())).unwrap_or(listed)
+                        });
                         let current = move || chat.selected_bot.get().as_deref() == Some(name.as_str());
                         view! {
                             <li>
@@ -279,8 +286,11 @@ fn AgentsRail(set_active_tab: WriteSignal<Tab>) -> impl IntoView {
                                 >
                                     <span class="avatar" aria-hidden="true">{super::chat_panel::initials(&bot.display_name)}</span>
                                     <span class="item-label">{bot.display_name.clone()}</span>
-                                    <span class="meta" class:meta-working=bot.working>
-                                        {if bot.working { "trabalhando".to_string() } else { bot.provider.clone() }}
+                                    <span class="meta" class:meta-working=working>
+                                        {
+                                            let provider = bot.provider.clone();
+                                            move || if working.get() { "trabalhando".to_string() } else { provider.clone() }
+                                        }
                                     </span>
                                 </button>
                             </li>

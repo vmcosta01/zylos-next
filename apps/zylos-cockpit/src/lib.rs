@@ -27,6 +27,9 @@ pub mod app {
 /// Componentes do cockpit — expostos publicamente para testes E2E e integração.
 pub mod approvals_sync;
 
+/// Estado ao vivo dos agentes (trabalhando/ocioso) vindo do SSE.
+pub mod agent_state;
+
 pub mod spaces;
 
 /// Conversas dos bots guardadas por Space.
