@@ -101,6 +101,22 @@ pub fn montar(p: &Pedido<'_>) -> Result<(String, HeaderMap, Value), ErroProvedor
     }
 }
 
+/// Tokens que o provedor diz ter gastado na pergunta (entrada + saída), se informou. O gateway
+/// não calcula nada: só repassa o `usage` da resposta. `None` quando o provedor não manda.
+pub fn extrair_tokens(lingua: Lingua, v: &Value) -> Option<u64> {
+    let u = &v["usage"];
+    let n = match lingua {
+        Lingua::OpenaiChat => u["total_tokens"]
+            .as_u64()
+            .or_else(|| Some(u["prompt_tokens"].as_u64()? + u["completion_tokens"].as_u64()?)),
+        Lingua::AnthropicMessages => {
+            Some(u["input_tokens"].as_u64()? + u["output_tokens"].as_u64()?)
+        }
+    }?;
+    // Um provedor que manda lixo (negativo vira None acima; absurdo aqui) não polui a soma.
+    (n <= 1_000_000_000).then_some(n)
+}
+
 /// Lê o texto da resposta de cada língua.
 pub fn extrair(lingua: Lingua, v: &Value) -> Result<String, ErroProvedor> {
     let texto = match lingua {
@@ -125,7 +141,10 @@ pub fn extrair(lingua: Lingua, v: &Value) -> Result<String, ErroProvedor> {
 }
 
 /// Faz a pergunta ao provedor e devolve o texto da resposta.
-pub async fn perguntar(cliente: &reqwest::Client, p: Pedido<'_>) -> Result<String, ErroProvedor> {
+pub async fn perguntar(
+    cliente: &reqwest::Client,
+    p: Pedido<'_>,
+) -> Result<(String, Option<u64>), ErroProvedor> {
     let (url, cab, corpo) = montar(&p)?;
     let resp = cliente
         .post(&url)
@@ -146,7 +165,8 @@ pub async fn perguntar(cliente: &reqwest::Client, p: Pedido<'_>) -> Result<Strin
     let v: Value = serde_json::from_str(&texto).map_err(|_| ErroProvedor::RespostaEstranha {
         motivo: "a resposta do provedor não é JSON".into(),
     })?;
-    extrair(p.provedor.lingua, &v).map(|t| sem_chave(&t, p.chave))
+    let tokens = extrair_tokens(p.provedor.lingua, &v);
+    extrair(p.provedor.lingua, &v).map(|t| (sem_chave(&t, p.chave), tokens))
 }
 
 fn erro_de_rede(e: reqwest::Error, p: &Pedido<'_>) -> ErroProvedor {
@@ -313,6 +333,43 @@ mod testes {
         let a = json!({"content": [{"type": "text", "text": "a"}, {"type": "tool_use"}, {"type": "text", "text": "b"}]});
         assert_eq!(extrair(Lingua::AnthropicMessages, &a).unwrap(), "ab");
         assert!(extrair(Lingua::OpenaiChat, &json!({})).is_err());
+    }
+
+    #[test]
+    fn extrai_tokens_das_duas_linguas() {
+        let o = json!({"usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}});
+        assert_eq!(extrair_tokens(Lingua::OpenaiChat, &o), Some(15));
+        let so_partes = json!({"usage": {"prompt_tokens": 10, "completion_tokens": 5}});
+        assert_eq!(extrair_tokens(Lingua::OpenaiChat, &so_partes), Some(15));
+        let a = json!({"usage": {"input_tokens": 7, "output_tokens": 3}});
+        assert_eq!(extrair_tokens(Lingua::AnthropicMessages, &a), Some(10));
+        // Sem `usage`, só uma parte, negativo, texto ou absurdo: None (não inventa).
+        assert_eq!(extrair_tokens(Lingua::OpenaiChat, &json!({})), None);
+        assert_eq!(
+            extrair_tokens(
+                Lingua::AnthropicMessages,
+                &json!({"usage": {"input_tokens": 7}})
+            ),
+            None
+        );
+        assert_eq!(
+            extrair_tokens(Lingua::OpenaiChat, &json!({"usage": {"total_tokens": -1}})),
+            None
+        );
+        assert_eq!(
+            extrair_tokens(
+                Lingua::OpenaiChat,
+                &json!({"usage": {"total_tokens": "muitos"}})
+            ),
+            None
+        );
+        assert_eq!(
+            extrair_tokens(
+                Lingua::OpenaiChat,
+                &json!({"usage": {"total_tokens": 9_000_000_000u64}})
+            ),
+            None
+        );
     }
 
     #[test]

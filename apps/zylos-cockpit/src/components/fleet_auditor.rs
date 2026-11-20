@@ -2,7 +2,8 @@
 //!
 //! Lê `GET /api/v1/fleet/metrics`: por bot, quantas perguntas respondeu, quantas falharam, a taxa
 //! de sucesso e a latência média, desde que o gateway subiu (contadores em memória: reiniciar
-//! zera). Custo e tokens **não aparecem**: o gateway não recebe isso dos provedores.
+//! zera). Tokens são os que os provedores informaram na resposta; custo em dinheiro **não
+//! aparece**: o gateway não tem tabela de preços.
 //!
 //! ## Related Documents
 //! - Implementation Plan: [IMPLEMENTATION_PLAN_DETAILED.md](../../docs/IMPLEMENTATION_PLAN_DETAILED.md) §5.1 Task 4.7
@@ -21,6 +22,9 @@ pub struct BotMetrics {
     /// `None` enquanto o bot não respondeu nenhuma pergunta (não é 0%).
     pub success_rate_pct: Option<f64>,
     pub avg_response_ms: Option<u64>,
+    /// Tokens informados pelos provedores; `None` se nenhum informou (gateway antigo também).
+    #[serde(default)]
+    pub total_tokens: Option<u64>,
 }
 
 /// Abaixo disto (com [`MIN_ACOES_PARA_ALERTA`] perguntas ou mais) o bot ganha um alerta.
@@ -59,6 +63,8 @@ pub struct Totais {
     pub sucesso_pct: Option<f64>,
     /// Média ponderada pelo número de perguntas de cada bot.
     pub latencia_ms: Option<u64>,
+    /// Soma dos tokens informados; `None` se nenhum bot informou.
+    pub tokens: Option<u64>,
 }
 
 pub fn somar(bots: &[BotMetrics]) -> Totais {
@@ -73,6 +79,10 @@ pub fn somar(bots: &[BotMetrics]) -> Totais {
         falhas,
         sucesso_pct: (acoes > 0).then(|| (acoes - falhas) as f64 * 100.0 / acoes as f64),
         latencia_ms: (acoes > 0).then(|| soma_ms / acoes),
+        tokens: bots
+            .iter()
+            .any(|b| b.total_tokens.is_some())
+            .then(|| bots.iter().filter_map(|b| b.total_tokens).sum()),
     }
 }
 
@@ -95,6 +105,10 @@ fn format_with_commas(n: u64) -> String {
 
 fn pct(v: Option<f64>) -> String {
     v.map(|p| format!("{p:.1}%")).unwrap_or_else(|| "—".into())
+}
+
+fn tokens(v: Option<u64>) -> String {
+    v.map(format_with_commas).unwrap_or_else(|| "—".into())
 }
 
 fn ms(v: Option<u64>) -> String {
@@ -131,10 +145,10 @@ pub fn FleetAuditorPanel() -> impl IntoView {
             <p class="fleet-scope">
                 {move || match desde.get() {
                     Some(d) => format!(
-                        "Contadores em memória desde {}; reiniciar o gateway zera. Custo e tokens não são medidos.",
+                        "Contadores em memória desde {}; reiniciar o gateway zera. Tokens são os informados pelos provedores; custo em dinheiro não é medido.",
                         d.chars().take(16).collect::<String>().replace('T', " ")
                     ),
-                    None => "Custo e tokens não são medidos.".to_string(),
+                    None => "Custo em dinheiro não é medido.".to_string(),
                 }}
             </p>
 
@@ -157,6 +171,10 @@ pub fn FleetAuditorPanel() -> impl IntoView {
                         <div class="ledger-card">
                             <span class="ledger-label">"Latência média"</span>
                             <span class="ledger-value">{ms(t.latencia_ms)}</span>
+                        </div>
+                        <div class="ledger-card">
+                            <span class="ledger-label">"Tokens"</span>
+                            <span class="ledger-value">{tokens(t.tokens)}</span>
                         </div>
                     </div>
                 })
@@ -208,6 +226,10 @@ pub fn FleetAuditorPanel() -> impl IntoView {
                                                     <span class="metric-value">{ms(bot.avg_response_ms)}</span>
                                                 </div>
                                                 <div class="fleet-metric">
+                                                    <span class="metric-label">"Tokens"</span>
+                                                    <span class="metric-value">{tokens(bot.total_tokens)}</span>
+                                                </div>
+                                                <div class="fleet-metric">
                                                     <span class="metric-label">"Perguntas"</span>
                                                     <span class="metric-value">{bot.total_actions}{" ("}{bot.failed_actions}" falhas)"</span>
                                                 </div>
@@ -241,6 +263,7 @@ mod tests {
             failed_actions: falhas,
             success_rate_pct: (total > 0).then(|| (total - falhas) as f64 * 100.0 / total as f64),
             avg_response_ms: ms,
+            total_tokens: None,
         }
     }
 
@@ -257,6 +280,28 @@ mod tests {
         assert_eq!(pct(r.bots[0].success_rate_pct), "—");
         assert_eq!(pct(r.bots[1].success_rate_pct), "75.0%");
         assert_eq!(ms(r.bots[1].avg_response_ms), "120 ms");
+        // Sem o campo (gateway antigo) ou nulo: "—", nunca 0.
+        assert_eq!(r.bots[0].total_tokens, None);
+        assert_eq!(tokens(r.bots[0].total_tokens), "—");
+    }
+
+    #[test]
+    fn tokens_somam_so_o_que_foi_informado() {
+        let r: FleetResp = serde_json::from_str(
+            r#"{"since":"x","bots":[
+                {"bot_id":"a","bot_name":"A","total_actions":2,"failed_actions":0,"success_rate_pct":100.0,"avg_response_ms":5,"total_tokens":1500},
+                {"bot_id":"b","bot_name":"B","total_actions":1,"failed_actions":1,"success_rate_pct":0.0,"avg_response_ms":5,"total_tokens":null},
+                {"bot_id":"c","bot_name":"C","total_actions":0,"failed_actions":0,"success_rate_pct":null,"avg_response_ms":null}
+            ]}"#,
+        )
+        .unwrap();
+        assert_eq!(somar(&r.bots).tokens, Some(1500));
+        assert_eq!(tokens(Some(1500)), "1,500");
+        assert_eq!(
+            somar(&r.bots[1..]).tokens,
+            None,
+            "ninguém informou: sem total"
+        );
     }
 
     #[test]

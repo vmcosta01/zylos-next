@@ -21,7 +21,10 @@ async fn subir_falso() -> String {
                     .as_str()
                     .unwrap_or("")
                     .to_string();
-                Json(json!({"choices": [{"message": {"content": format!("[{sys}] ok")}}]}))
+                Json(json!({
+                    "choices": [{"message": {"content": format!("[{sys}] ok")}}],
+                    "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+                }))
             }),
         )
         .route(
@@ -427,5 +430,9 @@ async fn frota_conta_perguntas_falhas_e_latencia_de_verdade() {
     assert_eq!(recusado["failed_actions"], 1);
     assert_eq!(recusado["success_rate_pct"], 0.0);
     assert!(achar(&v, "fantasma").is_none());
-    assert!(!v.to_string().contains("tokens"), "tokens não são medidos");
+    // Tokens: só o que o provedor informou. 2 respostas de 15 = 30; quem não respondeu: null.
+    assert_eq!(vigia["total_tokens"], 30);
+    assert_eq!(recusado["total_tokens"], Value::Null);
+    let lerdo = achar(&v, "lerdo").unwrap();
+    assert_eq!(lerdo["total_tokens"], Value::Null);
 }
