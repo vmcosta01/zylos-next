@@ -200,7 +200,7 @@
   --z-command-palette: 1200;
 }
 
-/* ── Tema escuro: segue o sistema; [data-theme] escolhido pela pessoa vence (theme.js / ThemeContext) ── */
+/* ── Tema escuro: segue o sistema; [data-theme] escolhido pela pessoa vence (script inline do index.html / ThemeContext) ── */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;

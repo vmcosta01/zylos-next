@@ -10,8 +10,16 @@
     <!-- URL base do gateway (T11.5.6). Vazio = só usa http://localhost:3000 quando servido de localhost.
          Em produção, preencher no deploy (ex.: https://gateway.zylos.example). -->
     <meta name="zylos-gateway-url" content="" />
-    <script src="/theme.js"></script>
-    <script src="/extras-loader.js"></script>
+    <!-- Tema salvo aplicado antes da primeira pintura (sem piscar). Inline: um script externo
+         aqui bloqueava a renderização por uma ida ao servidor. Sem valor salvo, o CSS segue o sistema. -->
+    <script>
+      try {
+        var t = localStorage.getItem('zylos-theme');
+        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) { /* storage bloqueado: segue o sistema */ }
+    </script>
+    <!-- defer: só define window.__zylosLoadExtras, chamada quando se abre uma aba secundária. -->
+    <script defer src="/extras-loader.js"></script>
 
     <!-- T11.5.3 resource hints: o Trunk injeta <link rel="modulepreload"> do JS e
          <link rel="preload" as="fetch" type="application/wasm"> do WASM automaticamente. -->
@@ -57,7 +65,6 @@
     <!-- T11.5.4 assets estáticos (a seção [[copy]] do Trunk.toml é ignorada pelo Trunk 0.22) -->
     <link data-trunk rel="copy-file" href="manifest.json" />
     <link data-trunk rel="copy-file" href="sw.js" />
-    <link data-trunk rel="copy-file" href="theme.js" />
     <link data-trunk rel="copy-file" href="extras-loader.js" />
     <link data-trunk rel="copy-dir" href="fonts" />
     <link data-trunk rel="copy-file" href="robots.txt" />

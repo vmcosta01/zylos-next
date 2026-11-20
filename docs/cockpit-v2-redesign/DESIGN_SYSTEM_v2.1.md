@@ -279,7 +279,7 @@ Removidos da v2.0: elevação de 2px no hover do cartão, "ripple" no clique, en
 ## 11. Estado da implementação (2026-11-19)
 
 **Feito e verificado no navegador (claro, escuro e celular 375px):**
-- Tokens OKLCH com nomes legados mantidos, claro por padrão e escuro pelo sistema ou por `data-theme`; `ThemeContext` aplica `data-theme` (antes só a classe no `body`, que o CSS não lia, então o tema claro nunca aparecia); `theme.js` aplica o tema salvo antes da primeira pintura.
+- Tokens OKLCH com nomes legados mantidos, claro por padrão e escuro pelo sistema ou por `data-theme`; `ThemeContext` aplica `data-theme` (antes só a classe no `body`, que o CSS não lia, então o tema claro nunca aparecia); um script inline no `index.html` aplica o tema salvo antes da primeira pintura.
 - Geist e Geist Mono auto-hospedadas; Phosphor em subconjunto de 53 glifos (6,6 KB) gerado por `scripts/build-icons.py`.
 - Navegação: Chat, Inbox e Activity no cabeçalho e em barra inferior no celular; Inbox com contador ao vivo.
 - Cartão de aprovação: Recusar, Permitir uma vez, Sempre permitir (confirmação inline; desabilitado para risco alto, decisão D1); regras permanentes com Revogar.
