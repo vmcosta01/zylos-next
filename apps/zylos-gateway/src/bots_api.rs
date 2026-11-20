@@ -27,6 +27,41 @@ pub struct BotsState {
     /// Quantas perguntas cada bot está respondendo agora. Só em memória: some quando o gateway
     /// reinicia, e o bot volta a `ocioso`.
     pub ativos: Arc<Mutex<HashMap<String, usize>>>,
+    /// Contadores por bot desde que o gateway subiu (só em memória; reiniciar zera).
+    pub metricas: Arc<Mutex<HashMap<String, Metrica>>>,
+    /// Quando o gateway subiu: o "desde" dos contadores.
+    pub desde: chrono::DateTime<chrono::Utc>,
+}
+
+/// O que se mede de verdade de cada bot: quantas perguntas, quantas falharam e quanto tempo levaram.
+#[derive(Debug, Default, Clone)]
+pub struct Metrica {
+    pub total: u64,
+    pub falhas: u64,
+    pub soma_ms: u64,
+}
+
+/// Um bot em `GET /fleet/metrics`. Sem pergunta ainda, taxa e latência são `null` (não 0%).
+#[derive(Debug, Serialize)]
+struct BotMetricas {
+    bot_id: String,
+    bot_name: String,
+    total_actions: u64,
+    failed_actions: u64,
+    success_rate_pct: Option<f64>,
+    avg_response_ms: Option<u64>,
+}
+
+fn metricas_do_bot(bot_id: String, bot_name: String, m: &Metrica) -> BotMetricas {
+    BotMetricas {
+        bot_id,
+        bot_name,
+        total_actions: m.total,
+        failed_actions: m.falhas,
+        success_rate_pct: (m.total > 0)
+            .then(|| (m.total - m.falhas) as f64 * 100.0 / m.total as f64),
+        avg_response_ms: (m.total > 0).then(|| m.soma_ms / m.total),
+    }
 }
 
 /// Marca o bot como `trabalhando` enquanto vive; ao sair do escopo (resposta, erro ou pedido
@@ -155,6 +190,7 @@ pub fn create_bots_router_with_bus(cfg: Config, bus: Option<zylos_live_comm::Eve
     });
     Router::new()
         .route("/bots", get(get_bots))
+        .route("/fleet/metrics", get(get_fleet_metrics))
         .route("/bots/:nome/perguntar", post(post_perguntar))
         .route("/provedores", get(get_provedores))
         .route("/provedores/:nome/modelos", get(get_modelos))
@@ -167,6 +203,8 @@ pub fn create_bots_router_with_bus(cfg: Config, bus: Option<zylos_live_comm::Eve
             egress,
             bus,
             ativos: Arc::new(Mutex::new(HashMap::new())),
+            metricas: Arc::new(Mutex::new(HashMap::new())),
+            desde: chrono::Utc::now(),
         })
 }
 
@@ -273,7 +311,25 @@ async fn post_perguntar(
     let existe = zylos_pensar::bots::nome_valido(&nome) && st.cfg.pasta_bots.join(&nome).is_dir();
     let bus_do_bot = if existe { st.bus.clone() } else { None };
     let mut em_trabalho = EmTrabalho::novo(&st.ativos, &nome, &bus_do_bot);
-    match zylos_pensar::perguntar(&st.cfg, &st.cliente, &ambiente, &nome, &pedido.pergunta).await {
+    let inicio = std::time::Instant::now();
+    let resultado =
+        zylos_pensar::perguntar(&st.cfg, &st.cliente, &ambiente, &nome, &pedido.pergunta).await;
+    // Conta só bot que existe e erro do agente (chave, provedor, rede): bot inexistente ou
+    // pergunta inválida é erro de quem pediu, não do bot.
+    let contar = existe
+        && match &resultado {
+            Ok(_) => true,
+            Err(e) => !erro_de_entrada(status_e_tipo(e).0),
+        };
+    if contar {
+        if let Ok(mut m) = st.metricas.lock() {
+            let e = m.entry(nome.clone()).or_default();
+            e.total += 1;
+            e.falhas += u64::from(resultado.is_err());
+            e.soma_ms += inicio.elapsed().as_millis() as u64;
+        }
+    }
+    match resultado {
         Ok(r) => Json(r).into_response(),
         Err(e) => {
             em_trabalho.falhou = !erro_de_entrada(status_e_tipo(&e).0);
@@ -337,6 +393,31 @@ async fn get_bots(State(st): State<BotsState>) -> Response {
             "/api/v1/bots".into(),
         ),
     }
+}
+
+/// `GET /api/v1/fleet/metrics` — o que se mede de verdade de cada bot desde que o gateway subiu:
+/// perguntas, falhas, taxa de sucesso e latência média. Não há tokens nem custo: o gateway não
+/// recebe isso dos provedores.
+async fn get_fleet_metrics(State(st): State<BotsState>) -> Response {
+    let pasta = st.cfg.pasta_bots.clone();
+    let Ok(bots) = tokio::task::spawn_blocking(move || zylos_pensar::bots::listar(&pasta)).await
+    else {
+        return problema(
+            &ErroPensar::Rede("leitura da pasta de bots falhou".into()),
+            "/api/v1/fleet/metrics".into(),
+        );
+    };
+    let m = st.metricas.lock().map(|m| m.clone()).unwrap_or_default();
+    let lista: Vec<BotMetricas> = bots
+        .into_iter()
+        .filter(|b| b.problema.is_none())
+        .map(|b| {
+            let nome = b.nome_exibicao.clone().unwrap_or_else(|| b.nome.clone());
+            let dado = m.get(&b.nome).cloned().unwrap_or_default();
+            metricas_do_bot(b.nome, nome, &dado)
+        })
+        .collect();
+    Json(serde_json::json!({ "since": st.desde.to_rfc3339(), "bots": lista })).into_response()
 }
 
 /// `GET /api/v1/provedores` — fichas + se a chave de cada uma está pronta (nunca o valor).

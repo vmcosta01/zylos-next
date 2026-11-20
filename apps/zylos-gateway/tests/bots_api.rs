@@ -388,3 +388,44 @@ async fn pergunta_respondida_publica_running_e_depois_idle() {
         ]
     );
 }
+
+#[tokio::test]
+async fn frota_conta_perguntas_falhas_e_latencia_de_verdade() {
+    let (_d, app) = roteador().await;
+    let (_, v) = pegar(&app, "/api/v1/fleet/metrics").await;
+    let achar = |v: &Value, n: &str| {
+        v["bots"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|b| b["bot_id"] == n)
+            .cloned()
+    };
+    // Antes de qualquer pergunta: contadores em zero e taxa/latência nulas (não 0%).
+    let vigia = achar(&v, "vigia").unwrap();
+    assert_eq!(vigia["total_actions"], 0);
+    assert_eq!(vigia["success_rate_pct"], Value::Null);
+    assert_eq!(vigia["avg_response_ms"], Value::Null);
+    assert!(v["since"].as_str().unwrap().contains('T'));
+
+    perguntar(&app, "vigia", r#"{"pergunta":"oi"}"#).await;
+    perguntar(&app, "vigia", r#"{"pergunta":"oi de novo"}"#).await;
+    let (st, _, _) = perguntar(&app, "recusado", r#"{"pergunta":"oi"}"#).await;
+    assert_eq!(st, StatusCode::BAD_GATEWAY);
+    // Erro de quem pediu (bot inexistente, pergunta vazia) não conta contra nenhum bot.
+    perguntar(&app, "fantasma", r#"{"pergunta":"oi"}"#).await;
+    perguntar(&app, "vigia", r#"{"pergunta":""}"#).await;
+
+    let (_, v) = pegar(&app, "/api/v1/fleet/metrics").await;
+    let vigia = achar(&v, "vigia").unwrap();
+    assert_eq!(vigia["total_actions"], 2);
+    assert_eq!(vigia["failed_actions"], 0);
+    assert_eq!(vigia["success_rate_pct"], 100.0);
+    assert!(vigia["avg_response_ms"].is_u64());
+    let recusado = achar(&v, "recusado").unwrap();
+    assert_eq!(recusado["total_actions"], 1);
+    assert_eq!(recusado["failed_actions"], 1);
+    assert_eq!(recusado["success_rate_pct"], 0.0);
+    assert!(achar(&v, "fantasma").is_none());
+    assert!(!v.to_string().contains("tokens"), "tokens não são medidos");
+}
