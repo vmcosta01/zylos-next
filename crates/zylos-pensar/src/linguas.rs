@@ -117,6 +117,28 @@ pub fn extrair_tokens(lingua: Lingua, v: &Value) -> Option<u64> {
     (n <= 1_000_000_000).then_some(n)
 }
 
+/// Tokens de entrada e de saída separados, como o provedor informou. Só existe quando o provedor
+/// informou as duas partes: é o que permite calcular custo (entrada e saída têm preços diferentes).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+pub struct Uso {
+    pub entrada: u64,
+    pub saida: u64,
+}
+
+/// As duas partes do `usage`, se o provedor informou as duas. `None` caso contrário (por exemplo
+/// só `total_tokens`): sem a divisão não há como precificar, e o gateway não inventa uma.
+pub fn extrair_uso(lingua: Lingua, v: &Value) -> Option<Uso> {
+    let u = &v["usage"];
+    let (entrada, saida) = match lingua {
+        Lingua::OpenaiChat => (
+            u["prompt_tokens"].as_u64()?,
+            u["completion_tokens"].as_u64()?,
+        ),
+        Lingua::AnthropicMessages => (u["input_tokens"].as_u64()?, u["output_tokens"].as_u64()?),
+    };
+    (entrada <= 1_000_000_000 && saida <= 1_000_000_000).then_some(Uso { entrada, saida })
+}
+
 /// Lê o texto da resposta de cada língua.
 pub fn extrair(lingua: Lingua, v: &Value) -> Result<String, ErroProvedor> {
     let texto = match lingua {
@@ -144,7 +166,7 @@ pub fn extrair(lingua: Lingua, v: &Value) -> Result<String, ErroProvedor> {
 pub async fn perguntar(
     cliente: &reqwest::Client,
     p: Pedido<'_>,
-) -> Result<(String, Option<u64>), ErroProvedor> {
+) -> Result<(String, Option<u64>, Option<Uso>), ErroProvedor> {
     let (url, cab, corpo) = montar(&p)?;
     let resp = cliente
         .post(&url)
@@ -166,7 +188,8 @@ pub async fn perguntar(
         motivo: "a resposta do provedor não é JSON".into(),
     })?;
     let tokens = extrair_tokens(p.provedor.lingua, &v);
-    extrair(p.provedor.lingua, &v).map(|t| (sem_chave(&t, p.chave), tokens))
+    let uso = extrair_uso(p.provedor.lingua, &v);
+    extrair(p.provedor.lingua, &v).map(|t| (sem_chave(&t, p.chave), tokens, uso))
 }
 
 fn erro_de_rede(e: reqwest::Error, p: &Pedido<'_>) -> ErroProvedor {
@@ -333,6 +356,52 @@ mod testes {
         let a = json!({"content": [{"type": "text", "text": "a"}, {"type": "tool_use"}, {"type": "text", "text": "b"}]});
         assert_eq!(extrair(Lingua::AnthropicMessages, &a).unwrap(), "ab");
         assert!(extrair(Lingua::OpenaiChat, &json!({})).is_err());
+    }
+
+    #[test]
+    fn extrai_uso_so_quando_tem_entrada_e_saida() {
+        let o = json!({"usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}});
+        assert_eq!(
+            extrair_uso(Lingua::OpenaiChat, &o),
+            Some(Uso {
+                entrada: 10,
+                saida: 5
+            })
+        );
+        let a = json!({"usage": {"input_tokens": 7, "output_tokens": 3}});
+        assert_eq!(
+            extrair_uso(Lingua::AnthropicMessages, &a),
+            Some(Uso {
+                entrada: 7,
+                saida: 3
+            })
+        );
+        // Só o total, só uma parte, negativo ou absurdo: None (não inventa a divisão).
+        assert_eq!(
+            extrair_uso(Lingua::OpenaiChat, &json!({"usage": {"total_tokens": 15}})),
+            None
+        );
+        assert_eq!(
+            extrair_uso(
+                Lingua::AnthropicMessages,
+                &json!({"usage": {"input_tokens": 7}})
+            ),
+            None
+        );
+        assert_eq!(
+            extrair_uso(
+                Lingua::OpenaiChat,
+                &json!({"usage": {"prompt_tokens": -1, "completion_tokens": 2}})
+            ),
+            None
+        );
+        assert_eq!(
+            extrair_uso(
+                Lingua::OpenaiChat,
+                &json!({"usage": {"prompt_tokens": 9_000_000_000u64, "completion_tokens": 2}})
+            ),
+            None
+        );
     }
 
     #[test]

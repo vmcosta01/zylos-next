@@ -31,6 +31,8 @@ pub struct BotsState {
     pub metricas: Arc<Mutex<HashMap<String, Metrica>>>,
     /// Quando o gateway subiu: o "desde" dos contadores.
     pub desde: chrono::DateTime<chrono::Utc>,
+    /// Preços do operador (`ZYLOS_PRECOS_FILE`); vazia = nenhum custo é calculado.
+    pub precos: Arc<crate::precos::Precos>,
 }
 
 /// O que se mede de verdade de cada bot: quantas perguntas, quantas falharam e quanto tempo levaram.
@@ -43,6 +45,10 @@ pub struct Metrica {
     pub tokens: u64,
     /// Quantas respostas informaram tokens: sem nenhuma, `total_tokens` sai `null` (não 0).
     pub com_tokens: u64,
+    /// Soma do custo (US$) das respostas que tinham preço e divisão entrada/saída.
+    pub custo_usd: f64,
+    /// Quantas respostas entraram em `custo_usd`: sem nenhuma, `cost_usd` sai `null` (não 0).
+    pub com_custo: u64,
 }
 
 /// Um bot em `GET /fleet/metrics`. Sem pergunta ainda, taxa e latência são `null` (não 0%).
@@ -56,6 +62,11 @@ struct BotMetricas {
     avg_response_ms: Option<u64>,
     /// Tokens informados pelos provedores desde que o gateway subiu; `null` se nenhum informou.
     total_tokens: Option<u64>,
+    /// Custo em US$ pela tabela de preços do operador; `null` se nenhuma resposta pôde ser
+    /// precificada (sem tabela, sem preço do modelo ou provedor sem divisão entrada/saída).
+    cost_usd: Option<f64>,
+    /// De quantas perguntas vem `cost_usd` (pode ser menos que `total_actions`).
+    cost_covered_actions: u64,
 }
 
 fn metricas_do_bot(bot_id: String, bot_name: String, m: &Metrica) -> BotMetricas {
@@ -68,6 +79,8 @@ fn metricas_do_bot(bot_id: String, bot_name: String, m: &Metrica) -> BotMetricas
             .then(|| (m.total - m.falhas) as f64 * 100.0 / m.total as f64),
         avg_response_ms: (m.total > 0).then(|| m.soma_ms / m.total),
         total_tokens: (m.com_tokens > 0).then_some(m.tokens),
+        cost_usd: (m.com_custo > 0).then_some(m.custo_usd),
+        cost_covered_actions: m.com_custo,
     }
 }
 
@@ -173,6 +186,15 @@ pub fn create_bots_router(cfg: Config) -> Router {
 
 /// Como [`create_bots_router`], publicando falhas do bot no barramento de eventos.
 pub fn create_bots_router_with_bus(cfg: Config, bus: Option<zylos_live_comm::EventBus>) -> Router {
+    create_bots_router_with_precos(cfg, bus, crate::precos::Precos::default())
+}
+
+/// Como [`create_bots_router_with_bus`], com a tabela de preços do operador para o custo da Frota.
+pub fn create_bots_router_with_precos(
+    cfg: Config,
+    bus: Option<zylos_live_comm::EventBus>,
+    precos: crate::precos::Precos,
+) -> Router {
     use zylos_agent_shield::network_egress::{EgressConfig, EgressRule, NetworkEgressFilter};
     let mut rules = std::collections::HashMap::new();
     rules.insert(
@@ -212,6 +234,7 @@ pub fn create_bots_router_with_bus(cfg: Config, bus: Option<zylos_live_comm::Eve
             ativos: Arc::new(Mutex::new(HashMap::new())),
             metricas: Arc::new(Mutex::new(HashMap::new())),
             desde: chrono::Utc::now(),
+            precos: Arc::new(precos),
         })
 }
 
@@ -338,6 +361,16 @@ async fn post_perguntar(
                 e.tokens = e.tokens.saturating_add(t);
                 e.com_tokens += 1;
             }
+            // Custo só com a divisão entrada/saída E o preço do modelo; senão fica de fora.
+            if let Some((r, uso)) = resultado.as_ref().ok().and_then(|r| r.uso.map(|u| (r, u))) {
+                if let Some(c) = st
+                    .precos
+                    .custo_usd(&r.provedor, &r.modelo, uso.entrada, uso.saida)
+                {
+                    e.custo_usd += c;
+                    e.com_custo += 1;
+                }
+            }
         }
     }
     match resultado {
@@ -408,7 +441,9 @@ async fn get_bots(State(st): State<BotsState>) -> Response {
 
 /// `GET /api/v1/fleet/metrics` — o que se mede de verdade de cada bot desde que o gateway subiu:
 /// perguntas, falhas, taxa de sucesso, latência média e os tokens que os provedores informaram
-/// (`usage` da resposta). Custo em dinheiro não há: o gateway não tem tabela de preços.
+/// (`usage` da resposta). O custo em dinheiro só existe com a tabela de preços do operador
+/// (`ZYLOS_PRECOS_FILE`, ver `precos.rs`): sem ela, sem o modelo nela ou sem a divisão
+/// entrada/saída no `usage`, `cost_usd` é `null`.
 async fn get_fleet_metrics(State(st): State<BotsState>) -> Response {
     let pasta = st.cfg.pasta_bots.clone();
     let Ok(bots) = tokio::task::spawn_blocking(move || zylos_pensar::bots::listar(&pasta)).await

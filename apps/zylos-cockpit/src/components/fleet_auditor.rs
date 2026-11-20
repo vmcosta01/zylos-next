@@ -2,8 +2,9 @@
 //!
 //! Lê `GET /api/v1/fleet/metrics`: por bot, quantas perguntas respondeu, quantas falharam, a taxa
 //! de sucesso e a latência média, desde que o gateway subiu (contadores em memória: reiniciar
-//! zera). Tokens são os que os provedores informaram na resposta; custo em dinheiro **não
-//! aparece**: o gateway não tem tabela de preços.
+//! zera). Tokens são os que os provedores informaram na resposta. O custo em dólares só aparece
+//! quando o operador configurou a tabela de preços no gateway (`ZYLOS_PRECOS_FILE`) e o modelo
+//! está nela; sem isso o painel mostra "—", nunca um zero.
 //!
 //! ## Related Documents
 //! - Implementation Plan: [IMPLEMENTATION_PLAN_DETAILED.md](../../docs/IMPLEMENTATION_PLAN_DETAILED.md) §5.1 Task 4.7
@@ -25,6 +26,13 @@ pub struct BotMetrics {
     /// Tokens informados pelos provedores; `None` se nenhum informou (gateway antigo também).
     #[serde(default)]
     pub total_tokens: Option<u64>,
+    /// Custo em US$ pela tabela de preços do operador; `None` sem tabela/preço (gateway antigo
+    /// também).
+    #[serde(default)]
+    pub cost_usd: Option<f64>,
+    /// De quantas respostas vem `cost_usd`.
+    #[serde(default)]
+    pub cost_covered_actions: u64,
 }
 
 /// Abaixo disto (com [`MIN_ACOES_PARA_ALERTA`] perguntas ou mais) o bot ganha um alerta.
@@ -65,6 +73,8 @@ pub struct Totais {
     pub latencia_ms: Option<u64>,
     /// Soma dos tokens informados; `None` se nenhum bot informou.
     pub tokens: Option<u64>,
+    /// Soma do custo dos bots que têm custo; `None` se nenhum tem.
+    pub custo_usd: Option<f64>,
 }
 
 pub fn somar(bots: &[BotMetrics]) -> Totais {
@@ -83,6 +93,10 @@ pub fn somar(bots: &[BotMetrics]) -> Totais {
             .iter()
             .any(|b| b.total_tokens.is_some())
             .then(|| bots.iter().filter_map(|b| b.total_tokens).sum()),
+        custo_usd: bots
+            .iter()
+            .any(|b| b.cost_usd.is_some())
+            .then(|| bots.iter().filter_map(|b| b.cost_usd).sum()),
     }
 }
 
@@ -109,6 +123,29 @@ fn pct(v: Option<f64>) -> String {
 
 fn tokens(v: Option<u64>) -> String {
     v.map(format_with_commas).unwrap_or_else(|| "—".into())
+}
+
+/// Dólares sem arredondar para zero o que é pequeno: 4 casas abaixo de US$ 0,01, senão 2.
+fn usd(v: Option<f64>) -> String {
+    match v {
+        None => "—".into(),
+        Some(c) if c < 0.01 => format!("US$ {c:.4}"),
+        Some(c) => format!("US$ {c:.2}"),
+    }
+}
+
+/// Custo de um bot; avisa quando só parte das respostas bem-sucedidas tinha preço.
+fn custo_do_bot(b: &BotMetrics) -> String {
+    let respondidas = b.total_actions.saturating_sub(b.failed_actions);
+    match b.cost_usd {
+        Some(_) if b.cost_covered_actions < respondidas => format!(
+            "{} (parcial: {} de {})",
+            usd(b.cost_usd),
+            b.cost_covered_actions,
+            respondidas
+        ),
+        _ => usd(b.cost_usd),
+    }
 }
 
 fn ms(v: Option<u64>) -> String {
@@ -145,10 +182,10 @@ pub fn FleetAuditorPanel() -> impl IntoView {
             <p class="fleet-scope">
                 {move || match desde.get() {
                     Some(d) => format!(
-                        "Contadores em memória desde {}; reiniciar o gateway zera. Tokens são os informados pelos provedores; custo em dinheiro não é medido.",
+                        "Contadores em memória desde {}; reiniciar o gateway zera. Tokens são os informados pelos provedores; o custo só aparece com a tabela de preços do operador (—: sem preço).",
                         d.chars().take(16).collect::<String>().replace('T', " ")
                     ),
-                    None => "Custo em dinheiro não é medido.".to_string(),
+                    None => "O custo só aparece com a tabela de preços do operador.".to_string(),
                 }}
             </p>
 
@@ -175,6 +212,10 @@ pub fn FleetAuditorPanel() -> impl IntoView {
                         <div class="ledger-card">
                             <span class="ledger-label">"Tokens"</span>
                             <span class="ledger-value">{tokens(t.tokens)}</span>
+                        </div>
+                        <div class="ledger-card">
+                            <span class="ledger-label">"Custo"</span>
+                            <span class="ledger-value">{usd(t.custo_usd)}</span>
                         </div>
                     </div>
                 })
@@ -230,6 +271,10 @@ pub fn FleetAuditorPanel() -> impl IntoView {
                                                     <span class="metric-value">{tokens(bot.total_tokens)}</span>
                                                 </div>
                                                 <div class="fleet-metric">
+                                                    <span class="metric-label">"Custo"</span>
+                                                    <span class="metric-value">{custo_do_bot(&bot)}</span>
+                                                </div>
+                                                <div class="fleet-metric">
                                                     <span class="metric-label">"Perguntas"</span>
                                                     <span class="metric-value">{bot.total_actions}{" ("}{bot.failed_actions}" falhas)"</span>
                                                 </div>
@@ -264,7 +309,39 @@ mod tests {
             success_rate_pct: (total > 0).then(|| (total - falhas) as f64 * 100.0 / total as f64),
             avg_response_ms: ms,
             total_tokens: None,
+            cost_usd: None,
+            cost_covered_actions: 0,
         }
+    }
+
+    #[test]
+    fn custo_so_aparece_quando_o_gateway_manda() {
+        let r: FleetResp = serde_json::from_str(
+            r#"{"since":"x","bots":[
+                {"bot_id":"a","bot_name":"A","total_actions":3,"failed_actions":1,"success_rate_pct":66.0,"avg_response_ms":5,"cost_usd":0.00021,"cost_covered_actions":2},
+                {"bot_id":"b","bot_name":"B","total_actions":2,"failed_actions":0,"success_rate_pct":100.0,"avg_response_ms":5,"cost_usd":1.5,"cost_covered_actions":1},
+                {"bot_id":"c","bot_name":"C","total_actions":1,"failed_actions":0,"success_rate_pct":100.0,"avg_response_ms":5,"cost_usd":null,"cost_covered_actions":0},
+                {"bot_id":"d","bot_name":"D","total_actions":0,"failed_actions":0,"success_rate_pct":null,"avg_response_ms":null}
+            ]}"#,
+        )
+        .unwrap();
+        // Total soma só quem tem custo; sem custo em ninguém, sem total.
+        assert_eq!(somar(&r.bots).custo_usd, Some(0.00021 + 1.5));
+        assert_eq!(somar(&r.bots[2..]).custo_usd, None);
+        // Nulo ou campo ausente (gateway antigo): "—", nunca US$ 0.
+        assert_eq!(custo_do_bot(&r.bots[2]), "—");
+        assert_eq!(custo_do_bot(&r.bots[3]), "—");
+        // Cobertura completa: só o valor. Parcial: avisa.
+        assert_eq!(custo_do_bot(&r.bots[0]), "US$ 0.0002");
+        assert_eq!(custo_do_bot(&r.bots[1]), "US$ 1.50 (parcial: 1 de 2)");
+    }
+
+    #[test]
+    fn dolar_nao_arredonda_o_pequeno_para_zero() {
+        assert_eq!(usd(None), "—");
+        assert_eq!(usd(Some(0.000105)), "US$ 0.0001");
+        assert_eq!(usd(Some(0.0)), "US$ 0.0000");
+        assert_eq!(usd(Some(12.5)), "US$ 12.50");
     }
 
     #[test]

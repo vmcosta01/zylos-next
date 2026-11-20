@@ -7,7 +7,8 @@ use axum::http::{header, Method, Request, StatusCode};
 use axum::{routing::post, Json, Router};
 use serde_json::{json, Value};
 use tower::ServiceExt;
-use zylos_gateway::bots_api::create_bots_router_with_bus;
+use zylos_gateway::bots_api::create_bots_router_with_precos;
+use zylos_gateway::precos::Precos;
 use zylos_pensar::Config;
 
 const CHAVE: &str = "sk-falsa-gateway-42";
@@ -53,6 +54,13 @@ async fn roteador() -> (tempfile::TempDir, Router) {
 }
 
 async fn roteador_com_bus(bus: Option<zylos_live_comm::EventBus>) -> (tempfile::TempDir, Router) {
+    roteador_completo(bus, Precos::default()).await
+}
+
+async fn roteador_completo(
+    bus: Option<zylos_live_comm::EventBus>,
+    precos: Precos,
+) -> (tempfile::TempDir, Router) {
     let end = subir_falso().await;
     let d = tempfile::tempdir().unwrap();
     let ficha = |nome: &str, caminho: &str, chave: &str| {
@@ -98,7 +106,7 @@ async fn roteador_com_bus(bus: Option<zylos_live_comm::EventBus>) -> (tempfile::
     };
     (
         d,
-        Router::new().nest("/api/v1", create_bots_router_with_bus(cfg, bus)),
+        Router::new().nest("/api/v1", create_bots_router_with_precos(cfg, bus, precos)),
     )
 }
 
@@ -435,4 +443,58 @@ async fn frota_conta_perguntas_falhas_e_latencia_de_verdade() {
     assert_eq!(recusado["total_tokens"], Value::Null);
     let lerdo = achar(&v, "lerdo").unwrap();
     assert_eq!(lerdo["total_tokens"], Value::Null);
+    // Sem tabela de preços não há custo: null (e cobertura 0), nunca 0 dólares.
+    assert_eq!(vigia["cost_usd"], Value::Null);
+    assert_eq!(vigia["cost_covered_actions"], 0);
+}
+
+fn custo_de(v: &Value, bot: &str) -> (Value, Value) {
+    let b = v["bots"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["bot_id"] == bot)
+        .unwrap();
+    (b["cost_usd"].clone(), b["cost_covered_actions"].clone())
+}
+
+#[tokio::test]
+async fn frota_calcula_custo_so_com_preco_do_operador() {
+    // O provedor falso responde 10 tokens de entrada e 5 de saída. A US$3/M e US$15/M cada
+    // resposta custa (10*3 + 5*15)/1e6 = 0,000105; duas = 0,00021.
+    let precos = Precos::de_json(
+        r#"{"modelos":{"falso/m":{"entrada_por_milhao_usd":3.0,"saida_por_milhao_usd":15.0}}}"#,
+    )
+    .unwrap();
+    let (_d, app) = roteador_completo(None, precos).await;
+    perguntar(&app, "vigia", r#"{"pergunta":"oi"}"#).await;
+    perguntar(&app, "vigia", r#"{"pergunta":"oi de novo"}"#).await;
+    // Bot que falha não custa nada.
+    perguntar(&app, "recusado", r#"{"pergunta":"oi"}"#).await;
+    let (_, v) = pegar(&app, "/api/v1/fleet/metrics").await;
+    let (custo, cobertura) = custo_de(&v, "vigia");
+    assert!((custo.as_f64().unwrap() - 0.00021).abs() < 1e-12, "{custo}");
+    assert_eq!(cobertura, 2);
+    assert_eq!(custo_de(&v, "recusado"), (Value::Null, json!(0)));
+}
+
+#[tokio::test]
+async fn modelo_fora_da_tabela_nao_tem_custo() {
+    // A tabela só conhece outro modelo: o vigia ("falso"/"m") fica sem custo, não com 0.
+    let precos = Precos::de_json(
+        r#"{"modelos":{"outro":{"entrada_por_milhao_usd":3.0,"saida_por_milhao_usd":15.0}}}"#,
+    )
+    .unwrap();
+    let (_d, app) = roteador_completo(None, precos).await;
+    perguntar(&app, "vigia", r#"{"pergunta":"oi"}"#).await;
+    let (_, v) = pegar(&app, "/api/v1/fleet/metrics").await;
+    assert_eq!(custo_de(&v, "vigia"), (Value::Null, json!(0)));
+    // Os tokens continuam contados.
+    let vigia = v["bots"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["bot_id"] == "vigia")
+        .unwrap();
+    assert_eq!(vigia["total_tokens"], 15);
 }

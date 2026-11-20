@@ -29,6 +29,7 @@ pub mod orchestrate_api;
 pub mod password_masking;
 pub mod personalities_api;
 pub mod phase2_integration;
+pub mod precos;
 pub mod rate_limit;
 pub mod reactions_api;
 pub mod relay_api;
@@ -198,9 +199,10 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
         .with_state(state.clone());
     let hermes_employee =
         hermes_employee_api::create_hermes_employee_router().with_state(state.clone());
-    let bots = bots_api::create_bots_router_with_bus(
+    let bots = bots_api::create_bots_router_with_precos(
         zylos_pensar::Config::do_ambiente(),
         Some(state.event_bus.clone()),
+        precos::Precos::do_ambiente(),
     );
 
     // Dedicated API routers with Send+Sync handles
