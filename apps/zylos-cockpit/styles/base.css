@@ -2053,3 +2053,6 @@ body {
 }
 .channel-header { display: grid; gap: var(--space-1); justify-content: stretch; }
 .channel-header .channel-actions { justify-self: start; }
+
+/* Avatares: estados de carregando, vazio e erro */
+.agent-avatars-empty { padding: var(--space-4); color: var(--color-text-secondary); font-size: var(--text-sm); }
