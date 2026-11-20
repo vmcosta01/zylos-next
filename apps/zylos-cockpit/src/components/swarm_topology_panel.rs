@@ -285,12 +285,10 @@ fn apply_custom_positions(nodes: &mut [TopologyNode]) {
     }
 }
 
-/// Texto para a tela a partir do erro de `fetch_json`. O 503 do Hermes é configuração, não queda.
+/// Texto para a tela a partir do erro de `fetch_json` (a topologia vem de `/api/v1/swarm/topology`).
 fn mensagem_de_falha(e: &str) -> String {
-    if e == "HTTP 503" {
-        "A ponte Hermes não está configurada: o gateway precisa de ZYLOS_HERMES_TOKEN (16 \
-         caracteres ou mais) e de um Hermes ligado para mostrar a topologia."
-            .to_string()
+    if e == "HTTP 401" || e == "HTTP 403" {
+        "Sem permissão para ler a topologia: entre de novo no cockpit.".to_string()
     } else {
         format!("Gateway indisponível: {e}")
     }
@@ -346,7 +344,7 @@ pub fn SwarmTopologyPanel() -> impl IntoView {
             loop {
                 loading.set(true);
                 error_msg.set(None);
-                match fetch_json("/api/v1/hermes/bot/spawn-crew").await {
+                match fetch_json("/api/v1/swarm/topology").await {
                     Ok(json) => {
                         let mut td: TopologyData = serde_json::from_value(json.clone())
                             .unwrap_or_else(|_| TopologyData {
@@ -851,8 +849,8 @@ mod testes_mensagens {
     use super::mensagem_de_falha;
 
     #[test]
-    fn http_503_diz_que_e_configuracao() {
-        assert!(mensagem_de_falha("HTTP 503").contains("ZYLOS_HERMES_TOKEN"));
+    fn falha_de_permissao_e_de_conexao_tem_texto_proprio() {
+        assert!(mensagem_de_falha("HTTP 401").contains("Sem permissão"));
         assert_eq!(
             mensagem_de_falha("fetch error: boom"),
             "Gateway indisponível: fetch error: boom"

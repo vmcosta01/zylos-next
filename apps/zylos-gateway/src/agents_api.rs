@@ -4,6 +4,9 @@
 //!   e último sinal de atividade (heartbeat ou atualização de tarefa).
 //! - `POST /api/v1/agents` — registra (ou atualiza) um agente no swarm.
 //!
+//! - `GET  /api/v1/swarm/topology` — a topologia do swarm: gateway, orquestrador e os agentes
+//!   registrados, com as arestas de controle e as dependências entre tarefas de agentes.
+//!
 //! Sem agentes registrados a lista vem vazia; nada é inventado.
 
 use std::sync::Arc;
@@ -88,6 +91,160 @@ pub fn agent_view(agent: &SwarmAgent, summary: Option<&AgentTaskSummary>) -> Age
     }
 }
 
+/// Mais que isto de tarefas lidas para montar as arestas de dados.
+const MAX_TAREFAS_TOPOLOGIA: usize = 1000;
+/// Sem heartbeat há mais que isto, o agente aparece como degradado.
+const HEARTBEAT_VELHO_S: i64 = 120;
+
+/// Um nó da topologia, no formato que o painel do cockpit lê (`x`/`y` ficam a cargo do cockpit).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct NoTopologia {
+    pub id: String,
+    pub label: String,
+    pub node_type: &'static str,
+    pub status: &'static str,
+    pub x: f64,
+    pub y: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ArestaTopologia {
+    pub source: String,
+    pub target: String,
+    pub edge_type: &'static str,
+    pub weight: f64,
+}
+
+/// Estado do agente na topologia: desativado = offline; sem sinal recente = degradado.
+fn status_do_agente(agent: &SwarmAgent, agora: chrono::DateTime<chrono::Utc>) -> &'static str {
+    if !agent.active {
+        "Offline"
+    } else if (agora - agent.last_heartbeat).num_seconds() > HEARTBEAT_VELHO_S {
+        "Degraded"
+    } else {
+        "Online"
+    }
+}
+
+/// Monta nós e arestas a partir dos agentes e das tarefas. Aresta de controle: orquestrador ->
+/// agente. Aresta de dados: agente A -> agente B quando uma tarefa de B depende de uma tarefa de
+/// A (o peso é quantas dependências há entre os dois).
+pub fn montar_topologia(
+    agentes: &[SwarmAgent],
+    tarefas: &[zylos_swarm_orchestrator::Task],
+    agora: chrono::DateTime<chrono::Utc>,
+) -> (Vec<NoTopologia>, Vec<ArestaTopologia>) {
+    let mut nos = vec![
+        NoTopologia {
+            id: "gateway".into(),
+            label: "Gateway".into(),
+            node_type: "Gateway",
+            status: "Online",
+            x: 0.0,
+            y: 0.0,
+        },
+        NoTopologia {
+            id: "orchestrator".into(),
+            label: "Orquestrador".into(),
+            node_type: "Orchestrator",
+            status: "Online",
+            x: 0.0,
+            y: 0.0,
+        },
+    ];
+    let mut arestas = vec![ArestaTopologia {
+        source: "gateway".into(),
+        target: "orchestrator".into(),
+        edge_type: "Control",
+        weight: 1.0,
+    }];
+    for a in agentes {
+        nos.push(NoTopologia {
+            id: a.id.clone(),
+            label: a.name.clone(),
+            node_type: "Agent",
+            status: status_do_agente(a, agora),
+            x: 0.0,
+            y: 0.0,
+        });
+        arestas.push(ArestaTopologia {
+            source: "orchestrator".into(),
+            target: a.id.clone(),
+            edge_type: "Control",
+            weight: 1.0,
+        });
+    }
+    let dono: std::collections::HashMap<&str, &str> = tarefas
+        .iter()
+        .filter_map(|t| Some((t.id.as_str(), t.assigned_agent.as_deref()?)))
+        .collect();
+    let conhecido = |id: &str| agentes.iter().any(|a| a.id == id);
+    let mut pesos: std::collections::BTreeMap<(String, String), f64> =
+        std::collections::BTreeMap::new();
+    for t in tarefas {
+        let Some(destino) = t.assigned_agent.as_deref() else {
+            continue;
+        };
+        for dep in &t.dependencies {
+            if let Some(origem) = dono.get(dep.as_str()) {
+                if origem != &destino && conhecido(origem) && conhecido(destino) {
+                    *pesos
+                        .entry((origem.to_string(), destino.to_string()))
+                        .or_insert(0.0) += 1.0;
+                }
+            }
+        }
+    }
+    for ((origem, destino), peso) in pesos {
+        arestas.push(ArestaTopologia {
+            source: origem,
+            target: destino,
+            edge_type: "Data",
+            weight: peso,
+        });
+    }
+    (nos, arestas)
+}
+
+async fn get_topology(State(swarm): State<Arc<SwarmOrchestrator>>) -> axum::response::Response {
+    let agentes = match swarm.list_agents().await {
+        Ok(a) => a,
+        Err(e) => {
+            tracing::error!(error = %e, "falha ao listar agentes para a topologia");
+            return erro(StatusCode::INTERNAL_SERVER_ERROR, "falha ao ler agentes");
+        }
+    };
+    let q = zylos_swarm_orchestrator::TaskQuery {
+        limit: Some(MAX_TAREFAS_TOPOLOGIA),
+        ..Default::default()
+    };
+    let tarefas = match swarm.query_tasks(&q).await {
+        Ok(t) => t,
+        Err(e) => {
+            tracing::error!(error = %e, "falha ao ler tarefas para a topologia");
+            return erro(StatusCode::INTERNAL_SERVER_ERROR, "falha ao ler tarefas");
+        }
+    };
+    let (nodes, edges) = montar_topologia(&agentes, &tarefas, chrono::Utc::now());
+    let online = nodes.iter().filter(|n| n.status == "Online").count();
+    let avg_weight = if edges.is_empty() {
+        0.0
+    } else {
+        edges.iter().map(|e| e.weight).sum::<f64>() / edges.len() as f64
+    };
+    Json(serde_json::json!({
+        "stats": {
+            "total_nodes": nodes.len(),
+            "online_nodes": online,
+            "total_edges": edges.len(),
+            "avg_weight": avg_weight,
+        },
+        "nodes": nodes,
+        "edges": edges,
+    }))
+    .into_response()
+}
+
 fn erro(status: StatusCode, msg: impl Into<String>) -> axum::response::Response {
     (status, Json(serde_json::json!({ "error": msg.into() }))).into_response()
 }
@@ -150,6 +307,7 @@ async fn register_agent(
 pub fn create_agents_router(swarm: Arc<SwarmOrchestrator>) -> Router {
     Router::new()
         .route("/agents", get(list_agents).post(register_agent))
+        .route("/swarm/topology", get(get_topology))
         .with_state(swarm)
 }
 
@@ -170,6 +328,85 @@ mod tests {
             .await
             .unwrap();
         serde_json::from_slice(&b).unwrap()
+    }
+
+    #[tokio::test]
+    async fn topologia_so_com_o_que_existe() {
+        let sw = swarm().await;
+        let app = create_agents_router(sw.clone());
+        // Sem agentes: só gateway e orquestrador, uma aresta de controle.
+        let r = app
+            .clone()
+            .oneshot(Request::get("/swarm/topology").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(r.status(), StatusCode::OK);
+        let v = body_json(r).await;
+        assert_eq!(v["stats"]["total_nodes"], 2);
+        assert_eq!(v["edges"].as_array().unwrap().len(), 1);
+
+        // Dois agentes e uma tarefa de B que depende de uma tarefa de A.
+        let mut a = SwarmAgent::new("a", "Agente A");
+        a.capabilities = vec!["x".into()];
+        let b = SwarmAgent::new("b", "Agente B");
+        sw.register_agent(&a).await.unwrap();
+        sw.register_agent(&b).await.unwrap();
+        let mut t1 = Task::new("t1", "primeira");
+        t1.assigned_agent = Some("a".into());
+        sw.add_task(&t1).await.unwrap();
+        let mut t2 = Task::new("t2", "segunda").with_dependencies(vec![t1.id.clone()]);
+        t2.assigned_agent = Some("b".into());
+        sw.add_task(&t2).await.unwrap();
+
+        let r = app
+            .oneshot(Request::get("/swarm/topology").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        let v = body_json(r).await;
+        let nos: Vec<_> = v["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|n| n["id"].as_str().unwrap())
+            .collect();
+        assert_eq!(nos, ["gateway", "orchestrator", "a", "b"]);
+        let tipos: Vec<_> = v["edges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| {
+                format!(
+                    "{}>{}:{}",
+                    e["source"].as_str().unwrap(),
+                    e["target"].as_str().unwrap(),
+                    e["edge_type"].as_str().unwrap()
+                )
+            })
+            .collect();
+        assert!(
+            tipos.contains(&"orchestrator>a:Control".to_string()),
+            "{tipos:?}"
+        );
+        assert!(
+            tipos.contains(&"orchestrator>b:Control".to_string()),
+            "{tipos:?}"
+        );
+        assert!(tipos.contains(&"a>b:Data".to_string()), "{tipos:?}");
+        assert_eq!(v["stats"]["total_nodes"], 4);
+        assert_eq!(v["stats"]["online_nodes"], 4);
+        // x/y ficam a cargo do cockpit; nada de posição inventada aqui além do zero.
+        assert_eq!(v["nodes"][2]["status"], "Online");
+    }
+
+    #[test]
+    fn agente_sem_sinal_recente_ou_desativado_nao_aparece_online() {
+        let agora = chrono::Utc::now();
+        let mut a = SwarmAgent::new("a", "A");
+        assert_eq!(status_do_agente(&a, agora), "Online");
+        a.last_heartbeat = agora - chrono::Duration::seconds(HEARTBEAT_VELHO_S + 5);
+        assert_eq!(status_do_agente(&a, agora), "Degraded");
+        a.active = false;
+        assert_eq!(status_do_agente(&a, agora), "Offline");
     }
 
     #[tokio::test]
