@@ -1,6 +1,6 @@
 //! Skill Editor Panel — Editor visual de skills integrado ao Hermes Agent (Fase 10.4).
 //!
-//! Conecta-se a `/api/v1/hermes/skill-evolution/contracts` para listar e salvar skills.
+//! Conecta-se ao registro do gateway, `/api/v1/skills/contracts`, para listar e salvar skills.
 //! Preview YAML com syntax highlighting básico e validação em tempo real.
 //! Undo/redo com stack de estados.
 //!
@@ -273,8 +273,7 @@ pub fn SkillEditorPanel() -> impl IntoView {
 
     // Carregar skills do Hermes
     spawn_local(async move {
-        let url = crate::gateway_http::api_url("/api/v1/hermes/skill-evolution/contracts")
-            .unwrap_or_default();
+        let url = crate::gateway_http::api_url("/api/v1/skills/contracts").unwrap_or_default();
         match fetch_json::<serde_json::Value>(&url).await {
             Ok(val) => {
                 if let Some(arr) = val.get("contracts").and_then(|v| v.as_array()) {
@@ -297,12 +296,14 @@ pub fn SkillEditorPanel() -> impl IntoView {
                     if !mapped.is_empty() {
                         skills.set(mapped);
                     } else {
-                        error_msg.set(Some("Nenhuma skill encontrada no backend".into()));
+                        error_msg.set(Some(
+                            "Nenhuma skill salva ainda: monte uma e use Save to Backend para guardá-la no gateway."
+                                .into(),
+                        ));
                     }
                 } else {
                     error_msg.set(Some(
-                        "O gateway respondeu sem a lista de contratos de skills: a rota \
-                         /hermes/skill-evolution/contracts ainda é só um esqueleto do módulo."
+                        "O gateway respondeu sem a lista de skills (campo `contracts`): atualize o gateway."
                             .into(),
                     ));
                 }
@@ -416,9 +417,7 @@ pub fn SkillEditorPanel() -> impl IntoView {
                     }
 
                     // POST para o endpoint de contratos (não /validate)
-                    let post_url = match crate::gateway_http::api_url(
-                        "/api/v1/hermes/skill-evolution/contracts",
-                    ) {
+                    let post_url = match crate::gateway_http::api_url("/api/v1/skills/contracts") {
                         Ok(u) => u,
                         Err(e) => {
                             status.set(Some(e));

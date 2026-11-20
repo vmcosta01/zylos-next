@@ -107,6 +107,8 @@ pub fn VncStream(
     let fallback_url = RwSignal::new(None::<String>);
     let active_session = RwSignal::new(session_id.clone());
     let has_frame = StoredValue::new(false);
+    // O WebSocket aberto pelo efeito abaixo, para mandar cliques e teclas quando se está no controle.
+    let ws_slot: StoredValue<Option<WebSocket>> = StoredValue::new(None);
 
     // Descobrir sessão ativa se não foi fornecida.
     if session_id.is_none() {
@@ -194,10 +196,16 @@ pub fn VncStream(
         let frame_times_clone = frame_times;
         let has_frame_clone = has_frame;
         let state_msg = state;
+        let error_msg_msg = error_msg;
         let on_message = Closure::wrap(Box::new(move |e: MessageEvent| {
             // Frame é imagem: binário (JPEG) ou o texto JSON do relay `{"type":"frame","data":<base64>}`.
             // Outras mensagens de texto (qualidade, erro) não são imagem.
             let data = e.data();
+            // Aviso do relay (ex.: entrada recusada): aparece na tela, não é imagem.
+            if let Some(aviso) = data.as_string().and_then(|t| aviso_do_relay(&t)) {
+                error_msg_msg.set(Some(aviso));
+                return;
+            }
             let blob: Option<Blob> = if data.is_instance_of::<Blob>() {
                 data.dyn_into::<Blob>().ok()
             } else {
@@ -297,6 +305,8 @@ pub fn VncStream(
         ws.set_onclose(Some(on_close.as_ref().unchecked_ref()));
         on_close.forget();
 
+        ws_slot.set_value(Some(ws.clone()));
+
         // Cleanup: fechar WS quando o componente é desmontado.
         let ws_cleanup = ws.clone();
         on_cleanup(move || {
@@ -373,8 +383,32 @@ pub fn VncStream(
             </div>
 
             // Canvas (sempre presente, visível quando conectado).
-            <canvas id="vnc-canvas-el" class="vnc-canvas"
-                    style:display=move || if state.get() == VncState::Connected { "" } else { "none" }>
+            <canvas id="vnc-canvas-el" class="vnc-canvas" tabindex="0"
+                    aria-label="Tela do computador remoto"
+                    style:display=move || if state.get() == VncState::Connected { "" } else { "none" }
+                    on:click=move |ev: web_sys::MouseEvent| {
+                        if controlling.get_untracked() {
+                            enviar_clique(ws_slot, &ev, "left");
+                        }
+                    }
+                    on:contextmenu=move |ev: web_sys::MouseEvent| {
+                        if controlling.get_untracked() {
+                            ev.prevent_default();
+                            enviar_clique(ws_slot, &ev, "right");
+                        }
+                    }
+                    on:keydown=move |ev: web_sys::KeyboardEvent| {
+                        if controlling.get_untracked() {
+                            ev.prevent_default();
+                            enviar_tecla(ws_slot, &ev.key(), true);
+                        }
+                    }
+                    on:keyup=move |ev: web_sys::KeyboardEvent| {
+                        if controlling.get_untracked() {
+                            ev.prevent_default();
+                            enviar_tecla(ws_slot, &ev.key(), false);
+                        }
+                    }>
             </canvas>
 
             // Fallback screenshot.
@@ -475,12 +509,83 @@ pub fn VncStream(
 /// Texto para a tela quando "Assumir controle" falha. O gateway responde 409 se a sessão ainda não
 /// está ativa (nenhum frame chegou) ou se outra pessoa já está no controle.
 fn erro_de_controle(e: &str) -> String {
-    if e.contains("409") {
+    if e.contains("403") || e.contains("503") {
+        "Assumir o controle exige entrar como administrador (o gateway precisa de login configurado)."
+            .to_string()
+    } else if e.contains("409") {
         "Não deu para assumir o controle: a sessão ainda não está ativa (nenhum quadro chegou) ou outra pessoa já está no controle."
             .to_string()
     } else {
         format!("Não deu para assumir o controle: {e}")
     }
+}
+
+/// Posição no quadro (px da imagem) de um ponto da tela: o canvas é mostrado em tamanho CSS
+/// diferente do quadro, então a conta é proporcional. `None` se o canvas não tem tamanho.
+pub fn coord_no_quadro(cliente: f64, origem: f64, tam_css: f64, tam_quadro: u32) -> Option<i32> {
+    if tam_css <= 0.0 || tam_quadro == 0 {
+        return None;
+    }
+    let v = ((cliente - origem) / tam_css * f64::from(tam_quadro)).floor();
+    Some(v.clamp(0.0, f64::from(tam_quadro - 1)) as i32)
+}
+
+/// JSON de um clique para o relay (`RelayClientMsg::Click`).
+pub fn json_clique(x: i32, y: i32, botao: &str) -> String {
+    serde_json::json!({"type": "click", "x": x, "y": y, "button": botao}).to_string()
+}
+
+/// JSON de uma tecla para o relay (`RelayClientMsg::Key`).
+pub fn json_tecla(tecla: &str, apertada: bool) -> String {
+    serde_json::json!({"type": "key", "code": tecla, "pressed": apertada}).to_string()
+}
+
+/// O texto de um aviso do relay (`{"type":"error","message":..}`); `None` para outras mensagens.
+pub fn aviso_do_relay(texto: &str) -> Option<String> {
+    let v: serde_json::Value = serde_json::from_str(texto).ok()?;
+    (v.get("type")?.as_str()? == "error")
+        .then(|| v.get("message")?.as_str().map(str::to_string))
+        .flatten()
+}
+
+fn mandar(slot: StoredValue<Option<WebSocket>>, json: String) {
+    if let Some(ws) = slot.get_value() {
+        // 1 = OPEN. Fora disso o evento se perde: não há fila (um clique atrasado seria perigoso).
+        if ws.ready_state() == 1 {
+            let _ = ws.send_with_str(&json);
+        }
+    }
+}
+
+fn enviar_clique(slot: StoredValue<Option<WebSocket>>, ev: &web_sys::MouseEvent, botao: &str) {
+    let Some(canvas) = ev
+        .target()
+        .and_then(|t| t.dyn_into::<HtmlCanvasElement>().ok())
+    else {
+        return;
+    };
+    let r = canvas.get_bounding_client_rect();
+    let (Some(x), Some(y)) = (
+        coord_no_quadro(
+            f64::from(ev.client_x()),
+            r.left(),
+            r.width(),
+            canvas.width(),
+        ),
+        coord_no_quadro(
+            f64::from(ev.client_y()),
+            r.top(),
+            r.height(),
+            canvas.height(),
+        ),
+    ) else {
+        return;
+    };
+    mandar(slot, json_clique(x, y, botao));
+}
+
+fn enviar_tecla(slot: StoredValue<Option<WebSocket>>, tecla: &str, apertada: bool) {
+    mandar(slot, json_tecla(tecla, apertada));
 }
 
 /// Mensagem de texto do relay do gateway: `{"type":"frame","data":"<base64>",...}`.
@@ -514,8 +619,46 @@ mod tests {
     use super::*;
 
     #[test]
+    fn coordenada_proporcional_ao_tamanho_do_quadro() {
+        // Canvas de 960 px CSS mostrando um quadro de 1920: o meio vira o meio.
+        assert_eq!(coord_no_quadro(480.0, 0.0, 960.0, 1920), Some(960));
+        assert_eq!(coord_no_quadro(580.0, 100.0, 960.0, 1920), Some(960));
+        // Bordas ficam dentro do quadro; fora do canvas é limitado, não negativo.
+        assert_eq!(coord_no_quadro(960.0, 0.0, 960.0, 1920), Some(1919));
+        assert_eq!(coord_no_quadro(-50.0, 0.0, 960.0, 1920), Some(0));
+        // Sem tamanho (canvas oculto ou quadro vazio): não envia.
+        assert_eq!(coord_no_quadro(10.0, 0.0, 0.0, 1920), None);
+        assert_eq!(coord_no_quadro(10.0, 0.0, 960.0, 0), None);
+    }
+
+    #[test]
+    fn json_de_entrada_bate_com_o_protocolo_do_relay() {
+        let c: serde_json::Value = serde_json::from_str(&json_clique(10, 20, "left")).unwrap();
+        assert_eq!(c["type"], "click");
+        assert_eq!((c["x"].as_i64(), c["y"].as_i64()), (Some(10), Some(20)));
+        assert_eq!(c["button"], "left");
+        let k: serde_json::Value = serde_json::from_str(&json_tecla("Enter", true)).unwrap();
+        assert_eq!(k["type"], "key");
+        assert_eq!(k["code"], "Enter");
+        assert_eq!(k["pressed"], true);
+    }
+
+    #[test]
+    fn aviso_do_relay_so_para_mensagens_de_erro() {
+        assert_eq!(
+            aviso_do_relay(r#"{"type":"error","message":"Tecla não permitida"}"#).as_deref(),
+            Some("Tecla não permitida")
+        );
+        assert_eq!(aviso_do_relay(r#"{"type":"quality","fps":1.0}"#), None);
+        assert_eq!(aviso_do_relay(r#"{"type":"frame","data":"x"}"#), None);
+        assert_eq!(aviso_do_relay("lixo"), None);
+    }
+
+    #[test]
     fn erro_de_controle_explica_o_409() {
         assert!(erro_de_controle("HTTP 409").contains("ainda não está ativa"));
+        assert!(erro_de_controle("HTTP 403").contains("administrador"));
+        assert!(erro_de_controle("HTTP 503").contains("administrador"));
         assert_eq!(
             erro_de_controle("HTTP 500"),
             "Não deu para assumir o controle: HTTP 500"

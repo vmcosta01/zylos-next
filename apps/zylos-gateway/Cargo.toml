@@ -13,7 +13,12 @@ path = "src/lib.rs"
 name = "zylos-gateway"
 path = "src/main.rs"
 
+[features]
+# Injetor real de mouse e teclado da entrada remota (desligado por padrão; ver remote_input.rs).
+input-injection = ["dep:enigo"]
+
 [dependencies]
+enigo = { version = "0.3", optional = true }
 zylos-memory-system = { workspace = true }
 zylos-live-comm = { workspace = true }
 zylos-verification = { workspace = true }
