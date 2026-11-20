@@ -195,10 +195,19 @@ pub fn VncStream(
         let has_frame_clone = has_frame;
         let state_msg = state;
         let on_message = Closure::wrap(Box::new(move |e: MessageEvent| {
-            // Só frame binário conta: mensagens de texto (status do relay) não são imagem.
-            if !e.data().is_instance_of::<Blob>() {
+            // Frame é imagem: binário (JPEG) ou o texto JSON do relay `{"type":"frame","data":<base64>}`.
+            // Outras mensagens de texto (qualidade, erro) não são imagem.
+            let data = e.data();
+            let blob: Option<Blob> = if data.is_instance_of::<Blob>() {
+                data.dyn_into::<Blob>().ok()
+            } else {
+                data.as_string()
+                    .and_then(|t| frame_base64(&t))
+                    .and_then(|b64| blob_from_base64(&b64))
+            };
+            let Some(blob) = blob else {
                 return;
-            }
+            };
             has_frame_clone.set_value(true);
             // Frame depois do fallback de 3 s: volta do screenshot para o stream.
             if state_msg.get_untracked() != VncState::Connected {
@@ -222,8 +231,7 @@ pub fn VncStream(
             });
 
             // Renderizar blob como imagem no canvas.
-            let data = e.data();
-            if let Ok(blob) = data.dyn_into::<Blob>() {
+            {
                 let promise =
                     web_sys::window().and_then(|w| w.create_image_bitmap_with_blob(&blob).ok());
                 if let Some(promise) = promise {
@@ -464,9 +472,52 @@ pub fn VncStream(
     }
 }
 
+/// Mensagem de texto do relay do gateway: `{"type":"frame","data":"<base64>",...}`.
+#[derive(Deserialize)]
+struct TextoFrame {
+    #[serde(rename = "type")]
+    tipo: String,
+    #[serde(default)]
+    data: String,
+}
+
+/// O base64 da imagem, se o texto for um frame do relay; `None` para qualidade, erro, lixo.
+fn frame_base64(texto: &str) -> Option<String> {
+    let m: TextoFrame = serde_json::from_str(texto).ok()?;
+    (m.tipo == "frame" && !m.data.is_empty()).then_some(m.data)
+}
+
+/// Decodifica o base64 (via `atob`) num `Blob`; o navegador reconhece PNG/JPEG pelos bytes.
+fn blob_from_base64(b64: &str) -> Option<Blob> {
+    let bin = web_sys::window()?.atob(b64).ok()?;
+    let bytes = js_sys::Uint8Array::new_with_length(bin.len() as u32);
+    for (i, c) in bin.chars().enumerate() {
+        bytes.set_index(i as u32, c as u8);
+    }
+    let partes = js_sys::Array::of1(&bytes);
+    Blob::new_with_u8_array_sequence(&partes).ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn frame_de_texto_do_relay_vira_base64() {
+        let t = r#"{"type":"frame","data":"iVBORw0KGgo=","ts":1,"seq":2}"#;
+        assert_eq!(frame_base64(t).as_deref(), Some("iVBORw0KGgo="));
+    }
+
+    #[test]
+    fn mensagens_que_nao_sao_imagem_nao_viram_frame() {
+        assert_eq!(
+            frame_base64(r#"{"type":"quality","fps":15.0,"latency_ms":8,"bitrate_kbps":1}"#),
+            None
+        );
+        assert_eq!(frame_base64(r#"{"type":"error","message":"x"}"#), None);
+        assert_eq!(frame_base64(r#"{"type":"frame","data":""}"#), None);
+        assert_eq!(frame_base64("não é json"), None);
+    }
 
     #[test]
     fn test_vnc_state_equality() {
