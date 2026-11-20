@@ -6,7 +6,7 @@
 //! - Input na parte inferior com envio via Enter ou botão
 //! - Estados: Loading, Empty, Success, Error, Disabled
 //!
-//! Consome: `POST http://localhost:3000/api/v1/bots/:nome/perguntar`
+//! Consome: `POST /api/v1/bots/:nome/perguntar` (base do gateway via `gateway_config`)
 //! Request:  `{ "pergunta": "..." }`
 //! Response: `{ "resposta": "...", "modelo": "...", "tokens": N }` ou erro RFC 9457
 
@@ -97,7 +97,10 @@ fn now_ms() -> u64 {
 }
 
 async fn send_question(bot_name: &str, question: &str) -> Result<String, String> {
-    let url = format!("http://localhost:3000/api/v1/bots/{}/perguntar", bot_name);
+    let url = crate::gateway_http::api_url(&format!(
+        "/api/v1/bots/{}/perguntar",
+        crate::auth::url_encode(bot_name)
+    ))?;
     let body = serde_json::json!({ "pergunta": question });
     let resp = crate::auth::authed(gloo_net::http::Request::post(&url))
         .header("Content-Type", "application/json")
