@@ -78,9 +78,87 @@ pub fn carregar(pasta_bots: &Path, nome: &str) -> Result<Bot, ErroBot> {
     })
 }
 
+/// Mais bots que isto na pasta: o resto é ignorado (a lista vai inteira para a tela).
+pub const LIMITE_LISTA: usize = 200;
+
+/// Um bot como aparece na lista: sem a `ALMA.md` (é grande e é do próprio bot).
+#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
+pub struct InfoBot {
+    pub nome: String,
+    pub provedor: Option<String>,
+    pub modelo: Option<String>,
+    /// Por que o bot não pode responder (sem `bot.toml`, sem `ALMA.md`, ...), quando não pode.
+    pub problema: Option<String>,
+}
+
+/// Os bots de `pasta_bots`, em ordem de nome. Pasta que não existe = nenhum bot.
+/// Subpasta com nome inválido é ignorada; bot mal feito aparece com o `problema`.
+pub fn listar(pasta_bots: &Path) -> Vec<InfoBot> {
+    let Ok(entradas) = std::fs::read_dir(pasta_bots) else {
+        return Vec::new();
+    };
+    let mut nomes: Vec<String> = entradas
+        .filter_map(Result::ok)
+        .filter(|e| e.path().is_dir())
+        .filter_map(|e| e.file_name().into_string().ok())
+        .filter(|n| nome_valido(n))
+        .collect();
+    nomes.sort();
+    nomes.truncate(LIMITE_LISTA);
+    nomes
+        .into_iter()
+        .map(|nome| match carregar(pasta_bots, &nome) {
+            Ok(b) => InfoBot {
+                nome,
+                provedor: Some(b.provedor),
+                modelo: b.modelo,
+                problema: None,
+            },
+            Err(e) => InfoBot {
+                nome,
+                provedor: None,
+                modelo: None,
+                problema: Some(match e {
+                    ErroBot::MalFeito(m) => m,
+                    ErroBot::NomeInvalido => "nome inválido".to_string(),
+                    ErroBot::Inexistente => "pasta sumiu".to_string(),
+                }),
+            },
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod testes {
     use super::*;
+
+    #[test]
+    fn lista_bots_em_ordem_e_aponta_o_mal_feito() {
+        let t = tempfile::tempdir().unwrap();
+        assert!(listar(&t.path().join("nao-existe")).is_empty());
+        bot(
+            t.path(),
+            "vigia",
+            "provedor = \"nvidia\"\nmodelo = \"m\"\n",
+            Some(b"a"),
+        );
+        bot(
+            t.path(),
+            "arquivista",
+            "provedor = \"openai\"\n",
+            Some(b"a"),
+        );
+        bot(t.path(), "sem-alma", "provedor = \"openai\"\n", None);
+        std::fs::create_dir_all(t.path().join("Nome Invalido")).unwrap();
+        std::fs::write(t.path().join("solto.txt"), "x").unwrap();
+        let l = listar(t.path());
+        let nomes: Vec<_> = l.iter().map(|b| b.nome.as_str()).collect();
+        assert_eq!(nomes, ["arquivista", "sem-alma", "vigia"]);
+        assert_eq!(l[0].provedor.as_deref(), Some("openai"));
+        assert_eq!(l[0].problema, None);
+        assert!(l[1].problema.as_deref().unwrap().contains("ALMA.md"));
+        assert_eq!(l[2].modelo.as_deref(), Some("m"));
+    }
 
     fn bot(pasta: &Path, nome: &str, toml: &str, alma: Option<&[u8]>) {
         let d = pasta.join(nome);

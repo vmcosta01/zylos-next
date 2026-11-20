@@ -71,24 +71,38 @@ pub struct BotEntry {
     pub provider: String,
 }
 
-fn default_bots() -> Vec<BotEntry> {
-    vec![
-        BotEntry {
-            name: "default".into(),
-            display_name: "Assistente Zylos".into(),
-            provider: "openai".into(),
-        },
-        BotEntry {
-            name: "dev-agent".into(),
-            display_name: "Dev Agent".into(),
-            provider: "anthropic".into(),
-        },
-        BotEntry {
-            name: "researcher".into(),
-            display_name: "Pesquisador".into(),
-            provider: "google".into(),
-        },
-    ]
+/// Resposta de `GET /api/v1/bots`.
+#[derive(Debug, Deserialize)]
+struct BotsResp {
+    bots: Vec<BotInfo>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BotInfo {
+    nome: String,
+    provedor: Option<String>,
+    problema: Option<String>,
+}
+
+/// Bots que podem responder: os com `problema` (sem ALMA.md, sem provedor...) ficam de fora.
+fn bots_prontos(r: BotsResp) -> Vec<BotEntry> {
+    r.bots
+        .into_iter()
+        .filter(|b| b.problema.is_none())
+        .filter_map(|b| {
+            Some(BotEntry {
+                display_name: b.nome.clone(),
+                name: b.nome,
+                provider: b.provedor?,
+            })
+        })
+        .collect()
+}
+
+/// Lê os bots do gateway.
+async fn fetch_bots() -> Result<Vec<BotEntry>, String> {
+    let r: BotsResp = crate::gateway_http::get_json("/api/v1/bots").await?;
+    Ok(bots_prontos(r))
 }
 
 /// Agente escolhido e lista de agentes, compartilhados entre o chat e a barra lateral
@@ -97,15 +111,30 @@ fn default_bots() -> Vec<BotEntry> {
 pub struct ChatCtx {
     pub selected_bot: RwSignal<Option<String>>,
     pub bots: RwSignal<Vec<BotEntry>>,
+    /// Enquanto a lista não chegou (a tela mostra "carregando", não "nenhum bot").
+    pub bots_loading: RwSignal<bool>,
+    /// Falha ao ler a lista do gateway.
+    pub bots_error: RwSignal<Option<String>>,
 }
 
 /// Cria o contexto na raiz do app.
 pub fn provide_chat() -> ChatCtx {
     let ctx = ChatCtx {
         selected_bot: RwSignal::new(None),
-        bots: RwSignal::new(default_bots()),
+        bots: RwSignal::new(Vec::new()),
+        bots_loading: RwSignal::new(true),
+        bots_error: RwSignal::new(None),
     };
     provide_context(ctx);
+    spawn_local(async move {
+        match fetch_bots().await {
+            Ok(list) => ctx.bots.set(list),
+            Err(e) => ctx
+                .bots_error
+                .set(Some(crate::ui_error::report("bots", &e))),
+        }
+        ctx.bots_loading.set(false);
+    });
     ctx
 }
 
@@ -241,7 +270,7 @@ pub fn ChatPanel() -> impl IntoView {
     let input_text = RwSignal::new(String::new());
     let bots = shared
         .map(|c| c.bots)
-        .unwrap_or_else(|| RwSignal::new(default_bots()));
+        .unwrap_or_else(|| RwSignal::new(Vec::new()));
     let error_msg = RwSignal::new(None::<String>);
     // Conversa guardada no gateway: uma por (Space, bot).
     let thread_id = RwSignal::new(None::<String>);
@@ -418,7 +447,17 @@ pub fn ChatPanel() -> impl IntoView {
                             ChatState::Empty => view! {
                                 <div class="empty-state">
                                     <div class="empty-state-icon"><i class="ph ph-chats-circle" aria-hidden="true"></i></div>
-                                    <div class="empty-state-text">"Selecione um bot na barra lateral para iniciar uma conversa"</div>
+                                    <div class="empty-state-text">{move || {
+                                        if bots.get().is_empty() {
+                                            match shared.and_then(|c| c.bots_error.get()) {
+                                                Some(e) => format!("Não foi possível ler os bots do gateway: {e}"),
+                                                None if shared.is_some_and(|c| c.bots_loading.get()) => "Carregando os bots…".to_string(),
+                                                None => "Nenhum bot configurado. Crie uma pasta com bot.toml e ALMA.md na pasta de bots do gateway.".to_string(),
+                                            }
+                                        } else {
+                                            "Selecione um bot na barra lateral para iniciar uma conversa".to_string()
+                                        }
+                                    }}</div>
                                 </div>
                             }.into_any(),
                             ChatState::Error(err) => view! {
@@ -552,5 +591,25 @@ pub fn ChatPanel() -> impl IntoView {
                 </div>
             </div>
         </div>
+    }
+}
+
+#[cfg(test)]
+mod testes_bots {
+    use super::*;
+
+    #[test]
+    fn so_bots_sem_problema_viram_agentes() {
+        let r: BotsResp = serde_json::from_str(
+            r#"{"bots":[
+                {"nome":"vigia","provedor":"nvidia","modelo":"m","problema":null},
+                {"nome":"sem-alma","provedor":null,"modelo":null,"problema":"falta o arquivo ALMA.md"}
+            ]}"#,
+        )
+        .unwrap();
+        let l = bots_prontos(r);
+        assert_eq!(l.len(), 1);
+        assert_eq!(l[0].name, "vigia");
+        assert_eq!(l[0].provider, "nvidia");
     }
 }
