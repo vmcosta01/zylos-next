@@ -13,6 +13,7 @@ pub mod config;
 pub mod crdt_sync;
 pub mod evidence_api;
 pub mod failures_api;
+pub mod files_api;
 pub mod goals_api;
 pub mod hermes_api;
 pub mod hermes_desktop_api;
@@ -172,6 +173,8 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
         tracing::warn!(error = %e, "gravador de falhas não iniciou");
     }
     let failures = failures_api::create_failures_router(failures_store);
+    // Arquivos do cockpit: pasta `ZYLOS_FILES_DIR` (padrão `data/files`).
+    let files = files_api::create_files_router(files_api::FilesState::do_ambiente());
     let sse = create_sse_router(state.event_bus.clone(), approval_store);
     let skills = create_skills_router(state.skills_state.clone());
     // SOAR router needs AppState — resolve it here so it becomes Router<()> for merging
@@ -303,11 +306,12 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
     let channels = channels_api::create_channels_router(channels_api::ChannelsHandle::from_store(
         channels_store,
     ));
+    // O mesmo relay serve o WebSocket do cockpit e a rota onde o agente empurra frames.
+    let relay_state = webrtc_relay::WebRtcRelayState::new();
     let computer_view = computer_view_api::create_computer_view_router(
-        computer_view_api::ComputerViewHandle::new(),
+        computer_view_api::ComputerViewHandle::new().with_relay(relay_state.clone()),
     );
-    let webrtc_relay =
-        webrtc_relay::create_webrtc_relay_router(webrtc_relay::WebRtcRelayState::new());
+    let webrtc_relay = webrtc_relay::create_webrtc_relay_router(relay_state);
     let auth_state = auth_api::AuthState::from_env();
     let api_auth_state = api_auth::ApiAuth::new(auth_state.token_service());
     if !api_auth_state.enforced() {
@@ -361,6 +365,7 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
                 .merge(approvals)
                 .merge(spaces)
                 .merge(failures)
+                .merge(files)
                 .merge(agents_api::create_agents_router(state.swarm.clone()))
                 .merge(subagents_api::create_subagents_router(state.swarm.clone()))
                 .merge(threads_api::create_threads_router(

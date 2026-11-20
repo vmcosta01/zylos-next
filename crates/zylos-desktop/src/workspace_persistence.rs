@@ -536,7 +536,7 @@ mod tests {
         wp.remove_filter("status").await;
         let state = wp.get_state().await;
         assert_eq!(state.global_filters.len(), 1);
-        assert!(state.global_filters.get("status").is_none());
+        assert!(!state.global_filters.contains_key("status"));
     }
 
     #[tokio::test]

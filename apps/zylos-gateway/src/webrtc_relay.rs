@@ -122,6 +122,21 @@ impl WebRtcRelayState {
     }
 
     /// Remove canal quando não há mais consumidores.
+    /// Publica um frame de imagem (PNG/JPEG já validado) para quem assiste a sessão.
+    /// Devolve quantos espectadores estavam ligados; `None` se o limite de sessões do relay
+    /// foi atingido. Sem espectador o frame é descartado (o relay não guarda histórico).
+    pub fn publish_frame(&self, session_id: &str, image: &[u8]) -> Option<usize> {
+        use base64::Engine as _;
+        static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let tx = self.get_or_create_channel(session_id)?;
+        let msg = RelayServerMsg::Frame {
+            data: base64::engine::general_purpose::STANDARD.encode(image),
+            ts: now_millis(),
+            seq: SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+        };
+        Some(tx.send(msg).unwrap_or(0))
+    }
+
     pub fn cleanup_session(&self, session_id: &str) {
         if let Some((_, tx)) = self.sessions.remove(session_id) {
             if tx.receiver_count() == 0 {
