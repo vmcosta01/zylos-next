@@ -72,6 +72,27 @@ pub struct ApiHandles {
     pub evidence: evidence_api::EvidenceHandle,
 }
 
+/// Abre um banco SQLite tentando de novo quando outro processo/teste segura o lock
+/// (`database is locked`). Para em erro de outra natureza ou após ~3 s.
+async fn retry_locked<T, F, Fut>(what: &str, mut open: F) -> T
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<T, String>>,
+{
+    let mut last = String::new();
+    for attempt in 0..15 {
+        match open().await {
+            Ok(v) => return v,
+            Err(e) if e.contains("database is locked") => {
+                last = e;
+                tokio::time::sleep(std::time::Duration::from_millis(50 * (attempt + 1))).await;
+            }
+            Err(e) => panic!("failed to open {what}: {e}"),
+        }
+    }
+    panic!("failed to open {what}: {last}");
+}
+
 /// Build the consolidated API gateway router
 pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
     // Sub-routers that consume their own state internally return Router<()>
@@ -88,15 +109,17 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
                     let _ = std::fs::create_dir_all(parent);
                 }
             }
-            let store = zylos_approval::ApprovalStore::connect(&path)
-                .await
-                .expect("failed to connect approvals store");
-            // Banco novo não tem a tabela: sem isto, criar/listar/resolver davam 500.
-            store
-                .run_migrations()
-                .await
-                .expect("failed to migrate approvals store");
-            store
+            // Vários gateways/testes abrindo o mesmo arquivo juntos disputam o lock da troca para
+            // WAL e da migração ("database is locked"): tenta de novo antes de desistir.
+            retry_locked("approvals store", || async {
+                let store = zylos_approval::ApprovalStore::connect(&path)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                // Banco novo não tem a tabela: sem isto, criar/listar/resolver davam 500.
+                store.run_migrations().await.map_err(|e| e.to_string())?;
+                Ok(store)
+            })
+            .await
         })
     }));
     let approvals = approvals_api::create_approvals_router(
@@ -114,9 +137,12 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
                     let _ = std::fs::create_dir_all(parent);
                 }
             }
-            spaces_api::SpacesStore::connect(&path)
-                .await
-                .expect("failed to open spaces store")
+            retry_locked("spaces store", || async {
+                spaces_api::SpacesStore::connect(&path)
+                    .await
+                    .map_err(|e| e.to_string())
+            })
+            .await
         })
     });
     let spaces = spaces_api::create_spaces_router(spaces_store);
