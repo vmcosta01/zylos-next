@@ -323,10 +323,50 @@ async fn fetch_needs_you() -> Result<Vec<TriageItem>, String> {
         .collect())
 }
 
+/// Falha de agente como o gateway a devolve em `GET /api/v1/failures`.
+#[derive(Debug, Deserialize)]
+struct FailureRow {
+    id: i64,
+    agent_id: String,
+    title: String,
+    created_at: String,
+}
+
+fn failure_item(f: FailureRow) -> TriageItem {
+    TriageItem {
+        id: format!("failure-{}", f.id),
+        title: f.title,
+        description: Some(format!("Agente: {}", f.agent_id)),
+        priority: "high".into(),
+        source: "error".into(),
+        action_url: None,
+        created_at: f.created_at,
+    }
+}
+
 async fn fetch_errors() -> Result<Vec<TriageItem>, String> {
-    // O gateway ainda não expõe uma rota de falhas/auditoria de ações; sem fonte real, não
-    // inventamos itens. Quando existir (ex.: `/audit/actions`), é só ler aqui.
-    Ok(vec![])
+    // Falhas de agentes (chave, provedor, rede) que o gateway guardou.
+    let resp = crate::auth::authed(gloo_net::http::Request::get(&crate::gateway_http::api_url(
+        "/api/v1/failures?limit=50",
+    )?))
+    .send()
+    .await
+    .map_err(|e| format!("Network error: {}", e))?;
+
+    if !resp.ok() {
+        return Ok(vec![]);
+    }
+
+    #[derive(Deserialize)]
+    struct FailuresResp {
+        failures: Vec<FailureRow>,
+    }
+
+    let body: FailuresResp = resp
+        .json()
+        .await
+        .map_err(|e| format!("Parse error: {}", e))?;
+    Ok(body.failures.into_iter().map(failure_item).collect())
 }
 
 async fn fetch_can_wait() -> Result<Vec<TriageItem>, String> {
@@ -379,4 +419,23 @@ async fn fetch_done() -> Result<Vec<TriageItem>, String> {
             created_at: h.decided_at.unwrap_or_default(),
         })
         .collect())
+}
+
+#[cfg(test)]
+mod testes_falhas {
+    use super::*;
+
+    #[test]
+    fn falha_do_gateway_vira_item_de_erro() {
+        let item = failure_item(FailureRow {
+            id: 7,
+            agent_id: "vigia".into(),
+            title: "Chave de API faltando".into(),
+            created_at: "2026-11-20T10:00:00+00:00".into(),
+        });
+        assert_eq!(item.id, "failure-7");
+        assert_eq!(item.title, "Chave de API faltando");
+        assert_eq!(item.description.as_deref(), Some("Agente: vigia"));
+        assert_eq!(item.source, "error");
+    }
 }
