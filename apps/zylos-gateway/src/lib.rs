@@ -13,6 +13,7 @@ pub mod config;
 pub mod crdt_sync;
 pub mod evidence_api;
 pub mod failures_api;
+pub mod files_api;
 pub mod goals_api;
 pub mod hermes_api;
 pub mod hermes_desktop_api;
@@ -172,6 +173,8 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
         tracing::warn!(error = %e, "gravador de falhas não iniciou");
     }
     let failures = failures_api::create_failures_router(failures_store);
+    // Arquivos do cockpit: pasta `ZYLOS_FILES_DIR` (padrão `data/files`).
+    let files = files_api::create_files_router(files_api::FilesState::do_ambiente());
     let sse = create_sse_router(state.event_bus.clone(), approval_store);
     let skills = create_skills_router(state.skills_state.clone());
     // SOAR router needs AppState — resolve it here so it becomes Router<()> for merging
@@ -361,6 +364,7 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
                 .merge(approvals)
                 .merge(spaces)
                 .merge(failures)
+                .merge(files)
                 .merge(agents_api::create_agents_router(state.swarm.clone()))
                 .merge(subagents_api::create_subagents_router(state.swarm.clone()))
                 .merge(threads_api::create_threads_router(

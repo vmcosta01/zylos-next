@@ -79,13 +79,22 @@ pub fn FileManager() -> impl IntoView {
     let files = RwSignal::new(Vec::<FileInfo>::new());
     let current_folder = RwSignal::new("root".to_string());
     let loading = RwSignal::new(true);
+    // Sobe a cada upload/exclusão para a lista ser relida do gateway.
+    let reload = RwSignal::new(0u32);
+    // Último erro de leitura/upload/exclusão, em palavras que dizem o que fazer.
+    let erro = RwSignal::new(None::<String>);
+    let input_ref = NodeRef::<leptos::html::Input>::new();
 
-    // Fetch arquivos ao montar
     Effect::new(move |_| {
+        let _ = reload.get();
         spawn_local(async move {
             loading.set(true);
-            if let Ok(data) = fetch_files().await {
-                files.set(data);
+            match fetch_files().await {
+                Ok(data) => {
+                    files.set(data);
+                    erro.set(None);
+                }
+                Err(e) => erro.set(Some(crate::ui_error::report("arquivos", &e))),
             }
             loading.set(false);
         });
@@ -115,11 +124,33 @@ pub fn FileManager() -> impl IntoView {
     <div class="file-manager">
     <div class="file-manager-header">
     <h3 class="file-manager-title"><i class="ph ph-folder-simple" aria-hidden="true"></i>" Gerenciador de Arquivos"</h3>
+    <input
+    type="file"
+    node_ref=input_ref
+    class="file-input-hidden"
+    hidden
+    on:change=move |_| {
+    let Some(input) = input_ref.get() else { return };
+    let Some(file) = input.files().and_then(|l| l.get(0)) else { return };
+    input.set_value("");
+    let pasta = current_folder.get_untracked();
+    spawn_local(async move {
+    match upload_file(&pasta, file).await {
+    Ok(()) => {
+    erro.set(None);
+    reload.update(|n| *n += 1);
+    }
+    Err(e) => erro.set(Some(e)),
+    }
+    });
+    }
+    />
     <button
     class="file-upload-btn"
     on:click=move |_| {
-    // Placeholder: abrir file picker dialog
-    web_sys::console::log_1(&"Upload button clicked — file picker not yet implemented in WASM".into());
+    if let Some(input) = input_ref.get() {
+    input.click();
+    }
     }
     title="Upload arquivo"
     >
@@ -155,6 +186,8 @@ pub fn FileManager() -> impl IntoView {
     />
     </div>
 
+    {move || erro.get().map(|e| view! { <div class="file-error" role="alert">{e}</div> })}
+
     // File list
     {move || {
     if loading.get() {
@@ -169,7 +202,7 @@ pub fn FileManager() -> impl IntoView {
     if items.is_empty() {
     view! {
     <div class="file-empty">
-    "Nenhum arquivo: o armazenamento de arquivos ainda não está ligado ao gateway."
+    "Nenhum arquivo nesta pasta. Use Upload para guardar um."
     </div>
     }.into_any()
     } else {
@@ -182,8 +215,11 @@ pub fn FileManager() -> impl IntoView {
     let icon = file.icon().to_string();
     let name = file.name.clone();
     let size = file.formatted_size();
-    let date = file.uploaded_at.clone();
+    // Só a data (AAAA-MM-DD): o gateway manda o instante completo em RFC 3339.
+    let date: String = file.uploaded_at.chars().take(10).collect();
     let previewable = file.is_previewable();
+    let (pasta_dl, nome_dl) = (file.folder.clone(), file.name.clone());
+    let (pasta_rm, nome_rm) = (file.folder.clone(), file.name.clone());
 
     view! {
     <div class="file-card" class:file-previewable=previewable>
@@ -191,6 +227,45 @@ pub fn FileManager() -> impl IntoView {
     <div class="file-info">
     <span class="file-name">{name}</span>
     <span class="file-meta">{size}{" • "}{date}</span>
+    </div>
+    <div class="file-actions">
+    <button
+    class="file-action-btn"
+    title="Baixar"
+    aria-label=format!("Baixar {}", nome_dl)
+    on:click=move |_| {
+    let (p, n) = (pasta_dl.clone(), nome_dl.clone());
+    spawn_local(async move {
+    if let Err(e) = download_file(&p, &n).await {
+    erro.set(Some(e));
+    }
+    });
+    }
+    >
+    <i class="ph ph-download-simple" aria-hidden="true"></i>
+    </button>
+    <button
+    class="file-action-btn"
+    title="Apagar"
+    aria-label=format!("Apagar {}", nome_rm)
+    on:click=move |_| {
+    let (p, n) = (pasta_rm.clone(), nome_rm.clone());
+    let ok = web_sys::window()
+    .and_then(|w| w.confirm_with_message(&format!("Apagar {n}? Não dá para desfazer.")).ok())
+    .unwrap_or(false);
+    if !ok {
+    return;
+    }
+    spawn_local(async move {
+    match delete_file(&p, &n).await {
+    Ok(()) => reload.update(|c| *c += 1),
+    Err(e) => erro.set(Some(e)),
+    }
+    });
+    }
+    >
+    <i class="ph ph-trash" aria-hidden="true"></i>
+    </button>
     </div>
     </div>
     }
@@ -207,9 +282,113 @@ pub fn FileManager() -> impl IntoView {
 
 // === API Function ===
 
+#[derive(Deserialize)]
+struct FilesResp {
+    files: Vec<FileInfo>,
+}
+
 async fn fetch_files() -> Result<Vec<FileInfo>, String> {
-    // O gateway ainda não guarda arquivos. Antes isto devolvia arquivos de exemplo que pareciam
-    // reais; agora falha e a lista fica vazia.
-    // ATALHO: sem backend de arquivos; gatilho de upgrade: existir `GET /api/v1/files`.
-    Err("armazenamento de arquivos indisponível no gateway".to_string())
+    let r: FilesResp = crate::gateway_http::get_json("/api/v1/files").await?;
+    Ok(r.files)
+}
+
+/// `?folder=..&name=..` com os dois valores codificados.
+fn alvo(folder: &str, name: &str) -> String {
+    let enc = |t: &str| String::from(js_sys::encode_uri_component(t));
+    format!("folder={}&name={}", enc(folder), enc(name))
+}
+
+/// Mensagem em palavras para o status que o gateway devolveu.
+fn erro_de_status(status: u16, acao: &str) -> String {
+    match status {
+        409 => "Já existe um arquivo com esse nome nesta pasta.".to_string(),
+        413 => "O arquivo passa de 10 MB.".to_string(),
+        422 => "Nome inválido: use letras sem acento, dígitos, ponto, hífen, sublinhado e espaço."
+            .to_string(),
+        404 => "Arquivo não encontrado (talvez já tenha sido apagado).".to_string(),
+        401 | 403 => "Sem permissão: entre de novo no cockpit.".to_string(),
+        _ => format!("Não foi possível {acao} (erro {status})."),
+    }
+}
+
+async fn upload_file(folder: &str, file: web_sys::File) -> Result<(), String> {
+    let url =
+        crate::gateway_http::api_url(&format!("/api/v1/files?{}", alvo(folder, &file.name())))?;
+    let resp = crate::auth::authed(gloo_net::http::Request::post(&url))
+        .body(file)
+        .map_err(|e| format!("Não foi possível enviar: {e}"))?
+        .send()
+        .await
+        .map_err(|e| format!("Sem conexão com o gateway: {e}"))?;
+    if resp.status() == 201 {
+        Ok(())
+    } else {
+        Err(erro_de_status(resp.status(), "enviar o arquivo"))
+    }
+}
+
+async fn delete_file(folder: &str, name: &str) -> Result<(), String> {
+    let url = crate::gateway_http::api_url(&format!("/api/v1/files?{}", alvo(folder, name)))?;
+    let resp = crate::auth::authed(gloo_net::http::Request::delete(&url))
+        .send()
+        .await
+        .map_err(|e| format!("Sem conexão com o gateway: {e}"))?;
+    if resp.status() == 204 {
+        Ok(())
+    } else {
+        Err(erro_de_status(resp.status(), "apagar o arquivo"))
+    }
+}
+
+/// Baixa pelo fetch autenticado (um link simples não leva o token) e aciona o download.
+async fn download_file(folder: &str, name: &str) -> Result<(), String> {
+    use wasm_bindgen::JsCast;
+    let url =
+        crate::gateway_http::api_url(&format!("/api/v1/files/content?{}", alvo(folder, name)))?;
+    let resp = crate::auth::authed(gloo_net::http::Request::get(&url))
+        .send()
+        .await
+        .map_err(|e| format!("Sem conexão com o gateway: {e}"))?;
+    if !resp.ok() {
+        return Err(erro_de_status(resp.status(), "baixar o arquivo"));
+    }
+    let bytes = resp
+        .binary()
+        .await
+        .map_err(|e| format!("Falha ao ler o arquivo: {e}"))?;
+    let array = js_sys::Uint8Array::from(bytes.as_slice());
+    let parts = js_sys::Array::of1(&array);
+    let blob = web_sys::Blob::new_with_u8_array_sequence(&parts)
+        .map_err(|_| "Não foi possível montar o arquivo.".to_string())?;
+    let obj = web_sys::Url::create_object_url_with_blob(&blob)
+        .map_err(|_| "Não foi possível montar o arquivo.".to_string())?;
+    let doc = web_sys::window()
+        .and_then(|w| w.document())
+        .ok_or("Sem documento.")?;
+    let a: web_sys::HtmlAnchorElement = doc
+        .create_element("a")
+        .map_err(|_| "Sem documento.".to_string())?
+        .dyn_into()
+        .map_err(|_| "Sem documento.".to_string())?;
+    a.set_href(&obj);
+    a.set_download(name);
+    a.click();
+    let _ = web_sys::Url::revoke_object_url(&obj);
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mensagens_de_erro_dizem_o_que_fazer() {
+        assert!(erro_de_status(409, "x").contains("Já existe"));
+        assert!(erro_de_status(413, "x").contains("10 MB"));
+        assert!(erro_de_status(422, "x").contains("Nome inválido"));
+        assert_eq!(
+            erro_de_status(500, "enviar"),
+            "Não foi possível enviar (erro 500)."
+        );
+    }
 }
