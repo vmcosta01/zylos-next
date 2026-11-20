@@ -1,79 +1,78 @@
-//! FleetAuditor — painel de auditoria de frota de bots com métricas de custo e eficácia
+//! FleetAuditor — painel de auditoria da frota de bots, com o que o gateway mede de verdade.
 //!
-//! Inspirado em: awesome-grok-bot (Bot Fleet Auditor), Paperclip (cost tracking).
-//! Exibe métricas agregadas por bot: tokens consumidos, custo estimado,
-//! taxa de sucesso, tempo médio de resposta e ledger semanal.
-//!
-//! ## Features
-//! - Cards por bot com métricas chave
-//! - Ranking de custo e eficácia
-//! - Ledger semanal consolidado
-//! - Alertas de anomalia (custo spike, eficácia drop)
-//! - Filtros por período (24h, 7d, 30d)
+//! Lê `GET /api/v1/fleet/metrics`: por bot, quantas perguntas respondeu, quantas falharam, a taxa
+//! de sucesso e a latência média, desde que o gateway subiu (contadores em memória: reiniciar
+//! zera). Custo e tokens **não aparecem**: o gateway não recebe isso dos provedores.
 //!
 //! ## Related Documents
 //! - Implementation Plan: [IMPLEMENTATION_PLAN_DETAILED.md](../../docs/IMPLEMENTATION_PLAN_DETAILED.md) §5.1 Task 4.7
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
-/// Métricas de um bot individual
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// Métricas de um bot, como o gateway devolve.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct BotMetrics {
     pub bot_id: String,
     pub bot_name: String,
-    pub total_tokens: u64,
-    pub estimated_cost_usd: f64,
-    pub success_rate_pct: f64,
-    pub avg_response_ms: u64,
     pub total_actions: u64,
     pub failed_actions: u64,
-    pub alerts: Vec<String>,
+    /// `None` enquanto o bot não respondeu nenhuma pergunta (não é 0%).
+    pub success_rate_pct: Option<f64>,
+    pub avg_response_ms: Option<u64>,
 }
+
+/// Abaixo disto (com [`MIN_ACOES_PARA_ALERTA`] perguntas ou mais) o bot ganha um alerta.
+const LIMITE_SUCESSO_PCT: f64 = 80.0;
+/// Poucas perguntas não dizem nada sobre eficácia; não alerta antes disso.
+const MIN_ACOES_PARA_ALERTA: u64 = 5;
 
 impl BotMetrics {
-    #[allow(dead_code)]
-    pub fn cost_per_action(&self) -> f64 {
-        if self.total_actions > 0 {
-            self.estimated_cost_usd / self.total_actions as f64
-        } else {
-            0.0
+    /// Alertas calculados a partir dos números reais.
+    pub fn alerts(&self) -> Vec<String> {
+        match self.success_rate_pct {
+            Some(p) if self.total_actions >= MIN_ACOES_PARA_ALERTA && p < LIMITE_SUCESSO_PCT => {
+                vec![format!(
+                    "Taxa de sucesso {p:.1}% abaixo de {LIMITE_SUCESSO_PCT:.0}% ({} de {} perguntas falharam)",
+                    self.failed_actions, self.total_actions
+                )]
+            }
+            _ => Vec::new(),
         }
     }
-
-    pub fn has_alerts(&self) -> bool {
-        !self.alerts.is_empty()
-    }
 }
 
-/// Ledger semanal consolidado
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WeeklyLedger {
-    pub period: String,
-    pub total_cost_usd: f64,
-    pub total_tokens: u64,
-    pub total_actions: u64,
-    pub avg_success_rate: f64,
-    pub top_cost_bot: Option<String>,
-    pub top_performer_bot: Option<String>,
+#[derive(Debug, Clone, Deserialize)]
+struct FleetResp {
+    /// Quando o gateway subiu (RFC 3339): de onde vêm os contadores.
+    since: String,
+    bots: Vec<BotMetrics>,
 }
 
-/// Período de filtro
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AuditPeriod {
-    Last24h,
-    Last7d,
-    Last30d,
+/// Totais da frota, somados dos bots.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Totais {
+    pub acoes: u64,
+    pub falhas: u64,
+    /// `None` sem nenhuma pergunta ainda.
+    pub sucesso_pct: Option<f64>,
+    /// Média ponderada pelo número de perguntas de cada bot.
+    pub latencia_ms: Option<u64>,
 }
 
-impl AuditPeriod {
-    pub fn label(&self) -> &'static str {
-        match self {
-            Self::Last24h => "24h",
-            Self::Last7d => "7 dias",
-            Self::Last30d => "30 dias",
-        }
+pub fn somar(bots: &[BotMetrics]) -> Totais {
+    let acoes: u64 = bots.iter().map(|b| b.total_actions).sum();
+    let falhas: u64 = bots.iter().map(|b| b.failed_actions).sum();
+    let soma_ms: u64 = bots
+        .iter()
+        .map(|b| b.avg_response_ms.unwrap_or(0) * b.total_actions)
+        .sum();
+    Totais {
+        acoes,
+        falhas,
+        sucesso_pct: (acoes > 0).then(|| (acoes - falhas) as f64 * 100.0 / acoes as f64),
+        latencia_ms: (acoes > 0).then(|| soma_ms / acoes),
     }
 }
 
@@ -94,109 +93,77 @@ fn format_with_commas(n: u64) -> String {
     result
 }
 
+fn pct(v: Option<f64>) -> String {
+    v.map(|p| format!("{p:.1}%")).unwrap_or_else(|| "—".into())
+}
+
+fn ms(v: Option<u64>) -> String {
+    v.map(|m| format!("{m} ms")).unwrap_or_else(|| "—".into())
+}
+
 #[component]
 pub fn FleetAuditorPanel() -> impl IntoView {
     let bots = RwSignal::new(Vec::<BotMetrics>::new());
-    let ledger = RwSignal::new(None::<WeeklyLedger>);
+    let desde = RwSignal::new(None::<String>);
+    let erro = RwSignal::new(None::<String>);
     let loading = RwSignal::new(true);
-    let period = RwSignal::new(AuditPeriod::Last7d);
 
-    // Fetch dados ao montar
     Effect::new(move |_| {
         spawn_local(async move {
             loading.set(true);
-            if let Ok(data) = fetch_fleet_metrics().await {
-                bots.set(data.bots);
-                ledger.set(Some(data.ledger));
+            match crate::gateway_http::get_json::<FleetResp>("/api/v1/fleet/metrics").await {
+                Ok(r) => {
+                    bots.set(r.bots);
+                    desde.set(Some(r.since));
+                    erro.set(None);
+                }
+                Err(e) => erro.set(Some(crate::ui_error::report("frota", &e))),
             }
             loading.set(false);
         });
-    });
-
-    let _sorted_by_cost = Memo::new(move |_| {
-        let mut b = bots.get();
-        b.sort_by(|a, b| {
-            b.estimated_cost_usd
-                .partial_cmp(&a.estimated_cost_usd)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
-        b
-    });
-
-    let _sorted_by_effectiveness = Memo::new(move |_| {
-        let mut b = bots.get();
-        b.sort_by(|a, b| {
-            b.success_rate_pct
-                .partial_cmp(&a.success_rate_pct)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
-        b
     });
 
     view! {
         <div class="fleet-auditor-panel">
             <div class="fleet-header">
                 <h3 class="fleet-title"><i class="ph ph-chart-line-up" aria-hidden="true"></i>" Fleet Auditor"</h3>
-                <div class="fleet-period-selector">
-                    <For
-                        each=move || vec![AuditPeriod::Last24h, AuditPeriod::Last7d, AuditPeriod::Last30d]
-                        key=|p| format!("{:?}", p)
-                        children=move |p| {
-                            let p_clone = p;
-                            let label = p.label().to_string();
-                            let current = period;
-                            let is_active = move || current.get() == p_clone;
-                            let css = if is_active() {
-                                "period-btn period-btn-active".to_string()
-                            } else {
-                                "period-btn".to_string()
-                            };
-                            view! {
-                                <button
-                                    class=css
-                                    on:click=move |_| period.set(p_clone)
-                                >
-                                    {label.clone()}
-                                </button>
-                            }
-                        }
-                    />
-                </div>
             </div>
+            <p class="fleet-scope">
+                {move || match desde.get() {
+                    Some(d) => format!(
+                        "Contadores em memória desde {}; reiniciar o gateway zera. Custo e tokens não são medidos.",
+                        d.chars().take(16).collect::<String>().replace('T', " ")
+                    ),
+                    None => "Custo e tokens não são medidos.".to_string(),
+                }}
+            </p>
 
-            // Weekly Ledger Summary
             {move || {
-                if let Some(ref l) = ledger.get() {
-                    view! {
-                        <div class="fleet-ledger-summary">
-                            <div class="ledger-card">
-                                <span class="ledger-label">"Custo Total"</span>
-                                <span class="ledger-value ledger-cost">
-                                    "$"{format!("{:.2}", l.total_cost_usd)}
-                                </span>
-                            </div>
-                            <div class="ledger-card">
-                                <span class="ledger-label">"Tokens"</span>
-                                <span class="ledger-value">{format_with_commas(l.total_tokens)}</span>
-                            </div>
-                            <div class="ledger-card">
-                                <span class="ledger-label">"Ações"</span>
-                                <span class="ledger-value">{format_with_commas(l.total_actions)}</span>
-                            </div>
-                            <div class="ledger-card">
-                                <span class="ledger-label">"Taxa Sucesso"</span>
-                                <span class="ledger-value ledger-success">
-                                    {format!("{:.1}%", l.avg_success_rate)}
-                                </span>
-                            </div>
+                let t = somar(&bots.get());
+                (!bots.get().is_empty()).then(|| view! {
+                    <div class="fleet-ledger-summary">
+                        <div class="ledger-card">
+                            <span class="ledger-label">"Perguntas"</span>
+                            <span class="ledger-value">{format_with_commas(t.acoes)}</span>
                         </div>
-                    }.into_any()
-                } else {
-                    view! { <div></div> }.into_any()
-                }
+                        <div class="ledger-card">
+                            <span class="ledger-label">"Falhas"</span>
+                            <span class="ledger-value">{format_with_commas(t.falhas)}</span>
+                        </div>
+                        <div class="ledger-card">
+                            <span class="ledger-label">"Taxa Sucesso"</span>
+                            <span class="ledger-value ledger-success">{pct(t.sucesso_pct)}</span>
+                        </div>
+                        <div class="ledger-card">
+                            <span class="ledger-label">"Latência média"</span>
+                            <span class="ledger-value">{ms(t.latencia_ms)}</span>
+                        </div>
+                    </div>
+                })
             }}
 
-            // Bot Cards Grid
+            {move || erro.get().map(|e| view! { <div class="fleet-empty" role="alert">{e}</div> })}
+
             {move || {
                 if loading.get() {
                     view! {
@@ -205,192 +172,122 @@ pub fn FleetAuditorPanel() -> impl IntoView {
                             <span>"Carregando métricas da frota..."</span>
                         </div>
                     }.into_any()
+                } else if bots.get().is_empty() && erro.get().is_none() {
+                    view! {
+                        <div class="fleet-empty">"Nenhum bot configurado na pasta de bots do gateway."</div>
+                    }.into_any()
                 } else {
-                    let items = bots.get();
-                    if items.is_empty() {
-                        view! {
-                            <div class="fleet-empty">"Sem métricas: a auditoria de frota ainda não está ligada ao gateway."</div>
-                        }.into_any()
-                    } else {
-                        view! {
-                            <div class="fleet-grid">
-                                <For
-                                    each=move || bots.get()
-                                    key=|b| b.bot_id.clone()
-                                    children=move |bot| {
-                                        let name = bot.bot_name.clone();
-                                        let cost = bot.estimated_cost_usd;
-                                        let tokens = bot.total_tokens;
-                                        let success = bot.success_rate_pct;
-                                        let avg_ms = bot.avg_response_ms;
-                                        let actions = bot.total_actions;
-                                        let failed = bot.failed_actions;
-                                        let alerts = bot.alerts.clone();
-                                        let has_alert = bot.has_alerts();
-
-                                        let card_css = if has_alert {
-                                            "fleet-bot-card fleet-bot-alert".to_string()
-                                        } else {
-                                            "fleet-bot-card".to_string()
-                                        };
-
-                                        view! {
-                                            <div class=card_css>
-                                                <div class="fleet-bot-header">
-                                                    <span class="fleet-bot-name">{name.clone()}</span>
-                                                    {if has_alert {
-                                                        view! { <span class="fleet-alert-badge"><i class="ph ph-warning" aria-hidden="true"></i></span> }.into_any()
-                                                    } else {
-                                                        view! { <div></div> }.into_any()
-                                                    }}
-                                                </div>
-                                                <div class="fleet-bot-metrics">
-                                                    <div class="fleet-metric">
-                                                        <span class="metric-label">"Custo"</span>
-                                                        <span class="metric-value">${format!("{:.4}", cost)}</span>
-                                                    </div>
-                                                    <div class="fleet-metric">
-                                                        <span class="metric-label">"Tokens"</span>
-                                                        <span class="metric-value">{format_with_commas(tokens)}</span>
-                                                    </div>
-                                                    <div class="fleet-metric">
-                                                        <span class="metric-label">"Sucesso"</span>
-                                                        <span class="metric-value">{format!("{:.1}%", success)}</span>
-                                                    </div>
-                                                    <div class="fleet-metric">
-                                                        <span class="metric-label">"Latência"</span>
-                                                        <span class="metric-value">{avg_ms}"ms"</span>
-                                                    </div>
-                                                    <div class="fleet-metric">
-                                                        <span class="metric-label">"Ações"</span>
-                                                        <span class="metric-value">{actions}{" ("}{failed}" falhas)"</span>
-                                                    </div>
-                                                </div>
-                                                {if !alerts.is_empty() {
-                                                    view! {
-                                                        <div class="fleet-alerts">
-                                                            <For
-                                                                each=move || alerts.clone()
-                                                                key=|a| a.clone()
-                                                                children=move |alert| {
-                                                                    view! {
-                                                                        <div class="fleet-alert-item">{alert.clone()}</div>
-                                                                    }
-                                                                }
-                                                            />
-                                                        </div>
-                                                    }.into_any()
-                                                } else {
-                                                    view! { <div></div> }.into_any()
-                                                }}
+                    view! {
+                        <div class="fleet-grid">
+                            <For
+                                each=move || bots.get()
+                                key=|b| b.bot_id.clone()
+                                children=move |bot| {
+                                    let alerts = bot.alerts();
+                                    let has_alert = !alerts.is_empty();
+                                    let card_css = if has_alert {
+                                        "fleet-bot-card fleet-bot-alert"
+                                    } else {
+                                        "fleet-bot-card"
+                                    };
+                                    view! {
+                                        <div class=card_css>
+                                            <div class="fleet-bot-header">
+                                                <span class="fleet-bot-name">{bot.bot_name.clone()}</span>
+                                                {has_alert.then(|| view! {
+                                                    <span class="fleet-alert-badge"><i class="ph ph-warning" aria-hidden="true"></i></span>
+                                                })}
                                             </div>
-                                        }
+                                            <div class="fleet-bot-metrics">
+                                                <div class="fleet-metric">
+                                                    <span class="metric-label">"Sucesso"</span>
+                                                    <span class="metric-value">{pct(bot.success_rate_pct)}</span>
+                                                </div>
+                                                <div class="fleet-metric">
+                                                    <span class="metric-label">"Latência"</span>
+                                                    <span class="metric-value">{ms(bot.avg_response_ms)}</span>
+                                                </div>
+                                                <div class="fleet-metric">
+                                                    <span class="metric-label">"Perguntas"</span>
+                                                    <span class="metric-value">{bot.total_actions}{" ("}{bot.failed_actions}" falhas)"</span>
+                                                </div>
+                                            </div>
+                                            {has_alert.then(|| view! {
+                                                <div class="fleet-alerts">
+                                                    {alerts.iter().map(|a| view! { <div class="fleet-alert-item">{a.clone()}</div> }).collect_view()}
+                                                </div>
+                                            })}
+                                        </div>
                                     }
-                                />
-                            </div>
-                        }.into_any()
-                    }
+                                }
+                            />
+                        </div>
+                    }.into_any()
                 }
             }}
         </div>
     }
 }
 
-// === API Function ===
-
-#[allow(dead_code)] // construído de novo quando o gateway expuser as métricas
-struct FleetData {
-    bots: Vec<BotMetrics>,
-    ledger: WeeklyLedger,
-}
-
-async fn fetch_fleet_metrics() -> Result<FleetData, String> {
-    // O gateway ainda não expõe métricas de frota. Antes isto devolvia números de exemplo
-    // (custo, tokens, alertas) que pareciam reais; agora falha e a tela diz a verdade.
-    // ATALHO: sem backend de auditoria; gatilho de upgrade: existir `GET /api/v1/fleet/metrics`.
-    Err("métricas de frota indisponíveis no gateway".to_string())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_cost_per_action() {
-        let bot = BotMetrics {
-            bot_id: "test".into(),
-            bot_name: "Test".into(),
-            total_tokens: 1000,
-            estimated_cost_usd: 10.0,
-            success_rate_pct: 95.0,
-            avg_response_ms: 1000,
-            total_actions: 100,
-            failed_actions: 5,
-            alerts: vec![],
-        };
-        assert!((bot.cost_per_action() - 0.1).abs() < 0.001);
+    fn bot(total: u64, falhas: u64, ms: Option<u64>) -> BotMetrics {
+        BotMetrics {
+            bot_id: "b".into(),
+            bot_name: "B".into(),
+            total_actions: total,
+            failed_actions: falhas,
+            success_rate_pct: (total > 0).then(|| (total - falhas) as f64 * 100.0 / total as f64),
+            avg_response_ms: ms,
+        }
     }
 
     #[test]
-    fn test_cost_per_action_zero_actions() {
-        let bot = BotMetrics {
-            bot_id: "test".into(),
-            bot_name: "Test".into(),
-            total_tokens: 0,
-            estimated_cost_usd: 0.0,
-            success_rate_pct: 0.0,
-            avg_response_ms: 0,
-            total_actions: 0,
-            failed_actions: 0,
-            alerts: vec![],
-        };
-        assert_eq!(bot.cost_per_action(), 0.0);
+    fn resposta_do_gateway_com_nulos() {
+        let r: FleetResp = serde_json::from_str(
+            r#"{"since":"2026-11-20T10:00:00Z","bots":[
+                {"bot_id":"vigia","bot_name":"Vigia","total_actions":0,"failed_actions":0,"success_rate_pct":null,"avg_response_ms":null},
+                {"bot_id":"arq","bot_name":"Arq","total_actions":4,"failed_actions":1,"success_rate_pct":75.0,"avg_response_ms":120}
+            ]}"#,
+        )
+        .unwrap();
+        assert_eq!(r.bots[0].success_rate_pct, None);
+        assert_eq!(pct(r.bots[0].success_rate_pct), "—");
+        assert_eq!(pct(r.bots[1].success_rate_pct), "75.0%");
+        assert_eq!(ms(r.bots[1].avg_response_ms), "120 ms");
     }
 
     #[test]
-    fn test_has_alerts() {
-        let no_alerts = BotMetrics {
-            bot_id: "test".into(),
-            bot_name: "Test".into(),
-            total_tokens: 0,
-            estimated_cost_usd: 0.0,
-            success_rate_pct: 0.0,
-            avg_response_ms: 0,
-            total_actions: 0,
-            failed_actions: 0,
-            alerts: vec![],
-        };
-        assert!(!no_alerts.has_alerts());
-
-        let with_alerts = BotMetrics {
-            alerts: vec!["alert".into()],
-            ..no_alerts.clone()
-        };
-        assert!(with_alerts.has_alerts());
+    fn totais_somam_e_ponderam_a_latencia() {
+        let t = somar(&[bot(4, 1, Some(100)), bot(6, 0, Some(200)), bot(0, 0, None)]);
+        assert_eq!(t.acoes, 10);
+        assert_eq!(t.falhas, 1);
+        assert_eq!(t.sucesso_pct, Some(90.0));
+        // (4*100 + 6*200) / 10
+        assert_eq!(t.latencia_ms, Some(160));
+        assert_eq!(somar(&[]).sucesso_pct, None);
+        assert_eq!(somar(&[bot(0, 0, None)]).latencia_ms, None);
     }
 
     #[test]
-    fn test_period_labels() {
-        assert_eq!(AuditPeriod::Last24h.label(), "24h");
-        assert_eq!(AuditPeriod::Last7d.label(), "7 dias");
-        assert_eq!(AuditPeriod::Last30d.label(), "30 dias");
+    fn alerta_so_com_perguntas_suficientes_e_taxa_baixa() {
+        assert!(bot(10, 5, Some(1)).alerts()[0].contains("50.0%"));
+        assert!(
+            bot(4, 4, Some(1)).alerts().is_empty(),
+            "poucas perguntas: sem alerta"
+        );
+        assert!(
+            bot(10, 1, Some(1)).alerts().is_empty(),
+            "90% está acima do limite"
+        );
+        assert!(bot(0, 0, None).alerts().is_empty());
     }
 
     #[test]
-    fn test_bot_metrics_serialization() {
-        let bot = BotMetrics {
-            bot_id: "bot-1".into(),
-            bot_name: "Test Bot".into(),
-            total_tokens: 50000,
-            estimated_cost_usd: 1.25,
-            success_rate_pct: 95.0,
-            avg_response_ms: 800,
-            total_actions: 100,
-            failed_actions: 5,
-            alerts: vec!["test alert".into()],
-        };
-        let json = serde_json::to_string(&bot).unwrap();
-        assert!(json.contains("Test Bot"));
-        assert!(json.contains("test alert"));
+    fn separador_de_milhar() {
+        assert_eq!(format_with_commas(999), "999");
+        assert_eq!(format_with_commas(1_234_567), "1,234,567");
     }
 }
