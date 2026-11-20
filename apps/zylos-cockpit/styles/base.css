@@ -1604,3 +1604,126 @@ body {
   border: 0; background: transparent; color: var(--color-status-error); font: inherit;
   font-size: var(--text-xs); cursor: pointer; min-height: 32px; padding: 0 var(--space-2);
 }
+
+/* ── Chat (ChatPanel): bots | conversa | detalhes. Escopado em .cockpit-layout para não colidir com a sidebar do shell. ── */
+.cockpit-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) 220px;
+  gap: var(--space-4);
+  min-height: 60vh;
+  align-items: stretch;
+}
+.cockpit-layout > .cockpit-sidebar,
+.cockpit-layout > .cockpit-context {
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-secondary);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-self: start;
+}
+.cockpit-layout > .cockpit-main {
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-secondary);
+  gap: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+.cockpit-layout .sidebar-header,
+.cockpit-layout .context-header {
+  display: flex; align-items: center; gap: var(--space-2);
+  font-weight: 600; font-size: var(--text-sm);
+}
+.cockpit-layout .sidebar-section { display: flex; flex-direction: column; gap: var(--space-1); }
+.cockpit-layout .sidebar-section-title,
+.cockpit-layout .context-section-title {
+  font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--color-text-tertiary);
+}
+.cockpit-layout .sidebar-item {
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
+  text-align: left;
+}
+.cockpit-layout .sidebar-item:focus-visible { outline: 2px solid var(--color-accent-primary); outline-offset: 2px; }
+.cockpit-layout .sidebar-avatar {
+  position: relative; flex: 0 0 auto;
+  width: 32px; height: 32px; border-radius: var(--radius-full);
+  display: grid; place-items: center;
+  background: var(--color-bg-tertiary); color: var(--color-text-primary);
+  font-size: var(--text-xs); font-weight: 600;
+}
+.cockpit-layout .sidebar-avatar .status-dot { position: absolute; right: -1px; bottom: -1px; border: 2px solid var(--color-bg-secondary); box-sizing: content-box; }
+.cockpit-layout .sidebar-item.active .sidebar-avatar { background: color-mix(in oklch, var(--color-on-accent) 20%, transparent); color: inherit; }
+.cockpit-layout .sidebar-item-info { min-width: 0; display: flex; flex-direction: column; }
+.cockpit-layout .sidebar-item-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
+.cockpit-layout .sidebar-item-meta { font-size: var(--text-xs); opacity: 0.7; }
+
+.cockpit-layout .chat-header {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border-default);
+  font-size: var(--text-sm);
+}
+.cockpit-layout .chat-messages {
+  flex: 1; min-height: 280px; max-height: 60vh; overflow-y: auto;
+  padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3);
+}
+.cockpit-layout .empty-state { margin: auto; text-align: center; display: flex; flex-direction: column; align-items: center; gap: var(--space-2); }
+.cockpit-layout .empty-state-text { font-size: var(--text-sm); color: var(--color-text-secondary); max-width: 40ch; overflow-wrap: anywhere; }
+.cockpit-layout .message { display: flex; flex-direction: column; gap: var(--space-1); max-width: 85%; }
+.cockpit-layout .message.user { align-self: flex-end; align-items: flex-end; }
+.cockpit-layout .message.agent, .cockpit-layout .message.system { align-self: flex-start; }
+.cockpit-layout .message-header { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-xs); color: var(--color-text-tertiary); }
+.cockpit-layout .message-avatar {
+  width: 20px; height: 20px; border-radius: var(--radius-full); display: grid; place-items: center;
+  background: var(--color-bg-tertiary); font-size: 10px; font-weight: 600;
+}
+.cockpit-layout .message-bubble {
+  padding: var(--space-2) var(--space-3); border-radius: var(--radius-lg);
+  background: var(--color-bg-tertiary); font-size: var(--text-sm);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.cockpit-layout .message.user .message-bubble { background: var(--color-accent-primary); color: var(--color-on-accent); }
+.cockpit-layout .message.system .message-bubble { background: transparent; border: 1px dashed var(--color-border-strong); color: var(--color-text-secondary); }
+.cockpit-layout .typing-indicator { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-xs); color: var(--color-text-tertiary); }
+.cockpit-layout .typing-dots { display: flex; gap: 3px; }
+.cockpit-layout .typing-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--color-text-tertiary); animation: typing-pulse 1.2s ease-in-out infinite; }
+.cockpit-layout .typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.cockpit-layout .typing-dot:nth-child(3) { animation-delay: 0.3s; }
+@keyframes typing-pulse { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .cockpit-layout .typing-dot { animation: none; opacity: 0.6; } }
+
+.cockpit-layout .chat-input-area { border-top: 1px solid var(--color-border-default); padding: var(--space-3); }
+.cockpit-layout .chat-input-wrapper { display: flex; gap: var(--space-2); align-items: flex-end; }
+.cockpit-layout .chat-textarea {
+  flex: 1; min-width: 0; resize: none; padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-strong); border-radius: var(--radius-md);
+  background: var(--color-bg-primary); color: var(--color-text-primary); font: inherit; font-size: var(--text-sm);
+}
+.cockpit-layout .chat-textarea:focus-visible { outline: 2px solid var(--color-accent-primary); outline-offset: 1px; }
+.cockpit-layout .chat-send-btn {
+  min-height: 40px; padding: 0 var(--space-4); border: 0; border-radius: var(--radius-md);
+  background: var(--color-accent-hover); color: var(--color-on-accent); font: 500 var(--text-sm) var(--font-family-sans); cursor: pointer;
+}
+.cockpit-layout .chat-send-btn:disabled, .cockpit-layout .chat-textarea:disabled { opacity: 0.5; cursor: not-allowed; }
+.cockpit-layout .chat-send-btn:active:not(:disabled) { transform: scale(0.96); }
+
+.cockpit-layout .context-content { display: flex; flex-direction: column; gap: var(--space-3); }
+.cockpit-layout .context-section { display: flex; flex-direction: column; gap: var(--space-2); }
+.cockpit-layout .context-card { display: flex; flex-direction: column; gap: 2px; padding: var(--space-2) var(--space-3); border: 1px solid var(--color-border-default); border-radius: var(--radius-md); }
+.cockpit-layout .context-label { font-size: var(--text-xs); color: var(--color-text-tertiary); }
+.cockpit-layout .context-value { font-size: var(--text-sm); overflow-wrap: anywhere; }
+
+@media (max-width: 1100px) {
+  .cockpit-layout { grid-template-columns: 200px minmax(0, 1fr); }
+  .cockpit-layout > .cockpit-context { display: none; }
+}
+@media (max-width: 720px) {
+  .cockpit-layout { grid-template-columns: minmax(0, 1fr); }
+  .cockpit-layout > .cockpit-sidebar { align-self: stretch; }
+  .cockpit-layout .chat-messages { max-height: 50vh; }
+}

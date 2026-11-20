@@ -187,7 +187,6 @@ pub fn CollapsibleSidebar(
 
             <div class="sidebar-groups">
                 {SidebarGroup::ALL.iter().map(|&group| {
-                    let i18n = i18n;
                     let tabs = group.tabs();
                     let is_expanded = Signal::derive(move || {
                         group_states.with_value(|m| m.get(&group).copied().unwrap_or(true))

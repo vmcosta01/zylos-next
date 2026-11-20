@@ -170,7 +170,7 @@ impl I18n {
 /// Provide i18n context to component tree
 pub fn provide_i18n(locale: Locale) -> I18n {
     let i18n = I18n::new(locale);
-    provide_context(i18n.clone());
+    provide_context(i18n);
     i18n
 }
 
