@@ -169,7 +169,7 @@ pub fn FileManager() -> impl IntoView {
     if items.is_empty() {
     view! {
     <div class="file-empty">
-    "Nenhum arquivo nesta pasta. Clique em Upload para adicionar."
+    "Nenhum arquivo: o armazenamento de arquivos ainda não está ligado ao gateway."
     </div>
     }.into_any()
     } else {
@@ -208,52 +208,8 @@ pub fn FileManager() -> impl IntoView {
 // === API Function ===
 
 async fn fetch_files() -> Result<Vec<FileInfo>, String> {
-    // Placeholder: arquivos virão do backend quando file storage estiver implementado
-    Ok(vec![
-        FileInfo {
-            id: "file-1".into(),
-            name: "architecture-diagram.png".into(),
-            size_bytes: 245_760,
-            mime_type: "image/png".into(),
-            folder: "root".into(),
-            uploaded_at: "2026-11-11".into(),
-            bot_id: Some("bot-1".into()),
-        },
-        FileInfo {
-            id: "file-2".into(),
-            name: "api-spec.json".into(),
-            size_bytes: 12_340,
-            mime_type: "application/json".into(),
-            folder: "root".into(),
-            uploaded_at: "2026-11-10".into(),
-            bot_id: None,
-        },
-        FileInfo {
-            id: "file-3".into(),
-            name: "meeting-notes.md".into(),
-            size_bytes: 3_456,
-            mime_type: "text/markdown".into(),
-            folder: "docs".into(),
-            uploaded_at: "2026-11-09".into(),
-            bot_id: Some("bot-2".into()),
-        },
-        FileInfo {
-            id: "file-4".into(),
-            name: "backup-2026-11.zip".into(),
-            size_bytes: 52_428_800,
-            mime_type: "application/zip".into(),
-            folder: "backups".into(),
-            uploaded_at: "2026-11-08".into(),
-            bot_id: None,
-        },
-        FileInfo {
-            id: "file-5".into(),
-            name: "demo-recording.mp4".into(),
-            size_bytes: 157_286_400,
-            mime_type: "video/mp4".into(),
-            folder: "media".into(),
-            uploaded_at: "2026-11-07".into(),
-            bot_id: Some("bot-1".into()),
-        },
-    ])
+    // O gateway ainda não guarda arquivos. Antes isto devolvia arquivos de exemplo que pareciam
+    // reais; agora falha e a lista fica vazia.
+    // ATALHO: sem backend de arquivos; gatilho de upgrade: existir `GET /api/v1/files`.
+    Err("armazenamento de arquivos indisponível no gateway".to_string())
 }
