@@ -261,6 +261,7 @@ Mantido da v2.0 com as mudanças de [DESIGN_SYSTEM_v2.1.md §6.8](./DESIGN_SYSTE
 | Painel Computador inline | **Feito** como cartão no chat; WS e lease funcionam. Frames reais e latência não testados |
 | Endpoint de lease | **Já existia** (`/computer-view/sessions/:id/control`), mas as rotas `{id}` do axum 0.7 respondiam 404; corrigido |
 | Spaces e Rail de Spaces | **Feitos**: `GET/POST /spaces`, `PUT/DELETE /spaces/:id`, Rail na sidebar, filtro por agente. **Conversas e memória por Space também**: threads têm `space_id` (`GET /threads?space=`, `POST /threads {space_id}`); o chat guarda uma conversa por (Space, bot) e a recarrega; notas de memória em `GET/POST /memory/entries`, `DELETE /memory/entries/:key` (namespace `space:<id>`, banco `ZYLOS_MEMORY_DB`). O Geral enxerga tudo |
+| Falha do agente no SSE | **Feita**: quando o bot falha por provedor, chave ou rede, o gateway publica `AgentStateChanged` com `new_state = "error"` e o cockpit mostra o toast. Erro de entrada (bot inexistente, pergunta inválida) não avisa; o motivo é o título curto, nunca o detalhe |
 | "Resolvido por você e pelos agentes" | **Parcial**: "Resolvido por regras" (`GET /approvals/handled`) com **Revogar regra**; sem `Desfazer` (a ação já foi liberada) |
 | Redirecionamento 302 das rotas antigas | **Não feito**: o cockpit navega por estado, não por rotas de URL |
 | Mapeamento dos 40+ componentes às telas novas | Parcial: as 34 abas antigas continuam na sidebar |
@@ -272,6 +273,8 @@ Mantido da v2.0 com as mudanças de [DESIGN_SYSTEM_v2.1.md §6.8](./DESIGN_SYSTE
 3. `/approvals/resolve` ficou de fora de `rota_admin` (qualquer papel aprovava).
 4. O cockpit enviava a decisão `escalate`, que o backend recusa com 400.
 5. Rotas `{id}` (sintaxe do axum 0.8) no axum 0.7: sessão, screenshot, lease e `/goals/:id` sempre 404.
+7. Triagem lia `/approvals/pending` e `/audit/actions`, que não existem (404 silencioso, painel sempre vazio). Passou a ler `/approvals` e `/approvals/handled`; não há rota de falhas/auditoria, então "Erros" fica vazio até existir.
+8. O envio de mensagem no chat dava panic no wasm (`SystemTime::now()`); e 17 painéis apontavam para `localhost:3000` fixo, inalcançável fora da máquina local.
 6. WebSocket do computador pedido em `/ws/...` quando o gateway monta em `/api/v1/ws/...`, e sem autenticação por `?access_token=`.
 7. `trunk build` falhava: o hook do wasm-opt recebia `$WASM_FILE` literal.
 
