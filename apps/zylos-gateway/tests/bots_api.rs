@@ -137,6 +137,27 @@ async fn pegar(app: &Router, uri: &str) -> (StatusCode, Value) {
 }
 
 #[tokio::test]
+async fn lista_bots_sem_alma() {
+    let (_d, app) = roteador().await;
+    let (st, v) = pegar(&app, "/api/v1/bots").await;
+    assert_eq!(st, StatusCode::OK);
+    let lista = v["bots"].as_array().unwrap();
+    let nomes: Vec<_> = lista.iter().map(|b| b["nome"].as_str().unwrap()).collect();
+    assert_eq!(
+        nomes,
+        ["lerdo", "recusado", "sem-chave", "sem-modelo", "vigia"]
+    );
+    let vigia = lista.iter().find(|b| b["nome"] == "vigia").unwrap();
+    assert_eq!(vigia["provedor"], "falso");
+    assert_eq!(vigia["modelo"], "m");
+    assert_eq!(vigia["problema"], Value::Null);
+    assert!(
+        !v.to_string().contains("Sou o"),
+        "a ALMA.md não pode sair na lista"
+    );
+}
+
+#[tokio::test]
 async fn lista_provedores_e_modelos() {
     let (_d, app) = roteador().await;
     let (st, v) = pegar(&app, "/api/v1/provedores").await;

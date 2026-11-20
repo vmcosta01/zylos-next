@@ -129,7 +129,7 @@ pub fn CollapsibleSidebar(
     let collapsed = RwSignal::new(ls_get_bool("zylos-sidebar-collapsed", false));
 
     // Spring para animar width da sidebar (ADR-007, DESIGN_SYSTEM.md §8).
-    let initial_width = if collapsed.get() { 64.0 } else { 280.0 };
+    let initial_width = if collapsed.get() { 64.0 } else { 248.0 };
     let (sidebar_width, width_spring) = create_spring(initial_width, SpringConfig::UI);
 
     // Estado por grupo: true = expandido, false = colapsado.
@@ -149,7 +149,7 @@ pub fn CollapsibleSidebar(
             collapsed.set(new_val);
             ls_set_bool("zylos-sidebar-collapsed", new_val);
             // Anima width via spring (interruptível, velocity handoff).
-            width_spring.set_target(if new_val { 64.0 } else { 280.0 });
+            width_spring.set_target(if new_val { 64.0 } else { 248.0 });
         }
     };
 
@@ -183,8 +183,13 @@ pub fn CollapsibleSidebar(
 
             <Show when=move || !collapsed.get()>
                 <super::spaces_rail::SpacesRail />
+                <AgentsRail set_active_tab=set_active_tab />
+                <ViewsRail active_tab=active_tab set_active_tab=set_active_tab />
             </Show>
 
+            <Show when=move || !collapsed.get()>
+                <h2 class="rail-title rail-title-all">"Todas as áreas"</h2>
+            </Show>
             <div class="sidebar-groups">
                 {SidebarGroup::ALL.iter().map(|&group| {
                     let tabs = group.tabs();
@@ -241,6 +246,74 @@ pub fn CollapsibleSidebar(
                 }).collect_view()}
             </div>
         </nav>
+    }
+}
+
+/// Agentes do Space ativo (DESIGN_SYSTEM v2.1 §5.1). Escolher um abre o Chat com ele.
+#[component]
+fn AgentsRail(set_active_tab: WriteSignal<Tab>) -> impl IntoView {
+    let Some(chat) = super::chat_panel::use_chat() else {
+        return ().into_any();
+    };
+    let spaces = crate::spaces::use_spaces();
+    view! {
+        <section class="rail-section" aria-label="Agentes">
+            <h2 class="rail-title">"Agentes"</h2>
+            <ul class="rail-list" role="list">
+                {move || chat.bots.get().into_iter()
+                    .filter(|b| spaces.map(|s| s.allows(&b.name)).unwrap_or(true))
+                    .map(|bot| {
+                        let name = bot.name.clone();
+                        let name_click = bot.name.clone();
+                        let current = move || chat.selected_bot.get().as_deref() == Some(name.as_str());
+                        view! {
+                            <li>
+                                <button
+                                    class="rail-item"
+                                    aria-current=move || current().then_some("true")
+                                    on:click=move |_| {
+                                        chat.selected_bot.set(Some(name_click.clone()));
+                                        set_active_tab.set(Tab::Chat);
+                                    }
+                                >
+                                    <span class="avatar" aria-hidden="true">{super::chat_panel::initials(&bot.display_name)}</span>
+                                    <span class="item-label">{bot.display_name.clone()}</span>
+                                    <span class="meta">{bot.provider.clone()}</span>
+                                </button>
+                            </li>
+                        }
+                    })
+                    .collect_view()}
+            </ul>
+        </section>
+    }
+    .into_any()
+}
+
+/// Vistas de uso frequente: Memória, Metas e DAG.
+#[component]
+fn ViewsRail(active_tab: ReadSignal<Tab>, set_active_tab: WriteSignal<Tab>) -> impl IntoView {
+    let i18n = use_i18n();
+    view! {
+        <section class="rail-section" aria-label="Vistas">
+            <h2 class="rail-title">"Vistas"</h2>
+            <ul class="rail-list" role="list">
+                {[Tab::Memory, Tab::Goals, Tab::SwarmDag].into_iter().map(|tab| {
+                    view! {
+                        <li>
+                            <button
+                                class="rail-item"
+                                aria-current=move || (active_tab.get() == tab).then_some("page")
+                                on:click=move |_| set_active_tab.set(tab)
+                            >
+                                <i class=format!("ph ph-{}", tab_icon(tab)) aria-hidden="true"></i>
+                                <span class="item-label">{move || i18n.t(tab.i18n_key())}</span>
+                            </button>
+                        </li>
+                    }
+                }).collect_view()}
+            </ul>
+        </section>
     }
 }
 

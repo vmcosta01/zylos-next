@@ -72,7 +72,7 @@ pub use translucent_header::{GatewayStatus, TranslucentHeader};
 pub use agent_awareness_panel::AgentAwarenessPanel;
 #[allow(unused_imports)]
 pub use agent_card::{AgentCard, AgentInfo, AgentStatus};
-pub use chat_panel::ChatPanel;
+pub use chat_panel::{provide_chat, ChatPanel};
 pub use employee_governance_panel::EmployeeGovernancePanel;
 pub use evidence_ledger_panel::EvidenceLedgerPanel;
 pub use extra_host::{ExtraHost, SpaceScopedHost};

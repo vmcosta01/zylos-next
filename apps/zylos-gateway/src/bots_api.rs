@@ -60,6 +60,7 @@ pub fn create_bots_router_with_bus(cfg: Config, bus: Option<zylos_live_comm::Eve
         allow_dns_resolution: true,
     });
     Router::new()
+        .route("/bots", get(get_bots))
         .route("/bots/:nome/perguntar", post(post_perguntar))
         .route("/provedores", get(get_provedores))
         .route("/provedores/:nome/modelos", get(get_modelos))
@@ -209,6 +210,19 @@ fn avisa_falha(st: &BotsState, nome: &str, e: &ErroPensar) {
             tracing::warn!(error = %err, "falha ao publicar AgentStateChanged");
         }
     });
+}
+
+/// `GET /api/v1/bots` — os bots da pasta de bots (nome, provedor, modelo; nunca a `ALMA.md`).
+async fn get_bots(State(st): State<BotsState>) -> Response {
+    let pasta = st.cfg.pasta_bots.clone();
+    // Lê o disco fora do executor async.
+    match tokio::task::spawn_blocking(move || zylos_pensar::bots::listar(&pasta)).await {
+        Ok(bots) => Json(serde_json::json!({ "bots": bots })).into_response(),
+        Err(_) => problema(
+            &ErroPensar::Rede("leitura da pasta de bots falhou".into()),
+            "/api/v1/bots".into(),
+        ),
+    }
 }
 
 /// `GET /api/v1/provedores` — fichas + se a chave de cada uma está pronta (nunca o valor).
