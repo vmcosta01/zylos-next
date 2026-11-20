@@ -32,6 +32,7 @@ pub mod phase2_integration;
 pub mod rate_limit;
 pub mod reactions_api;
 pub mod relay_api;
+pub mod remote_input;
 pub mod security_headers;
 pub mod sentinel_api;
 pub mod sentinel_runtime;
@@ -311,9 +312,33 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
         channels_store,
     ));
     // O mesmo relay serve o WebSocket do cockpit e a rota onde o agente empurra frames.
-    let relay_state = webrtc_relay::WebRtcRelayState::new();
-    let computer_view_handle =
-        computer_view_api::ComputerViewHandle::new().with_relay(relay_state.clone());
+    let computer_view_base = computer_view_api::ComputerViewHandle::new();
+    #[cfg_attr(not(feature = "input-injection"), allow(unused_mut))]
+    let mut relay_state = webrtc_relay::WebRtcRelayState::new();
+    // Entrada remota (cliques e teclas): desligada por padrão; ver `remote_input` para as travas.
+    if remote_input::ligada_por_env() {
+        #[cfg(feature = "input-injection")]
+        match remote_input::InjetorReal::novo() {
+            Ok(injetor) => {
+                tracing::warn!(
+                    "entrada remota LIGADA ({}=1): quem assume o controle de uma sessão move o mouse e digita neste computador",
+                    remote_input::ENTRADA_ENV
+                );
+                relay_state =
+                    relay_state.with_entrada(std::sync::Arc::new(remote_input::Entrada::new(
+                        std::sync::Arc::new(injetor),
+                        computer_view_base.manager.clone(),
+                    )));
+            }
+            Err(e) => tracing::error!(error = %e, "entrada remota pedida, mas o injetor não subiu"),
+        }
+        #[cfg(not(feature = "input-injection"))]
+        tracing::error!(
+            "{}=1, mas este gateway foi compilado sem `--features input-injection`: a entrada remota continua desligada",
+            remote_input::ENTRADA_ENV
+        );
+    }
+    let computer_view_handle = computer_view_base.with_relay(relay_state.clone());
     // Opt-in: fotografa o monitor deste computador para quem assiste uma sessão local.
     if computer_view_api::captura_local_ligada() {
         computer_view_api::spawn_captura_local(

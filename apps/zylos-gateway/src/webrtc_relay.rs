@@ -74,6 +74,8 @@ pub struct WebRtcRelayState {
     pub sessions: Arc<DashMap<String, broadcast::Sender<RelayServerMsg>>>,
     /// F15: limite máximo de sessões simultâneas.
     pub max_sessions: usize,
+    /// Entrada remota (cliques e teclas). `None` = desligada: o relay só repassa imagem.
+    pub entrada: Option<Arc<crate::remote_input::Entrada>>,
 }
 
 impl WebRtcRelayState {
@@ -86,7 +88,14 @@ impl WebRtcRelayState {
         Self {
             sessions: Arc::new(DashMap::new()),
             max_sessions,
+            entrada: None,
         }
+    }
+
+    /// Liga a entrada remota (já com as travas de `remote_input`).
+    pub fn with_entrada(mut self, entrada: Arc<crate::remote_input::Entrada>) -> Self {
+        self.entrada = Some(entrada);
+        self
     }
 
     /// Obtém ou cria um canal de broadcast para a sessão.
@@ -194,6 +203,28 @@ async fn ws_computer_view(
         .into_response()
 }
 
+/// Evita repetir o mesmo aviso a cada evento (uma sequência de teclas recusadas gera um aviso só).
+#[derive(Default)]
+struct Avisos {
+    ultimo: Option<String>,
+}
+
+impl Avisos {
+    fn avisar(&mut self, tx: &broadcast::Sender<RelayServerMsg>, texto: String) {
+        if self.ultimo.as_deref() != Some(texto.as_str()) {
+            let _ = tx.send(RelayServerMsg::Error {
+                message: texto.clone(),
+            });
+            self.ultimo = Some(texto);
+        }
+    }
+
+    /// Um evento aceito: o próximo problema volta a ser avisado.
+    fn limpar(&mut self) {
+        self.ultimo = None;
+    }
+}
+
 /// Gerencia conexão WebSocket individual: lê comandos do cliente e envia frames.
 async fn handle_ws_socket(
     socket: axum::extract::ws::WebSocket,
@@ -235,7 +266,10 @@ async fn handle_ws_socket(
 
     // Task para ler mensagens do cliente (controle/ping)
     let session_id_for_recv = session_id.clone();
+    let entrada = state.entrada.clone();
     let recv_task = tokio::spawn(async move {
+        let mut limite = crate::remote_input::LimiteDeTaxa::new();
+        let mut avisos = Avisos::default();
         while let Some(Ok(msg)) = stream.next().await {
             match msg {
                 Message::Text(text) => {
@@ -243,13 +277,38 @@ async fn handle_ws_socket(
                         match client_msg {
                             RelayClientMsg::Click { x, y, button } => {
                                 info!(session_id = %session_id_for_recv, x, y, button = %button, "Remote click received");
-                                // TODO: Encaminhar para o agente via computer-view control API
+                                if !limite.permite() {
+                                    avisos.avisar(&tx, "Eventos demais por segundo".into());
+                                } else if let Some(e) = &entrada {
+                                    match e.clique(&session_id_for_recv, x, y, &button) {
+                                        Ok(()) => avisos.limpar(),
+                                        Err(r) => avisos.avisar(&tx, r.texto()),
+                                    }
+                                } else {
+                                    avisos.avisar(
+                                        &tx,
+                                        "Entrada remota desligada neste gateway".into(),
+                                    );
+                                }
                             }
                             RelayClientMsg::Touch { x, y, action } => {
                                 info!(session_id = %session_id_for_recv, x, y, action = %action, "Remote touch received");
                             }
                             RelayClientMsg::Key { code, pressed } => {
                                 info!(session_id = %session_id_for_recv, code = %code, pressed, "Remote key received");
+                                if !limite.permite() {
+                                    avisos.avisar(&tx, "Eventos demais por segundo".into());
+                                } else if let Some(e) = &entrada {
+                                    match e.tecla(&session_id_for_recv, &code, pressed) {
+                                        Ok(()) => avisos.limpar(),
+                                        Err(r) => avisos.avisar(&tx, r.texto()),
+                                    }
+                                } else {
+                                    avisos.avisar(
+                                        &tx,
+                                        "Entrada remota desligada neste gateway".into(),
+                                    );
+                                }
                             }
                             RelayClientMsg::Ping { ts } => {
                                 let latency = now_millis().saturating_sub(ts);
