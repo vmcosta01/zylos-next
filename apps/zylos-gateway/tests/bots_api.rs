@@ -158,6 +158,46 @@ async fn lista_bots_sem_alma() {
 }
 
 #[tokio::test]
+async fn estado_do_bot_acompanha_a_pergunta_em_andamento() {
+    let (_d, app) = roteador().await;
+    let estado = |v: &Value, nome: &str| {
+        v["bots"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|b| b["nome"] == nome)
+            .unwrap()["estado"]
+            .clone()
+    };
+    let (_, v) = pegar(&app, "/api/v1/bots").await;
+    assert_eq!(estado(&v, "lerdo"), "ocioso");
+
+    // O provedor "lento" demora 5 s e o tempo limite é 1 s: dá uma janela para ver o estado.
+    let app2 = app.clone();
+    let em_andamento =
+        tokio::spawn(async move { perguntar(&app2, "lerdo", r#"{"pergunta":"oi"}"#).await });
+    let mut visto = false;
+    for _ in 0..40 {
+        let (_, v) = pegar(&app, "/api/v1/bots").await;
+        if estado(&v, "lerdo") == "trabalhando" {
+            assert_eq!(estado(&v, "vigia"), "ocioso", "só o bot que pensa trabalha");
+            visto = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+    assert!(visto, "o bot lerdo nunca apareceu como trabalhando");
+
+    em_andamento.await.unwrap();
+    let (_, v) = pegar(&app, "/api/v1/bots").await;
+    assert_eq!(
+        estado(&v, "lerdo"),
+        "ocioso",
+        "terminou (com erro): volta a ocioso"
+    );
+}
+
+#[tokio::test]
 async fn lista_provedores_e_modelos() {
     let (_d, app) = roteador().await;
     let (st, v) = pegar(&app, "/api/v1/provedores").await;

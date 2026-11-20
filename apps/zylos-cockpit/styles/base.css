@@ -1918,3 +1918,7 @@ body {
 }
 @media (hover: hover) and (pointer: fine) { .triage-item-action:hover { background: var(--color-bg-tertiary); } }
 .triage-empty { padding: 12px var(--space-4); border-top: 1px solid var(--color-border-default); font-size: var(--text-sm); color: var(--color-text-tertiary); }
+
+/* Estado do agente: o texto "trabalhando" diz o estado; a cor só reforça */
+.rail-item .meta-working { color: var(--color-status-success); font-weight: 560; }
+.rail-item .meta-working::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: var(--radius-full); background: currentColor; vertical-align: 1px; }

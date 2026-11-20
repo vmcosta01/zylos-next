@@ -69,6 +69,9 @@ pub struct BotEntry {
     pub name: String,
     pub display_name: String,
     pub provider: String,
+    /// O bot está respondendo uma pergunta agora (`estado = "trabalhando"` no gateway).
+    #[serde(default)]
+    pub working: bool,
 }
 
 /// Resposta de `GET /api/v1/bots`.
@@ -82,6 +85,9 @@ struct BotInfo {
     nome: String,
     provedor: Option<String>,
     problema: Option<String>,
+    /// `trabalhando` ou `ocioso`; ausente em gateway antigo (vira ocioso).
+    #[serde(default)]
+    estado: Option<String>,
 }
 
 /// Bots que podem responder: os com `problema` (sem ALMA.md, sem provedor...) ficam de fora.
@@ -94,6 +100,7 @@ fn bots_prontos(r: BotsResp) -> Vec<BotEntry> {
                 display_name: b.nome.clone(),
                 name: b.nome,
                 provider: b.provedor?,
+                working: b.estado.as_deref() == Some("trabalhando"),
             })
         })
         .collect()
@@ -134,9 +141,23 @@ pub fn provide_chat() -> ChatCtx {
                 .set(Some(crate::ui_error::report("bots", &e))),
         }
         ctx.bots_loading.set(false);
+        // ATALHO: sondagem a cada BOTS_POLL_SECS (o gateway não empurra o estado do bot); o
+        // gatilho de upgrade é publicar `AgentStateChanged` running/idle e assinar o SSE.
+        // Falha na sondagem mantém a lista anterior, sem acender o erro da tela.
+        loop {
+            gloo_timers::future::sleep(std::time::Duration::from_secs(BOTS_POLL_SECS)).await;
+            if let Ok(list) = fetch_bots().await {
+                if ctx.bots.get_untracked() != list {
+                    ctx.bots.set(list);
+                }
+            }
+        }
     });
     ctx
 }
+
+/// De quanto em quanto tempo o cockpit relê a lista de bots (para o estado trabalhando/ocioso).
+const BOTS_POLL_SECS: u64 = 5;
 
 /// Contexto do chat, se o app o criou.
 pub fn use_chat() -> Option<ChatCtx> {
@@ -611,5 +632,20 @@ mod testes_bots {
         assert_eq!(l.len(), 1);
         assert_eq!(l[0].name, "vigia");
         assert_eq!(l[0].provider, "nvidia");
+        assert!(!l[0].working, "gateway antigo (sem estado) = ocioso");
+    }
+
+    #[test]
+    fn estado_trabalhando_vira_working() {
+        let r: BotsResp = serde_json::from_str(
+            r#"{"bots":[
+                {"nome":"vigia","provedor":"nvidia","modelo":"m","problema":null,"estado":"trabalhando"},
+                {"nome":"arq","provedor":"openai","modelo":"m","problema":null,"estado":"ocioso"}
+            ]}"#,
+        )
+        .unwrap();
+        let l = bots_prontos(r);
+        assert!(l[0].working);
+        assert!(!l[1].working);
     }
 }
