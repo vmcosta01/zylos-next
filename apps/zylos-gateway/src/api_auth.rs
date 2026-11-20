@@ -66,6 +66,17 @@ fn aceita_token_na_query(path: &str) -> bool {
 
 /// Rotas de decisão humana: exigem papel admin. Retorna o campo de autoria do corpo.
 pub fn rota_admin(method: &Method, path: &str) -> Option<&'static str> {
+    // Assumir (POST) e liberar (DELETE) o controle de um computador remoto: só admin, e o dono da
+    // concessão é SEMPRE o `sub` do token (o `user_id` do corpo é sobrescrito). É esse `sub` que a
+    // entrada remota compara a cada clique e tecla.
+    if (method == Method::POST || method == Method::DELETE)
+        && path
+            .strip_prefix("/api/v1/computer-view/sessions/")
+            .and_then(|r| r.strip_suffix("/control"))
+            .is_some_and(|id| !id.is_empty() && !id.contains('/'))
+    {
+        return Some("user_id");
+    }
     if method != Method::POST {
         return None;
     }
@@ -369,6 +380,30 @@ mod tests {
         ));
         assert_eq!(
             rota_admin(&Method::POST, "/api/v1/sentinel/remediations/a/b/approve"),
+            None
+        );
+    }
+    #[test]
+    fn assumir_e_liberar_controle_sao_de_admin_e_o_dono_vem_do_token() {
+        let c = "/api/v1/computer-view/sessions/abc/control";
+        assert_eq!(rota_admin(&Method::POST, c), Some("user_id"));
+        assert_eq!(rota_admin(&Method::DELETE, c), Some("user_id"));
+        // Só o caminho exato: leitura da sessão, frames, screenshot e outras sessões não pedem admin.
+        assert_eq!(rota_admin(&Method::GET, c), None);
+        assert_eq!(
+            rota_admin(&Method::POST, "/api/v1/computer-view/sessions/abc"),
+            None
+        );
+        assert_eq!(
+            rota_admin(&Method::POST, "/api/v1/computer-view/sessions/abc/frame"),
+            None
+        );
+        assert_eq!(
+            rota_admin(&Method::POST, "/api/v1/computer-view/sessions//control"),
+            None
+        );
+        assert_eq!(
+            rota_admin(&Method::POST, "/api/v1/computer-view/sessions/a/b/control"),
             None
         );
     }
