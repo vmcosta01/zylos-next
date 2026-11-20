@@ -12,6 +12,7 @@ pub mod computer_view_api;
 pub mod config;
 pub mod crdt_sync;
 pub mod evidence_api;
+pub mod failures_api;
 pub mod goals_api;
 pub mod hermes_api;
 pub mod hermes_desktop_api;
@@ -146,6 +147,31 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
         })
     });
     let spaces = spaces_api::create_spaces_router(spaces_store);
+    // Falhas de agentes: o gravador assina o barramento e guarda o que virou toast (`ZYLOS_FAILURES_DB`).
+    let failures_store = tokio::task::block_in_place(|| {
+        tokio::runtime::Handle::current().block_on(async {
+            let path = std::env::var("ZYLOS_FAILURES_DB")
+                .unwrap_or_else(|_| "sqlite:data/failures.db".to_string());
+            if let Some(parent) = std::path::Path::new(path.trim_start_matches("sqlite:")).parent()
+            {
+                if !parent.as_os_str().is_empty() {
+                    let _ = std::fs::create_dir_all(parent);
+                }
+            }
+            retry_locked("failures store", || async {
+                failures_api::FailuresStore::connect(&path)
+                    .await
+                    .map_err(|e| e.to_string())
+            })
+            .await
+        })
+    });
+    if let Err(e) = tokio::task::block_in_place(|| {
+        tokio::runtime::Handle::current().block_on(failures_store.spawn_recorder(&state.event_bus))
+    }) {
+        tracing::warn!(error = %e, "gravador de falhas não iniciou");
+    }
+    let failures = failures_api::create_failures_router(failures_store);
     let sse = create_sse_router(state.event_bus.clone(), approval_store);
     let skills = create_skills_router(state.skills_state.clone());
     // SOAR router needs AppState — resolve it here so it becomes Router<()> for merging
@@ -333,6 +359,7 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
                 .merge(crdt)
                 .merge(approvals)
                 .merge(spaces)
+                .merge(failures)
                 .merge(agents_api::create_agents_router(state.swarm.clone()))
                 .merge(subagents_api::create_subagents_router(state.swarm.clone()))
                 .merge(threads_api::create_threads_router(
