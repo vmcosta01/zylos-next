@@ -7,12 +7,9 @@ stage = "pre_build"
 command = "rustup"
 command_arguments = ["target", "add", "wasm32-unknown-unknown"]
 
-# wasm-opt hook: otimiza o bundle WASM com flags agressivos
-# binaryen version_121 instalado em $LOCALAPPDATA/Temp/binaryen-version_121/bin/
-[[hooks]]
-stage = "post_build"
-command = "C:\\Users\\Paulo\\AppData\\Local\\Temp\\binaryen-version_121\\bin\\wasm-opt.exe"
-command_arguments = ["-Oz", "--strip-debug", "--strip-producers", "$WASM_FILE", "-o", "$WASM_FILE"]
+# O wasm-opt roda pelo próprio Trunk (`data-wasm-opt="z"` no index.html). Um hook post_build com
+# comando do Windows quebrava o build no CI (Linux); o hook antigo ainda passava `$WASM_FILE`
+# literal, que o Trunk não expande.
 
 [tools]
 

@@ -19,6 +19,22 @@ impl Theme {
         }
     }
 
+    /// Valor do atributo `data-theme` lido pelo CSS.
+    pub fn data_theme(&self) -> &'static str {
+        match self {
+            Theme::Dark => "dark",
+            Theme::Light => "light",
+        }
+    }
+
+    /// Ícone Phosphor do tema atual (sol no claro, lua no escuro).
+    pub fn icon(&self) -> &'static str {
+        match self {
+            Theme::Dark => "moon",
+            Theme::Light => "sun",
+        }
+    }
+
     pub fn label(&self) -> &'static str {
         match self {
             Theme::Dark => "🌙",
@@ -34,19 +50,35 @@ impl Theme {
     }
 }
 
-/// Read initial theme from localStorage or default to Dark
+/// Tema do sistema (`prefers-color-scheme`); Claro se não der para perguntar ao navegador.
+fn system_theme() -> Theme {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let dark = web_sys::window()
+            .and_then(|w| w.match_media("(prefers-color-scheme: dark)").ok().flatten())
+            .map(|m| m.matches())
+            .unwrap_or(false);
+        if dark {
+            return Theme::Dark;
+        }
+    }
+    Theme::Light
+}
+
+/// Lê o tema salvo; sem valor salvo, segue o sistema (DESIGN_SYSTEM v2.1 §1).
 fn load_theme() -> Theme {
     if let Some(window) = web_sys::window() {
         if let Ok(Some(storage)) = window.local_storage() {
             if let Ok(Some(value)) = storage.get_item("zylos-theme") {
                 return match value.as_str() {
                     "light" => Theme::Light,
-                    _ => Theme::Dark,
+                    "dark" => Theme::Dark,
+                    _ => system_theme(),
                 };
             }
         }
     }
-    Theme::Dark
+    system_theme()
 }
 
 /// Persist theme to localStorage
@@ -72,6 +104,10 @@ fn apply_theme(theme: Theme) {
                 let _ = class_list.remove_1("theme-dark");
                 let _ = class_list.remove_1("theme-light");
                 let _ = class_list.add_1(theme.css_class());
+            }
+            // Os tokens de cor leem `data-theme` (design-tokens.css); só a classe no body não bastava.
+            if let Some(root) = document.document_element() {
+                let _ = root.set_attribute("data-theme", theme.data_theme());
             }
         }
     }
@@ -127,16 +163,16 @@ pub fn use_theme() -> ThemeContext {
 pub fn ThemeToggle() -> impl IntoView {
     let theme_ctx = use_theme();
     let theme_ctx_click = theme_ctx.clone();
-    let label = move || theme_ctx.theme().get().label().to_string();
+    let icon_class = move || format!("ph ph-{}", theme_ctx.theme().get().icon());
 
     view! {
         <button
             class="theme-toggle"
             on:click=move |_| theme_ctx_click.toggle()
-            aria-label="Toggle theme"
-            title="Toggle dark/light mode"
+            aria-label="Alternar tema claro/escuro"
+            title="Alternar tema claro/escuro"
         >
-            {label}
+            <i class=icon_class aria-hidden="true"></i>
         </button>
     }
 }
@@ -161,5 +197,7 @@ mod tests {
     fn test_theme_labels() {
         assert_eq!(Theme::Dark.label(), "🌙");
         assert_eq!(Theme::Light.label(), "☀️");
+        assert_eq!(Theme::Light.icon(), "sun");
+        assert_eq!(Theme::Dark.data_theme(), "dark");
     }
 }

@@ -320,7 +320,7 @@ pub fn AgentAvatarsGrid() -> impl IntoView {
     view! {
         <div class="agent-avatars-panel">
             <div class="agent-avatars-header">
-                <h3 class="agent-avatars-title">"👥 Equipe de Agentes"</h3>
+                <h3 class="agent-avatars-title"><i class="ph ph-users-three" aria-hidden="true"></i>" Equipe de Agentes"</h3>
                 <span class="agent-avatars-count">
                     {move || format!("{} agentes", agents.get().len())}
                 </span>

@@ -33,6 +33,7 @@ pub mod security_headers;
 pub mod sentinel_api;
 pub mod sentinel_runtime;
 pub mod soar_api;
+pub mod spaces_api;
 pub mod subagents_api;
 pub mod threads_api;
 pub mod webrtc_relay;
@@ -71,6 +72,27 @@ pub struct ApiHandles {
     pub evidence: evidence_api::EvidenceHandle,
 }
 
+/// Abre um banco SQLite tentando de novo quando outro processo/teste segura o lock
+/// (`database is locked`). Para em erro de outra natureza ou após ~3 s.
+async fn retry_locked<T, F, Fut>(what: &str, mut open: F) -> T
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<T, String>>,
+{
+    let mut last = String::new();
+    for attempt in 0..15 {
+        match open().await {
+            Ok(v) => return v,
+            Err(e) if e.contains("database is locked") => {
+                last = e;
+                tokio::time::sleep(std::time::Duration::from_millis(50 * (attempt + 1))).await;
+            }
+            Err(e) => panic!("failed to open {what}: {e}"),
+        }
+    }
+    panic!("failed to open {what}: {last}");
+}
+
 /// Build the consolidated API gateway router
 pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
     // Sub-routers that consume their own state internally return Router<()>
@@ -87,14 +109,43 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
                     let _ = std::fs::create_dir_all(parent);
                 }
             }
-            zylos_approval::ApprovalStore::connect(&path)
-                .await
-                .expect("failed to connect approvals store")
+            // Vários gateways/testes abrindo o mesmo arquivo juntos disputam o lock da troca para
+            // WAL e da migração ("database is locked"): tenta de novo antes de desistir.
+            retry_locked("approvals store", || async {
+                let store = zylos_approval::ApprovalStore::connect(&path)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                // Banco novo não tem a tabela: sem isto, criar/listar/resolver davam 500.
+                store.run_migrations().await.map_err(|e| e.to_string())?;
+                Ok(store)
+            })
+            .await
         })
     }));
-    let approvals = approvals_api::create_approvals_router(approvals_api::ApprovalsState::new(
-        approval_sqlite_store,
-    ));
+    let approvals = approvals_api::create_approvals_router(
+        approvals_api::ApprovalsState::new(approval_sqlite_store)
+            .with_event_bus(state.event_bus.clone()),
+    );
+    // Spaces: grupos de agentes que filtram Inbox e chat no cockpit (banco próprio, `ZYLOS_SPACES_DB`).
+    let spaces_store = tokio::task::block_in_place(|| {
+        tokio::runtime::Handle::current().block_on(async {
+            let path = std::env::var("ZYLOS_SPACES_DB")
+                .unwrap_or_else(|_| "sqlite:data/spaces.db".to_string());
+            if let Some(parent) = std::path::Path::new(path.trim_start_matches("sqlite:")).parent()
+            {
+                if !parent.as_os_str().is_empty() {
+                    let _ = std::fs::create_dir_all(parent);
+                }
+            }
+            retry_locked("spaces store", || async {
+                spaces_api::SpacesStore::connect(&path)
+                    .await
+                    .map_err(|e| e.to_string())
+            })
+            .await
+        })
+    });
+    let spaces = spaces_api::create_spaces_router(spaces_store);
     let sse = create_sse_router(state.event_bus.clone(), approval_store);
     let skills = create_skills_router(state.skills_state.clone());
     // SOAR router needs AppState — resolve it here so it becomes Router<()> for merging
@@ -114,7 +165,10 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
         .with_state(state.clone());
     let hermes_employee =
         hermes_employee_api::create_hermes_employee_router().with_state(state.clone());
-    let bots = bots_api::create_bots_router(zylos_pensar::Config::do_ambiente());
+    let bots = bots_api::create_bots_router_with_bus(
+        zylos_pensar::Config::do_ambiente(),
+        Some(state.event_bus.clone()),
+    );
 
     // Dedicated API routers with Send+Sync handles
     let goals = goals_api::create_goals_router(handles.goals);
@@ -123,9 +177,12 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
     let sentinel = sentinel_api::create_sentinel_router(handles.sentinel);
     let evidence = evidence_api::create_evidence_router(handles.evidence);
     // Fase 11.7: runtime do Sentinel (métricas → regras → gate HITL → SOAR/Axiom)
-    let sentinel_rt = std::sync::Arc::new(sentinel_runtime::SentinelRuntime::from_env(Box::new(
-        sentinel_runtime::OrchestratorForwarder(state.soar_orchestrator.clone()),
-    )));
+    let sentinel_rt = std::sync::Arc::new(
+        sentinel_runtime::SentinelRuntime::from_env(Box::new(
+            sentinel_runtime::OrchestratorForwarder(state.soar_orchestrator.clone()),
+        ))
+        .with_event_bus(state.event_bus.clone()),
+    );
     sentinel_rt.spawn_loop(sentinel_runtime::tick_interval_from_env());
     let sentinel_runtime_routes =
         sentinel_runtime::create_sentinel_runtime_router(sentinel_rt.clone());
@@ -275,6 +332,7 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
                 .merge(analytics)
                 .merge(crdt)
                 .merge(approvals)
+                .merge(spaces)
                 .merge(agents_api::create_agents_router(state.swarm.clone()))
                 .merge(subagents_api::create_subagents_router(state.swarm.clone()))
                 .merge(threads_api::create_threads_router(
@@ -311,6 +369,7 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
                 .allow_methods([
                     Method::GET,
                     Method::POST,
+                    Method::PUT,
                     Method::PATCH,
                     Method::DELETE,
                     Method::OPTIONS,

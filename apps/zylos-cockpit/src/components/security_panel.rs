@@ -21,7 +21,7 @@ pub struct SecurityState {
 }
 
 async fn fetch_json(url: &str) -> Result<serde_json::Value, String> {
-    let full_url = format!("http://localhost:3000{}", url);
+    let full_url = crate::gateway_http::api_url(url)?;
     let resp = crate::auth::authed(gloo_net::http::Request::get(&full_url))
         .send()
         .await
@@ -99,7 +99,7 @@ pub fn SecurityPanel() -> impl IntoView {
 
     view! {
         <div class="security-panel p-4 space-y-4">
-            <h2 class="text-xl font-bold text-[var(--foreground)]">"🛡️ Security Dashboard"</h2>
+            <h2 class="text-xl font-bold text-[var(--foreground)]"><i class="ph ph-shield-check" aria-hidden="true"></i>" Security Dashboard"</h2>
 
             {move || {
                 if loading.get() {

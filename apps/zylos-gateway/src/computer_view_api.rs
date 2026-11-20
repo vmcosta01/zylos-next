@@ -213,15 +213,15 @@ pub fn create_computer_view_router(handle: ComputerViewHandle) -> Router {
             get(list_sessions).post(create_session),
         )
         .route(
-            "/computer-view/sessions/{id}",
+            "/computer-view/sessions/:id",
             get(get_session).delete(terminate_session),
         )
         .route(
-            "/computer-view/sessions/{id}/control",
+            "/computer-view/sessions/:id/control",
             post(take_control).delete(release_control),
         )
         .route(
-            "/computer-view/sessions/{id}/screenshot",
+            "/computer-view/sessions/:id/screenshot",
             get(get_screenshot),
         )
         .with_state(handle)
@@ -261,5 +261,80 @@ mod tests {
 
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    // Regressão: no axum 0.7 `{id}` é texto literal; as rotas por sessão respondiam sempre 404
+    // (o teste "not_found" acima passava por esse motivo errado).
+    async fn create(app: &Router) -> String {
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::post("/computer-view/sessions")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"bot_id":"backend"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::CREATED);
+        let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20)
+            .await
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        v["session"]["id"].as_str().unwrap().to_string()
+    }
+
+    #[tokio::test]
+    async fn rotas_por_sessao_encontram_a_sessao_criada() {
+        let app = test_app();
+        let id = create(&app).await;
+
+        let get = app
+            .clone()
+            .oneshot(
+                Request::get(format!("/computer-view/sessions/{id}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(get.status(), StatusCode::OK);
+
+        let take = app
+            .clone()
+            .oneshot(
+                Request::post(format!("/computer-view/sessions/{id}/control"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"user_id":"victor"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        // Sessão recém-criada ainda está "connecting": o domínio responde 409, não 404.
+        assert_ne!(take.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn screenshot_e_listagem_apontam_para_a_mesma_rota() {
+        let app = test_app();
+        let id = create(&app).await;
+        let list = app
+            .clone()
+            .oneshot(
+                Request::get("/computer-view/sessions")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let bytes = axum::body::to_bytes(list.into_body(), 1 << 20)
+            .await
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let url = v["sessions"][0]["screenshot_url"].as_str().unwrap();
+        assert_eq!(
+            url,
+            format!("/api/v1/computer-view/sessions/{id}/screenshot")
+        );
     }
 }

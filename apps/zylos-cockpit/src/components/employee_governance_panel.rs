@@ -30,7 +30,7 @@ pub struct RoleEntry {
 }
 
 async fn fetch_json(url: &str) -> Result<serde_json::Value, String> {
-    let full_url = format!("http://localhost:3000{}", url);
+    let full_url = crate::gateway_http::api_url(url)?;
     let resp = crate::auth::authed(gloo_net::http::Request::get(&full_url))
         .send()
         .await
@@ -99,7 +99,7 @@ pub fn EmployeeGovernancePanel() -> impl IntoView {
 
     view! {
         <div class="employee-governance-panel p-4 space-y-4">
-            <h2 class="text-xl font-bold text-[var(--foreground)]">"👥 Employee Governance"</h2>
+            <h2 class="text-xl font-bold text-[var(--foreground)]"><i class="ph ph-users-three" aria-hidden="true"></i>" Employee Governance"</h2>
 
             {move || {
                 if loading.get() {
@@ -139,11 +139,11 @@ pub fn EmployeeGovernancePanel() -> impl IntoView {
                                         <div class="text-lg font-bold">{s.pending_plans}</div>
                                     </div>
                                     <div class="p-2 rounded bg-[var(--color-success)] bg-opacity-20">
-                                        <div class="text-xs text-[var(--muted-foreground)]">"✅ Approved"</div>
+                                        <div class="text-xs text-[var(--muted-foreground)]"><i class="ph ph-check-circle" aria-hidden="true"></i>" Approved"</div>
                                         <div class="text-lg font-bold">{s.approved_plans}</div>
                                     </div>
                                     <div class="p-2 rounded bg-[var(--color-error)] bg-opacity-20">
-                                        <div class="text-xs text-[var(--muted-foreground)]">"❌ Rejected"</div>
+                                        <div class="text-xs text-[var(--muted-foreground)]"><i class="ph ph-x-circle" aria-hidden="true"></i>" Rejected"</div>
                                         <div class="text-lg font-bold">{s.rejected_plans}</div>
                                     </div>
                                 </div>
@@ -152,13 +152,13 @@ pub fn EmployeeGovernancePanel() -> impl IntoView {
                             // Rate limiter + routines summary
                             <div class="grid grid-cols-2 gap-3">
                                 <div class="p-3 rounded border border-[var(--border)] bg-[var(--card)]">
-                                    <div class="text-sm text-[var(--muted-foreground)]">"🚦 Rate Limited"</div>
+                                    <div class="text-sm text-[var(--muted-foreground)]"><i class="ph ph-traffic-signal" aria-hidden="true"></i>" Rate Limited"</div>
                                     <div class="text-2xl font-bold text-[var(--foreground)]">
                                         {s.rate_limited_employees}
                                     </div>
                                 </div>
                                 <div class="p-3 rounded border border-[var(--border)] bg-[var(--card)]">
-                                    <div class="text-sm text-[var(--muted-foreground)]">"📋 Total Routines"</div>
+                                    <div class="text-sm text-[var(--muted-foreground)]"><i class="ph ph-clipboard-text" aria-hidden="true"></i>" Total Routines"</div>
                                     <div class="text-2xl font-bold text-[var(--foreground)]">
                                         {s.total_routines}
                                     </div>

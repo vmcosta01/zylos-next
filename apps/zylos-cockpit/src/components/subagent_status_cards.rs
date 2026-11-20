@@ -175,9 +175,9 @@ pub fn SubagentStatusCards() -> impl IntoView {
     view! {
         <div class="subagent-cards-panel">
             <div class="subagent-panel-header">
-                <h3 class="subagent-panel-title">"🤖 Subagentes"</h3>
+                <h3 class="subagent-panel-title"><i class="ph ph-robot" aria-hidden="true"></i>" Subagentes"</h3>
                 <button class="subagent-refresh-btn" on:click=move |_| load() title="Atualizar">
-                    "🔄"
+                    <i class="ph ph-arrows-clockwise" aria-hidden="true"></i>
                 </button>
             </div>
 

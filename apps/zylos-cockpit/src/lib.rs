@@ -25,6 +25,13 @@ pub mod app {
 }
 
 /// Componentes do cockpit — expostos publicamente para testes E2E e integração.
+pub mod approvals_sync;
+
+pub mod spaces;
+
+/// Conversas dos bots guardadas por Space.
+pub mod chat_store;
+
 pub mod auth;
 
 pub mod components;

@@ -258,7 +258,7 @@ async fn handle_ws_socket(
 /// Cria o router de WebRTC relay.
 pub fn create_webrtc_relay_router(state: WebRtcRelayState) -> Router {
     Router::new()
-        .route("/ws/computer-view/{session_id}", get(ws_computer_view))
+        .route("/ws/computer-view/:session_id", get(ws_computer_view))
         .with_state(state)
 }
 

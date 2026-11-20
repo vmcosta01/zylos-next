@@ -36,7 +36,7 @@ pub fn create_goals_router(handle: GoalsHandle) -> Router {
     Router::new()
         .route("/goals", get(list_goals))
         .route("/goals/stats", get(goals_stats))
-        .route("/goals/{id}", get(get_goal))
+        .route("/goals/:id", get(get_goal))
         .with_state(handle)
 }
 

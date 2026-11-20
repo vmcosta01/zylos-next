@@ -1,0 +1,89 @@
+/* Gerado por scripts/build-icons.py (Phosphor Icons, MIT). Não editar à mão. */
+@font-face {
+  font-family: "Phosphor";
+  src: url("/fonts/phosphor-subset.woff2") format("woff2");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+.ph {
+  font-family: "Phosphor" !important;
+  font-style: normal;
+  font-weight: normal;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: 0;
+  display: inline-block;
+  -webkit-font-smoothing: antialiased;
+}
+.ph-robot::before { content: "\e762"; }
+.ph-check-square::before { content: "\e186"; }
+.ph-brain::before { content: "\e74e"; }
+.ph-target::before { content: "\e47c"; }
+.ph-user-circle::before { content: "\e4c4"; }
+.ph-graph::before { content: "\eb58"; }
+.ph-share-network::before { content: "\e408"; }
+.ph-shield-check::before { content: "\e40c"; }
+.ph-lightning::before { content: "\e2de"; }
+.ph-tree-structure::before { content: "\e67c"; }
+.ph-funnel::before { content: "\e266"; }
+.ph-lock-key::before { content: "\e2fe"; }
+.ph-hand-palm::before { content: "\e57e"; }
+.ph-books::before { content: "\e758"; }
+.ph-eye::before { content: "\e220"; }
+.ph-scales::before { content: "\e750"; }
+.ph-megaphone::before { content: "\e324"; }
+.ph-device-mobile::before { content: "\e1e0"; }
+.ph-chats-circle::before { content: "\e17e"; }
+.ph-chat-teardrop-text::before { content: "\e178"; }
+.ph-smiley::before { content: "\e436"; }
+.ph-toolbox::before { content: "\eca0"; }
+.ph-pencil-simple::before { content: "\e3b4"; }
+.ph-git-branch::before { content: "\e278"; }
+.ph-folder-simple::before { content: "\e25a"; }
+.ph-chart-line-up::before { content: "\e156"; }
+.ph-users-three::before { content: "\e68e"; }
+.ph-scroll::before { content: "\eb7a"; }
+.ph-microphone::before { content: "\e326"; }
+.ph-user-focus::before { content: "\e6fc"; }
+.ph-palette::before { content: "\e6c8"; }
+.ph-buildings::before { content: "\e102"; }
+.ph-globe-hemisphere-west::before { content: "\e28c"; }
+.ph-plugs-connected::before { content: "\eb5a"; }
+.ph-tray::before { content: "\e4aa"; }
+.ph-pulse::before { content: "\e000"; }
+.ph-sun::before { content: "\e472"; }
+.ph-moon::before { content: "\e330"; }
+.ph-circle-half::before { content: "\e18c"; }
+.ph-caret-down::before { content: "\e136"; }
+.ph-caret-right::before { content: "\e13a"; }
+.ph-caret-left::before { content: "\e138"; }
+.ph-x::before { content: "\e4f6"; }
+.ph-check::before { content: "\e182"; }
+.ph-warning-circle::before { content: "\e4e2"; }
+.ph-shield-warning::before { content: "\e412"; }
+.ph-magnifying-glass::before { content: "\e30c"; }
+.ph-plus::before { content: "\e3d4"; }
+.ph-arrows-out-simple::before { content: "\e0a6"; }
+.ph-hand-grabbing::before { content: "\e57c"; }
+.ph-camera::before { content: "\e10e"; }
+.ph-list::before { content: "\e2f0"; }
+.ph-folder::before { content: "\e24a"; }
+.ph-check-circle::before { content: "\e184"; }
+.ph-x-circle::before { content: "\e4f8"; }
+.ph-info::before { content: "\e2ce"; }
+.ph-warning::before { content: "\e4e0"; }
+.ph-clock-counter-clockwise::before { content: "\e1a0"; }
+.ph-file-text::before { content: "\e23a"; }
+.ph-game-controller::before { content: "\e26e"; }
+.ph-hand-waving::before { content: "\e580"; }
+.ph-clipboard-text::before { content: "\e198"; }
+.ph-arrows-clockwise::before { content: "\e094"; }
+.ph-broadcast::before { content: "\e0f2"; }
+.ph-floppy-disk::before { content: "\e248"; }
+.ph-gear::before { content: "\e270"; }
+.ph-question::before { content: "\e3e8"; }
+.ph-sword::before { content: "\e5ba"; }
+.ph-traffic-signal::before { content: "\e9aa"; }
+.ph-upload-simple::before { content: "\e4c0"; }
+.ph-wrench::before { content: "\e5d4"; }

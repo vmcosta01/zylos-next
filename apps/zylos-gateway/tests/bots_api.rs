@@ -7,7 +7,7 @@ use axum::http::{header, Method, Request, StatusCode};
 use axum::{routing::post, Json, Router};
 use serde_json::{json, Value};
 use tower::ServiceExt;
-use zylos_gateway::bots_api::create_bots_router;
+use zylos_gateway::bots_api::create_bots_router_with_bus;
 use zylos_pensar::Config;
 
 const CHAVE: &str = "sk-falsa-gateway-42";
@@ -46,6 +46,10 @@ async fn subir_falso() -> String {
 }
 
 async fn roteador() -> (tempfile::TempDir, Router) {
+    roteador_com_bus(None).await
+}
+
+async fn roteador_com_bus(bus: Option<zylos_live_comm::EventBus>) -> (tempfile::TempDir, Router) {
     let end = subir_falso().await;
     let d = tempfile::tempdir().unwrap();
     let ficha = |nome: &str, caminho: &str, chave: &str| {
@@ -84,7 +88,10 @@ async fn roteador() -> (tempfile::TempDir, Router) {
         provedores_extra: Some(d.path().join("provedores.toml")),
         tempo_limite: Duration::from_secs(1),
     };
-    (d, Router::new().nest("/api/v1", create_bots_router(cfg)))
+    (
+        d,
+        Router::new().nest("/api/v1", create_bots_router_with_bus(cfg, bus)),
+    )
 }
 
 async fn perguntar(app: &Router, nome: &str, corpo: &str) -> (StatusCode, String, Value) {
@@ -225,4 +232,41 @@ async fn cada_erro_tem_seu_status_em_problem_json() {
     );
     let (_, _, v) = perguntar(&app, "recusado", r#"{"pergunta":"oi"}"#).await;
     assert!(v["detail"].as_str().unwrap().contains("bad key ***"), "{v}");
+}
+
+#[tokio::test]
+async fn falha_do_provedor_avisa_o_cockpit_e_erro_de_entrada_nao() {
+    use futures_util::StreamExt;
+    use zylos_live_comm::{EventBus, ZylosEvent};
+
+    let bus = EventBus::new(16, None);
+    let mut rx = bus.subscribe_legacy();
+    let (_d, app) = roteador_com_bus(Some(bus)).await;
+
+    // Bot que não existe: erro do usuário, nenhum aviso.
+    let (st, _, _) = perguntar(&app, "fantasma", r#"{"pergunta":"oi"}"#).await;
+    assert_eq!(st, StatusCode::NOT_FOUND);
+    // Provedor recusou a chave: falha do agente, vira AgentStateChanged.
+    let (st, _, _) = perguntar(&app, "recusado", r#"{"pergunta":"oi"}"#).await;
+    assert_eq!(st, StatusCode::BAD_GATEWAY);
+
+    let env = tokio::time::timeout(Duration::from_secs(2), rx.next())
+        .await
+        .expect("aviso não chegou")
+        .unwrap()
+        .unwrap();
+    match env.payload {
+        ZylosEvent::AgentStateChanged(a) => {
+            assert_eq!(a.agent_id, "recusado");
+            assert_eq!(a.new_state, "error");
+            let motivo = a.reason.unwrap();
+            assert_eq!(motivo, "O provedor recusou");
+            assert!(!motivo.contains(CHAVE), "a chave vazou no aviso");
+        }
+        outro => panic!("evento inesperado: {outro:?}"),
+    }
+    // Só um evento: o do bot inexistente não foi publicado.
+    assert!(tokio::time::timeout(Duration::from_millis(300), rx.next())
+        .await
+        .is_err());
 }

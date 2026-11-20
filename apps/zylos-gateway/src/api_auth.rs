@@ -58,7 +58,10 @@ pub fn rota_publica(path: &str) -> bool {
 
 /// Rotas que aceitam `?access_token=` (navegador não envia cabeçalho).
 fn aceita_token_na_query(path: &str) -> bool {
-    path == "/api/v1/ws" || path == "/api/v1/events" || path.starts_with("/api/v1/crdt/sync/")
+    path == "/api/v1/ws"
+        || path == "/api/v1/events"
+        || path.starts_with("/api/v1/crdt/sync/")
+        || path.starts_with("/api/v1/ws/computer-view/")
 }
 
 /// Rotas de decisão humana: exigem papel admin. Retorna o campo de autoria do corpo.
@@ -66,8 +69,11 @@ pub fn rota_admin(method: &Method, path: &str) -> Option<&'static str> {
     if method != Method::POST {
         return None;
     }
-    if path == "/api/v1/approval/resolve" {
+    if path == "/api/v1/approval/resolve" || path == "/api/v1/approvals/resolve" {
         return Some("resolved_by");
+    }
+    if path == "/api/v1/approvals/rules/revoke" {
+        return Some("revoked_by");
     }
     if let Some(resto) = path.strip_prefix("/api/v1/sentinel/remediations/") {
         let mut partes = resto.split('/');
@@ -343,7 +349,24 @@ mod tests {
             rota_admin(&Method::POST, "/api/v1/sentinel/remediations/a/reject"),
             Some("approver")
         );
+        // A rota que o cockpit usa para decidir também exige admin (sem isso, em modo local
+        // ficaria aberta e, com segredo, aceitaria qualquer papel).
+        assert_eq!(
+            rota_admin(&Method::POST, "/api/v1/approvals/resolve"),
+            Some("resolved_by")
+        );
+        assert_eq!(
+            rota_admin(&Method::POST, "/api/v1/approvals/rules/revoke"),
+            Some("revoked_by")
+        );
         assert_eq!(rota_admin(&Method::GET, "/api/v1/approval/resolve"), None);
+        // O stream do computador do agente (WebSocket) também autentica por ?access_token=.
+        assert!(aceita_token_na_query("/api/v1/ws/computer-view/abc"));
+        assert!(!aceita_token_na_query("/api/v1/computer-view/sessions"));
+        // O screenshot NÃO aceita token na URL (iria para log e histórico): o cockpit baixa com Authorization.
+        assert!(!aceita_token_na_query(
+            "/api/v1/computer-view/sessions/abc/screenshot"
+        ));
         assert_eq!(
             rota_admin(&Method::POST, "/api/v1/sentinel/remediations/a/b/approve"),
             None

@@ -135,10 +135,18 @@ async fn main() -> anyhow::Result<()> {
         .map_err(|e| anyhow::anyhow!("goals init: {}", e))?;
     info!("Goals store initialized (in-memory)");
 
-    let memory_store = MemoryStore::open(":memory:")
+    // Notas por Space precisam sobreviver a reinício: arquivo próprio (`ZYLOS_MEMORY_DB`).
+    let memory_path =
+        std::env::var("ZYLOS_MEMORY_DB").unwrap_or_else(|_| "sqlite:data/memory.db".to_string());
+    if let Some(dir) = std::path::Path::new(memory_path.trim_start_matches("sqlite:")).parent() {
+        if !dir.as_os_str().is_empty() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+    }
+    let memory_store = MemoryStore::open(&memory_path)
         .await
         .map_err(|e| anyhow::anyhow!("memory init: {}", e))?;
-    info!("Memory store initialized (in-memory)");
+    info!("Memory store initialized ({})", memory_path);
 
     let personalities_registry = PersonalityRegistry::open(":memory:")
         .await

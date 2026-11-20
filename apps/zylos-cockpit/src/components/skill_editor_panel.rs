@@ -273,11 +273,9 @@ pub fn SkillEditorPanel() -> impl IntoView {
 
     // Carregar skills do Hermes
     spawn_local(async move {
-        match fetch_json::<serde_json::Value>(
-            "http://localhost:3000/api/v1/hermes/skill-evolution/contracts",
-        )
-        .await
-        {
+        let url = crate::gateway_http::api_url("/api/v1/hermes/skill-evolution/contracts")
+            .unwrap_or_default();
+        match fetch_json::<serde_json::Value>(&url).await {
             Ok(val) => {
                 if let Some(arr) = val.get("contracts").and_then(|v| v.as_array()) {
                     let mapped: Vec<SkillDef> = arr
@@ -407,33 +405,40 @@ pub fn SkillEditorPanel() -> impl IntoView {
                     // Validação local antes de enviar
                     let errs = validate_yaml_preview(&yaml);
                     if !errs.is_empty() {
-                        status.set(Some(format!("❌ Validação falhou: {}", errs[0])));
+                        status.set(Some(format!("Validação falhou: {}", errs[0])));
                         gloo_timers::future::TimeoutFuture::new(3000).await;
                         status.set(None);
                         return;
                     }
 
                     // POST para o endpoint de contratos (não /validate)
-                    match crate::auth::authed(gloo_net::http::Request::post(
-                        "http://localhost:3000/api/v1/hermes/skill-evolution/contracts",
-                    ))
-                    .header("Content-Type", "application/json")
-                    .body(
-                        serde_json::json!({
-                            "name": skill.name,
-                            "description": skill.description,
-                            "category": skill.category,
-                            "yaml": yaml
-                        })
-                        .to_string(),
-                    )
-                    .unwrap_or_else(|_| panic!("invalid body"))
-                    .send()
-                    .await
+                    let post_url = match crate::gateway_http::api_url(
+                        "/api/v1/hermes/skill-evolution/contracts",
+                    ) {
+                        Ok(u) => u,
+                        Err(e) => {
+                            status.set(Some(e));
+                            return;
+                        }
+                    };
+                    match crate::auth::authed(gloo_net::http::Request::post(&post_url))
+                        .header("Content-Type", "application/json")
+                        .body(
+                            serde_json::json!({
+                                "name": skill.name,
+                                "description": skill.description,
+                                "category": skill.category,
+                                "yaml": yaml
+                            })
+                            .to_string(),
+                        )
+                        .unwrap_or_else(|_| panic!("invalid body"))
+                        .send()
+                        .await
                     {
-                        Ok(resp) if resp.ok() => status.set(Some("✅ Salvo com sucesso".into())),
-                        Ok(resp) => status.set(Some(format!("❌ Erro HTTP {}", resp.status()))),
-                        Err(e) => status.set(Some(format!("❌ Falha de conexão: {:?}", e))),
+                        Ok(resp) if resp.ok() => status.set(Some("Salvo com sucesso".into())),
+                        Ok(resp) => status.set(Some(format!("Erro HTTP {}", resp.status()))),
+                        Err(e) => status.set(Some(format!("Falha de conexão: {:?}", e))),
                     }
                     gloo_timers::future::TimeoutFuture::new(3000).await;
                     status.set(None);
@@ -482,7 +487,7 @@ pub fn SkillEditorPanel() -> impl IntoView {
                     <button class="skill-toolbar-btn" on:click=move |_| add_step()>{"+ Add Step"}</button>
                     <button class="skill-toolbar-btn" on:click=move |_| undo()>{"↩ Undo"}</button>
                     <button class="skill-toolbar-btn" on:click=move |_| redo()>{"↪ Redo"}</button>
-                    <button class="skill-toolbar-btn skill-toolbar-btn-primary" on:click=move |_| save_to_backend()>{"💾 Save to Backend"}</button>
+                    <button class="skill-toolbar-btn skill-toolbar-btn-primary" on:click=move |_| save_to_backend()><i class="ph ph-floppy-disk" aria-hidden="true"></i>" Save to Backend"</button>
                     {move || {
                         if let Some(msg) = save_status.get() {
                             view! { <span class="save-status">{msg}</span> }.into_any()
@@ -503,7 +508,7 @@ pub fn SkillEditorPanel() -> impl IntoView {
                     } else if let Some(err) = error_msg.get() {
                         view! {
                             <div class="skill-editor-empty">
-                                <span class="error-icon">{"⚠️"}</span>
+                                <span class="error-icon"><i class="ph ph-warning" aria-hidden="true"></i></span>
                                 <span>{err}</span>
                             </div>
                         }.into_any()

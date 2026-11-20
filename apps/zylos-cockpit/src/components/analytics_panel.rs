@@ -21,7 +21,10 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::Deserialize;
 
-const API: &str = "http://localhost:3000/api/v1";
+/// URL absoluta de `path` (começa com `/analytics/...`) sob `/api/v1` do gateway.
+fn api(path: &str) -> Result<String, String> {
+    crate::gateway_http::api_url(&format!("/api/v1{path}"))
+}
 
 /// Bucket temporal / estatística agregada (espelha `zylos_analytics::Bucket`).
 #[derive(Debug, Clone, PartialEq, Deserialize, Default)]
@@ -186,7 +189,7 @@ fn now_secs() -> i64 {
 }
 
 async fn get_json<T: for<'de> Deserialize<'de>>(path: &str) -> Result<T, String> {
-    let resp = crate::auth::authed(gloo_net::http::Request::get(&format!("{API}{path}")))
+    let resp = crate::auth::authed(gloo_net::http::Request::get(&api(path)?))
         .send()
         .await
         .map_err(|e| format!("{e:?}"))?;
@@ -272,7 +275,8 @@ pub fn AnalyticsPanel() -> impl IntoView {
     let csv_href = move |kind: &str| {
         let f = filters.get();
         format!(
-            "{API}/analytics/export?kind={kind}&format=csv&granularity={}&{}",
+            "{}/analytics/export?kind={kind}&format=csv&granularity={}&{}",
+            api("").unwrap_or_default(),
             f.granularity,
             f.query(now_secs())
         )
@@ -468,7 +472,7 @@ pub fn AnalyticsPanel() -> impl IntoView {
                             .get()
                             .into_iter()
                             .map(|p| {
-                                let base = format!("{API}/analytics/reports/{}", p.id);
+                                let base = format!("{}/analytics/reports/{}", api("").unwrap_or_default(), p.id);
                                 view! {
                                     <li>
                                         {p.title.clone()} " — "

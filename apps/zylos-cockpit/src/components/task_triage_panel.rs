@@ -85,7 +85,7 @@ pub fn TaskTriagePanel() -> impl IntoView {
     view! {
         <div class="triage-panel">
             <div class="triage-header">
-                <h2 class="triage-title">"📋 Triagem de Tarefas"</h2>
+                <h2 class="triage-title"><i class="ph ph-clipboard-text" aria-hidden="true"></i>" Triagem de Tarefas"</h2>
                 <button
                     class="triage-refresh-btn"
                     on:click=move |_| {
@@ -106,7 +106,7 @@ pub fn TaskTriagePanel() -> impl IntoView {
                     }
                     title="Atualizar"
                 >
-                    "🔄"
+                    <i class="ph ph-arrows-clockwise" aria-hidden="true"></i>
                 </button>
             </div>
 
@@ -120,7 +120,7 @@ pub fn TaskTriagePanel() -> impl IntoView {
 
                 TriageState::Error(msg) => view! {
                     <div class="triage-error">
-                        <span>"⚠️ "</span>
+                        <span><i class="ph ph-warning" aria-hidden="true"></i></span>
                         <span>{msg.clone()}</span>
                     </div>
                 }.into_any(),
@@ -137,12 +137,12 @@ pub fn TaskTriagePanel() -> impl IntoView {
                             // Seção 1: Needs You
                             <div class="triage-section triage-section-critical">
                                 <div class="triage-section-header">
-                                    <span class="triage-section-icon">"🔴"</span>
+                                    <span class="triage-section-icon"><i class="ph ph-warning-circle" aria-hidden="true"></i></span>
                                     <span class="triage-section-name">"Precisa de Você"</span>
                                     <span class="triage-section-count">{ny_count}</span>
                                 </div>
                                 {if ny_count == 0 {
-                                    view! { <div class="triage-empty">"Nenhuma ação urgente pendente ✨"</div> }.into_any()
+                                    view! { <div class="triage-empty">"Nenhuma ação urgente pendente"</div> }.into_any()
                                 } else {
                                     view! {
                                         <ul class="triage-list">
@@ -170,12 +170,12 @@ pub fn TaskTriagePanel() -> impl IntoView {
                             // Seção 2: Errors
                             <div class="triage-section triage-section-error">
                                 <div class="triage-section-header">
-                                    <span class="triage-section-icon">"🔵"</span>
+                                    <span class="triage-section-icon"><i class="ph ph-info" aria-hidden="true"></i></span>
                                     <span class="triage-section-name">"Erros"</span>
                                     <span class="triage-section-count">{err_count}</span>
                                 </div>
                                 {if err_count == 0 {
-                                    view! { <div class="triage-empty">"Sem erros recentes 👍"</div> }.into_any()
+                                    view! { <div class="triage-empty">"Sem erros recentes"</div> }.into_any()
                                 } else {
                                     view! {
                                         <ul class="triage-list">
@@ -199,7 +199,7 @@ pub fn TaskTriagePanel() -> impl IntoView {
                             // Seção 3: Can Wait
                             <div class="triage-section triage-section-warning">
                                 <div class="triage-section-header">
-                                    <span class="triage-section-icon">"🟡"</span>
+                                    <span class="triage-section-icon"><i class="ph ph-clock-counter-clockwise" aria-hidden="true"></i></span>
                                     <span class="triage-section-name">"Pode Esperar"</span>
                                     <span class="triage-section-count">{cw_count}</span>
                                 </div>
@@ -231,7 +231,7 @@ pub fn TaskTriagePanel() -> impl IntoView {
                                     class="triage-section-header triage-section-collapsible"
                                     on:click=move |_| done_expanded.update(|v| *v = !*v)
                                 >
-                                    <span class="triage-section-icon">"✅"</span>
+                                    <span class="triage-section-icon"><i class="ph ph-check-circle" aria-hidden="true"></i></span>
                                     <span class="triage-section-name">"Concluídas (24h)"</span>
                                     <span class="triage-section-count">{done_count}</span>
                                     <span class="triage-collapse-indicator">
@@ -278,9 +278,9 @@ fn js_timestamp() -> String {
 
 async fn fetch_needs_you() -> Result<Vec<TriageItem>, String> {
     // Approvals pendentes
-    let resp = crate::auth::authed(gloo_net::http::Request::get(
-        "http://localhost:3000/api/v1/approvals/pending",
-    ))
+    let resp = crate::auth::authed(gloo_net::http::Request::get(&crate::gateway_http::api_url(
+        "/api/v1/approvals",
+    )?))
     .send()
     .await
     .map_err(|e| format!("Network error: {}", e))?;
@@ -298,12 +298,18 @@ async fn fetch_needs_you() -> Result<Vec<TriageItem>, String> {
         created_at: String,
     }
 
-    let approvals: Vec<ApprovalSummary> = resp
+    #[derive(Deserialize)]
+    struct ApprovalsResp {
+        approvals: Vec<ApprovalSummary>,
+    }
+
+    let body: ApprovalsResp = resp
         .json()
         .await
         .map_err(|e| format!("Parse error: {}", e))?;
 
-    Ok(approvals
+    Ok(body
+        .approvals
         .into_iter()
         .map(|a| TriageItem {
             id: format!("approval-{}", a.id),
@@ -318,48 +324,9 @@ async fn fetch_needs_you() -> Result<Vec<TriageItem>, String> {
 }
 
 async fn fetch_errors() -> Result<Vec<TriageItem>, String> {
-    let resp = crate::auth::authed(gloo_net::http::Request::get(
-        "http://localhost:3000/api/v1/audit/actions?approval_status=refused&limit=5",
-    ))
-    .send()
-    .await
-    .map_err(|e| format!("Network error: {}", e))?;
-
-    if !resp.ok() {
-        return Ok(vec![]);
-    }
-
-    #[derive(Deserialize)]
-    struct AuditListResp {
-        entries: Vec<AuditEntrySummary>,
-    }
-    #[derive(Deserialize)]
-    struct AuditEntrySummary {
-        id: String,
-        bot_id: String,
-        action_type: String,
-        result_summary: Option<String>,
-        created_at: String,
-    }
-
-    let body: AuditListResp = resp
-        .json()
-        .await
-        .map_err(|e| format!("Parse error: {}", e))?;
-
-    Ok(body
-        .entries
-        .into_iter()
-        .map(|e| TriageItem {
-            id: format!("error-{}", e.id),
-            title: format!("Falha em {}", e.action_type),
-            description: e.result_summary.or(Some(format!("Bot: {}", e.bot_id))),
-            priority: "high".into(),
-            source: "error".into(),
-            action_url: Some("/audit".into()),
-            created_at: e.created_at,
-        })
-        .collect())
+    // O gateway ainda não expõe uma rota de falhas/auditoria de ações; sem fonte real, não
+    // inventamos itens. Quando existir (ex.: `/audit/actions`), é só ler aqui.
+    Ok(vec![])
 }
 
 async fn fetch_can_wait() -> Result<Vec<TriageItem>, String> {
@@ -369,9 +336,10 @@ async fn fetch_can_wait() -> Result<Vec<TriageItem>, String> {
 }
 
 async fn fetch_done() -> Result<Vec<TriageItem>, String> {
-    let resp = crate::auth::authed(gloo_net::http::Request::get(
-        "http://localhost:3000/api/v1/audit/actions?approval_status=approved&limit=10",
-    ))
+    // Pedidos que uma regra "sempre permitir" resolveu sem perguntar.
+    let resp = crate::auth::authed(gloo_net::http::Request::get(&crate::gateway_http::api_url(
+        "/api/v1/approvals/handled",
+    )?))
     .send()
     .await
     .map_err(|e| format!("Network error: {}", e))?;
@@ -381,32 +349,34 @@ async fn fetch_done() -> Result<Vec<TriageItem>, String> {
     }
 
     #[derive(Deserialize)]
-    struct AuditListResp {
-        entries: Vec<AuditEntrySummary>,
+    struct HandledResp {
+        items: Vec<HandledItem>,
     }
     #[derive(Deserialize)]
-    struct AuditEntrySummary {
+    struct HandledItem {
         id: String,
-        action_type: String,
-        created_at: String,
+        bot_id: String,
+        tool_name: String,
+        summary: String,
+        decided_at: Option<String>,
     }
 
-    let body: AuditListResp = resp
+    let body: HandledResp = resp
         .json()
         .await
         .map_err(|e| format!("Parse error: {}", e))?;
 
     Ok(body
-        .entries
+        .items
         .into_iter()
-        .map(|e| TriageItem {
-            id: format!("done-{}", e.id),
-            title: format!("{} concluído", e.action_type),
-            description: None,
+        .map(|h| TriageItem {
+            id: format!("done-{}", h.id),
+            title: format!("{} resolvido por regra", h.tool_name),
+            description: Some(format!("Bot: {} | {}", h.bot_id, h.summary)),
             priority: "low".into(),
             source: "task".into(),
             action_url: None,
-            created_at: e.created_at,
+            created_at: h.decided_at.unwrap_or_default(),
         })
         .collect())
 }

@@ -121,8 +121,11 @@ async fn fetch_goals_stats() -> Result<GoalsStats, String> {
     let opts = RequestInit::new();
     opts.set_method("GET");
 
-    let request = Request::new_with_str_and_init("http://localhost:3000/api/v1/goals/stats", &opts)
-        .map_err(|e| format!("{:?}", e))?;
+    let request = Request::new_with_str_and_init(
+        &crate::gateway_http::api_url("/api/v1/goals/stats")?,
+        &opts,
+    )
+    .map_err(|e| format!("{:?}", e))?;
 
     crate::auth::authed_web_request(&request);
 

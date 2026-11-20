@@ -104,7 +104,7 @@ pub fn AgentCard(
 
         CardState::Empty => view! {
             <div class="agent-card agent-card-empty">
-                <span class="empty-icon">"🤖"</span>
+                <span class="empty-icon"><i class="ph ph-robot" aria-hidden="true"></i></span>
                 <p>"Nenhum agente"</p>
             </div>
         }
@@ -112,7 +112,7 @@ pub fn AgentCard(
 
         CardState::Error(msg) => view! {
             <div class="agent-card agent-card-error" role="alert">
-                <span class="error-icon">"⚠"</span>
+                <span class="error-icon"><i class="ph ph-warning" aria-hidden="true"></i></span>
                 <p class="error-message">{msg}</p>
                 <button class="cta-retry agent-card-retry">"Tentar novamente"</button>
             </div>
@@ -144,7 +144,7 @@ pub fn AgentCard(
                         }
                     }
                 >
-                    <div class="validation-badge" title=warning.clone()>"⚠"</div>
+                    <div class="validation-badge" title=warning.clone()><i class="ph ph-warning" aria-hidden="true"></i></div>
                     <div class="agent-card-header">
                         <span class="agent-name">{name}</span>
                         <span class={format!("agent-status {}", status_class)}>{status_label}</span>

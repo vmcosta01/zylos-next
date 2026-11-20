@@ -56,6 +56,8 @@ fn pt_br_bundle() -> Bundle {
     m.insert("tab.fleet", "Frota");
     m.insert("tab.federation", "Federação");
     m.insert("tab.chat", "Chat");
+    m.insert("tab.inbox", "Inbox");
+    m.insert("tab.activity", "Activity");
     m.insert("tab.channels", "Canais");
     m.insert("tab.phone_relay", "Phone Relay");
     m.insert("tab.integrations", "Integrações");
@@ -108,6 +110,8 @@ fn en_us_bundle() -> Bundle {
     m.insert("tab.fleet", "Fleet");
     m.insert("tab.federation", "Federation");
     m.insert("tab.chat", "Chat");
+    m.insert("tab.inbox", "Inbox");
+    m.insert("tab.activity", "Activity");
     m.insert("tab.channels", "Channels");
     m.insert("tab.phone_relay", "Phone Relay");
     m.insert("tab.integrations", "Integrations");
@@ -166,7 +170,7 @@ impl I18n {
 /// Provide i18n context to component tree
 pub fn provide_i18n(locale: Locale) -> I18n {
     let i18n = I18n::new(locale);
-    provide_context(i18n.clone());
+    provide_context(i18n);
     i18n
 }
 

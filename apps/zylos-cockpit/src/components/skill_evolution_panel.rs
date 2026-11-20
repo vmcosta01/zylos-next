@@ -24,7 +24,7 @@ pub struct SkillEvolutionState {
 }
 
 async fn fetch_json(url: &str) -> Result<serde_json::Value, String> {
-    let full_url = format!("http://localhost:3000{}", url);
+    let full_url = crate::gateway_http::api_url(url)?;
     let resp = crate::auth::authed(gloo_net::http::Request::get(&full_url))
         .send()
         .await
@@ -105,7 +105,7 @@ pub fn SkillEvolutionPanel() -> impl IntoView {
 
     view! {
         <div class="skill-evolution-panel p-4 space-y-4">
-            <h2 class="text-xl font-bold text-[var(--foreground)]">"🔄 Skill Evolution"</h2>
+            <h2 class="text-xl font-bold text-[var(--foreground)]"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i>" Skill Evolution"</h2>
 
             {move || {
                 if loading.get() {
@@ -121,15 +121,15 @@ pub fn SkillEvolutionPanel() -> impl IntoView {
                                 <h3 class="text-sm font-bold text-[var(--foreground)] mb-2">"Skill Hierarchy ("{s.total_contracts}" contracts)"</h3>
                                 <div class="grid grid-cols-3 gap-2">
                                     <div class="text-center p-2 rounded bg-[var(--accent)] bg-opacity-20">
-                                        <div class="text-xs text-[var(--muted-foreground)]">"🎯 Planning"</div>
+                                        <div class="text-xs text-[var(--muted-foreground)]"><i class="ph ph-target" aria-hidden="true"></i>" Planning"</div>
                                         <div class="text-lg font-bold">{s.planning_tier}</div>
                                     </div>
                                     <div class="text-center p-2 rounded bg-[var(--accent)] bg-opacity-20">
-                                        <div class="text-xs text-[var(--muted-foreground)]">"⚙️ Functional"</div>
+                                        <div class="text-xs text-[var(--muted-foreground)]"><i class="ph ph-gear" aria-hidden="true"></i>" Functional"</div>
                                         <div class="text-lg font-bold">{s.functional_tier}</div>
                                     </div>
                                     <div class="text-center p-2 rounded bg-[var(--accent)] bg-opacity-20">
-                                        <div class="text-xs text-[var(--muted-foreground)]">"🔧 Atomic"</div>
+                                        <div class="text-xs text-[var(--muted-foreground)]"><i class="ph ph-wrench" aria-hidden="true"></i>" Atomic"</div>
                                         <div class="text-lg font-bold">{s.atomic_tier}</div>
                                     </div>
                                 </div>
@@ -173,13 +173,13 @@ pub fn SkillEvolutionPanel() -> impl IntoView {
                                     <div class="flex justify-between">
                                         <span class="text-[var(--muted-foreground)]">"Skill Miner"</span>
                                         <span class={if s.miner_status == "available" { "text-[var(--color-success)]" } else { "text-[var(--color-warning)]" }}>
-                                            {if s.miner_status == "available" { "✅ Available" } else { "⚠️ Unavailable" }}
+                                            {if s.miner_status == "available" { "Available" } else { "Unavailable" }}
                                         </span>
                                     </div>
                                     <div class="flex justify-between">
                                         <span class="text-[var(--muted-foreground)]">"Trajectory Compiler"</span>
                                         <span class={if s.trajectory_status == "available" { "text-[var(--color-success)]" } else { "text-[var(--color-warning)]" }}>
-                                            {if s.trajectory_status == "available" { "✅ Available" } else { "⚠️ Unavailable" }}
+                                            {if s.trajectory_status == "available" { "Available" } else { "Unavailable" }}
                                         </span>
                                     </div>
                                 </div>

@@ -418,7 +418,7 @@ pub fn VoicePanel() -> impl IntoView {
     view! {
         <div class="voice-panel">
             <div class="voice-panel-header">
-                <h3 class="voice-panel-title">"🎙️ Painel de Voz"</h3>
+                <h3 class="voice-panel-title"><i class="ph ph-microphone" aria-hidden="true"></i>" Painel de Voz"</h3>
             </div>
 
             {(!supported).then(|| view! {
@@ -470,7 +470,7 @@ pub fn VoicePanel() -> impl IntoView {
                     disabled=move || !supported || matches!(phase.get(), VoicePhase::Listening | VoicePhase::Processing)
                     title="Iniciar escuta"
                 >
-                    "🎙️ Ouvir"
+                    <i class="ph ph-microphone" aria-hidden="true"></i>" Ouvir"
                 </button>
                 <button
                     class="voice-btn voice-btn-danger"
@@ -490,10 +490,10 @@ pub fn VoicePanel() -> impl IntoView {
                     }
                     title="Mudo"
                 >
-                    {move || if muted.get() { "🔇 Ativar som" } else { "🔊 Mudo" }}
+                    {move || if muted.get() { "Ativar som" } else { "Mudo" }}
                 </button>
                 <button class="voice-btn" on:click=move |_| speed.update(|s| *s = s.next()) title="Velocidade">
-                    {move || format!("⚡ {}", speed.get().label())}
+                    {move || speed.get().label().to_string()}
                 </button>
             </div>
         </div>

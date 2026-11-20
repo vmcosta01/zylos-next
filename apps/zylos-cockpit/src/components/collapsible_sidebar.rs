@@ -46,11 +46,46 @@ impl SidebarGroup {
     pub fn tabs(self) -> &'static [Tab] {
         match self {
             Self::Core => &[Tab::Agents, Tab::Tasks, Tab::Memory, Tab::Goals],
-            Self::Orquestracao => &[Tab::SwarmDag, Tab::SwarmTopology, Tab::Sentinel, Tab::Soar, Tab::Subagents, Tab::TaskTriage],
-            Self::Seguranca => &[Tab::Security, Tab::HitlApproval, Tab::EvidenceLedger, Tab::Awareness, Tab::EmployeeGovernance],
-            Self::Comunicacao => &[Tab::Channels, Tab::PhoneRelay, Tab::Chat, Tab::Threads, Tab::Reactions],
-            Self::Ferramentas => &[Tab::Skills, Tab::SkillEditor, Tab::SkillEvolution, Tab::Files, Tab::Analytics, Tab::Collab, Tab::Logs],
-            Self::Configuracao => &[Tab::Personalities, Tab::Avatars, Tab::Skins, Tab::Fleet, Tab::Federation, Tab::Voice, Tab::Integrations],
+            Self::Orquestracao => &[
+                Tab::SwarmDag,
+                Tab::SwarmTopology,
+                Tab::Sentinel,
+                Tab::Soar,
+                Tab::Subagents,
+                Tab::TaskTriage,
+            ],
+            Self::Seguranca => &[
+                Tab::Security,
+                Tab::HitlApproval,
+                Tab::EvidenceLedger,
+                Tab::Awareness,
+                Tab::EmployeeGovernance,
+            ],
+            Self::Comunicacao => &[
+                Tab::Channels,
+                Tab::PhoneRelay,
+                Tab::Chat,
+                Tab::Threads,
+                Tab::Reactions,
+            ],
+            Self::Ferramentas => &[
+                Tab::Skills,
+                Tab::SkillEditor,
+                Tab::SkillEvolution,
+                Tab::Files,
+                Tab::Analytics,
+                Tab::Collab,
+                Tab::Logs,
+            ],
+            Self::Configuracao => &[
+                Tab::Personalities,
+                Tab::Avatars,
+                Tab::Skins,
+                Tab::Fleet,
+                Tab::Federation,
+                Tab::Voice,
+                Tab::Integrations,
+            ],
         }
     }
 
@@ -142,13 +177,16 @@ pub fn CollapsibleSidebar(
                     aria-label=move || if collapsed.get() { "Expandir sidebar" } else { "Recolher sidebar" }
                     title=move || if collapsed.get() { "Expandir" } else { "Recolher" }
                 >
-                    {move || if collapsed.get() { "☰" } else { "◀" }}
+                    {move || if collapsed.get() { view! { <i class="ph ph-list" aria-hidden="true"></i> } } else { view! { <i class="ph ph-caret-left" aria-hidden="true"></i> } }}
                 </button>
             </div>
 
+            <Show when=move || !collapsed.get()>
+                <super::spaces_rail::SpacesRail />
+            </Show>
+
             <div class="sidebar-groups">
                 {SidebarGroup::ALL.iter().map(|&group| {
-                    let i18n = i18n;
                     let tabs = group.tabs();
                     let is_expanded = Signal::derive(move || {
                         group_states.with_value(|m| m.get(&group).copied().unwrap_or(true))
@@ -164,7 +202,7 @@ pub fn CollapsibleSidebar(
                                 <span class="group-label">{group.label()}</span>
                                 <span class=move || {
                                     if is_expanded.get() { "group-chevron expanded" } else { "group-chevron" }
-                                }>"▾"</span>
+                                }><i class="ph ph-caret-down" aria-hidden="true"></i></span>
                             </button>
                             <Show when=move || is_expanded.get() || collapsed.get()>
                                 <ul class="sidebar-items" role="list">
@@ -190,7 +228,7 @@ pub fn CollapsibleSidebar(
                                                         }
                                                     }
                                                 >
-                                                    <span class="item-icon">{tab_icon(tab)}</span>
+                                                    <span class="item-icon"><i class=format!("ph ph-{}", tab_icon(tab)) aria-hidden="true"></i></span>
                                                     <span class="item-label">{move || i18n.t(tab.i18n_key())}</span>
                                                 </button>
                                             </li>
@@ -206,23 +244,45 @@ pub fn CollapsibleSidebar(
     }
 }
 
-/// Ícone simples por aba (placeholder até Fase 7 com ícones SVG reais).
+/// Ícone Phosphor por aba (nome sem o prefixo `ph-`). Novos nomes entram em
+/// `scripts/build-icons.py`, que gera o subconjunto da fonte servido em `fonts/`.
 fn tab_icon(tab: Tab) -> &'static str {
     match tab {
-        Tab::Agents => "👤",
-        Tab::Tasks => "✓",
-        Tab::Memory => "🧠",
-        Tab::Goals => "🎯",
-        Tab::SwarmDag => "⚡",
-        Tab::Sentinel => "🛡",
-        Tab::Soar => "🔄",
-        Tab::Channels => "📢",
-        Tab::PhoneRelay => "📱",
-        Tab::Chat => "💬",
-        Tab::Threads => "🧵",
-        Tab::Personalities => "🎭",
-        Tab::Skins => "🎨",
-        Tab::Integrations => "⚙️",
-        _ => "•",
+        Tab::Agents => "robot",
+        Tab::Tasks => "check-square",
+        Tab::Memory => "brain",
+        Tab::Goals => "target",
+        Tab::Personalities => "user-circle",
+        Tab::SwarmDag => "graph",
+        Tab::SwarmTopology => "share-network",
+        Tab::Sentinel => "shield-check",
+        Tab::Soar => "lightning",
+        Tab::Subagents => "tree-structure",
+        Tab::TaskTriage => "funnel",
+        Tab::Security => "lock-key",
+        Tab::HitlApproval => "hand-palm",
+        Tab::EvidenceLedger => "books",
+        Tab::Awareness => "eye",
+        Tab::EmployeeGovernance => "scales",
+        Tab::Channels => "megaphone",
+        Tab::PhoneRelay => "device-mobile",
+        Tab::Chat => "chats-circle",
+        Tab::Threads => "chat-teardrop-text",
+        Tab::Reactions => "smiley",
+        Tab::Skills => "toolbox",
+        Tab::SkillEditor => "pencil-simple",
+        Tab::SkillEvolution => "git-branch",
+        Tab::Files => "folder-simple",
+        Tab::Analytics => "chart-line-up",
+        Tab::Collab => "users-three",
+        Tab::Logs => "scroll",
+        Tab::Voice => "microphone",
+        Tab::Avatars => "user-focus",
+        Tab::Skins => "palette",
+        Tab::Fleet => "buildings",
+        Tab::Federation => "globe-hemisphere-west",
+        Tab::Integrations => "plugs-connected",
+        Tab::Inbox => "tray",
+        Tab::Activity => "pulse",
     }
 }

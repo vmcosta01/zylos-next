@@ -43,7 +43,7 @@ pub fn ErrorBoundary(
                 let msg = err_msg.clone();
                 view! {
                     <div class="error-boundary" role="alert">
-                        <div class="error-boundary-icon">"⚠"</div>
+                        <div class="error-boundary-icon"><i class="ph ph-warning" aria-hidden="true"></i></div>
                         <h3 class="error-boundary-title">{title}</h3>
                         <p class="error-boundary-message">{msg}</p>
                         <button class="cta-retry" on:click=on_retry>
