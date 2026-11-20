@@ -279,7 +279,7 @@ fn js_timestamp() -> String {
 async fn fetch_needs_you() -> Result<Vec<TriageItem>, String> {
     // Approvals pendentes
     let resp = crate::auth::authed(gloo_net::http::Request::get(&crate::gateway_http::api_url(
-        "/api/v1/approvals/pending",
+        "/api/v1/approvals",
     )?))
     .send()
     .await
@@ -298,12 +298,18 @@ async fn fetch_needs_you() -> Result<Vec<TriageItem>, String> {
         created_at: String,
     }
 
-    let approvals: Vec<ApprovalSummary> = resp
+    #[derive(Deserialize)]
+    struct ApprovalsResp {
+        approvals: Vec<ApprovalSummary>,
+    }
+
+    let body: ApprovalsResp = resp
         .json()
         .await
         .map_err(|e| format!("Parse error: {}", e))?;
 
-    Ok(approvals
+    Ok(body
+        .approvals
         .into_iter()
         .map(|a| TriageItem {
             id: format!("approval-{}", a.id),
@@ -318,48 +324,9 @@ async fn fetch_needs_you() -> Result<Vec<TriageItem>, String> {
 }
 
 async fn fetch_errors() -> Result<Vec<TriageItem>, String> {
-    let resp = crate::auth::authed(gloo_net::http::Request::get(&crate::gateway_http::api_url(
-        "/api/v1/audit/actions?approval_status=refused&limit=5",
-    )?))
-    .send()
-    .await
-    .map_err(|e| format!("Network error: {}", e))?;
-
-    if !resp.ok() {
-        return Ok(vec![]);
-    }
-
-    #[derive(Deserialize)]
-    struct AuditListResp {
-        entries: Vec<AuditEntrySummary>,
-    }
-    #[derive(Deserialize)]
-    struct AuditEntrySummary {
-        id: String,
-        bot_id: String,
-        action_type: String,
-        result_summary: Option<String>,
-        created_at: String,
-    }
-
-    let body: AuditListResp = resp
-        .json()
-        .await
-        .map_err(|e| format!("Parse error: {}", e))?;
-
-    Ok(body
-        .entries
-        .into_iter()
-        .map(|e| TriageItem {
-            id: format!("error-{}", e.id),
-            title: format!("Falha em {}", e.action_type),
-            description: e.result_summary.or(Some(format!("Bot: {}", e.bot_id))),
-            priority: "high".into(),
-            source: "error".into(),
-            action_url: Some("/audit".into()),
-            created_at: e.created_at,
-        })
-        .collect())
+    // O gateway ainda não expõe uma rota de falhas/auditoria de ações; sem fonte real, não
+    // inventamos itens. Quando existir (ex.: `/audit/actions`), é só ler aqui.
+    Ok(vec![])
 }
 
 async fn fetch_can_wait() -> Result<Vec<TriageItem>, String> {
@@ -369,8 +336,9 @@ async fn fetch_can_wait() -> Result<Vec<TriageItem>, String> {
 }
 
 async fn fetch_done() -> Result<Vec<TriageItem>, String> {
+    // Pedidos que uma regra "sempre permitir" resolveu sem perguntar.
     let resp = crate::auth::authed(gloo_net::http::Request::get(&crate::gateway_http::api_url(
-        "/api/v1/audit/actions?approval_status=approved&limit=10",
+        "/api/v1/approvals/handled",
     )?))
     .send()
     .await
@@ -381,32 +349,34 @@ async fn fetch_done() -> Result<Vec<TriageItem>, String> {
     }
 
     #[derive(Deserialize)]
-    struct AuditListResp {
-        entries: Vec<AuditEntrySummary>,
+    struct HandledResp {
+        items: Vec<HandledItem>,
     }
     #[derive(Deserialize)]
-    struct AuditEntrySummary {
+    struct HandledItem {
         id: String,
-        action_type: String,
-        created_at: String,
+        bot_id: String,
+        tool_name: String,
+        summary: String,
+        decided_at: Option<String>,
     }
 
-    let body: AuditListResp = resp
+    let body: HandledResp = resp
         .json()
         .await
         .map_err(|e| format!("Parse error: {}", e))?;
 
     Ok(body
-        .entries
+        .items
         .into_iter()
-        .map(|e| TriageItem {
-            id: format!("done-{}", e.id),
-            title: format!("{} concluído", e.action_type),
-            description: None,
+        .map(|h| TriageItem {
+            id: format!("done-{}", h.id),
+            title: format!("{} resolvido por regra", h.tool_name),
+            description: Some(format!("Bot: {} | {}", h.bot_id, h.summary)),
             priority: "low".into(),
             source: "task".into(),
             action_url: None,
-            created_at: e.created_at,
+            created_at: h.decided_at.unwrap_or_default(),
         })
         .collect())
 }
