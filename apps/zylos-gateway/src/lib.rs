@@ -139,7 +139,10 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
         .with_state(state.clone());
     let hermes_employee =
         hermes_employee_api::create_hermes_employee_router().with_state(state.clone());
-    let bots = bots_api::create_bots_router(zylos_pensar::Config::do_ambiente());
+    let bots = bots_api::create_bots_router_with_bus(
+        zylos_pensar::Config::do_ambiente(),
+        Some(state.event_bus.clone()),
+    );
 
     // Dedicated API routers with Send+Sync handles
     let goals = goals_api::create_goals_router(handles.goals);

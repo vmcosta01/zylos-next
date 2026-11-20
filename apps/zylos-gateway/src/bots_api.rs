@@ -20,6 +20,9 @@ pub struct BotsState {
     pub cfg: Arc<Config>,
     pub cliente: reqwest::Client,
     pub egress: zylos_agent_shield::network_egress::NetworkEgressFilter,
+    /// Barramento SSE: quando o bot falha por culpa do provedor/chave/rede, o cockpit recebe
+    /// um `AgentStateChanged` com `new_state = "error"`.
+    pub bus: Option<zylos_live_comm::EventBus>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -29,6 +32,11 @@ pub struct PedidoPergunta {
 
 /// Roteador já com estado próprio (vira `Router<()>` para o `.merge`).
 pub fn create_bots_router(cfg: Config) -> Router {
+    create_bots_router_with_bus(cfg, None)
+}
+
+/// Como [`create_bots_router`], publicando falhas do bot no barramento de eventos.
+pub fn create_bots_router_with_bus(cfg: Config, bus: Option<zylos_live_comm::EventBus>) -> Router {
     use zylos_agent_shield::network_egress::{EgressConfig, EgressRule, NetworkEgressFilter};
     let mut rules = std::collections::HashMap::new();
     rules.insert(
@@ -62,6 +70,7 @@ pub fn create_bots_router(cfg: Config) -> Router {
                 .build()
                 .unwrap_or_else(|_| reqwest::Client::new()),
             egress,
+            bus,
         })
 }
 
@@ -166,8 +175,40 @@ async fn post_perguntar(
 ) -> Response {
     match zylos_pensar::perguntar(&st.cfg, &st.cliente, &ambiente, &nome, &pedido.pergunta).await {
         Ok(r) => Json(r).into_response(),
-        Err(e) => problema(&e, format!("/api/v1/bots/{nome}/perguntar")),
+        Err(e) => {
+            avisa_falha(&st, &nome, &e);
+            problema(&e, format!("/api/v1/bots/{nome}/perguntar"))
+        }
     }
+}
+
+/// Erro de entrada do usuário (nome, pergunta, bot ou provedor inexistente/mal configurado)?
+/// Esses não são falha do agente: só chave, provedor e rede viram aviso.
+fn erro_de_entrada(status: StatusCode) -> bool {
+    status == StatusCode::NOT_FOUND || status == StatusCode::UNPROCESSABLE_ENTITY
+}
+
+/// Publica `AgentStateChanged` (`running` → `error`) para o toast do cockpit.
+/// O motivo é o título curto do problema, nunca o detalhe (pode citar chave ou URL).
+fn avisa_falha(st: &BotsState, nome: &str, e: &ErroPensar) {
+    let (status, _, titulo) = status_e_tipo(e);
+    if erro_de_entrada(status) {
+        return;
+    }
+    let Some(bus) = st.bus.clone() else { return };
+    let evento = zylos_live_comm::ZylosEvent::AgentStateChanged(
+        zylos_live_comm::event_types::AgentStateChanged {
+            agent_id: nome.to_string(),
+            previous_state: "running".to_string(),
+            new_state: "error".to_string(),
+            reason: Some(titulo.to_string()),
+        },
+    );
+    tokio::spawn(async move {
+        if let Err(err) = bus.publish("agent.state", evento, 1).await {
+            tracing::warn!(error = %err, "falha ao publicar AgentStateChanged");
+        }
+    });
 }
 
 /// `GET /api/v1/provedores` — fichas + se a chave de cada uma está pronta (nunca o valor).
