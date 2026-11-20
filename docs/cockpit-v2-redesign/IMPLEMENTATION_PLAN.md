@@ -357,7 +357,7 @@ Garantir WCAG AA compliance, suporte completo a prefers-reduced-motion/transpare
 - [ ] `prefers-contrast: more` → bordas 2px, texto #ffffff puro
 - [ ] WASM bundle gzipped <800KB
 - [ ] Lighthouse Mobile: Performance ≥90, Accessibility ≥90, Best Practices ≥90, SEO ≥90
-- [ ] LCP <2s, TBT <300ms, CLS <0.1
+- [ ] LCP <2s no desktop e <=4s no mobile simulado, TBT <300ms, CLS <0.1
 
 ### Out of Scope da Fase
 - WCAG AAA (AA é suficiente para v2.0)

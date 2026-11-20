@@ -1,5 +1,11 @@
 # Lighthouse Mobile Performance — 2026-11-18
 
+> **Correção (2026-11-20):** o resumo abaixo não bate com o JSON salvo ao lado dele
+> (`lighthouse-mobile-2026-11-18.json`: performance 0,87, LCP 1,39 s, TBT 481 ms), e o elemento do
+> LCP ali é o banner de erro estático do `index.html` medido sem gateway, não o app montado. Para o
+> LCP do cockpit já carregado, veja `docs/cockpit-v2-redesign/PERFORMANCE_WASM.md` (mobile
+> simulado 3,5 a 3,9 s). O texto original foi mantido sem alteração.
+
 ## Resumo
 
 | Métrica | Baseline (antes) | Após otimizações | Alvo |

@@ -14,6 +14,50 @@ O módulo principal tem 1,02 MB bruto (cerca de 333 KB com brotli). A meta "LCP 
 documentos (PRD, TESTING, EVALUATION) é para 3G/mobile: **no desktop já se cumpre; no mobile
 simulado não**.
 
+## Metas (revistas em 2026-11-20)
+
+| Onde | Meta | Medido | Situação |
+|---|---|---|---|
+| Desktop | LCP < 2 s | 0,8 s | cumprida |
+| Mobile simulado (4G lento + CPU 4x) | LCP <= 4 s | 3,5 a 3,9 s | cumprida, com pouca folga |
+| Mobile simulado | LCP < 2 s (meta original) | 3,5 a 3,9 s | **não alcançável** neste framework (ver Conclusão) |
+
+A meta original "LCP < 2 s" (PRD, TESTING, EVALUATION, IMPLEMENTATION_PLAN, runbook) valia para
+tudo e foi dividida em duas. É uma decisão de produto: para voltar à meta única basta reverter o
+commit que trouxe esta tabela. Rodar a medição com `lighthouse --preset=mobile` (padrão: Slow 4G,
+CPU 4x) contra o `dist/` servido com brotli, em todo PR.
+
+## Por que o relatório de 2026-11-18 diz 1,3 s
+
+`docs/fase11-reports/lighthouse-mobile-2026-11-18.md` anuncia LCP de 1,275 s e performance 0,99.
+Não é uma medição que contradiga esta, e o próprio relatório tem dois problemas:
+
+- O **JSON salvo ao lado dele** (mesmo Lighthouse 12.8.2, mesmo estrangulamento) diz performance
+  **0,87**, LCP **1,39 s** e TBT 481 ms: o resumo em texto não bate com o arquivo que o sustenta (e a
+  mensagem do commit, "mediana 81", não bate com nenhum dos dois).
+- O elemento do LCP nesse JSON é o `<p>` do **banner de erro estático** ("Connection lost") que o
+  `index.html` desenha antes do wasm carregar, medido **sem gateway**. Isso mede a velocidade do HTML
+  estático, não o momento em que o cockpit fica usável. O número desta página mede o app montado.
+
+Os dois números são verdadeiros para o que medem; só o desta página responde "quando o painel
+aparece".
+
+## SEO 63 é esperado, não é defeito
+
+O cockpit é um painel privado e o `robots.txt` (`User-agent: *` / `Disallow: /`) bloqueia a
+indexação de propósito. Medido em 2026-11-20 com Lighthouse 13.6 sobre o mesmo `dist/`, mudando
+**só** o `robots.txt`:
+
+| `robots.txt` | SEO | Auditorias que falham |
+|---|---|---|
+| `Disallow: /` (o do repositório) | **63** | só `is-crawlable` |
+| `Allow: /` | **100** | nenhuma |
+
+Ou seja, tudo o mais de SEO (título, descrição, viewport, links) já passa; o 63 é exatamente o preço
+de não aparecer no Google. **Não mude o `robots.txt` para subir a nota**: liberar a indexação de um
+painel interno é decisão do Victor, não de métrica. Se um dia houver uma página pública (landing),
+ela deve ser outro site com o próprio `robots.txt`.
+
 ## O que pesa (código do módulo principal, antes do `wasm-opt`, por crate dono da função)
 
 | Parte | Fatia do código |

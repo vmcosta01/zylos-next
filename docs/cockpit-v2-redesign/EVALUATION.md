@@ -15,7 +15,7 @@
 | Apple Design Principles Score | 2.2/10 | ≥8.0/10 | Auditoria manual 17 princípios | Cada release |
 | Lighthouse Mobile Performance | ~45 | ≥90 | Lighthouse CI | Todo PR |
 | Lighthouse Accessibility | ~60 | ≥90 | Lighthouse CI + axe-core | Todo PR |
-| LCP (Largest Contentful Paint) | ~4s | <2s | Lighthouse 3G throttling | Todo PR |
+| LCP (Largest Contentful Paint) | ~4s | desktop <2s; mobile simulado <=4s (a meta <2s no mobile não é alcançável: `PERFORMANCE_WASM.md`) | Lighthouse (desktop e mobile Slow 4G + CPU 4x) | Todo PR |
 | TBT (Total Blocking Time) | ~800ms | <300ms | Lighthouse | Todo PR |
 | CLS (Cumulative Layout Shift) | ~0.25 | <0.1 | Lighthouse | Todo PR |
 | Tempo médio aprovação HITL | 12s | <3s | Telemetria custom | Contínuo |

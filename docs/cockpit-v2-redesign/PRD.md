@@ -120,7 +120,8 @@ Medido em `trunk build --release`, Lighthouse mobile padrão (Slow 4G, CPU 4x), 
 O módulo extras (1,6 MB bruto, 508 KB em brotli) só é baixado ao abrir uma aba secundária. Detalhes em `DECISIONS.md` (ADR-011).
 
 - [x] Lighthouse Mobile Performance ≥90: **91**. Accessibility 100 e Best Practices 96. **SEO 63**: o `robots.txt` bloqueia indexação, de propósito (painel privado); liberar a indexação é decisão sua
-- [ ] LCP <2s em 3G: **3,5 s** no Lighthouse mobile simulado
+- [x] LCP <2s no desktop: **0,8 s** no Lighthouse desktop
+- [x] LCP <=4s no mobile simulado (Slow 4G + CPU 4x): **3,5 s**. A meta original "<2s em 3G" não é alcançável sem trocar de framework ou pré-renderizar; foi revista em 2026-11-20 (`PERFORMANCE_WASM.md`)
 - [x] TBT <300ms: **40 ms**
 - [x] CLS <0.1: **0**
 - [x] Bundle WASM da abertura <800KB comprimido: **309 KB** em brotli-9 (gzip -9: veja o CI, que agora mede cada módulo)

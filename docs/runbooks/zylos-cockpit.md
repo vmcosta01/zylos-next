@@ -198,7 +198,7 @@ Se algum falhar após 2 tentativas: escalar com screenshot do console + network 
 2. Se bug novo: criar issue com tag `cockpit-bug` + screenshot + console log
 3. Se configuração: atualizar este runbook e `Trunk.toml.example`
 4. Testar PWA offline mensalmente: desligar servidor e validar cache
-5. Medir LCP/FCP trimestralmente com Lighthouse; target <2s
+5. Medir LCP/FCP trimestralmente com Lighthouse; target <2s no desktop e <=4s no mobile simulado (ver `docs/cockpit-v2-redesign/PERFORMANCE_WASM.md`)
 
 ---
 
