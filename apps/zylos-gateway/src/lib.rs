@@ -35,6 +35,7 @@ pub mod relay_api;
 pub mod security_headers;
 pub mod sentinel_api;
 pub mod sentinel_runtime;
+pub mod skills_api;
 pub mod soar_api;
 pub mod spaces_api;
 pub mod subagents_api;
@@ -174,6 +175,8 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
         tracing::warn!(error = %e, "gravador de falhas não iniciou");
     }
     let failures = failures_api::create_failures_router(failures_store);
+    // Registro de contratos de skills: pasta `ZYLOS_SKILLS_DIR` (padrão `data/skills`).
+    let skills_registry = skills_api::create_skills_router(skills_api::SkillsState::do_ambiente());
     // Federação: nós de `ZYLOS_FEDERATION_PEERS`, sondados pelo health de cada um.
     let federation =
         federation_api::create_federation_router(federation_api::FederationState::do_ambiente());
@@ -376,6 +379,7 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
                 .merge(approvals)
                 .merge(spaces)
                 .merge(failures)
+                .merge(skills_registry)
                 .merge(federation)
                 .merge(files)
                 .merge(agents_api::create_agents_router(state.swarm.clone()))
