@@ -193,7 +193,11 @@ pub fn AgentAvatar(
     #[prop(default = 48)] size: u32,
 ) -> impl IntoView {
     let color = agent.division.color().to_string();
-    let initials = agent.division.initials().to_string();
+    let initials = match &agent.division {
+        // Agente real (divisão personalizada): as iniciais do nome, não "??".
+        AgentDivision::Custom(_) => iniciais_do_nome(&agent.name),
+        outra => outra.initials().to_string(),
+    };
     let name = agent.name.clone();
     let division_label = agent.division.label();
     let status = agent.status.clone();
@@ -230,92 +234,23 @@ pub fn AgentAvatar(
 /// Grid de avatares de todos os agentes
 #[component]
 pub fn AgentAvatarsGrid() -> impl IntoView {
-    let agents = RwSignal::new(vec![
-        AgentAvatarInfo {
-            id: "agent-1".into(),
-            name: "Code Builder".into(),
-            division: AgentDivision::Engineering,
-            status: "online".into(),
-            current_task: Some("Implementando approval gates".into()),
-        },
-        AgentAvatarInfo {
-            id: "agent-2".into(),
-            name: "Shield Guard".into(),
-            division: AgentDivision::Security,
-            status: "online".into(),
-            current_task: Some("Verificando egress rules".into()),
-        },
-        AgentAvatarInfo {
-            id: "agent-3".into(),
-            name: "Pipeline Runner".into(),
-            division: AgentDivision::DevOps,
-            status: "busy".into(),
-            current_task: Some("Deploy staging".into()),
-        },
-        AgentAvatarInfo {
-            id: "agent-4".into(),
-            name: "Data Analyst".into(),
-            division: AgentDivision::Data,
-            status: "online".into(),
-            current_task: None,
-        },
-        AgentAvatarInfo {
-            id: "agent-5".into(),
-            name: "UI Designer".into(),
-            division: AgentDivision::Design,
-            status: "away".into(),
-            current_task: None,
-        },
-        AgentAvatarInfo {
-            id: "agent-6".into(),
-            name: "Product Owner".into(),
-            division: AgentDivision::Product,
-            status: "online".into(),
-            current_task: Some("Revisando backlog".into()),
-        },
-        AgentAvatarInfo {
-            id: "agent-7".into(),
-            name: "Test Runner".into(),
-            division: AgentDivision::QA,
-            status: "busy".into(),
-            current_task: Some("Executando E2E tests".into()),
-        },
-        AgentAvatarInfo {
-            id: "agent-8".into(),
-            name: "Deep Researcher".into(),
-            division: AgentDivision::Research,
-            status: "online".into(),
-            current_task: Some("Analisando competitors".into()),
-        },
-        AgentAvatarInfo {
-            id: "agent-9".into(),
-            name: "Help Desk".into(),
-            division: AgentDivision::Support,
-            status: "offline".into(),
-            current_task: None,
-        },
-        AgentAvatarInfo {
-            id: "agent-10".into(),
-            name: "Budget Tracker".into(),
-            division: AgentDivision::Finance,
-            status: "online".into(),
-            current_task: None,
-        },
-        AgentAvatarInfo {
-            id: "agent-11".into(),
-            name: "Contract Reviewer".into(),
-            division: AgentDivision::Legal,
-            status: "away".into(),
-            current_task: None,
-        },
-        AgentAvatarInfo {
-            id: "agent-12".into(),
-            name: "People Ops".into(),
-            division: AgentDivision::HR,
-            status: "online".into(),
-            current_task: None,
-        },
-    ]);
+    let agents = RwSignal::new(Vec::<AgentAvatarInfo>::new());
+    let loading = RwSignal::new(true);
+    let erro = RwSignal::new(None::<String>);
+
+    Effect::new(move |_| {
+        leptos::task::spawn_local(async move {
+            loading.set(true);
+            match carregar_agentes().await {
+                Ok(lista) => {
+                    agents.set(lista);
+                    erro.set(None);
+                }
+                Err(e) => erro.set(Some(crate::ui_error::report("avatares", &e))),
+            }
+            loading.set(false);
+        });
+    });
 
     view! {
         <div class="agent-avatars-panel">
@@ -325,6 +260,12 @@ pub fn AgentAvatarsGrid() -> impl IntoView {
                     {move || format!("{} agentes", agents.get().len())}
                 </span>
             </div>
+
+            {move || erro.get().map(|e| view! { <div class="agent-avatars-empty" role="alert">{e}</div> })}
+            {move || (loading.get()).then(|| view! { <div class="agent-avatars-empty">"Carregando agentes..."</div> })}
+            {move || (!loading.get() && erro.get().is_none() && agents.get().is_empty()).then(|| view! {
+                <div class="agent-avatars-empty">"Nenhum agente: crie um bot na pasta de bots do gateway ou registre um agente no swarm."</div>
+            })}
 
             <div class="agent-avatars-grid">
                 <For
@@ -338,24 +279,140 @@ pub fn AgentAvatarsGrid() -> impl IntoView {
                 />
             </div>
 
-            // Legenda de divisões
-            <div class="agent-division-legend">
-                <span class="legend-item"><span class="legend-dot" style="background: var(--role-engineering)"></span>"Engenharia"</span>
-                <span class="legend-item"><span class="legend-dot" style="background: var(--role-security)"></span>"Segurança"</span>
-                <span class="legend-item"><span class="legend-dot" style="background: var(--role-devops)"></span>"DevOps"</span>
-                <span class="legend-item"><span class="legend-dot" style="background: var(--role-data)"></span>"Dados"</span>
-                <span class="legend-item"><span class="legend-dot" style="background: var(--role-design)"></span>"Design"</span>
-                <span class="legend-item"><span class="legend-dot" style="background: var(--role-product)"></span>"Produto"</span>
-                <span class="legend-item"><span class="legend-dot" style="background: var(--role-qa)"></span>"QA"</span>
-                <span class="legend-item"><span class="legend-dot" style="background: var(--role-research)"></span>"Pesquisa"</span>
-            </div>
         </div>
     }
+}
+
+/// Até duas letras do nome, em maiúsculas (`Bot Lento` -> `BL`, `vigia` -> `VI`).
+pub fn iniciais_do_nome(nome: &str) -> String {
+    let palavras: Vec<&str> = nome.split_whitespace().collect();
+    let letras: String = if palavras.len() >= 2 {
+        palavras
+            .iter()
+            .take(2)
+            .filter_map(|p| p.chars().next())
+            .collect()
+    } else {
+        nome.chars().take(2).collect()
+    };
+    letras.to_uppercase()
+}
+
+#[derive(Debug, Deserialize)]
+struct BotsResp {
+    bots: Vec<BotLinha>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BotLinha {
+    nome: String,
+    provedor: Option<String>,
+    #[serde(default)]
+    nome_exibicao: Option<String>,
+    problema: Option<String>,
+    #[serde(default)]
+    estado: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SwarmResp {
+    agents: Vec<SwarmLinha>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SwarmLinha {
+    id: String,
+    name: String,
+    status: String,
+}
+
+/// Os agentes de verdade: bots da pasta de bots (sem os que têm problema) e agentes registrados
+/// no swarm. O estado "ocupado" só vem de `estado = trabalhando` (bot) ou `running` (swarm).
+fn agentes_reais(bots: BotsResp, swarm: Option<SwarmResp>) -> Vec<AgentAvatarInfo> {
+    let mut lista: Vec<AgentAvatarInfo> = bots
+        .bots
+        .into_iter()
+        .filter(|b| b.problema.is_none())
+        .map(|b| {
+            let trabalhando = b.estado.as_deref() == Some("trabalhando");
+            AgentAvatarInfo {
+                id: format!("bot-{}", b.nome),
+                name: b.nome_exibicao.unwrap_or(b.nome),
+                division: AgentDivision::Custom(b.provedor.unwrap_or_else(|| "bot".into())),
+                status: if trabalhando { "busy" } else { "online" }.into(),
+                current_task: trabalhando.then(|| "Respondendo uma pergunta".to_string()),
+            }
+        })
+        .collect();
+    for a in swarm.map(|s| s.agents).unwrap_or_default() {
+        let ocupado = a.status == "running";
+        lista.push(AgentAvatarInfo {
+            id: format!("swarm-{}", a.id),
+            name: a.name,
+            division: AgentDivision::Custom("swarm".into()),
+            status: match a.status.as_str() {
+                "running" => "busy",
+                "archived" => "offline",
+                _ => "online",
+            }
+            .into(),
+            current_task: ocupado.then(|| "Executando uma tarefa".to_string()),
+        });
+    }
+    lista
+}
+
+async fn carregar_agentes() -> Result<Vec<AgentAvatarInfo>, String> {
+    let bots: BotsResp = crate::gateway_http::get_json("/api/v1/bots").await?;
+    // O swarm é opcional: sem ele (ou com erro) a lista só tem os bots.
+    let swarm: Option<SwarmResp> = crate::gateway_http::get_json("/api/v1/agents").await.ok();
+    Ok(agentes_reais(bots, swarm))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn iniciais_do_nome_de_um_ou_mais_palavras() {
+        assert_eq!(iniciais_do_nome("Bot Lento"), "BL");
+        assert_eq!(iniciais_do_nome("vigia"), "VI");
+        assert_eq!(iniciais_do_nome("x"), "X");
+        assert_eq!(iniciais_do_nome("  Agente   alfa  "), "AA");
+    }
+
+    #[test]
+    fn agentes_reais_vem_de_bots_e_swarm_sem_inventar_tarefa() {
+        let bots: BotsResp = serde_json::from_str(
+            r#"{"bots":[
+                {"nome":"vigia","provedor":"nvidia","nome_exibicao":"Vigia da Noite","problema":null,"estado":"trabalhando"},
+                {"nome":"arq","provedor":"openai","problema":null,"estado":"ocioso"},
+                {"nome":"quebrado","provedor":null,"problema":"falta ALMA.md"}
+            ]}"#,
+        )
+        .unwrap();
+        let swarm: SwarmResp = serde_json::from_str(
+            r#"{"agents":[{"id":"a1","name":"Agente A","status":"running"},{"id":"a2","name":"Agente B","status":"idle"}]}"#,
+        )
+        .unwrap();
+        let l = agentes_reais(bots, Some(swarm));
+        let nomes: Vec<_> = l.iter().map(|a| a.name.as_str()).collect();
+        assert_eq!(nomes, ["Vigia da Noite", "arq", "Agente A", "Agente B"]);
+        assert_eq!(l[0].status, "busy");
+        assert_eq!(
+            l[0].current_task.as_deref(),
+            Some("Respondendo uma pergunta")
+        );
+        assert_eq!(l[1].status, "online");
+        assert_eq!(l[1].current_task, None, "ocioso: nenhuma tarefa inventada");
+        assert_eq!(l[2].status, "busy");
+        assert_eq!(l[3].current_task, None);
+        // Sem swarm (rota indisponível): só os bots.
+        let so_bots: BotsResp =
+            serde_json::from_str(r#"{"bots":[{"nome":"a","provedor":"x","problema":null}]}"#)
+                .unwrap();
+        assert_eq!(agentes_reais(so_bots, None).len(), 1);
+    }
 
     #[test]
     fn test_all_divisions_have_unique_colors() {
