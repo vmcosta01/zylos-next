@@ -437,7 +437,7 @@ pub fn VncStream(
                                       &req,
                                   ).await {
                                       Ok(_) => ctrl.set(true),
-                                      Err(e) => err.set(Some(format!("Take control failed: {e}"))),
+                                      Err(e) => err.set(Some(erro_de_controle(&e))),
                                   }
                               });
                           }>
@@ -472,6 +472,17 @@ pub fn VncStream(
     }
 }
 
+/// Texto para a tela quando "Assumir controle" falha. O gateway responde 409 se a sessão ainda não
+/// está ativa (nenhum frame chegou) ou se outra pessoa já está no controle.
+fn erro_de_controle(e: &str) -> String {
+    if e.contains("409") {
+        "Não deu para assumir o controle: a sessão ainda não está ativa (nenhum quadro chegou) ou outra pessoa já está no controle."
+            .to_string()
+    } else {
+        format!("Não deu para assumir o controle: {e}")
+    }
+}
+
 /// Mensagem de texto do relay do gateway: `{"type":"frame","data":"<base64>",...}`.
 #[derive(Deserialize)]
 struct TextoFrame {
@@ -501,6 +512,15 @@ fn blob_from_base64(b64: &str) -> Option<Blob> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn erro_de_controle_explica_o_409() {
+        assert!(erro_de_controle("HTTP 409").contains("ainda não está ativa"));
+        assert_eq!(
+            erro_de_controle("HTTP 500"),
+            "Não deu para assumir o controle: HTTP 500"
+        );
+    }
 
     #[test]
     fn frame_de_texto_do_relay_vira_base64() {

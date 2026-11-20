@@ -20,7 +20,17 @@ async fn finish<T: DeserializeOwned>(resp: Response) -> Result<T, String> {
     if !resp.ok() {
         return Err(format!("HTTP {}", resp.status()));
     }
+    // 204/205 não têm corpo (o DELETE do gateway responde assim): sucesso, não erro de JSON.
+    if matches!(resp.status(), 204 | 205) {
+        return sem_corpo();
+    }
     resp.json::<T>().await.map_err(|e| format!("{e:?}"))
+}
+
+/// O valor de uma resposta sem corpo: `null` (serve para `serde_json::Value`, `Option<_>` e `()`).
+fn sem_corpo<T: DeserializeOwned>() -> Result<T, String> {
+    serde_json::from_value(serde_json::Value::Null)
+        .map_err(|_| "a resposta veio sem corpo, mas esperava-se um valor".to_string())
 }
 
 async fn send_json<B: Serialize, T: DeserializeOwned>(
@@ -60,4 +70,21 @@ pub async fn delete_json<B: Serialize, T: DeserializeOwned>(
     body: &B,
 ) -> Result<T, String> {
     send_json(Request::delete(&api_url(path)?), body).await
+}
+
+#[cfg(test)]
+mod testes_sem_corpo {
+    use super::sem_corpo;
+
+    #[test]
+    fn resposta_sem_corpo_e_sucesso_para_value_option_e_unit() {
+        assert_eq!(
+            sem_corpo::<serde_json::Value>(),
+            Ok(serde_json::Value::Null)
+        );
+        assert_eq!(sem_corpo::<Option<u32>>(), Ok(None));
+        assert_eq!(sem_corpo::<()>(), Ok(()));
+        // Um tipo que exige campos não existe sem corpo: erro claro, não pânico.
+        assert!(sem_corpo::<Vec<u32>>().is_err());
+    }
 }
