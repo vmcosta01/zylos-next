@@ -39,6 +39,10 @@ pub struct Metrica {
     pub total: u64,
     pub falhas: u64,
     pub soma_ms: u64,
+    /// Soma dos tokens que os provedores informaram (só das respostas que informaram).
+    pub tokens: u64,
+    /// Quantas respostas informaram tokens: sem nenhuma, `total_tokens` sai `null` (não 0).
+    pub com_tokens: u64,
 }
 
 /// Um bot em `GET /fleet/metrics`. Sem pergunta ainda, taxa e latência são `null` (não 0%).
@@ -50,6 +54,8 @@ struct BotMetricas {
     failed_actions: u64,
     success_rate_pct: Option<f64>,
     avg_response_ms: Option<u64>,
+    /// Tokens informados pelos provedores desde que o gateway subiu; `null` se nenhum informou.
+    total_tokens: Option<u64>,
 }
 
 fn metricas_do_bot(bot_id: String, bot_name: String, m: &Metrica) -> BotMetricas {
@@ -61,6 +67,7 @@ fn metricas_do_bot(bot_id: String, bot_name: String, m: &Metrica) -> BotMetricas
         success_rate_pct: (m.total > 0)
             .then(|| (m.total - m.falhas) as f64 * 100.0 / m.total as f64),
         avg_response_ms: (m.total > 0).then(|| m.soma_ms / m.total),
+        total_tokens: (m.com_tokens > 0).then_some(m.tokens),
     }
 }
 
@@ -327,6 +334,10 @@ async fn post_perguntar(
             e.total += 1;
             e.falhas += u64::from(resultado.is_err());
             e.soma_ms += inicio.elapsed().as_millis() as u64;
+            if let Some(t) = resultado.as_ref().ok().and_then(|r| r.tokens) {
+                e.tokens = e.tokens.saturating_add(t);
+                e.com_tokens += 1;
+            }
         }
     }
     match resultado {
@@ -396,8 +407,8 @@ async fn get_bots(State(st): State<BotsState>) -> Response {
 }
 
 /// `GET /api/v1/fleet/metrics` — o que se mede de verdade de cada bot desde que o gateway subiu:
-/// perguntas, falhas, taxa de sucesso e latência média. Não há tokens nem custo: o gateway não
-/// recebe isso dos provedores.
+/// perguntas, falhas, taxa de sucesso, latência média e os tokens que os provedores informaram
+/// (`usage` da resposta). Custo em dinheiro não há: o gateway não tem tabela de preços.
 async fn get_fleet_metrics(State(st): State<BotsState>) -> Response {
     let pasta = st.cfg.pasta_bots.clone();
     let Ok(bots) = tokio::task::spawn_blocking(move || zylos_pensar::bots::listar(&pasta)).await

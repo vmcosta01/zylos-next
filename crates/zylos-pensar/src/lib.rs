@@ -88,6 +88,8 @@ pub struct Resposta {
     pub provedor: String,
     pub modelo: String,
     pub duracao_ms: u64,
+    /// Tokens (entrada + saída) que o provedor informou; `None` se não informou.
+    pub tokens: Option<u64>,
 }
 
 /// Tudo o que pode dar errado. Nenhuma variante carrega o valor de uma chave.
@@ -285,7 +287,7 @@ pub async fn perguntar(
     let chave = chave_do_provedor(cfg, provedor, ambiente)?;
 
     let inicio = Instant::now();
-    let texto = linguas::perguntar(
+    let (texto, tokens) = linguas::perguntar(
         cliente,
         linguas::Pedido {
             provedor,
@@ -304,5 +306,6 @@ pub async fn perguntar(
         provedor: provedor.nome.clone(),
         modelo,
         duracao_ms: inicio.elapsed().as_millis() as u64,
+        tokens,
     })
 }
