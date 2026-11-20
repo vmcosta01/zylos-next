@@ -11,10 +11,14 @@
          Em produção, preencher no deploy (ex.: https://gateway.zylos.example). -->
     <meta name="zylos-gateway-url" content="" />
     <script src="/theme.js"></script>
+    <script src="/extras-loader.js"></script>
 
     <!-- T11.5.3 resource hints: o Trunk injeta <link rel="modulepreload"> do JS e
          <link rel="preload" as="fetch" type="application/wasm"> do WASM automaticamente. -->
     <link data-trunk rel="rust" data-bin="zylos-cockpit" data-cargo-profile="wasm-release" data-wasm-opt="z" data-wasm-opt-params="--enable-bulk-memory --enable-nontrapping-float-to-int" />
+    <!-- Módulo "extras": painéis secundários carregados sob demanda (src/bin/extras.rs, extras-loader.js).
+         data-type="worker" gera extras.js + extras_bg.wasm sem hash e SEM carregar na abertura da página. -->
+    <link data-trunk rel="rust" data-bin="extras" data-type="worker" data-cargo-profile="wasm-release" data-wasm-opt="z" data-wasm-opt-params="--enable-bulk-memory --enable-nontrapping-float-to-int" />
 
     <!-- T11.5.2 critical rendering path: shell crítico + skeleton + error-banner com CSS inlinado.
          O LCP agora é o skeleton/error-banner estático (pintado antes do WASM), não mais o banner
@@ -54,6 +58,7 @@
     <link data-trunk rel="copy-file" href="manifest.json" />
     <link data-trunk rel="copy-file" href="sw.js" />
     <link data-trunk rel="copy-file" href="theme.js" />
+    <link data-trunk rel="copy-file" href="extras-loader.js" />
     <link data-trunk rel="copy-dir" href="fonts" />
     <link data-trunk rel="copy-file" href="robots.txt" />
     <link data-trunk rel="copy-file" href="_headers" />

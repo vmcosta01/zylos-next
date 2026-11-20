@@ -146,6 +146,13 @@ jobs:
       - name: Build cockpit WASM (release)
         working-directory: apps/zylos-cockpit
         run: trunk build --release
+      - name: Check split modules (main + extras)
+        working-directory: apps/zylos-cockpit
+        run: |
+          # O módulo extras (painéis sob demanda) depende de data-type="worker" do Trunk gerar
+          # extras.js + extras_bg.wasm sem hash; se uma versão nova do Trunk mudar isso, falha aqui.
+          test -f dist/extras.js && test -f dist/extras_bg.wasm && test -f dist/extras-loader.js
+          ls dist/zylos-cockpit-*_bg.wasm
       - name: Upload WASM artifact
         uses: actions/upload-artifact@v4
         with:
@@ -165,18 +172,26 @@ jobs:
           path: dist/
       - name: Check WASM size
         run: |
-          WASM_FILE=$(ls dist/*_bg.wasm | head -1)
-          RAW_SIZE=$(wc -c < "$WASM_FILE")
-          GZ_SIZE=$(gzip -c "$WASM_FILE" | wc -c)
-          RAW_MB=$(echo "scale=2; $RAW_SIZE / 1048576" | bc)
-          GZ_MB=$(echo "scale=2; $GZ_SIZE / 1048576" | bc)
-          echo "WASM raw: ${RAW_MB} MB (${RAW_SIZE} bytes)"
-          echo "WASM gzipped: ${GZ_MB} MB (${GZ_SIZE} bytes)"
-          if [ "$GZ_SIZE" -gt 5242880 ]; then
-            echo "::error::WASM gzipped size ${GZ_MB}MB exceeds 5MB limit"
+          # Dois módulos: o principal (carregado na abertura) e o extras (sob demanda).
+          for WASM_FILE in dist/*_bg.wasm; do
+            RAW_SIZE=$(wc -c < "$WASM_FILE")
+            GZ_SIZE=$(gzip -c "$WASM_FILE" | wc -c)
+            RAW_MB=$(echo "scale=2; $RAW_SIZE / 1048576" | bc)
+            GZ_MB=$(echo "scale=2; $GZ_SIZE / 1048576" | bc)
+            echo "$WASM_FILE raw: ${RAW_MB} MB (${RAW_SIZE} bytes), gzipped: ${GZ_MB} MB (${GZ_SIZE} bytes)"
+            if [ "$GZ_SIZE" -gt 5242880 ]; then
+              echo "::error::$WASM_FILE gzipped size ${GZ_MB}MB exceeds 5MB limit"
+              exit 1
+            fi
+          done
+          # O módulo principal é o que pesa na abertura: meta de 1 MB em gzip.
+          MAIN=$(ls dist/zylos-cockpit-*_bg.wasm | head -1)
+          MAIN_GZ=$(gzip -c "$MAIN" | wc -c)
+          if [ "$MAIN_GZ" -gt 1048576 ]; then
+            echo "::error::módulo principal $MAIN_GZ bytes gzip passa de 1 MB"
             exit 1
           fi
-          echo "WASM size check passed: ${GZ_MB}MB gzipped (< 5MB)"
+          echo "WASM size check passed"
 
   e2e-tests:
     name: E2E Tests (Chrome Headless)

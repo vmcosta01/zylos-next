@@ -298,7 +298,7 @@ Removidos da v2.0: elevação de 2px no hover do cartão, "ripple" no clique, en
 - A cor de papel por função (`--role-*`) e os skins continuam no código como dados; deixaram de colorir a interface principal.
 - Contraste foi calculado para os tokens; o Lighthouse mede Accessibility 100.
 
-**Medições (release, Lighthouse mobile, servido com brotli):** Performance 69 (LCP 5,4 s, TBT 60 ms, CLS 0), Accessibility 100, Best Practices 96, SEO 63 (robots.txt bloqueia indexação de propósito). O TBT caiu de 2.180 ms para 60 ms ao trocar o seletor `body:has()` do splash por remoção via código. O que sobra do LCP é o download de ~600 KB de WASM (2,22 MB bruto). Dividir o bundle de verdade exige um segundo módulo wasm com runtime Leptos próprio (ver análise de tamanho: ~38% do código são instâncias de view do `tachys`, espalhadas pelos 36 painéis); não foi feito.
+**Medições (release, Lighthouse mobile, servido com brotli):** Performance 91 (FCP 0,9 s, LCP 3,5 s, TBT 40 ms, CLS 0), Accessibility 100, Best Practices 96, SEO 63 (robots.txt bloqueia indexação de propósito). Dois ajustes: trocar o seletor `body:has()` do splash por remoção via código (TBT 2.180 para 60 ms) e dividir o wasm em dois módulos, principal e extras sob demanda (ADR-011): a abertura baixa 958 KB bruto (309 KB brotli) em vez de 2,22 MB (677 KB).
 
 **Decisões D1 a D5:** adotados os padrões propostos em §10 (D1 sem "Sempre permitir" para risco alto; D2 escopo agente + ferramenta + categoria no backend; D3 PT-BR; D4 skins adiados; D5 monograma). Revise se algum não for o que você quer.
 

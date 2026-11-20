@@ -5,10 +5,17 @@
 
 /*.wasm
   Content-Type: application/wasm
+
+# Arquivos do app principal têm hash no nome: cache imutável.
+/zylos-cockpit-*
   Cache-Control: public, max-age=31536000, immutable
 
-/*.js
-  Cache-Control: public, max-age=31536000, immutable
+# O módulo "extras" (painéis secundários, carregado sob demanda) NÃO tem hash no nome: revalidar sempre.
+/extras.js
+  Cache-Control: no-cache
+
+/extras_bg.wasm
+  Cache-Control: no-cache
 
 /icons/*
   Cache-Control: public, max-age=604800

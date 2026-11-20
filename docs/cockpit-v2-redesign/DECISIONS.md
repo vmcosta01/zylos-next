@@ -174,3 +174,21 @@
 | Versão | Data | Mudança |
 |--------|------|---------|
 | 2.0.0 | 2026-11-18 | Initial v2.0 decisions; ADR-007 a ADR-010; herdadas ADR-001 a ADR-006 |
+
+---
+
+## ADR-011: Dois módulos wasm (principal + extras sob demanda)
+
+**Data:** 2026-11-20 · **Status:** Implementado
+
+**Contexto.** O wasm único do cockpit tinha 2,2 MB (600 KB em brotli) e todo o download e compilação aconteciam antes da primeira tela. A análise do code section mostrou ~38% em instâncias de view do `tachys`, espalhadas pelos 36 painéis; não havia uma dependência grande para cortar.
+
+**Decisão.** `src/main.rs` (módulo principal) fica com o shell, Chat, Inbox, Activity, aprovações, Agentes, Skills e Logs. Os outros 29 painéis vão para `src/bin/extras.rs`, que o Trunk compila como segundo wasm (`data-type="worker"`: gera `extras.js` e `extras_bg.wasm` **sem hash e sem carregar na abertura**). `ExtraHost` carrega o módulo na primeira aba secundária (`extras-loader.js`) e chama `mount_extra`, que monta o painel num elemento da página com um runtime Leptos próprio; sair da aba libera a instância.
+
+**Consequências.**
+- Abertura: ~395 KB transferidos (antes ~700 KB), Lighthouse mobile Performance 91.
+- Contextos não atravessam os módulos: o extras recria tema, toast e i18n. Spaces e o contador de aprovações não existem no extras (os painéis já os tratavam como opcionais).
+- O estado de um painel secundário se perde ao trocar de aba (já era assim).
+- `extras.js` e `extras_bg.wasm` não têm hash: `_headers` os serve com `no-cache` (revalidação por ETag).
+- Depende de o Trunk manter o comportamento de `data-type="worker"`; o CI falha se `extras.js` não for gerado.
+- O runtime Leptos fica duplicado (o extras tem ~1,6 MB), mas só é baixado se alguém abrir uma aba secundária.

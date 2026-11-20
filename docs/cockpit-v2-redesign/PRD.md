@@ -106,23 +106,24 @@ Estado em 2026-11-19, verificado no navegador contra o gateway real (ver "Evidê
 - [x] Toasts para eventos assíncronos: aprovação pedida, resolvida e expirada e alerta do Sentinela chegam do gateway pelo SSE; erro de agente é tratado quando o backend emitir `AgentStateChanged` com estado de erro (ainda não emitido)
 
 ### Critérios de Performance
-Medido em `trunk build --release`, Lighthouse mobile padrão (Slow 4G, CPU 4x). **Servido com brotli**, como o Cloudflare Pages serve: a primeira medição (Performance 47, LCP 13,8 s, TBT 2.180 ms) usou um servidor sem compressão e, por isso, exagerava o tempo de download do WASM de 2,2 MB.
+Medido em `trunk build --release`, Lighthouse mobile padrão (Slow 4G, CPU 4x), **servido com brotli** como o Cloudflare Pages serve (a primeira medição usou um servidor sem compressão e exagerava o download).
 
-| Métrica | Antes (sem compressão) | Depois do ajuste de CSS (sem compressão) | Depois, com brotli |
+| Métrica | Wasm único | + correção do `:has()` | + dois módulos wasm |
 |---|---|---|---|
-| Performance | 47 | 55 | **69** |
-| TBT | 2.180 ms | 80 ms | **60 ms** |
-| Style & Layout (CPU 4x) | 1.488 ms | 173 ms | 182 ms |
-| LCP | 13,8 s | 13,5 s | **5,4 s** |
-| FCP e LCP reais, sem throttling | 744 ms e 1.351 ms | 124 ms e 178 ms | |
+| Performance | 47 (sem brotli) / 69 | 69 | **91** |
+| FCP | 4,5 s | 4,5 s | **0,9 s** |
+| LCP | 13,8 s (sem brotli) / 5,4 s | 5,4 s | **3,5 s** |
+| TBT | 2.180 ms | 60 ms | **40 ms** |
+| Transferido na abertura | ~700 KB | ~700 KB | **395 KB** |
+| Wasm da abertura (bruto / brotli-9) | 2,22 MB / 677 KB | 2,22 MB / 677 KB | **958 KB / 309 KB** |
 
-A causa do TBT era o seletor `body:has(.shell-layout) #app-splash`: `:has()` num ancestral reavalia o estilo a cada mutação do DOM durante a montagem. O splash agora sai do DOM por código (`remove_splash`).
+O módulo extras (1,6 MB bruto, 508 KB em brotli) só é baixado ao abrir uma aba secundária. Detalhes em `DECISIONS.md` (ADR-011).
 
-- [ ] Lighthouse Mobile ≥90: **Performance 69**, Accessibility 100, Best Practices 96, **SEO 63** (o SEO cai por `robots.txt` bloqueando indexação, intencional para um painel privado)
-- [ ] LCP <2s em 3G: **5,4 s** no Lighthouse mobile simulado (limitado pelo download de ~600 KB de WASM em Slow 4G)
-- [x] TBT <300ms: **60 ms**
+- [x] Lighthouse Mobile Performance ≥90: **91**. Accessibility 100 e Best Practices 96. **SEO 63**: o `robots.txt` bloqueia indexação, de propósito (painel privado); liberar a indexação é decisão sua
+- [ ] LCP <2s em 3G: **3,5 s** no Lighthouse mobile simulado
+- [x] TBT <300ms: **40 ms**
 - [x] CLS <0.1: **0**
-- [ ] Bundle WASM <800KB comprimido: 2,22 MB bruto, **599 KB em brotli nível 11** (677 KB em nível 9) e 832 KB em gzip -9. Passa em brotli; **não** passa em gzip -9
+- [x] Bundle WASM da abertura <800KB comprimido: **309 KB** em brotli-9 (gzip -9: veja o CI, que agora mede cada módulo)
 - [ ] Spring animations a 60fps em aparelho intermediário (não medido; a v2.1 removeu a maior parte da animação)
 
 ### Critérios de Design

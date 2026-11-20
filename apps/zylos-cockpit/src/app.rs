@@ -9,16 +9,10 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen_futures::spawn_local;
 
 use crate::benchmarks::BenchmarkPanel;
-use crate::components::analytics_panel::AnalyticsPanel;
 use crate::components::{
-    provide_theme, provide_toast_store, ActivityPanel, AgentAvatarsGrid, AgentAwarenessPanel,
-    AgentsPanel, ChannelPanel, ChatPanel, CollabPanel, CollapsibleSidebar, CommandPalette,
-    EmployeeGovernancePanel, EvidenceLedgerPanel, FederationDashboard, FileManager,
-    FleetAuditorPanel, GatewayStatus, GoalsPanel, HitlApprovalPanel, InboxPanel, IntegrationsPanel,
-    MemoryTimeline, PersonalitiesPanel, PhoneRelayPanel, SecurityPanel, SentinelPanel,
-    SkillEditorPanel, SkillEvolutionPanel, SkinThemesPanel, SoarDashboard, SubagentStatusCards,
-    SwarmDagPanel, SwarmTopologyPanel, TaskTriagePanel, TasksDag, ThreadManager, ToastContainer,
-    TranslucentHeader, VoicePanel,
+    provide_theme, provide_toast_store, ActivityPanel, AgentsPanel, ChatPanel, CollapsibleSidebar,
+    CommandPalette, ExtraHost, GatewayStatus, HitlApprovalPanel, InboxPanel, ToastContainer,
+    TranslucentHeader,
 };
 use crate::i18n::{provide_i18n, use_i18n, Locale};
 use crate::streaming::{provide_stream, LiveEventFeed, StreamConfig};
@@ -260,48 +254,13 @@ fn TabContent(tab: Tab) -> impl IntoView {
             </div>
         }
         .into_any(),
-        Tab::Tasks => view! {
-            <div class="tab-panel tab-panel-tasks">
-                <TasksDag />
-            </div>
-        }
-        .into_any(),
-        Tab::Memory => view! {
-            <div class="tab-panel tab-panel-memory">
-                <MemoryTimeline />
-            </div>
-        }
-        .into_any(),
-        Tab::Goals => view! {
-            <div class="tab-panel tab-panel-goals">
-                <GoalsPanel />
-            </div>
-        }
-        .into_any(),
-        Tab::Personalities => view! {
-            <div class="tab-panel tab-panel-personalities">
-                <PersonalitiesPanel />
-            </div>
-        }
-        .into_any(),
-        Tab::SwarmDag => view! {
-            <div class="tab-panel tab-panel-swarm-dag">
-                <SwarmDagPanel />
-            </div>
-        }
-        .into_any(),
-        Tab::Sentinel => view! {
-            <div class="tab-panel tab-panel-sentinel">
-                <SentinelPanel />
-            </div>
-        }
-        .into_any(),
-        Tab::EvidenceLedger => view! {
-            <div class="tab-panel tab-panel-evidence-ledger">
-                <EvidenceLedgerPanel />
-            </div>
-        }
-        .into_any(),
+        Tab::Tasks => view! { <ExtraHost tab=Tab::Tasks /> }.into_any(),
+        Tab::Memory => view! { <ExtraHost tab=Tab::Memory /> }.into_any(),
+        Tab::Goals => view! { <ExtraHost tab=Tab::Goals /> }.into_any(),
+        Tab::Personalities => view! { <ExtraHost tab=Tab::Personalities /> }.into_any(),
+        Tab::SwarmDag => view! { <ExtraHost tab=Tab::SwarmDag /> }.into_any(),
+        Tab::Sentinel => view! { <ExtraHost tab=Tab::Sentinel /> }.into_any(),
+        Tab::EvidenceLedger => view! { <ExtraHost tab=Tab::EvidenceLedger /> }.into_any(),
         Tab::HitlApproval => view! {
             <div class="tab-panel tab-panel-hitl">
                 <HitlApprovalPanel />
@@ -320,97 +279,21 @@ fn TabContent(tab: Tab) -> impl IntoView {
             </div>
         }
         .into_any(),
-        Tab::Soar => view! {
-            <div class="tab-panel tab-panel-soar">
-                <SoarDashboard />
-            </div>
-        }
-        .into_any(),
-        Tab::Security => view! {
-            <div class="tab-panel tab-panel-security">
-                <SecurityPanel />
-            </div>
-        }
-        .into_any(),
-        Tab::Awareness => view! {
-            <div class="tab-panel tab-panel-awareness">
-                <AgentAwarenessPanel />
-            </div>
-        }
-        .into_any(),
-        Tab::SkillEvolution => view! {
-            <div class="tab-panel tab-panel-skill-evolution">
-                <SkillEvolutionPanel />
-            </div>
-        }
-        .into_any(),
-        Tab::EmployeeGovernance => view! {
-        <div class="tab-panel tab-panel-employee-governance">
-        <EmployeeGovernancePanel />
-        </div>
-        }
-        .into_any(),
-        Tab::TaskTriage => view! {
-        <div class="tab-panel tab-panel-task-triage">
-        <TaskTriagePanel />
-        </div>
-        }
-        .into_any(),
-        Tab::Threads => view! {
-        <div class="tab-panel tab-panel-threads">
-        <ThreadManager />
-        </div>
-        }
-        .into_any(),
-        Tab::Subagents => view! {
-        <div class="tab-panel tab-panel-subagents">
-        <SubagentStatusCards />
-        </div>
-        }
-        .into_any(),
-        Tab::Files => view! {
-        <div class="tab-panel tab-panel-files">
-        <FileManager />
-        </div>
-        }
-        .into_any(),
-        Tab::Voice => view! {
-        <div class="tab-panel tab-panel-voice">
-        <VoicePanel />
-        </div>
-        }
-        .into_any(),
-        Tab::Reactions => view! {
-        <div class="tab-panel tab-panel-reactions">
-        <p class="panel-subtitle">"Reaja às mensagens reais dos canais (persistidas no gateway)."</p>
-        <ChannelPanel />
-        </div>
-        }
-        .into_any(),
-        Tab::Avatars => view! {
-        <div class="tab-panel tab-panel-avatars">
-        <AgentAvatarsGrid />
-        </div>
-        }
-        .into_any(),
-        Tab::Skins => view! {
-        <div class="tab-panel tab-panel-skins">
-        <SkinThemesPanel />
-        </div>
-        }
-        .into_any(),
-        Tab::Fleet => view! {
-        <div class="tab-panel tab-panel-fleet">
-        <FleetAuditorPanel />
-        </div>
-        }
-        .into_any(),
-        Tab::Federation => view! {
-        <div class="tab-panel tab-panel-federation">
-        <FederationDashboard />
-        </div>
-        }
-        .into_any(),
+        Tab::Soar => view! { <ExtraHost tab=Tab::Soar /> }.into_any(),
+        Tab::Security => view! { <ExtraHost tab=Tab::Security /> }.into_any(),
+        Tab::Awareness => view! { <ExtraHost tab=Tab::Awareness /> }.into_any(),
+        Tab::SkillEvolution => view! { <ExtraHost tab=Tab::SkillEvolution /> }.into_any(),
+        Tab::EmployeeGovernance => view! { <ExtraHost tab=Tab::EmployeeGovernance /> }.into_any(),
+        Tab::TaskTriage => view! { <ExtraHost tab=Tab::TaskTriage /> }.into_any(),
+        Tab::Threads => view! { <ExtraHost tab=Tab::Threads /> }.into_any(),
+        Tab::Subagents => view! { <ExtraHost tab=Tab::Subagents /> }.into_any(),
+        Tab::Files => view! { <ExtraHost tab=Tab::Files /> }.into_any(),
+        Tab::Voice => view! { <ExtraHost tab=Tab::Voice /> }.into_any(),
+        Tab::Reactions => view! { <ExtraHost tab=Tab::Reactions /> }.into_any(),
+        Tab::Avatars => view! { <ExtraHost tab=Tab::Avatars /> }.into_any(),
+        Tab::Skins => view! { <ExtraHost tab=Tab::Skins /> }.into_any(),
+        Tab::Fleet => view! { <ExtraHost tab=Tab::Fleet /> }.into_any(),
+        Tab::Federation => view! { <ExtraHost tab=Tab::Federation /> }.into_any(),
         Tab::Inbox => view! {
             <div class="tab-panel tab-panel-inbox">
                 <InboxPanel />
@@ -429,48 +312,13 @@ fn TabContent(tab: Tab) -> impl IntoView {
         </div>
         }
         .into_any(),
-        Tab::Channels => view! {
-        <div class="tab-panel tab-panel-channels h-full">
-        <ChannelPanel />
-        </div>
-        }
-        .into_any(),
-        Tab::PhoneRelay => view! {
-        <div class="tab-panel tab-panel-phone-relay">
-        <PhoneRelayPanel />
-        </div>
-        }
-        .into_any(),
-        Tab::Integrations => view! {
-        <div class="tab-panel tab-panel-integrations">
-        <IntegrationsPanel />
-        </div>
-        }
-        .into_any(),
-        Tab::SwarmTopology => view! {
-        <div class="tab-panel tab-panel-swarm-topology">
-        <SwarmTopologyPanel />
-        </div>
-        }
-        .into_any(),
-        Tab::SkillEditor => view! {
-        <div class="tab-panel tab-panel-skill-editor">
-        <SkillEditorPanel />
-        </div>
-        }
-        .into_any(),
-        Tab::Analytics => view! {
-        <div class="tab-panel tab-panel-analytics">
-        <AnalyticsPanel />
-        </div>
-        }
-        .into_any(),
-        Tab::Collab => view! {
-        <div class="tab-panel tab-panel-collab">
-        <CollabPanel />
-        </div>
-        }
-        .into_any(),
+        Tab::Channels => view! { <ExtraHost tab=Tab::Channels /> }.into_any(),
+        Tab::PhoneRelay => view! { <ExtraHost tab=Tab::PhoneRelay /> }.into_any(),
+        Tab::Integrations => view! { <ExtraHost tab=Tab::Integrations /> }.into_any(),
+        Tab::SwarmTopology => view! { <ExtraHost tab=Tab::SwarmTopology /> }.into_any(),
+        Tab::SkillEditor => view! { <ExtraHost tab=Tab::SkillEditor /> }.into_any(),
+        Tab::Analytics => view! { <ExtraHost tab=Tab::Analytics /> }.into_any(),
+        Tab::Collab => view! { <ExtraHost tab=Tab::Collab /> }.into_any(),
     }
 }
 
