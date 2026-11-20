@@ -1,0 +1,321 @@
+/* ── Linha de base dos painéis ──────────────────────────────────────────────────────────────
+ * Gerada por papel (sufixo da classe) para 604 classes que os componentes usavam sem
+ * nenhuma regra CSS. É só o piso: container, cabeçalho, título, estados vazio/carregando/erro,
+ * botão, grade, cartão e abas, com os tokens do design system. Este arquivo carrega ANTES do
+ * base.css: as regras específicas de cada painel (no base.css) vencem por virem depois.
+ * ──────────────────────────────────────────────────────────────────────────────────────────── */
+.agent-avatars-header,
+.agent-card-header,
+.an-header,
+.channel-header,
+.collab-header,
+.conflict-header,
+.device-header,
+.fed-conflict-header,
+.fed-header,
+.fed-node-header,
+.file-manager-header,
+.fleet-bot-header,
+.fleet-header,
+.panel-header,
+.playbook-header,
+.sentinel-chart-header,
+.skill-list-header,
+.skill-preview-header,
+.skill-step-header,
+.skin-themes-header,
+.subagent-card-header,
+.subagent-panel-header,
+.thread-manager-header,
+.voice-panel-header {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap;
+}
+
+.activity-title,
+.agent-avatars-title,
+.approval-rules-title,
+.fed-section-title,
+.fed-title,
+.file-manager-title,
+.fleet-title,
+.group-title,
+.inbox-title,
+.skin-themes-title,
+.subagent-panel-title,
+.thread-manager-title,
+.voice-panel-title {
+  margin: 0; font-size: var(--text-lg); font-weight: 600; letter-spacing: -0.01em; display: flex; align-items: center; gap: var(--space-2);
+}
+
+.an-filter-desc,
+.channel-meta,
+.device-meta,
+.event-meta,
+.fed-conflict-desc,
+.fed-node-meta,
+.fed-subtitle,
+.file-meta,
+.hlc-event-desc,
+.panel-subtitle,
+.skin-desc,
+.skin-themes-subtitle,
+.thread-meta {
+  color: var(--color-text-secondary); font-size: var(--text-sm); overflow-wrap: anywhere;
+}
+
+.an-empty,
+.an-loading,
+.channel-empty,
+.channel-loading,
+.dag-detail-placeholder,
+.dag-visualization-placeholder,
+.fed-empty,
+.fed-loading,
+.file-empty,
+.file-loading,
+.fleet-empty,
+.fleet-loading,
+.goals-list-placeholder,
+.ledger-entries-placeholder,
+.personalities-list-placeholder,
+.presence-empty,
+.qr-placeholder,
+.relay-empty,
+.relay-loading,
+.roster-loading,
+.skill-editor-empty,
+.sparkline-empty,
+.subagent-empty,
+.subagent-loading,
+.thread-empty,
+.thread-loading,
+.topology-empty,
+.topology-loading,
+.voice-transcript-empty,
+.voice-unsupported {
+  display: flex; align-items: center; gap: var(--space-2); padding: var(--space-4); color: var(--color-text-secondary); font-size: var(--text-sm);
+}
+
+.an-error,
+.auth-error,
+.channel-error,
+.integrations-gateway-error,
+.reaction-error,
+.relay-error,
+.subagent-error,
+.topology-error,
+.triage-item-error,
+.validation-error,
+.voice-error,
+.voice-phase-error {
+  padding: var(--space-3) var(--space-4); color: var(--color-status-error); font-size: var(--text-sm); overflow-wrap: anywhere;
+}
+
+.auth-header-btn,
+.channel-action-btn,
+.channel-send-btn,
+.file-upload-btn,
+.filter-btn,
+.integration-reload-btn,
+.integration-test-btn,
+.pair-btn,
+.period-btn,
+.reaction-add-btn,
+.skill-toolbar-btn,
+.soar-nav-btn,
+.subagent-refresh-btn,
+.thread-action-btn,
+.thread-create-btn,
+.thread-delete-btn,
+.voice-btn {
+  min-height: 40px; padding: 0 var(--space-3); display: inline-flex; align-items: center; gap: var(--space-2);
+  border: 1px solid var(--color-border-strong); border-radius: var(--radius-md);
+  background: var(--color-bg-secondary); color: var(--color-text-primary); font: inherit; font-size: var(--text-sm); cursor: pointer;
+  transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.auth-header-btn:active,
+.channel-action-btn:active,
+.channel-send-btn:active,
+.file-upload-btn:active,
+.filter-btn:active,
+.integration-reload-btn:active,
+.integration-test-btn:active,
+.pair-btn:active,
+.period-btn:active,
+.reaction-add-btn:active,
+.skill-toolbar-btn:active,
+.soar-nav-btn:active,
+.subagent-refresh-btn:active,
+.thread-action-btn:active,
+.thread-create-btn:active,
+.thread-delete-btn:active,
+.voice-btn:active { transform: scale(0.96); }
+
+.auth-header-btn:focus-visible,
+.channel-action-btn:focus-visible,
+.channel-send-btn:focus-visible,
+.file-upload-btn:focus-visible,
+.filter-btn:focus-visible,
+.integration-reload-btn:focus-visible,
+.integration-test-btn:focus-visible,
+.pair-btn:focus-visible,
+.period-btn:focus-visible,
+.reaction-add-btn:focus-visible,
+.skill-toolbar-btn:focus-visible,
+.soar-nav-btn:focus-visible,
+.subagent-refresh-btn:focus-visible,
+.thread-action-btn:focus-visible,
+.thread-create-btn:focus-visible,
+.thread-delete-btn:focus-visible,
+.voice-btn:focus-visible { outline: 2px solid var(--color-text-primary); outline-offset: 2px; }
+
+.agent-avatars-grid,
+.an-grid,
+.fed-nodes-grid,
+.file-grid,
+.fleet-grid,
+.playbook-grid,
+.skin-themes-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--space-3);
+}
+
+.channel-list,
+.device-list,
+.event-list,
+.fed-conflicts-list,
+.integration-list,
+.sentinel-alert-list,
+.skill-list-items,
+.soar-playbook-list,
+.thread-list {
+  list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2);
+}
+
+.device-card,
+.devices-section,
+.fed-conflict-card,
+.fed-metric-card,
+.fed-section,
+.file-card,
+.fleet-bot-card,
+.integration-card,
+.ledger-card,
+.playbook-card,
+.qr-section,
+.relay-section,
+.skin-card,
+.soar-metric-card,
+.validation-errors-section,
+.validation-section {
+  display: grid; gap: var(--space-1); padding: var(--space-4); background: var(--color-bg-secondary); border: 1px solid var(--color-border-default); border-radius: var(--radius-lg);
+}
+
+.file-folder-tabs,
+.soar-nav {
+  display: flex; gap: var(--space-2); flex-wrap: wrap;
+}
+
+.folder-tab,
+.soar-nav-btn {
+  min-height: 40px; padding: 0 var(--space-3); display: inline-flex; align-items: center; border: 1px solid var(--color-border-default); border-radius: var(--radius-md); background: var(--color-bg-secondary); color: var(--color-text-primary); font: inherit; font-size: var(--text-sm); cursor: pointer;
+}
+
+.folder-tab.active,
+.soar-nav-btn.active,
+.folder-tab-active { background: var(--color-accent-primary); color: var(--color-on-accent); border-color: var(--color-accent-primary); }
+
+.agent-avatars-count,
+.an-label,
+.device-status-label,
+.fed-conflict-count,
+.fed-conflict-status,
+.fed-detail-label,
+.fed-metric-label,
+.fed-node-status,
+.hlc-label,
+.integration-status,
+.integration-token-label,
+.ledger-label,
+.presence-label,
+.reaction-count,
+.roster-count,
+.save-status,
+.status-label,
+.subagent-stat-label,
+.thread-count,
+.tt-label,
+.tt-status,
+.validation-count,
+.validation-status,
+.vc-label,
+.voice-phase-label {
+  font-size: var(--text-xs); color: var(--color-text-secondary);
+}
+
+.an-value,
+.fed-metric-value,
+.hlc-value,
+.ledger-value,
+.subagent-stat-value,
+.vc-value {
+  font-variant-numeric: tabular-nums; font-weight: 600;
+}
+
+.agent-name,
+.auth-name,
+.channel-name,
+.collab-name,
+.device-name,
+.fed-node-name,
+.file-name,
+.fleet-bot-name,
+.playbook-name,
+.skill-list-item-name,
+.skin-name,
+.subagent-name,
+.thread-name {
+  font-weight: 600; overflow-wrap: anywhere;
+}
+
+.channel-unread-badge,
+.fed-pending-badge,
+.fleet-alert-badge,
+.skin-active-badge,
+.step-type-badge {
+  display: inline-block; padding: 0 8px; border-radius: var(--radius-full); background: var(--color-bg-tertiary); font-size: var(--text-xs); line-height: 20px;
+}
+
+.channel-actions,
+.collab-conflict-actions,
+.device-actions,
+.thread-actions {
+  display: flex; gap: var(--space-2); flex-wrap: wrap;
+}
+
+.agent-card-body,
+.an-body,
+.an-pie-body,
+.auth-modal-content,
+.collab-body,
+.event-content,
+.hlc-event-content,
+.message-content,
+.playbook-body,
+.skill-preview-content,
+.soar-content {
+  min-width: 0;
+}
+
+/* Utilitários que alguns painéis usam como se houvesse Tailwind */
+.p-3 { padding: var(--space-3); }
+.p-4 { padding: var(--space-4); }
+.space-y-4 > * + * { margin-top: var(--space-4); }
+.text-xl { font-size: var(--text-lg); line-height: 1.4; }
+.font-bold { font-weight: 700; }
+
+/* Layouts de dois painéis (lista + detalhe) */
+.channel-panel, .skill-editor-panel, .collab-panel { max-width: 1100px; }
+@media (min-width: 768px) {
+  .channel-panel, .skill-editor-panel { grid-template-columns: minmax(200px, 260px) minmax(0, 1fr); align-items: start; }
+}
