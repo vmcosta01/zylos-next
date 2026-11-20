@@ -187,7 +187,11 @@ async fn ws_computer_view(
     ws: WebSocketUpgrade,
     Path(session_id): Path<String>,
     State(state): State<WebRtcRelayState>,
+    auth: Option<axum::Extension<zylos_auth::middleware::AuthContext>>,
 ) -> impl IntoResponse {
+    // Quem é, segundo o JWT que o gateway JÁ verificou (nunca um campo mandado pelo cliente).
+    // Sem login (gateway sem segredo, ou sem token) não há usuário: a entrada fica recusada.
+    let usuario: Option<String> = auth.map(|a| a.0.claims.sub.clone());
     info!(session_id = %session_id, "WebSocket upgrade requested for computer-view relay");
     let Some(tx) = state.get_or_create_channel(&session_id) else {
         return (
@@ -199,8 +203,10 @@ async fn ws_computer_view(
     let session_id_clone = session_id.clone();
     let state_clone = state.clone();
 
-    ws.on_upgrade(move |socket| handle_ws_socket(socket, session_id_clone, tx, state_clone))
-        .into_response()
+    ws.on_upgrade(move |socket| {
+        handle_ws_socket(socket, session_id_clone, tx, state_clone, usuario)
+    })
+    .into_response()
 }
 
 /// Evita repetir o mesmo aviso a cada evento (uma sequência de teclas recusadas gera um aviso só).
@@ -231,6 +237,7 @@ async fn handle_ws_socket(
     session_id: String,
     tx: broadcast::Sender<RelayServerMsg>,
     state: WebRtcRelayState,
+    usuario: Option<String>,
 ) {
     use axum::extract::ws::Message;
     use futures_util::{SinkExt, StreamExt};
@@ -267,6 +274,7 @@ async fn handle_ws_socket(
     // Task para ler mensagens do cliente (controle/ping)
     let session_id_for_recv = session_id.clone();
     let entrada = state.entrada.clone();
+    let usuario_recv = usuario;
     let recv_task = tokio::spawn(async move {
         let mut limite = crate::remote_input::LimiteDeTaxa::new();
         let mut avisos = Avisos::default();
@@ -280,7 +288,13 @@ async fn handle_ws_socket(
                                 if !limite.permite() {
                                     avisos.avisar(&tx, "Eventos demais por segundo".into());
                                 } else if let Some(e) = &entrada {
-                                    match e.clique(&session_id_for_recv, x, y, &button) {
+                                    match e.clique(
+                                        &session_id_for_recv,
+                                        usuario_recv.as_deref(),
+                                        x,
+                                        y,
+                                        &button,
+                                    ) {
                                         Ok(()) => avisos.limpar(),
                                         Err(r) => avisos.avisar(&tx, r.texto()),
                                     }
@@ -299,7 +313,12 @@ async fn handle_ws_socket(
                                 if !limite.permite() {
                                     avisos.avisar(&tx, "Eventos demais por segundo".into());
                                 } else if let Some(e) = &entrada {
-                                    match e.tecla(&session_id_for_recv, &code, pressed) {
+                                    match e.tecla(
+                                        &session_id_for_recv,
+                                        usuario_recv.as_deref(),
+                                        &code,
+                                        pressed,
+                                    ) {
                                         Ok(()) => avisos.limpar(),
                                         Err(r) => avisos.avisar(&tx, r.texto()),
                                     }

@@ -509,7 +509,10 @@ pub fn VncStream(
 /// Texto para a tela quando "Assumir controle" falha. O gateway responde 409 se a sessão ainda não
 /// está ativa (nenhum frame chegou) ou se outra pessoa já está no controle.
 fn erro_de_controle(e: &str) -> String {
-    if e.contains("409") {
+    if e.contains("403") || e.contains("503") {
+        "Assumir o controle exige entrar como administrador (o gateway precisa de login configurado)."
+            .to_string()
+    } else if e.contains("409") {
         "Não deu para assumir o controle: a sessão ainda não está ativa (nenhum quadro chegou) ou outra pessoa já está no controle."
             .to_string()
     } else {
@@ -654,6 +657,8 @@ mod tests {
     #[test]
     fn erro_de_controle_explica_o_409() {
         assert!(erro_de_controle("HTTP 409").contains("ainda não está ativa"));
+        assert!(erro_de_controle("HTTP 403").contains("administrador"));
+        assert!(erro_de_controle("HTTP 503").contains("administrador"));
         assert_eq!(
             erro_de_controle("HTTP 500"),
             "Não deu para assumir o controle: HTTP 500"

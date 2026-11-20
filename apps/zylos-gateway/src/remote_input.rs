@@ -4,8 +4,10 @@
 //!
 //! 1. **Desligada por padrão.** Só liga com `ZYLOS_COMPUTER_VIEW_INPUT=1` e, mesmo assim, só se o
 //!    gateway foi compilado com `--features input-injection` (sem isso não existe injetor real).
-//! 2. **Só com controle humano ativo.** A sessão precisa estar em `user_control` com a concessão
-//!    (lease) ainda válida: quem não assumiu o controle não injeta nada.
+//! 2. **Só com controle humano ativo, e só do dono dele.** A sessão precisa estar em `user_control`
+//!    com a concessão (lease) ainda válida **e** o evento precisa vir de uma conexão autenticada cujo
+//!    usuário (`sub` do JWT, verificado pelo gateway) é o dono da concessão. Sem login ou de outro
+//!    usuário, nada é injetado.
 //! 3. **Só o que for explicitamente permitido:** botões `left`/`right`/`middle`; teclas de uma lista
 //!    curta (letras, números, pontuação comum, Enter, Backspace, Tab, Esc, setas, Home/End,
 //!    PageUp/PageDown, Delete, Shift, Control, Alt). A tecla Windows/Meta e qualquer nome fora da
@@ -42,6 +44,8 @@ pub trait InjetorEntrada: Send + Sync {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Recusa {
     SessaoSemControle,
+    /// Conexão sem login, ou de um usuário que não é o dono da concessão.
+    OutroUsuario,
     BotaoInvalido,
     TeclaNaoPermitida,
     CoordenadaInvalida,
@@ -53,6 +57,9 @@ impl Recusa {
         match self {
             Self::SessaoSemControle => {
                 "Assuma o controle da sessão antes de enviar cliques e teclas".into()
+            }
+            Self::OutroUsuario => {
+                "O controle desta sessão é de outra pessoa (ou você não está logado)".into()
             }
             Self::BotaoInvalido => "Botão do mouse não permitido".into(),
             Self::TeclaNaoPermitida => "Tecla não permitida".into(),
@@ -108,18 +115,33 @@ impl Entrada {
         Self { injetor, manager }
     }
 
-    /// A sessão tem controle humano ativo, com a concessão ainda válida?
-    pub fn tem_controle(&self, session_id: &str) -> bool {
-        self.manager.get_session(session_id).is_some_and(|s| {
-            s.state == SessionState::UserControl.as_str()
-                && s.control_lease.as_ref().is_some_and(|l| !l.is_expired())
-        })
+    /// A sessão tem controle humano ativo, com a concessão ainda válida, e `usuario` (o `sub` do
+    /// JWT da conexão, `None` se não autenticada) é o dono dela?
+    pub fn autorizar(&self, session_id: &str, usuario: Option<&str>) -> Result<(), Recusa> {
+        let sessao = self
+            .manager
+            .get_session(session_id)
+            .filter(|s| s.state == SessionState::UserControl.as_str())
+            .ok_or(Recusa::SessaoSemControle)?;
+        let lease = sessao
+            .control_lease
+            .filter(|l| !l.is_expired())
+            .ok_or(Recusa::SessaoSemControle)?;
+        match usuario {
+            Some(u) if u == lease.user_id => Ok(()),
+            _ => Err(Recusa::OutroUsuario),
+        }
     }
 
-    pub fn clique(&self, session_id: &str, x: i32, y: i32, botao: &str) -> Result<(), Recusa> {
-        if !self.tem_controle(session_id) {
-            return Err(Recusa::SessaoSemControle);
-        }
+    pub fn clique(
+        &self,
+        session_id: &str,
+        usuario: Option<&str>,
+        x: i32,
+        y: i32,
+        botao: &str,
+    ) -> Result<(), Recusa> {
+        self.autorizar(session_id, usuario)?;
         if !botao_valido(botao) {
             return Err(Recusa::BotaoInvalido);
         }
@@ -129,10 +151,14 @@ impl Entrada {
         self.injetor.clique(x, y, botao).map_err(Recusa::Falha)
     }
 
-    pub fn tecla(&self, session_id: &str, tecla: &str, apertada: bool) -> Result<(), Recusa> {
-        if !self.tem_controle(session_id) {
-            return Err(Recusa::SessaoSemControle);
-        }
+    pub fn tecla(
+        &self,
+        session_id: &str,
+        usuario: Option<&str>,
+        tecla: &str,
+        apertada: bool,
+    ) -> Result<(), Recusa> {
+        self.autorizar(session_id, usuario)?;
         if !tecla_permitida(tecla) {
             return Err(Recusa::TeclaNaoPermitida);
         }
@@ -298,36 +324,53 @@ mod tests {
     }
 
     #[test]
-    fn so_injeta_com_controle_humano_ativo() {
+    fn so_injeta_com_controle_humano_ativo_e_so_do_dono() {
         let (m, ativa, sem) = sessao_com_controle();
         let falso = Arc::new(Falso::default());
         let e = Entrada::new(falso.clone(), m.clone());
+        let u1 = Some("u1");
 
         // Sessão ativa mas sem ninguém no controle, e sessão ainda `connecting`: recusa.
         assert_eq!(
-            e.clique(&ativa, 10, 10, "left"),
+            e.clique(&ativa, u1, 10, 10, "left"),
             Err(Recusa::SessaoSemControle)
         );
-        assert_eq!(e.tecla(&sem, "a", true), Err(Recusa::SessaoSemControle));
+        assert_eq!(e.tecla(&sem, u1, "a", true), Err(Recusa::SessaoSemControle));
         assert_eq!(
-            e.clique("nao-existe", 1, 1, "left"),
+            e.clique("nao-existe", u1, 1, 1, "left"),
             Err(Recusa::SessaoSemControle)
         );
         assert!(falso.0.lock().unwrap().is_empty());
 
-        // Com o controle assumido, passa.
+        // u1 assumiu o controle: só u1 passa; outro usuário e conexão sem login, não.
         assumir(&m, &ativa);
-        assert_eq!(e.clique(&ativa, 10, 20, "left"), Ok(()));
-        assert_eq!(e.tecla(&ativa, "a", true), Ok(()));
+        assert_eq!(
+            e.clique(&ativa, Some("u2"), 10, 20, "left"),
+            Err(Recusa::OutroUsuario)
+        );
+        assert_eq!(
+            e.clique(&ativa, None, 10, 20, "left"),
+            Err(Recusa::OutroUsuario)
+        );
+        assert_eq!(
+            e.tecla(&ativa, Some("u2"), "a", true),
+            Err(Recusa::OutroUsuario)
+        );
+        assert!(
+            falso.0.lock().unwrap().is_empty(),
+            "outro usuário não injeta nada"
+        );
+        assert_eq!(e.clique(&ativa, u1, 10, 20, "left"), Ok(()));
+        assert_eq!(e.tecla(&ativa, u1, "a", true), Ok(()));
         assert_eq!(
             *falso.0.lock().unwrap(),
             vec!["clique 10,20 left".to_string(), "tecla a true".to_string()]
         );
 
-        // Ao liberar o controle, volta a recusar.
+        // Ao liberar o controle, volta a recusar (até para o antigo dono).
         m.release_control(&ativa, "u1").unwrap();
         assert_eq!(
-            e.clique(&ativa, 1, 1, "left"),
+            e.clique(&ativa, u1, 1, 1, "left"),
             Err(Recusa::SessaoSemControle)
         );
     }
@@ -338,18 +381,22 @@ mod tests {
         assumir(&m, &ativa);
         let falso = Arc::new(Falso::default());
         let e = Entrada::new(falso.clone(), m);
-        assert_eq!(e.clique(&ativa, 1, 1, "back"), Err(Recusa::BotaoInvalido));
+        let u = Some("u1");
         assert_eq!(
-            e.clique(&ativa, -1, 1, "left"),
+            e.clique(&ativa, u, 1, 1, "back"),
+            Err(Recusa::BotaoInvalido)
+        );
+        assert_eq!(
+            e.clique(&ativa, u, -1, 1, "left"),
             Err(Recusa::CoordenadaInvalida)
         );
         assert_eq!(
-            e.clique(&ativa, 1, COORD_MAX + 1, "left"),
+            e.clique(&ativa, u, 1, COORD_MAX + 1, "left"),
             Err(Recusa::CoordenadaInvalida)
         );
         for ruim in ["Meta", "OS", "F4", "ContextMenu", "ab", "", "\u{7f}", "é"] {
             assert_eq!(
-                e.tecla(&ativa, ruim, true),
+                e.tecla(&ativa, u, ruim, true),
                 Err(Recusa::TeclaNaoPermitida),
                 "{ruim:?}"
             );
@@ -365,7 +412,7 @@ mod tests {
             "Control",
             " ",
         ] {
-            assert_eq!(e.tecla(&ativa, boa, true), Ok(()), "{boa:?}");
+            assert_eq!(e.tecla(&ativa, u, boa, true), Ok(()), "{boa:?}");
         }
         assert!(falso.0.lock().unwrap().iter().all(|s| !s.contains("Meta")));
     }
