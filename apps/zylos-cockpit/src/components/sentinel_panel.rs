@@ -128,9 +128,11 @@ async fn fetch_sentinel_stats() -> Result<SentinelStats, String> {
     let opts = RequestInit::new();
     opts.set_method("GET");
 
-    let request =
-        Request::new_with_str_and_init("http://localhost:3000/api/v1/phase2/status", &opts)
-            .map_err(|e| format!("{:?}", e))?;
+    let request = Request::new_with_str_and_init(
+        &crate::gateway_http::api_url("/api/v1/phase2/status")?,
+        &opts,
+    )
+    .map_err(|e| format!("{:?}", e))?;
 
     crate::auth::authed_web_request(&request);
 
@@ -189,7 +191,10 @@ async fn fetch_sentinel_stats() -> Result<SentinelStats, String> {
 
 // ─── T11.7.6: gráficos de anomalias (SVG puro, sem dependências JS) ──────────
 
-const SENTINEL_API: &str = "http://localhost:3000/api/v1/sentinel";
+/// URL absoluta de `path` sob `/api/v1/sentinel` do gateway.
+fn sentinel_api(path: &str) -> Result<String, String> {
+    crate::gateway_http::api_url(&format!("/api/v1/sentinel{path}"))
+}
 /// Intervalo de polling — critério de aceitação: atraso < 5 s.
 const POLL_SECS: u64 = 3;
 
@@ -493,12 +498,10 @@ pub fn SentinelAnomalyCharts() -> impl IntoView {
 }
 
 async fn fetch_live() -> Result<SentinelLive, String> {
-    let resp = crate::auth::authed(gloo_net::http::Request::get(&format!(
-        "{SENTINEL_API}/metrics"
-    )))
-    .send()
-    .await
-    .map_err(|e| e.to_string())?;
+    let resp = crate::auth::authed(gloo_net::http::Request::get(&sentinel_api("/metrics")?))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
     if !resp.ok() {
         return Err(format!("HTTP {}", resp.status()));
     }
@@ -506,9 +509,9 @@ async fn fetch_live() -> Result<SentinelLive, String> {
 }
 
 async fn fetch_remediations() -> Result<Vec<RemediationItem>, String> {
-    let resp = crate::auth::authed(gloo_net::http::Request::get(&format!(
-        "{SENTINEL_API}/remediations"
-    )))
+    let resp = crate::auth::authed(gloo_net::http::Request::get(&sentinel_api(
+        "/remediations",
+    )?))
     .send()
     .await
     .map_err(|e| e.to_string())?;
@@ -523,9 +526,9 @@ async fn fetch_remediations() -> Result<Vec<RemediationItem>, String> {
 async fn post_decision(id: &str, approver: &str, approve: bool) -> Result<(), String> {
     let verb = if approve { "approve" } else { "reject" };
     let body = serde_json::json!({ "approver": approver, "reason": "decidido no cockpit" });
-    let resp = crate::auth::authed(gloo_net::http::Request::post(&format!(
-        "{SENTINEL_API}/remediations/{id}/{verb}"
-    )))
+    let resp = crate::auth::authed(gloo_net::http::Request::post(&sentinel_api(&format!(
+        "/remediations/{id}/{verb}"
+    ))?))
     .json(&body)
     .map_err(|e| e.to_string())?
     .send()

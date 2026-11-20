@@ -20,7 +20,10 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::Deserialize;
 
-const GATEWAY: &str = "http://localhost:3000/api/v1";
+/// URL absoluta de `path` sob `/api/v1` do gateway.
+fn gateway(path: &str) -> Result<String, String> {
+    crate::gateway_http::api_url(&format!("/api/v1{path}"))
+}
 
 /// Status de uma integração como devolvido pelo gateway.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -102,7 +105,7 @@ pub fn format_test_result(r: &TestResult) -> String {
 
 async fn fetch_status() -> Result<Vec<IntegrationStatus>, String> {
     use gloo_net::http::Request;
-    let resp = crate::auth::authed(Request::get(&format!("{GATEWAY}/integrations/status")))
+    let resp = crate::auth::authed(Request::get(&gateway("/integrations/status")?))
         .send()
         .await
         .map_err(|e| format!("{e:?}"))?;
@@ -117,9 +120,9 @@ async fn fetch_status() -> Result<Vec<IntegrationStatus>, String> {
 
 async fn post_test(name: &str) -> Result<TestResult, String> {
     use gloo_net::http::Request;
-    let resp = crate::auth::authed(Request::post(&format!(
-        "{GATEWAY}/integrations/{name}/test"
-    )))
+    let resp = crate::auth::authed(Request::post(&gateway(&format!(
+        "/integrations/{name}/test"
+    ))?))
     .send()
     .await
     .map_err(|e| format!("{e:?}"))?;

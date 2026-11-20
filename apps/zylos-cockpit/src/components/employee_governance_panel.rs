@@ -30,7 +30,7 @@ pub struct RoleEntry {
 }
 
 async fn fetch_json(url: &str) -> Result<serde_json::Value, String> {
-    let full_url = format!("http://localhost:3000{}", url);
+    let full_url = crate::gateway_http::api_url(url)?;
     let resp = crate::auth::authed(gloo_net::http::Request::get(&full_url))
         .send()
         .await

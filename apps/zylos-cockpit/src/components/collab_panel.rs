@@ -174,6 +174,15 @@ fn connect(ui: Ui, _url: String, _name: String) {
 fn default_ws_base() -> String {
     #[cfg(target_arch = "wasm32")]
     {
+        // Gateway configurado: troca http(s) por ws(s) (mantém o host dele).
+        if let Some(base) = crate::gateway_config::gateway_base() {
+            if let Some(rest) = base.strip_prefix("https://") {
+                return format!("wss://{}", rest.trim_end_matches('/'));
+            }
+            if let Some(rest) = base.strip_prefix("http://") {
+                return format!("ws://{}", rest.trim_end_matches('/'));
+            }
+        }
         if let Some(loc) = web_sys::window().map(|w| w.location()) {
             let proto = if loc.protocol().map(|p| p == "https:").unwrap_or(false) {
                 "wss"

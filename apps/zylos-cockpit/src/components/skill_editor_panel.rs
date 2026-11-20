@@ -273,11 +273,9 @@ pub fn SkillEditorPanel() -> impl IntoView {
 
     // Carregar skills do Hermes
     spawn_local(async move {
-        match fetch_json::<serde_json::Value>(
-            "http://localhost:3000/api/v1/hermes/skill-evolution/contracts",
-        )
-        .await
-        {
+        let url = crate::gateway_http::api_url("/api/v1/hermes/skill-evolution/contracts")
+            .unwrap_or_default();
+        match fetch_json::<serde_json::Value>(&url).await {
             Ok(val) => {
                 if let Some(arr) = val.get("contracts").and_then(|v| v.as_array()) {
                     let mapped: Vec<SkillDef> = arr
@@ -414,22 +412,29 @@ pub fn SkillEditorPanel() -> impl IntoView {
                     }
 
                     // POST para o endpoint de contratos (não /validate)
-                    match crate::auth::authed(gloo_net::http::Request::post(
-                        "http://localhost:3000/api/v1/hermes/skill-evolution/contracts",
-                    ))
-                    .header("Content-Type", "application/json")
-                    .body(
-                        serde_json::json!({
-                            "name": skill.name,
-                            "description": skill.description,
-                            "category": skill.category,
-                            "yaml": yaml
-                        })
-                        .to_string(),
-                    )
-                    .unwrap_or_else(|_| panic!("invalid body"))
-                    .send()
-                    .await
+                    let post_url = match crate::gateway_http::api_url(
+                        "/api/v1/hermes/skill-evolution/contracts",
+                    ) {
+                        Ok(u) => u,
+                        Err(e) => {
+                            status.set(Some(format!("❌ {e}")));
+                            return;
+                        }
+                    };
+                    match crate::auth::authed(gloo_net::http::Request::post(&post_url))
+                        .header("Content-Type", "application/json")
+                        .body(
+                            serde_json::json!({
+                                "name": skill.name,
+                                "description": skill.description,
+                                "category": skill.category,
+                                "yaml": yaml
+                            })
+                            .to_string(),
+                        )
+                        .unwrap_or_else(|_| panic!("invalid body"))
+                        .send()
+                        .await
                     {
                         Ok(resp) if resp.ok() => status.set(Some("✅ Salvo com sucesso".into())),
                         Ok(resp) => status.set(Some(format!("❌ Erro HTTP {}", resp.status()))),
