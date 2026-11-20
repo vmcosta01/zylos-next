@@ -285,18 +285,19 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
     // New Fase 9 routers (channels + computer-view)
     let channels_store = tokio::task::block_in_place(|| {
         tokio::runtime::Handle::current().block_on(async {
-            let store = zylos_channels::ChannelsStore::connect(
-                &std::env::var("ZYLOS_CHANNELS_DB")
-                    .unwrap_or_else(|_| "sqlite://data/channels.db".to_string()),
-            )
+            let path = std::env::var("ZYLOS_CHANNELS_DB")
+                .unwrap_or_else(|_| "sqlite://data/channels.db".to_string());
+            // Testes em paralelo abrem o mesmo arquivo: `database is locked` é passageiro.
+            // Migração e semente são idempotentes, então a sequência inteira pode repetir.
+            retry_locked("channels store", || async {
+                let store = zylos_channels::ChannelsStore::connect(&path)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                store.run_migrations().await.map_err(|e| e.to_string())?;
+                store.seed_defaults().await.map_err(|e| e.to_string())?;
+                Ok(store)
+            })
             .await
-            .expect("failed to connect channels store");
-            store
-                .run_migrations()
-                .await
-                .expect("channels migrations failed");
-            store.seed_defaults().await.expect("channels seed failed");
-            store
         })
     });
     let channels = channels_api::create_channels_router(channels_api::ChannelsHandle::from_store(

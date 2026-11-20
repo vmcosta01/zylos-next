@@ -3,7 +3,8 @@
 //! Sem token, por decisão do Victor (2026-11-09); fica atrás da trava
 //! só-desta-máquina (`local_guard`), como as outras rotas de ação.
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use axum::{
     extract::{Path, State},
@@ -12,7 +13,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use zylos_pensar::{Config, ErroPensar};
 
 #[derive(Clone)]
@@ -23,6 +24,49 @@ pub struct BotsState {
     /// Barramento SSE: quando o bot falha por culpa do provedor/chave/rede, o cockpit recebe
     /// um `AgentStateChanged` com `new_state = "error"`.
     pub bus: Option<zylos_live_comm::EventBus>,
+    /// Quantas perguntas cada bot está respondendo agora. Só em memória: some quando o gateway
+    /// reinicia, e o bot volta a `ocioso`.
+    pub ativos: Arc<Mutex<HashMap<String, usize>>>,
+}
+
+/// Marca o bot como `trabalhando` enquanto vive; ao sair do escopo (resposta, erro ou pedido
+/// cancelado pelo cliente) desmarca. Por ser `Drop`, o cancelamento não deixa o bot preso.
+struct EmTrabalho {
+    ativos: Arc<Mutex<HashMap<String, usize>>>,
+    nome: String,
+}
+
+impl EmTrabalho {
+    fn novo(ativos: &Arc<Mutex<HashMap<String, usize>>>, nome: &str) -> Self {
+        if let Ok(mut m) = ativos.lock() {
+            *m.entry(nome.to_string()).or_insert(0) += 1;
+        }
+        Self {
+            ativos: Arc::clone(ativos),
+            nome: nome.to_string(),
+        }
+    }
+}
+
+impl Drop for EmTrabalho {
+    fn drop(&mut self) {
+        if let Ok(mut m) = self.ativos.lock() {
+            if let Some(n) = m.get_mut(&self.nome) {
+                *n = n.saturating_sub(1);
+                if *n == 0 {
+                    m.remove(&self.nome);
+                }
+            }
+        }
+    }
+}
+
+/// Um bot da lista com o que ele está fazendo agora (`trabalhando` ou `ocioso`).
+#[derive(Debug, Serialize)]
+struct BotComEstado {
+    #[serde(flatten)]
+    info: zylos_pensar::bots::InfoBot,
+    estado: &'static str,
 }
 
 #[derive(Debug, Deserialize)]
@@ -72,6 +116,7 @@ pub fn create_bots_router_with_bus(cfg: Config, bus: Option<zylos_live_comm::Eve
                 .unwrap_or_else(|_| reqwest::Client::new()),
             egress,
             bus,
+            ativos: Arc::new(Mutex::new(HashMap::new())),
         })
 }
 
@@ -174,6 +219,7 @@ async fn post_perguntar(
     Path(nome): Path<String>,
     Json(pedido): Json<PedidoPergunta>,
 ) -> Response {
+    let _em_trabalho = EmTrabalho::novo(&st.ativos, &nome);
     match zylos_pensar::perguntar(&st.cfg, &st.cliente, &ambiente, &nome, &pedido.pergunta).await {
         Ok(r) => Json(r).into_response(),
         Err(e) => {
@@ -212,12 +258,26 @@ fn avisa_falha(st: &BotsState, nome: &str, e: &ErroPensar) {
     });
 }
 
-/// `GET /api/v1/bots` — os bots da pasta de bots (nome, provedor, modelo; nunca a `ALMA.md`).
+/// `GET /api/v1/bots` — os bots da pasta de bots (nome, provedor, modelo, estado; nunca a `ALMA.md`).
 async fn get_bots(State(st): State<BotsState>) -> Response {
     let pasta = st.cfg.pasta_bots.clone();
     // Lê o disco fora do executor async.
     match tokio::task::spawn_blocking(move || zylos_pensar::bots::listar(&pasta)).await {
-        Ok(bots) => Json(serde_json::json!({ "bots": bots })).into_response(),
+        Ok(bots) => {
+            let ativos = st.ativos.lock().map(|m| m.clone()).unwrap_or_default();
+            let bots: Vec<BotComEstado> = bots
+                .into_iter()
+                .map(|info| {
+                    let estado = if ativos.contains_key(&info.nome) {
+                        "trabalhando"
+                    } else {
+                        "ocioso"
+                    };
+                    BotComEstado { info, estado }
+                })
+                .collect();
+            Json(serde_json::json!({ "bots": bots })).into_response()
+        }
         Err(_) => problema(
             &ErroPensar::Rede("leitura da pasta de bots falhou".into()),
             "/api/v1/bots".into(),

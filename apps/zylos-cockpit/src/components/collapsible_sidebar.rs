@@ -278,7 +278,9 @@ fn AgentsRail(set_active_tab: WriteSignal<Tab>) -> impl IntoView {
                                 >
                                     <span class="avatar" aria-hidden="true">{super::chat_panel::initials(&bot.display_name)}</span>
                                     <span class="item-label">{bot.display_name.clone()}</span>
-                                    <span class="meta">{bot.provider.clone()}</span>
+                                    <span class="meta" class:meta-working=bot.working>
+                                        {if bot.working { "trabalhando".to_string() } else { bot.provider.clone() }}
+                                    </span>
                                 </button>
                             </li>
                         }
