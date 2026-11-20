@@ -133,7 +133,8 @@ pub fn CollapsibleSidebar(
     let (sidebar_width, width_spring) = create_spring(initial_width, SpringConfig::UI);
 
     // Estado por grupo: true = expandido, false = colapsado.
-    let group_states = StoredValue::new({
+    // `RwSignal` (e não `StoredValue`): o clique no cabeçalho precisa redesenhar a lista.
+    let group_states = RwSignal::new({
         let mut map = std::collections::HashMap::new();
         for g in SidebarGroup::ALL {
             let key = format!("zylos-sidebar-group-{}", g.storage_key());
@@ -154,9 +155,9 @@ pub fn CollapsibleSidebar(
     };
 
     let toggle_group = move |g: SidebarGroup| {
-        let current = group_states.with_value(|m| m.get(&g).copied().unwrap_or(true));
+        let current = group_states.with_untracked(|m| m.get(&g).copied().unwrap_or(true));
         let new_val = !current;
-        group_states.update_value(|m| {
+        group_states.update(|m| {
             m.insert(g, new_val);
         });
         let key = format!("zylos-sidebar-group-{}", g.storage_key());
@@ -194,7 +195,7 @@ pub fn CollapsibleSidebar(
                 {SidebarGroup::ALL.iter().map(|&group| {
                     let tabs = group.tabs();
                     let is_expanded = Signal::derive(move || {
-                        group_states.with_value(|m| m.get(&group).copied().unwrap_or(true))
+                        group_states.with(|m| m.get(&group).copied().unwrap_or(true))
                     });
 
                     view! {
@@ -202,7 +203,7 @@ pub fn CollapsibleSidebar(
                             <button
                                 class="sidebar-group-header"
                                 on:click=move |_| toggle_group(group)
-                                aria-expanded=move || is_expanded.get()
+                                aria-expanded=move || is_expanded.get().to_string()
                             >
                                 <span class="group-label">{group.label()}</span>
                                 <span class=move || {

@@ -682,7 +682,7 @@ pub fn CommandPalette(open: RwSignal<bool>, set_active_tab: WriteSignal<Tab>) ->
                                                         on:click=move |_| execute_item(&item)
                                                         on:mouseenter=move |_| selected_idx.set(idx)
                                                         role="option"
-                                                        aria-selected=move || is_selected(idx)
+                                                        aria-selected=move || is_selected(idx).to_string()
                                                     >
                                                         <span class="cmd-palette-item-icon"><i class=format!("ph ph-{}", icon) aria-hidden="true"></i></span>
                                                         <span class="cmd-palette-item-label">{item.label.clone()}</span>
