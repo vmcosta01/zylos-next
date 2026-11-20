@@ -84,6 +84,9 @@ struct BotsResp {
 struct BotInfo {
     nome: String,
     provedor: Option<String>,
+    /// Nome para mostrar (do `bot.toml`); ausente = o nome da pasta.
+    #[serde(default)]
+    nome_exibicao: Option<String>,
     problema: Option<String>,
     /// `trabalhando` ou `ocioso`; ausente em gateway antigo (vira ocioso).
     #[serde(default)]
@@ -97,7 +100,7 @@ fn bots_prontos(r: BotsResp) -> Vec<BotEntry> {
         .filter(|b| b.problema.is_none())
         .filter_map(|b| {
             Some(BotEntry {
-                display_name: b.nome.clone(),
+                display_name: b.nome_exibicao.unwrap_or_else(|| b.nome.clone()),
                 name: b.nome,
                 provider: b.provedor?,
                 working: b.estado.as_deref() == Some("trabalhando"),
@@ -633,6 +636,20 @@ mod testes_bots {
         assert_eq!(l[0].name, "vigia");
         assert_eq!(l[0].provider, "nvidia");
         assert!(!l[0].working, "gateway antigo (sem estado) = ocioso");
+        assert_eq!(l[0].display_name, "vigia", "sem nome_exibicao: o da pasta");
+    }
+
+    #[test]
+    fn nome_de_exibicao_vem_do_gateway() {
+        let r: BotsResp = serde_json::from_str(
+            r#"{"bots":[
+                {"nome":"vigia","provedor":"nvidia","modelo":"m","problema":null,"nome_exibicao":"Vigia da Noite"}
+            ]}"#,
+        )
+        .unwrap();
+        let l = bots_prontos(r);
+        assert_eq!(l[0].name, "vigia", "o identificador não muda");
+        assert_eq!(l[0].display_name, "Vigia da Noite");
     }
 
     #[test]

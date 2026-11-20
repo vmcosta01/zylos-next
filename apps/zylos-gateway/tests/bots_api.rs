@@ -79,6 +79,11 @@ async fn roteador_com_bus(bus: Option<zylos_live_comm::EventBus>) -> (tempfile::
         let m = modelo
             .map(|m| format!("modelo = \"{m}\"\n"))
             .unwrap_or_default();
+        let m = if nome == "vigia" {
+            format!("{m}nome_exibicao = \"Vigia da Noite\"\n")
+        } else {
+            m
+        };
         std::fs::write(b.join("bot.toml"), format!("provedor = \"{prov}\"\n{m}")).unwrap();
         std::fs::write(b.join("ALMA.md"), format!("Sou o {nome}")).unwrap();
     }
@@ -151,6 +156,9 @@ async fn lista_bots_sem_alma() {
     assert_eq!(vigia["provedor"], "falso");
     assert_eq!(vigia["modelo"], "m");
     assert_eq!(vigia["problema"], Value::Null);
+    assert_eq!(vigia["nome_exibicao"], "Vigia da Noite");
+    let lerdo = lista.iter().find(|b| b["nome"] == "lerdo").unwrap();
+    assert_eq!(lerdo["nome_exibicao"], Value::Null);
     assert!(
         !v.to_string().contains("Sou o"),
         "a ALMA.md não pode sair na lista"
