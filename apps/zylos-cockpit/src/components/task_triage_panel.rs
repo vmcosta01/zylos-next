@@ -227,17 +227,19 @@ pub fn TaskTriagePanel() -> impl IntoView {
 
                             // Seção 4: Done (colapsável)
                             <div class="triage-section triage-section-success">
-                                <div
+                                <button
+                                    type="button"
                                     class="triage-section-header triage-section-collapsible"
+                                    aria-expanded=move || done_expanded.get().to_string()
                                     on:click=move |_| done_expanded.update(|v| *v = !*v)
                                 >
                                     <span class="triage-section-icon"><i class="ph ph-check-circle" aria-hidden="true"></i></span>
                                     <span class="triage-section-name">"Concluídas (24h)"</span>
                                     <span class="triage-section-count">{done_count}</span>
-                                    <span class="triage-collapse-indicator">
+                                    <span class="triage-collapse-indicator" aria-hidden="true">
                                         {move || if done_expanded.get() { "▼" } else { "▶" }}
                                     </span>
-                                </div>
+                                </button>
                                 {move || {
                                  let expanded = done_expanded.get();
                                  if expanded && done_count > 0 {

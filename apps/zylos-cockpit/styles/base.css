@@ -1895,7 +1895,7 @@ body {
 .triage-section-warning { --tone: var(--color-text-secondary); }
 .triage-section-success { --tone: var(--color-status-success); }
 .triage-section-header { display: flex; align-items: center; gap: var(--space-2); min-height: 48px; padding: 0 var(--space-4); }
-.triage-section-collapsible { cursor: pointer; user-select: none; }
+.triage-section-collapsible { width: 100%; border: 0; background: transparent; font: inherit; color: inherit; text-align: left; cursor: pointer; user-select: none; }
 .triage-section-icon { display: grid; place-items: center; color: var(--tone); font-size: 18px; }
 .triage-section-name { font-size: var(--text-sm); font-weight: 600; color: var(--color-text-primary); }
 .triage-section-count {
