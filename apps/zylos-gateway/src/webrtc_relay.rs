@@ -137,6 +137,14 @@ impl WebRtcRelayState {
         Some(tx.send(msg).unwrap_or(0))
     }
 
+    /// Quantos espectadores (WebSockets) estão ligados à sessão agora.
+    pub fn viewers(&self, session_id: &str) -> usize {
+        self.sessions
+            .get(session_id)
+            .map(|tx| tx.value().receiver_count())
+            .unwrap_or(0)
+    }
+
     pub fn cleanup_session(&self, session_id: &str) {
         if let Some((_, tx)) = self.sessions.remove(session_id) {
             if tx.receiver_count() == 0 {

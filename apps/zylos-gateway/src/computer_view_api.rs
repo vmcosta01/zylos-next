@@ -59,6 +59,93 @@ impl ComputerViewHandle {
     }
 }
 
+/// Variável que liga a captura da tela LOCAL do gateway (padrão: desligada).
+pub const CAPTURA_LOCAL_ENV: &str = "ZYLOS_COMPUTER_VIEW_CAPTURE";
+/// Intervalo da captura local, em ms (padrão 1500, entre 500 e 10000).
+pub const CAPTURA_LOCAL_MS_ENV: &str = "ZYLOS_COMPUTER_VIEW_CAPTURE_MS";
+
+/// A captura local só liga com `ZYLOS_COMPUTER_VIEW_CAPTURE=1`: ela fotografa o monitor
+/// primário da máquina onde o gateway roda e manda o quadro a quem assiste a sessão.
+pub fn captura_local_ligada() -> bool {
+    std::env::var(CAPTURA_LOCAL_ENV).is_ok_and(|v| v.trim() == "1")
+}
+
+/// Intervalo entre capturas, com o limite de 500 ms a 10 s.
+pub fn intervalo_captura() -> std::time::Duration {
+    let ms = std::env::var(CAPTURA_LOCAL_MS_ENV)
+        .ok()
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .unwrap_or(1500)
+        .clamp(500, 10_000);
+    std::time::Duration::from_millis(ms)
+}
+
+/// A sessão nasce `connecting`; quando o primeiro frame é entregue ela passa a `active`. Sem isso
+/// nada nunca ativava a sessão, e "Assumir controle" (que exige sessão ativa) respondia 409 sempre.
+/// Só mexe em `connecting`: não desfaz `user_control`, `paused` nem `terminated`.
+fn ativar_se_conectando(handle: &ComputerViewHandle, id: &str) {
+    let conectando = handle
+        .manager
+        .get_session(id)
+        .is_some_and(|s| s.state == SessionState::Connecting.as_str());
+    if conectando {
+        let _ = handle.manager.update_state(id, SessionState::Active);
+    }
+}
+
+/// Uma rodada da captura local: para cada sessão **local** (sem `vnc_url`: uma sessão que
+/// aponta para outro computador não é fotografada aqui) e ativa que tenha pelo menos um
+/// espectador, captura o quadro e o publica no relay. Devolve quantos frames publicou.
+/// `capturar` devolve os bytes PNG; falha de captura (sem monitor, sem permissão) só pula a sessão.
+pub fn rodada_de_captura<F>(handle: &ComputerViewHandle, capturar: F) -> usize
+where
+    F: Fn(&str) -> Result<Vec<u8>, String>,
+{
+    let Some(relay) = handle.relay.as_ref() else {
+        return 0;
+    };
+    let mut publicados = 0;
+    for s in handle.manager.list_active_sessions() {
+        if s.vnc_url.is_some() || relay.viewers(&s.id) == 0 {
+            continue;
+        }
+        match capturar(&s.id) {
+            Ok(png) => {
+                if relay.publish_frame(&s.id, &png).is_some() {
+                    publicados += 1;
+                    ativar_se_conectando(handle, &s.id);
+                }
+            }
+            Err(e) => tracing::debug!(session = %s.id, error = %e, "captura local falhou"),
+        }
+    }
+    publicados
+}
+
+/// Liga o laço da captura local (tarefa em segundo plano). Só é chamado quando
+/// [`captura_local_ligada`]; a captura em si roda fora do executor async.
+pub fn spawn_captura_local(handle: ComputerViewHandle, intervalo: std::time::Duration) {
+    tracing::warn!(
+        intervalo_ms = intervalo.as_millis() as u64,
+        "captura da tela local LIGADA ({CAPTURA_LOCAL_ENV}=1): quem assiste uma sessão local vê o monitor primário deste computador"
+    );
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(intervalo).await;
+            let h = handle.clone();
+            let _ = tokio::task::spawn_blocking(move || {
+                rodada_de_captura(&h, |id| {
+                    let d = h.manager.capture_screenshot(id)?;
+                    base64::engine::general_purpose::STANDARD
+                        .decode(d.image_base64)
+                        .map_err(|e| e.to_string())
+                })
+            })
+            .await;
+        }
+    });
+}
+
 /// Maior frame aceito (PNG/JPEG de uma tela inteira cabe com folga).
 const MAX_FRAME_BYTES: usize = 4 * 1024 * 1024;
 
@@ -98,7 +185,10 @@ async fn push_frame(
         .into_response();
     }
     match relay.publish_frame(&id, &body) {
-        Some(viewers) => Json(serde_json::json!({ "viewers": viewers })).into_response(),
+        Some(viewers) => {
+            ativar_se_conectando(&handle, &id);
+            Json(serde_json::json!({ "viewers": viewers })).into_response()
+        }
         None => error_response(StatusCode::SERVICE_UNAVAILABLE, "relay_session_limit", None)
             .into_response(),
     }
@@ -417,6 +507,110 @@ mod tests {
             .await
             .unwrap()
             .status()
+    }
+
+    #[tokio::test]
+    async fn captura_local_so_fotografa_sessao_local_com_espectador() {
+        let relay = crate::webrtc_relay::WebRtcRelayState::new();
+        let handle = ComputerViewHandle::new().with_relay(relay.clone());
+        let nova = |vnc: Option<&str>| {
+            handle
+                .manager
+                .create_session(zylos_computer_view::schema::CreateSessionRequest {
+                    bot_id: "b".into(),
+                    vnc_endpoint: vnc.map(str::to_string),
+                    metadata: None,
+                })
+                .id
+        };
+        let local_com = nova(None);
+        let local_sem = nova(None);
+        let remota = nova(Some("vnc://outro-pc:5900"));
+        let chamadas = std::sync::Mutex::new(Vec::<String>::new());
+        let capturar = |id: &str| -> Result<Vec<u8>, String> {
+            chamadas.lock().unwrap().push(id.to_string());
+            Ok(PNG.to_vec())
+        };
+
+        // Sem nenhum espectador: não captura nada (nem fotografa à toa).
+        assert_eq!(rodada_de_captura(&handle, capturar), 0);
+        assert!(chamadas.lock().unwrap().is_empty());
+
+        // Um espectador na sessão local e outro na remota: só a local é fotografada.
+        let mut rx = relay.get_or_create_channel(&local_com).unwrap().subscribe();
+        let _rx_remota = relay.get_or_create_channel(&remota).unwrap().subscribe();
+        assert_eq!(rodada_de_captura(&handle, capturar), 1);
+        assert_eq!(*chamadas.lock().unwrap(), vec![local_com.clone()]);
+        assert!(rx.try_recv().is_ok(), "o frame chegou ao espectador");
+        assert_eq!(relay.viewers(&local_sem), 0);
+
+        // Falha de captura (sem monitor): pula, não publica, não derruba a rodada.
+        let falha = |_: &str| -> Result<Vec<u8>, String> { Err("sem monitor".into()) };
+        assert_eq!(rodada_de_captura(&handle, falha), 0);
+    }
+
+    #[test]
+    fn captura_local_vem_desligada_e_o_intervalo_tem_limite() {
+        // Sem a variável, desligada (o teste não mexe no ambiente: lê o que houver).
+        if std::env::var(CAPTURA_LOCAL_ENV).is_err() {
+            assert!(!captura_local_ligada());
+        }
+        let i = intervalo_captura();
+        assert!(
+            i >= std::time::Duration::from_millis(500) && i <= std::time::Duration::from_secs(10)
+        );
+    }
+
+    #[tokio::test]
+    async fn primeiro_frame_ativa_a_sessao_e_assumir_controle_passa_a_funcionar() {
+        let (app, _relay) = app_com_relay();
+        let id = create(&app).await;
+        let assumir = |app: &Router, id: &str| {
+            let app = app.clone();
+            let id = id.to_string();
+            async move {
+                app.oneshot(
+                    Request::post(format!("/computer-view/sessions/{id}/control"))
+                        .header("content-type", "application/json")
+                        .body(Body::from(r#"{"user_id":"u1"}"#))
+                        .unwrap(),
+                )
+                .await
+                .unwrap()
+                .status()
+            }
+        };
+        let estado = |app: &Router, id: &str| {
+            let app = app.clone();
+            let id = id.to_string();
+            async move {
+                let r = app
+                    .oneshot(
+                        Request::get(format!("/computer-view/sessions/{id}"))
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap();
+                let bytes = axum::body::to_bytes(r.into_body(), 1 << 20).await.unwrap();
+                let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+                v["session"]["state"].as_str().unwrap().to_string()
+            }
+        };
+
+        // Antes de qualquer frame a sessão está `connecting` e não pode ser assumida.
+        assert_eq!(estado(&app, &id).await, "connecting");
+        assert_eq!(assumir(&app, &id).await, StatusCode::CONFLICT);
+
+        // O primeiro frame a ativa; aí dá para assumir o controle.
+        assert_eq!(empurrar(&app, &id, PNG.to_vec()).await, StatusCode::OK);
+        assert_eq!(estado(&app, &id).await, "active");
+        assert_eq!(assumir(&app, &id).await, StatusCode::OK);
+        assert_eq!(estado(&app, &id).await, "user_control");
+
+        // Outro frame não desfaz o controle humano.
+        assert_eq!(empurrar(&app, &id, PNG.to_vec()).await, StatusCode::OK);
+        assert_eq!(estado(&app, &id).await, "user_control");
     }
 
     #[tokio::test]
