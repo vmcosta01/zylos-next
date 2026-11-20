@@ -1985,3 +1985,71 @@ body {
 .fed-status-online { color: var(--color-status-success); }
 .fed-status-degraded { color: var(--color-status-warning); }
 .fed-status-offline { color: var(--color-status-error); }
+
+/* ── Acabamento dos painéis secundários (sobre a linha de base de panels-base.css) ── */
+
+/* Controles de formulário: sem isto aparecem com o visual cru do navegador */
+.tab-panel :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), textarea, select) {
+  font: inherit; font-size: var(--text-sm); color: var(--color-text-primary);
+  background: var(--color-bg-secondary); border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md); padding: 8px 10px; min-height: 40px; max-width: 100%;
+}
+.tab-panel :where(input, textarea, select)::placeholder { color: var(--color-text-tertiary); }
+.tab-panel :where(input, textarea, select):focus-visible { outline: 2px solid var(--color-text-primary); outline-offset: 2px; }
+.tab-panel textarea { min-height: 120px; resize: vertical; }
+.tab-panel label { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); color: var(--color-text-secondary); }
+.tab-panel :where(button:not([class])), .btn {
+  min-height: 40px; padding: 0 var(--space-3); display: inline-flex; align-items: center; gap: var(--space-2);
+  border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); background: var(--color-bg-secondary);
+  color: var(--color-text-primary); font: inherit; font-size: var(--text-sm); text-decoration: none; cursor: pointer;
+}
+.btn-primary { background: var(--color-accent-primary); color: var(--color-on-accent); border-color: var(--color-accent-primary); }
+.tab-panel a { color: var(--color-text-primary); text-underline-offset: 3px; }
+
+/* Analytics */
+.an-filters { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: end; }
+.an-export { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.an-presets ul, .an-recs ul { list-style: none; display: grid; gap: var(--space-2); }
+
+/* Threads */
+.thread-item { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); background: var(--color-bg-secondary); border: 1px solid var(--color-border-default); border-radius: var(--radius-lg); }
+.thread-item .thread-name { flex: 1; min-width: 0; font-weight: 560; overflow-wrap: anywhere; }
+.thread-actions { display: flex; gap: var(--space-1); }
+
+/* Temas */
+.skin-card { display: grid; gap: var(--space-2); padding: var(--space-3); background: var(--color-bg-secondary); border: 1px solid var(--color-border-default); border-radius: var(--radius-lg); cursor: pointer; }
+.skin-card-active { border-color: var(--color-text-primary); }
+.skin-preview { height: 44px; border-radius: var(--radius-md); }
+.skin-info { display: grid; gap: 2px; }
+.skin-info > * { display: block; }
+
+/* Canais */
+.channel-sidebar { display: grid; gap: var(--space-3); align-content: start; }
+.channel-list { display: grid; gap: 2px; }
+.channel-item { padding: 8px 10px; border-radius: var(--radius-md); cursor: pointer; font-size: var(--text-sm); }
+.channel-active { background: var(--color-bg-secondary); box-shadow: 0 0 0 1px var(--color-border-default); font-weight: 560; }
+.channel-create, .channel-input-area { display: flex; gap: var(--space-2); }
+.channel-create input, .channel-input-area input { flex: 1; min-width: 0; }
+.channel-main { display: grid; gap: var(--space-3); align-content: start; min-width: 0; }
+.channel-messages { min-height: 160px; display: grid; gap: var(--space-2); align-content: start; }
+
+/* Colaboração */
+.collab-header { gap: var(--space-3); }
+.collab-body { display: grid; gap: var(--space-4); grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 900px) { .collab-body { grid-template-columns: minmax(0, 1fr) 220px; } }
+.collab-textarea { width: 100%; min-height: 240px; }
+.collab-draft-bar { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
+
+/* Editor de Skills */
+.skill-toolbar { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.skill-toolbar-btn-primary { background: var(--color-accent-primary); color: var(--color-on-accent); border-color: var(--color-accent-primary); }
+.skill-editor-pane, .skill-preview-pane, .skill-list-pane { display: grid; gap: var(--space-3); align-content: start; min-width: 0; }
+
+/* Painéis de lista + detalhe: duas colunas em telas largas, uma em telas estreitas */
+.tab-panel .channel-panel, .tab-panel .skill-editor-panel { display: grid; gap: var(--space-4); width: 100%; }
+@media (min-width: 768px) {
+  .tab-panel .channel-panel { grid-template-columns: minmax(200px, 260px) minmax(0, 1fr); align-items: start; }
+  .tab-panel .skill-editor-panel { grid-template-columns: minmax(180px, 240px) minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+}
+.channel-header { display: grid; gap: var(--space-1); justify-content: stretch; }
+.channel-header .channel-actions { justify-self: start; }
