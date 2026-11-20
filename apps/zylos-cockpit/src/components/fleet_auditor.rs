@@ -209,7 +209,7 @@ pub fn FleetAuditorPanel() -> impl IntoView {
                     let items = bots.get();
                     if items.is_empty() {
                         view! {
-                            <div class="fleet-empty">"Nenhum bot registrado no auditor."</div>
+                            <div class="fleet-empty">"Sem métricas: a auditoria de frota ainda não está ligada ao gateway."</div>
                         }.into_any()
                     } else {
                         view! {
@@ -298,95 +298,17 @@ pub fn FleetAuditorPanel() -> impl IntoView {
 
 // === API Function ===
 
+#[allow(dead_code)] // construído de novo quando o gateway expuser as métricas
 struct FleetData {
     bots: Vec<BotMetrics>,
     ledger: WeeklyLedger,
 }
 
 async fn fetch_fleet_metrics() -> Result<FleetData, String> {
-    // Placeholder: métricas virão do backend quando fleet auditing estiver integrado
-    Ok(FleetData {
-        bots: vec![
-            BotMetrics {
-                bot_id: "bot-builder".into(),
-                bot_name: "Code Builder".into(),
-                total_tokens: 2_450_000,
-                estimated_cost_usd: 12.35,
-                success_rate_pct: 94.2,
-                avg_response_ms: 1850,
-                total_actions: 342,
-                failed_actions: 20,
-                alerts: vec![],
-            },
-            BotMetrics {
-                bot_id: "bot-security".into(),
-                bot_name: "Shield Guard".into(),
-                total_tokens: 1_890_000,
-                estimated_cost_usd: 9.45,
-                success_rate_pct: 98.7,
-                avg_response_ms: 920,
-                total_actions: 567,
-                failed_actions: 7,
-                alerts: vec![],
-            },
-            BotMetrics {
-                bot_id: "bot-devops".into(),
-                bot_name: "Pipeline Runner".into(),
-                total_tokens: 3_200_000,
-                estimated_cost_usd: 18.90,
-                success_rate_pct: 87.3,
-                avg_response_ms: 3200,
-                total_actions: 189,
-                failed_actions: 24,
-                alerts: vec!["Custo spike: +40% vs semana anterior".into()],
-            },
-            BotMetrics {
-                bot_id: "bot-research".into(),
-                bot_name: "Deep Researcher".into(),
-                total_tokens: 4_100_000,
-                estimated_cost_usd: 24.60,
-                success_rate_pct: 91.5,
-                avg_response_ms: 4500,
-                total_actions: 156,
-                failed_actions: 13,
-                alerts: vec![],
-            },
-            BotMetrics {
-                bot_id: "bot-support".into(),
-                bot_name: "Help Desk".into(),
-                total_tokens: 980_000,
-                estimated_cost_usd: 3.92,
-                success_rate_pct: 96.8,
-                avg_response_ms: 650,
-                total_actions: 890,
-                failed_actions: 28,
-                alerts: vec![],
-            },
-            BotMetrics {
-                bot_id: "bot-analyst".into(),
-                bot_name: "Data Analyst".into(),
-                total_tokens: 1_560_000,
-                estimated_cost_usd: 7.80,
-                success_rate_pct: 72.1,
-                avg_response_ms: 2800,
-                total_actions: 234,
-                failed_actions: 65,
-                alerts: vec![
-                    "Eficácia baixa: 72.1% < threshold 80%".into(),
-                    "Failed actions spike".into(),
-                ],
-            },
-        ],
-        ledger: WeeklyLedger {
-            period: "2026-11-05 → 2026-11-11".into(),
-            total_cost_usd: 77.02,
-            total_tokens: 14_180_000,
-            total_actions: 2378,
-            avg_success_rate: 90.1,
-            top_cost_bot: Some("Deep Researcher ($24.60)".into()),
-            top_performer_bot: Some("Shield Guard (98.7%)".into()),
-        },
-    })
+    // O gateway ainda não expõe métricas de frota. Antes isto devolvia números de exemplo
+    // (custo, tokens, alertas) que pareciam reais; agora falha e a tela diz a verdade.
+    // ATALHO: sem backend de auditoria; gatilho de upgrade: existir `GET /api/v1/fleet/metrics`.
+    Err("métricas de frota indisponíveis no gateway".to_string())
 }
 
 #[cfg(test)]

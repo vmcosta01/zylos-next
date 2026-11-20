@@ -341,7 +341,7 @@ pub fn FederationDashboard() -> impl IntoView {
                     }.into_any()
                 } else {
                     view! {
-                        <div class="fed-empty">"Falha ao carregar dados de federação."</div>
+                        <div class="fed-empty">"Sem dados: a federação ainda não está ligada ao gateway."</div>
                     }.into_any()
                 }
             }}
@@ -352,124 +352,10 @@ pub fn FederationDashboard() -> impl IntoView {
 // === API Function ===
 
 async fn fetch_federation_data() -> Result<FederationData, String> {
-    // Placeholder: dados virão do backend quando federation/HLC estiver integrado
-    Ok(FederationData {
-        nodes: vec![
-            FederatedNode {
-                id: "node-us-east".into(),
-                name: "US-East Primary".into(),
-                region: "us-east-1".into(),
-                status: NodeStatus::Synced,
-                hlc_wall_ms: 1731340800000,
-                hlc_logical: 42,
-                vector_clock: vec![100, 98, 95, 87],
-                last_sync_at: "2026-11-11T15:00:00Z".into(),
-                latency_ms: 12,
-                pending_conflicts: 0,
-            },
-            FederatedNode {
-                id: "node-eu-west".into(),
-                name: "EU-West Replica".into(),
-                region: "eu-west-1".into(),
-                status: NodeStatus::Syncing,
-                hlc_wall_ms: 1731340799500,
-                hlc_logical: 38,
-                vector_clock: vec![99, 97, 95, 86],
-                last_sync_at: "2026-11-11T14:59:30Z".into(),
-                latency_ms: 85,
-                pending_conflicts: 0,
-            },
-            FederatedNode {
-                id: "node-ap-south".into(),
-                name: "AP-South Edge".into(),
-                region: "ap-south-1".into(),
-                status: NodeStatus::Drifted,
-                hlc_wall_ms: 1731340795000,
-                hlc_logical: 35,
-                vector_clock: vec![98, 95, 93, 85],
-                last_sync_at: "2026-11-11T14:55:00Z".into(),
-                latency_ms: 230,
-                pending_conflicts: 1,
-            },
-            FederatedNode {
-                id: "node-sa-east".into(),
-                name: "SA-East Backup".into(),
-                region: "sa-east-1".into(),
-                status: NodeStatus::Conflict,
-                hlc_wall_ms: 1731340790000,
-                hlc_logical: 30,
-                vector_clock: vec![97, 96, 90, 84],
-                last_sync_at: "2026-11-11T14:50:00Z".into(),
-                latency_ms: 180,
-                pending_conflicts: 2,
-            },
-        ],
-        recent_events: vec![
-            HlcEvent {
-                id: "evt-1".into(),
-                node_id: "node-us-east".into(),
-                wall_ms: 1731340800000,
-                logical: 42,
-                event_type: "sync_complete".into(),
-                description: "Sincronização completa com EU-West. 142 operações replicadas.".into(),
-            },
-            HlcEvent {
-                id: "evt-2".into(),
-                node_id: "node-eu-west".into(),
-                wall_ms: 1731340799500,
-                logical: 38,
-                event_type: "write_received".into(),
-                description: "Recebida escrita de approval_rules do US-East.".into(),
-            },
-            HlcEvent {
-                id: "evt-3".into(),
-                node_id: "node-ap-south".into(),
-                wall_ms: 1731340795000,
-                logical: 35,
-                event_type: "drift_detected".into(),
-                description: "Drift de 5s detectado em relação ao primary. Re-sync iniciado.".into(),
-            },
-            HlcEvent {
-                id: "evt-4".into(),
-                node_id: "node-sa-east".into(),
-                wall_ms: 1731340790000,
-                logical: 30,
-                event_type: "conflict_detected".into(),
-                description: "Conflito de escrita simultânea em model_configs entre SA-East e US-East.".into(),
-            },
-            HlcEvent {
-                id: "evt-5".into(),
-                node_id: "node-us-east".into(),
-                wall_ms: 1731340788000,
-                logical: 28,
-                event_type: "vector_clock_merge".into(),
-                description: "Merge de VectorClock após sync com AP-South. VC atualizado: [100,98,95,87].".into(),
-            },
-        ],
-        conflicts: vec![
-            FederationConflict {
-                id: "conflict-1".into(),
-                nodes_involved: vec!["node-sa-east".into(), "node-us-east".into()],
-                resource: "model_configs/bot-analyst".into(),
-                detected_at: "2026-11-11T14:50:00Z".into(),
-                resolved: false,
-                resolution_strategy: None,
-                description: "Escrita simultânea: SA-East alterou provider para 'anthropic' enquanto US-East alterou reasoning_effort para 'high'. Valores divergentes detectados via VectorClock comparison.".into(),
-            },
-            FederationConflict {
-                id: "conflict-2".into(),
-                nodes_involved: vec!["node-sa-east".into(), "node-eu-west".into()],
-                resource: "approval_rules/rule-42".into(),
-                detected_at: "2026-11-11T14:48:00Z".into(),
-                resolved: true,
-                resolution_strategy: Some("Last-Writer-Wins (HLC timestamp)".into()),
-                description: "Ambos os nós atualizaram a mesma regra de approval. Resolvido automaticamente usando HLC: EU-West tinha timestamp lógico maior (38 > 30).".into(),
-            },
-        ],
-        total_syncs_24h: 1847,
-        avg_latency_ms: 127,
-        max_drift_ms: 5000,
-    })
+    // O gateway ainda não expõe federação/HLC. Antes isto devolvia nós, eventos e conflitos de
+    // exemplo que pareciam reais; agora falha e a tela diz a verdade.
+    // ATALHO: sem backend de federação; gatilho de upgrade: existir `GET /api/v1/federation`.
+    Err("federação indisponível no gateway".to_string())
 }
 
 #[cfg(test)]
