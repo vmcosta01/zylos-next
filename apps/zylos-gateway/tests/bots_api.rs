@@ -311,6 +311,19 @@ async fn falha_do_provedor_avisa_o_cockpit_e_erro_de_entrada_nao() {
     let (st, _, _) = perguntar(&app, "recusado", r#"{"pergunta":"oi"}"#).await;
     assert_eq!(st, StatusCode::BAD_GATEWAY);
 
+    // Primeiro `running` (a pergunta começou), depois o `error`; nunca `idle` depois de falha.
+    let env = tokio::time::timeout(Duration::from_secs(2), rx.next())
+        .await
+        .expect("running não chegou")
+        .unwrap()
+        .unwrap();
+    match env.payload {
+        ZylosEvent::AgentStateChanged(a) => {
+            assert_eq!(a.agent_id, "recusado");
+            assert_eq!(a.new_state, "running");
+        }
+        outro => panic!("evento inesperado: {outro:?}"),
+    }
     let env = tokio::time::timeout(Duration::from_secs(2), rx.next())
         .await
         .expect("aviso não chegou")
@@ -326,8 +339,44 @@ async fn falha_do_provedor_avisa_o_cockpit_e_erro_de_entrada_nao() {
         }
         outro => panic!("evento inesperado: {outro:?}"),
     }
-    // Só um evento: o do bot inexistente não foi publicado.
+    // Nada mais: o bot inexistente não publicou nada e a falha não vira `idle`.
     assert!(tokio::time::timeout(Duration::from_millis(300), rx.next())
         .await
         .is_err());
+}
+
+#[tokio::test]
+async fn pergunta_respondida_publica_running_e_depois_idle() {
+    use futures_util::StreamExt;
+    use zylos_live_comm::{EventBus, ZylosEvent};
+
+    let bus = EventBus::new(16, None);
+    let mut rx = bus.subscribe_legacy();
+    let (_d, app) = roteador_com_bus(Some(bus)).await;
+
+    let (st, _, _) = perguntar(&app, "vigia", r#"{"pergunta":"oi"}"#).await;
+    assert_eq!(st, StatusCode::OK);
+
+    let mut estados = Vec::new();
+    for _ in 0..2 {
+        let env = tokio::time::timeout(Duration::from_secs(2), rx.next())
+            .await
+            .expect("evento não chegou")
+            .unwrap()
+            .unwrap();
+        match env.payload {
+            ZylosEvent::AgentStateChanged(a) => {
+                assert_eq!(a.agent_id, "vigia");
+                estados.push((a.previous_state, a.new_state));
+            }
+            outro => panic!("evento inesperado: {outro:?}"),
+        }
+    }
+    assert_eq!(
+        estados,
+        [
+            ("idle".to_string(), "running".to_string()),
+            ("running".to_string(), "idle".to_string())
+        ]
+    );
 }

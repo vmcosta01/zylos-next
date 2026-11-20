@@ -287,6 +287,7 @@ pub struct StreamContext {
     stats: RwSignal<StreamStats>,
     messages: RwSignal<Vec<MessageBuffer>>,
     approvals_tick: RwSignal<u32>,
+    agent_states: RwSignal<std::collections::HashMap<String, bool>>,
     activity: RwSignal<Vec<zylos_cockpit::approvals_sync::ActivityEntry>>,
     /// Capturado em `connect()` (dentro do dono reativo); callbacks do EventSource não têm contexto.
     toasts: Option<ToastStore>,
@@ -301,6 +302,7 @@ impl StreamContext {
             stats: RwSignal::new(StreamStats::default()),
             messages: RwSignal::new(Vec::new()),
             approvals_tick: RwSignal::new(0),
+            agent_states: RwSignal::new(std::collections::HashMap::new()),
             activity: RwSignal::new(Vec::new()),
             toasts: None,
             config,
@@ -448,6 +450,7 @@ impl StreamContext {
         let approvals_tick = self.approvals_tick;
         let toasts_msg = self.toasts.clone();
         let activity_log = self.activity;
+        let agent_states = self.agent_states;
         let on_message = Closure::wrap(Box::new(move |ev: web_sys::MessageEvent| {
             let data = match ev.data().as_string() {
                 Some(d) => d,
@@ -459,6 +462,8 @@ impl StreamContext {
                 s.bytes_received += data.len() as u64;
                 s.last_event_at = Some(js_sys::Date::new_0().to_iso_string().into());
             });
+
+            zylos_cockpit::agent_state::apply_event(agent_states, &data);
 
             if let Some(notice) = classify_gateway_event(&data) {
                 if notice.is_approval() {
@@ -602,6 +607,7 @@ pub fn provide_stream(config: StreamConfig) -> StreamContext {
         ctx.approvals_tick,
     ));
     provide_context(zylos_cockpit::approvals_sync::ActivityLog(ctx.activity));
+    provide_context(zylos_cockpit::agent_state::AgentStates(ctx.agent_states));
     provide_context(ctx.clone());
     ctx
 }

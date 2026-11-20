@@ -126,6 +126,7 @@ pub struct ChatCtx {
 
 /// Cria o contexto na raiz do app.
 pub fn provide_chat() -> ChatCtx {
+    let live = crate::agent_state::use_agent_states();
     let ctx = ChatCtx {
         selected_bot: RwSignal::new(None),
         bots: RwSignal::new(Vec::new()),
@@ -141,12 +142,16 @@ pub fn provide_chat() -> ChatCtx {
                 .set(Some(crate::ui_error::report("bots", &e))),
         }
         ctx.bots_loading.set(false);
-        // ATALHO: sondagem a cada BOTS_POLL_SECS (o gateway não empurra o estado do bot); o
-        // gatilho de upgrade é publicar `AgentStateChanged` running/idle e assinar o SSE.
-        // Falha na sondagem mantém a lista anterior, sem acender o erro da tela.
+        // O estado trabalhando/ocioso chega ao vivo pelo SSE (`agent_state`). Esta releitura é só
+        // reconciliação: corrige a lista e zera o mapa ao vivo com o que o gateway diz agora,
+        // para um evento perdido (queda do SSE) não deixar o bot preso em "trabalhando".
+        // Falha na releitura mantém a lista anterior, sem acender o erro da tela.
         loop {
             gloo_timers::future::sleep(std::time::Duration::from_secs(BOTS_POLL_SECS)).await;
             if let Ok(list) = fetch_bots().await {
+                if let Some(live) = live {
+                    live.set(list.iter().map(|b| (b.name.clone(), b.working)).collect());
+                }
                 if ctx.bots.get_untracked() != list {
                     ctx.bots.set(list);
                 }
@@ -156,8 +161,8 @@ pub fn provide_chat() -> ChatCtx {
     ctx
 }
 
-/// De quanto em quanto tempo o cockpit relê a lista de bots (para o estado trabalhando/ocioso).
-const BOTS_POLL_SECS: u64 = 5;
+/// De quanto em quanto tempo o cockpit reconcilia a lista de bots e o estado ao vivo com o gateway.
+const BOTS_POLL_SECS: u64 = 30;
 
 /// Contexto do chat, se o app o criou.
 pub fn use_chat() -> Option<ChatCtx> {

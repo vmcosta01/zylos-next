@@ -31,34 +31,84 @@ pub struct BotsState {
 
 /// Marca o bot como `trabalhando` enquanto vive; ao sair do escopo (resposta, erro ou pedido
 /// cancelado pelo cliente) desmarca. Por ser `Drop`, o cancelamento não deixa o bot preso.
+/// Publica `AgentStateChanged` `idle`→`running` ao começar e `running`→`idle` ao terminar (o
+/// fim por falha publica `error`, em `avisa_falha`, e não `idle`).
 struct EmTrabalho {
     ativos: Arc<Mutex<HashMap<String, usize>>>,
     nome: String,
+    bus: Option<zylos_live_comm::EventBus>,
+    /// A pergunta terminou em falha do agente: o estado final já foi `error`.
+    falhou: bool,
 }
 
 impl EmTrabalho {
-    fn novo(ativos: &Arc<Mutex<HashMap<String, usize>>>, nome: &str) -> Self {
-        if let Ok(mut m) = ativos.lock() {
-            *m.entry(nome.to_string()).or_insert(0) += 1;
+    fn novo(
+        ativos: &Arc<Mutex<HashMap<String, usize>>>,
+        nome: &str,
+        bus: &Option<zylos_live_comm::EventBus>,
+    ) -> Self {
+        let primeiro = ativos
+            .lock()
+            .map(|mut m| {
+                let n = m.entry(nome.to_string()).or_insert(0);
+                *n += 1;
+                *n == 1
+            })
+            .unwrap_or(false);
+        if primeiro {
+            publica_estado(bus, nome, "idle", "running");
         }
         Self {
             ativos: Arc::clone(ativos),
             nome: nome.to_string(),
+            bus: bus.clone(),
+            falhou: false,
         }
     }
 }
 
 impl Drop for EmTrabalho {
     fn drop(&mut self) {
-        if let Ok(mut m) = self.ativos.lock() {
-            if let Some(n) = m.get_mut(&self.nome) {
-                *n = n.saturating_sub(1);
-                if *n == 0 {
-                    m.remove(&self.nome);
+        let ultimo = self
+            .ativos
+            .lock()
+            .map(|mut m| match m.get_mut(&self.nome) {
+                Some(n) => {
+                    *n = n.saturating_sub(1);
+                    let zerou = *n == 0;
+                    if zerou {
+                        m.remove(&self.nome);
+                    }
+                    zerou
                 }
-            }
+                None => false,
+            })
+            .unwrap_or(false);
+        if ultimo && !self.falhou {
+            publica_estado(&self.bus, &self.nome, "running", "idle");
         }
     }
+}
+
+/// Publica a troca de estado do bot no barramento (SSE). Sem barramento ou sem runtime, não faz nada.
+fn publica_estado(bus: &Option<zylos_live_comm::EventBus>, nome: &str, antes: &str, depois: &str) {
+    let Some(bus) = bus.clone() else { return };
+    let Ok(rt) = tokio::runtime::Handle::try_current() else {
+        return;
+    };
+    let evento = zylos_live_comm::ZylosEvent::AgentStateChanged(
+        zylos_live_comm::event_types::AgentStateChanged {
+            agent_id: nome.to_string(),
+            previous_state: antes.to_string(),
+            new_state: depois.to_string(),
+            reason: None,
+        },
+    );
+    rt.spawn(async move {
+        if let Err(err) = bus.publish("agent.state", evento, 1).await {
+            tracing::warn!(error = %err, "falha ao publicar AgentStateChanged");
+        }
+    });
 }
 
 /// Um bot da lista com o que ele está fazendo agora (`trabalhando` ou `ocioso`).
@@ -219,10 +269,14 @@ async fn post_perguntar(
     Path(nome): Path<String>,
     Json(pedido): Json<PedidoPergunta>,
 ) -> Response {
-    let _em_trabalho = EmTrabalho::novo(&st.ativos, &nome);
+    // Só bot que existe vira evento no barramento (a rota aceita qualquer nome na URL).
+    let existe = zylos_pensar::bots::nome_valido(&nome) && st.cfg.pasta_bots.join(&nome).is_dir();
+    let bus_do_bot = if existe { st.bus.clone() } else { None };
+    let mut em_trabalho = EmTrabalho::novo(&st.ativos, &nome, &bus_do_bot);
     match zylos_pensar::perguntar(&st.cfg, &st.cliente, &ambiente, &nome, &pedido.pergunta).await {
         Ok(r) => Json(r).into_response(),
         Err(e) => {
+            em_trabalho.falhou = !erro_de_entrada(status_e_tipo(&e).0);
             avisa_falha(&st, &nome, &e);
             problema(&e, format!("/api/v1/bots/{nome}/perguntar"))
         }
