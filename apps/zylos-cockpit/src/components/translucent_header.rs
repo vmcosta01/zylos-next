@@ -48,8 +48,8 @@ impl GatewayStatus {
 /// - `gateway_status`: status atual da conexão SSE
 #[component]
 pub fn TranslucentHeader(
-    version: String,
-    gateway_status: GatewayStatus,
+    version: Signal<String>,
+    gateway_status: Signal<GatewayStatus>,
     active_tab: ReadSignal<Tab>,
     set_active_tab: WriteSignal<Tab>,
 ) -> impl IntoView {
@@ -95,15 +95,15 @@ pub fn TranslucentHeader(
             <div class="header-left">
                 <h1 class="header-title">"Zylos Cockpit"</h1>
                 <span class="header-status" aria-live="polite">
-                    <span class=gateway_status.css_class()></span>
-                    <span class="status-label">{gateway_status.label()}</span>
+                    <span class=move || gateway_status.get().css_class()></span>
+                    <span class="status-label">{move || gateway_status.get().label()}</span>
                 </span>
             </div>
             <nav class="header-tabs" role="tablist" aria-label="Navegação principal">
                 <PrimaryTabs active_tab=active_tab set_active_tab=set_active_tab pending=pending />
             </nav>
             <div class="header-right">
-                <span class="version-badge">{version}</span>
+                <span class="version-badge">{move || version.get()}</span>
                 <ThemeToggle />
                 <AuthHeaderButton />
             </div>

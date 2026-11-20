@@ -10,9 +10,9 @@ use wasm_bindgen_futures::spawn_local;
 
 use crate::benchmarks::BenchmarkPanel;
 use crate::components::{
-    provide_theme, provide_toast_store, ActivityPanel, AgentsPanel, ChatPanel, CollapsibleSidebar,
-    CommandPalette, ExtraHost, GatewayStatus, HitlApprovalPanel, InboxPanel, SpaceScopedHost,
-    ToastContainer, TranslucentHeader,
+    provide_chat, provide_theme, provide_toast_store, ActivityPanel, AgentsPanel, ChatPanel,
+    CollapsibleSidebar, CommandPalette, ExtraHost, GatewayStatus, HitlApprovalPanel, InboxPanel,
+    SpaceScopedHost, ToastContainer, TranslucentHeader,
 };
 use crate::i18n::{provide_i18n, use_i18n, Locale};
 use crate::streaming::{provide_stream, LiveEventFeed, StreamConfig};
@@ -61,9 +61,11 @@ pub fn App() -> impl IntoView {
     let stream_ctx = provide_stream(StreamConfig::default());
     stream_ctx.connect(); // abre o SSE em /api/v1/events
     let _spaces_ctx = crate::spaces::provide_spaces();
+    let _chat_ctx = provide_chat();
 
     let (state, set_state) = signal(DashboardState::Loading);
-    let (active_tab, set_active_tab) = signal(Tab::Agents);
+    // O Chat é a casa do app (DESIGN_SYSTEM v2.1 §5.1); a visão geral dos agentes é uma vista.
+    let (active_tab, set_active_tab) = signal(Tab::Chat);
     let palette_open = RwSignal::new(false);
 
     // Derive gateway status from stream connection state
@@ -110,8 +112,8 @@ pub fn App() -> impl IntoView {
         <a href="#main-content" class="skip-link">"Pular para o conteúdo"</a>
         <div class="shell-layout">
             <TranslucentHeader
-                version=version.get()
-                gateway_status=gateway_status.get()
+                version=version
+                gateway_status=gateway_status
                 active_tab=active_tab
                 set_active_tab=set_active_tab
             />
@@ -140,20 +142,23 @@ pub fn App() -> impl IntoView {
                             let tab = active_tab.get();
                             view! {
                                 <div class="dashboard-content">
-                                    <div class="metrics-bar">
-                                        <div class="metric-card">
-                                            <span class="metric-label"><HealthStatusLabel /></span>
-                                            <span class="metric-value success">{health.status.clone()}</span>
+                                    // Saúde do gateway só na visão geral; Chat, Inbox e Activity ficam limpos.
+                                    {(tab == Tab::Agents).then(|| view! {
+                                        <div class="metrics-bar">
+                                            <div class="metric-card">
+                                                <span class="metric-label"><HealthStatusLabel /></span>
+                                                <span class="metric-value success">{health.status.clone()}</span>
+                                            </div>
+                                            <div class="metric-card">
+                                                <span class="metric-label"><HealthStreamsLabel /></span>
+                                                <span class="metric-value">{health.active_streams.to_string()}</span>
+                                            </div>
+                                            <div class="metric-card">
+                                                <span class="metric-label"><HealthVersionLabel /></span>
+                                                <span class="metric-value">{health.version.clone()}</span>
+                                            </div>
                                         </div>
-                                        <div class="metric-card">
-                                            <span class="metric-label"><HealthStreamsLabel /></span>
-                                            <span class="metric-value">{health.active_streams.to_string()}</span>
-                                        </div>
-                                        <div class="metric-card">
-                                            <span class="metric-label"><HealthVersionLabel /></span>
-                                            <span class="metric-value">{health.version.clone()}</span>
-                                        </div>
-                                    </div>
+                                    })}
                                     <TabContent tab=tab />
                                 </div>
                             }.into_any()

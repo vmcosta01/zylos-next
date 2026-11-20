@@ -91,6 +91,34 @@ fn default_bots() -> Vec<BotEntry> {
     ]
 }
 
+/// Agente escolhido e lista de agentes, compartilhados entre o chat e a barra lateral
+/// (DESIGN_SYSTEM v2.1 §5.1: os agentes moram na lateral, o chat é uma coluna só).
+#[derive(Clone, Copy)]
+pub struct ChatCtx {
+    pub selected_bot: RwSignal<Option<String>>,
+    pub bots: RwSignal<Vec<BotEntry>>,
+}
+
+/// Cria o contexto na raiz do app.
+pub fn provide_chat() -> ChatCtx {
+    let ctx = ChatCtx {
+        selected_bot: RwSignal::new(None),
+        bots: RwSignal::new(default_bots()),
+    };
+    provide_context(ctx);
+    ctx
+}
+
+/// Contexto do chat, se o app o criou.
+pub fn use_chat() -> Option<ChatCtx> {
+    use_context::<ChatCtx>()
+}
+
+/// Iniciais para o avatar (até duas letras, maiúsculas).
+pub fn initials(name: &str) -> String {
+    name.chars().take(2).collect::<String>().to_uppercase()
+}
+
 fn now_ms() -> u64 {
     // `SystemTime::now()` dá panic no wasm ("time not implemented on this platform").
     js_sys::Date::now() as u64
@@ -199,10 +227,21 @@ async fn persist(thread: Option<&str>, role: &str, content: &str, warning: RwSig
 #[component]
 pub fn ChatPanel() -> impl IntoView {
     let messages = RwSignal::new(Vec::<ChatMessage>::new());
-    let state = RwSignal::new(ChatState::Empty);
-    let selected_bot = RwSignal::new(None::<String>);
+    let shared = use_chat();
+    let state = RwSignal::new(
+        if shared.is_some_and(|c| c.selected_bot.get_untracked().is_some()) {
+            ChatState::Active
+        } else {
+            ChatState::Empty
+        },
+    );
+    let selected_bot = shared
+        .map(|c| c.selected_bot)
+        .unwrap_or_else(|| RwSignal::new(None::<String>));
     let input_text = RwSignal::new(String::new());
-    let bots = RwSignal::new(default_bots());
+    let bots = shared
+        .map(|c| c.bots)
+        .unwrap_or_else(|| RwSignal::new(default_bots()));
     let error_msg = RwSignal::new(None::<String>);
     // Conversa guardada no gateway: uma por (Space, bot).
     let thread_id = RwSignal::new(None::<String>);
@@ -319,77 +358,56 @@ pub fn ChatPanel() -> impl IntoView {
         }
     };
 
+    // Título e subtítulo da página: nome do Space e quantos agentes têm acesso.
+    let space_title = move || {
+        spaces
+            .and_then(|s| s.active())
+            .map(|sp| sp.name)
+            .unwrap_or_else(|| "Geral".to_string())
+    };
+    let space_subtitle = move || {
+        let n = bots
+            .get()
+            .iter()
+            .filter(|b| spaces.map(|s| s.allows(&b.name)).unwrap_or(true))
+            .count();
+        match (selected_bot.get(), n) {
+            (Some(name), _) => bots
+                .get()
+                .iter()
+                .find(|b| b.name == name)
+                .map(|b| format!("Conversando com {}", b.display_name))
+                .unwrap_or_default(),
+            (None, 1) => "1 agente com acesso a este Space".to_string(),
+            (None, n) => format!("{n} agentes com acesso a este Space"),
+        }
+    };
+
     view! {
         <div class="cockpit-layout">
-            // Sidebar: agent/bot list (design-system: .cockpit-sidebar)
-            <div class="cockpit-sidebar">
-                <div class="sidebar-header">
-                    <span><i class="ph ph-chats-circle" aria-hidden="true"></i></span>
-                    <span>"Bots"</span>
+            <div class="cockpit-main">
+                // Título do Space e quem tem acesso (DESIGN_SYSTEM v2.1 §5.2)
+                <div class="chat-header">
+                    <h1 class="page-title">{move || space_title()}</h1>
+                    <p class="sub">{move || space_subtitle()}</p>
                 </div>
 
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">"Agentes"</div>
+                // Escolha de agente em telas estreitas, onde a lateral some
+                <div class="chat-agents" role="group" aria-label="Agentes">
                     {move || {
                         let spaces = crate::spaces::use_spaces();
                         bots.get().iter().filter(|b| spaces.map(|s| s.allows(&b.name)).unwrap_or(true)).map(|bot| {
                             let name = bot.name.clone();
-                            let display = bot.display_name.clone();
-                            let provider = bot.provider.clone();
-                            let name_for_click = name.clone();
-                            let is_selected = move || selected_bot.get().as_deref() == Some(&name);
-                            let initials: String = display.chars().take(2).collect::<String>().to_uppercase();
+                            let name_click = bot.name.clone();
+                            let label = bot.display_name.clone();
                             view! {
-                                <div
-                                    class={move || {
-                                        if is_selected() { "sidebar-item active" } else { "sidebar-item" }
-                                    }}
-                                    on:click=move |_| {
-                                        selected_bot.set(Some(name_for_click.clone()));
-                                        if messages.get_untracked().is_empty() {
-                                            state.set(ChatState::Active);
-                                        }
-                                    }
-                                    role="button"
-                                    tabindex="0"
-                                >
-                                    <div class="sidebar-avatar">
-                                        {initials.clone()}
-                                        <div class="status-dot success"></div>
-                                    </div>
-                                    <div class="sidebar-item-info">
-                                        <div class="sidebar-item-name">{display.clone()}</div>
-                                        <div class="sidebar-item-meta">{provider.clone()}</div>
-                                    </div>
-                                </div>
+                                <button
+                                    class="btn"
+                                    aria-pressed=move || (selected_bot.get().as_deref() == Some(name.as_str())).to_string()
+                                    on:click=move |_| selected_bot.set(Some(name_click.clone()))
+                                >{label}</button>
                             }
                         }).collect_view()
-                    }}
-                </div>
-            </div>
-
-            // Main chat area (design-system: .cockpit-main)
-            <div class="cockpit-main">
-                // Chat header
-                <div class="chat-header">
-                    {move || {
-                        if let Some(bot_name) = selected_bot.get() {
-                            let bot = bots.get().iter().find(|b| b.name == bot_name).cloned();
-                            if let Some(b) = bot {
-                                let initials: String = b.display_name.chars().take(2).collect::<String>().to_uppercase();
-                                view! {
-                                    <div class="sidebar-avatar" style="width:28px;height:28px;font-size:11px;">
-                                        {initials}
-                                    </div>
-                                    <span style="font-weight:600;">{b.display_name}</span>
-                                    <span style="font-size:var(--text-xs);color:var(--text-secondary);padding:2px 8px;border-radius:var(--radius-full);background:var(--bg-elevated);">{b.provider}</span>
-                                }.into_any()
-                            } else {
-                                view! { <span style="color:var(--text-secondary);">"Bot desconhecido"</span> }.into_any()
-                            }
-                        } else {
-                            view! { <span style="color:var(--text-secondary);">"Selecione um bot para começar"</span> }.into_any()
-                        }
                     }}
                 </div>
 
@@ -427,8 +445,17 @@ pub fn ChatPanel() -> impl IntoView {
                                         </div>
                                     }.into_any()
                                 } else {
+                                    // O agente responde com o nome dele, não com "Bot".
+                                    let bot_display = selected_bot
+                                        .get()
+                                        .and_then(|n| bots.get().iter().find(|b| b.name == n).map(|b| b.display_name.clone()))
+                                        .unwrap_or_else(|| MessageRole::Bot.label().to_string());
                                     msgs.iter().map(|msg| {
-                                        let role_label = msg.role.label();
+                                        let role_label = if msg.role == MessageRole::Bot {
+                                            bot_display.clone()
+                                        } else {
+                                            msg.role.label().to_string()
+                                        };
                                         let content = msg.content.clone();
                                         let is_user = msg.role == MessageRole::User;
                                         let is_system = msg.role == MessageRole::System;
@@ -518,62 +545,6 @@ pub fn ChatPanel() -> impl IntoView {
                             view! {
                                 <div style="text-align:center;font-size:var(--text-sm);color:var(--text-secondary);padding:var(--space-2);">
                                     "Selecione um bot para enviar mensagens"
-                                </div>
-                            }.into_any()
-                        }
-                    }}
-                </div>
-            </div>
-
-            // Context panel (design-system: .cockpit-context) — shows selected bot details
-            <div class="cockpit-context">
-                <div class="context-header">"Detalhes"</div>
-                <div class="context-content">
-                    {move || {
-                        if let Some(bot_name) = selected_bot.get() {
-                            let bot = bots.get().iter().find(|b| b.name == bot_name).cloned();
-                            if let Some(b) = bot {
-                                let msg_count = messages.get().len();
-                                view! {
-                                    <div class="context-section">
-                                        <div class="context-section-title">"Agente"</div>
-                                        <div class="context-card">
-                                            <div class="context-label">"Nome"</div>
-                                            <div class="context-value">{b.display_name.clone()}</div>
-                                        </div>
-                                        <div class="context-card">
-                                            <div class="context-label">"Provedor"</div>
-                                            <div class="context-value">{b.provider.clone()}</div>
-                                        </div>
-                                        <div class="context-card">
-                                            <div class="context-label">"ID"</div>
-                                            <div class="context-value" style="font-family:var(--font-mono);font-size:var(--text-xs);">{b.name.clone()}</div>
-                                        </div>
-                                    </div>
-                                    <div class="context-section">
-                                        <div class="context-section-title">"Sessão"</div>
-                                        <div class="context-card">
-                                            <div class="context-label">"Mensagens"</div>
-                                            <div class="context-value">{msg_count.to_string()}</div>
-                                        </div>
-                                        <div class="context-card">
-                                            <div class="context-label">"Status"</div>
-                                            <div class="context-value" style="color:var(--status-success);">"● Ativo"</div>
-                                        </div>
-                                    </div>
-                                }.into_any()
-                            } else {
-                                view! {
-                                    <div class="empty-state" style="padding:var(--space-4);">
-                                        <div class="empty-state-text">"Bot não encontrado"</div>
-                                    </div>
-                                }.into_any()
-                            }
-                        } else {
-                            view! {
-                                <div class="empty-state" style="padding:var(--space-4);">
-                                    <div class="empty-state-icon" style="font-size:32px;"><i class="ph ph-clipboard-text" aria-hidden="true"></i></div>
-                                    <div class="empty-state-text">"Selecione um agente para ver detalhes"</div>
                                 </div>
                             }.into_any()
                         }
