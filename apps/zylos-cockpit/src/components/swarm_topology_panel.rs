@@ -285,6 +285,17 @@ fn apply_custom_positions(nodes: &mut [TopologyNode]) {
     }
 }
 
+/// Texto para a tela a partir do erro de `fetch_json`. O 503 do Hermes é configuração, não queda.
+fn mensagem_de_falha(e: &str) -> String {
+    if e == "HTTP 503" {
+        "A ponte Hermes não está configurada: o gateway precisa de ZYLOS_HERMES_TOKEN (16 \
+         caracteres ou mais) e de um Hermes ligado para mostrar a topologia."
+            .to_string()
+    } else {
+        format!("Gateway indisponível: {e}")
+    }
+}
+
 async fn fetch_json(url: &str) -> Result<serde_json::Value, String> {
     let full_url = crate::gateway_http::api_url(url)?;
     let resp = crate::auth::authed(gloo_net::http::Request::get(&full_url))
@@ -354,7 +365,7 @@ pub fn SwarmTopologyPanel() -> impl IntoView {
                     }
                     Err(e) => {
                         if data.get().is_none() {
-                            error_msg.set(Some(format!("Gateway indisponível: {e}")));
+                            error_msg.set(Some(mensagem_de_falha(&e)));
                         }
                     }
                 }
@@ -832,5 +843,19 @@ mod tests {
         let t = TooltipState::default();
         assert!(!t.visible);
         assert!(t.node_id.is_none());
+    }
+}
+
+#[cfg(test)]
+mod testes_mensagens {
+    use super::mensagem_de_falha;
+
+    #[test]
+    fn http_503_diz_que_e_configuracao() {
+        assert!(mensagem_de_falha("HTTP 503").contains("ZYLOS_HERMES_TOKEN"));
+        assert_eq!(
+            mensagem_de_falha("fetch error: boom"),
+            "Gateway indisponível: fetch error: boom"
+        );
     }
 }
