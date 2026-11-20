@@ -312,8 +312,10 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
     ));
     // O mesmo relay serve o WebSocket do cockpit e a rota onde o agente empurra frames.
     let relay_state = webrtc_relay::WebRtcRelayState::new();
-    let computer_view_handle =
-        computer_view_api::ComputerViewHandle::new().with_relay(relay_state.clone());
+    // Servidores VNC a que o gateway pode se conectar (ZYLOS_VNC_ALLOW_HOSTS; vazia = nenhum).
+    let computer_view_handle = computer_view_api::ComputerViewHandle::new()
+        .with_vnc_permitidos(computer_view_api::vnc_permitidos_do_ambiente())
+        .with_relay(relay_state.clone());
     // Opt-in: fotografa o monitor deste computador para quem assiste uma sessão local.
     if computer_view_api::captura_local_ligada() {
         computer_view_api::spawn_captura_local(

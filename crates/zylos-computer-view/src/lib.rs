@@ -29,6 +29,7 @@
 //! - SOAR: [soar-computer-control-breach.md](../../docs/soar/soar-computer-control-breach.md)
 //! - Implementation Plan: [IMPLEMENTATION_PLAN_DETAILED.md](../../docs/IMPLEMENTATION_PLAN_DETAILED.md) §3.4
 
+pub mod rfb;
 pub mod schema;
 pub mod session;
 
