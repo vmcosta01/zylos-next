@@ -303,11 +303,12 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
     let channels = channels_api::create_channels_router(channels_api::ChannelsHandle::from_store(
         channels_store,
     ));
+    // O mesmo relay serve o WebSocket do cockpit e a rota onde o agente empurra frames.
+    let relay_state = webrtc_relay::WebRtcRelayState::new();
     let computer_view = computer_view_api::create_computer_view_router(
-        computer_view_api::ComputerViewHandle::new(),
+        computer_view_api::ComputerViewHandle::new().with_relay(relay_state.clone()),
     );
-    let webrtc_relay =
-        webrtc_relay::create_webrtc_relay_router(webrtc_relay::WebRtcRelayState::new());
+    let webrtc_relay = webrtc_relay::create_webrtc_relay_router(relay_state);
     let auth_state = auth_api::AuthState::from_env();
     let api_auth_state = api_auth::ApiAuth::new(auth_state.token_service());
     if !api_auth_state.enforced() {

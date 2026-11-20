@@ -9,6 +9,7 @@
 //! - `DELETE /computer-view/sessions/:id` — encerra sessão
 //! - `POST /computer-view/sessions/:id/control` — solicita controle (lease)
 //! - `DELETE /computer-view/sessions/:id/control` — libera controle
+//! - `POST /computer-view/sessions/:id/frame` — o agente empurra um frame (PNG/JPEG) para quem assiste
 //!
 //! ## Related Documents
 //! - Crate: `crates/zylos-computer-view/`
@@ -16,7 +17,8 @@
 //! - Runbook: `runbooks/rb-zylos-computer-view.md`
 
 use axum::{
-    extract::{Path, State},
+    body::Bytes,
+    extract::{DefaultBodyLimit, Path, State},
     http::{header, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -34,6 +36,8 @@ use zylos_computer_view::{
 #[derive(Clone)]
 pub struct ComputerViewHandle {
     pub manager: Arc<ComputerSessionManager>,
+    /// Relay por onde os frames chegam ao cockpit; sem ele a rota de frames responde 503.
+    pub relay: Option<crate::webrtc_relay::WebRtcRelayState>,
 }
 
 // Safety: ComputerSessionManager wraps a DashMap which is Sync.
@@ -44,7 +48,59 @@ impl ComputerViewHandle {
     pub fn new() -> Self {
         Self {
             manager: Arc::new(ComputerSessionManager::new(30)), // 30 min default lease
+            relay: None,
         }
+    }
+
+    /// Liga o relay (o mesmo estado do `webrtc_relay`) para a rota de frames funcionar.
+    pub fn with_relay(mut self, relay: crate::webrtc_relay::WebRtcRelayState) -> Self {
+        self.relay = Some(relay);
+        self
+    }
+}
+
+/// Maior frame aceito (PNG/JPEG de uma tela inteira cabe com folga).
+const MAX_FRAME_BYTES: usize = 4 * 1024 * 1024;
+
+/// PNG ou JPEG pelos bytes iniciais (o `Content-Type` do cliente não é confiado).
+fn parece_imagem(b: &[u8]) -> bool {
+    b.starts_with(&[0x89, b'P', b'N', b'G']) || b.starts_with(&[0xFF, 0xD8, 0xFF])
+}
+
+/// `POST /computer-view/sessions/:id/frame` — o agente empurra o quadro atual da tela (corpo =
+/// bytes de um PNG ou JPEG). O gateway não captura nada: só entrega ao cockpit pelo relay.
+async fn push_frame(
+    State(handle): State<ComputerViewHandle>,
+    Path(id): Path<String>,
+    body: Bytes,
+) -> Response {
+    let Some(relay) = handle.relay.as_ref() else {
+        return error_response(StatusCode::SERVICE_UNAVAILABLE, "relay_unavailable", None)
+            .into_response();
+    };
+    match handle.manager.get_session(&id) {
+        Some(s) if s.state != SessionState::Terminated.as_str() => {}
+        _ => {
+            return error_response(
+                StatusCode::NOT_FOUND,
+                "session_not_found",
+                Some(format!("Session '{id}' not found")),
+            )
+            .into_response()
+        }
+    }
+    if !parece_imagem(&body) {
+        return error_response(
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            "not_an_image",
+            Some("o corpo deve ser um PNG ou JPEG".into()),
+        )
+        .into_response();
+    }
+    match relay.publish_frame(&id, &body) {
+        Some(viewers) => Json(serde_json::json!({ "viewers": viewers })).into_response(),
+        None => error_response(StatusCode::SERVICE_UNAVAILABLE, "relay_session_limit", None)
+            .into_response(),
     }
 }
 
@@ -224,6 +280,10 @@ pub fn create_computer_view_router(handle: ComputerViewHandle) -> Router {
             "/computer-view/sessions/:id/screenshot",
             get(get_screenshot),
         )
+        .route(
+            "/computer-view/sessions/:id/frame",
+            post(push_frame).layer(DefaultBodyLimit::max(MAX_FRAME_BYTES)),
+        )
         .with_state(handle)
 }
 
@@ -335,6 +395,96 @@ mod tests {
         assert_eq!(
             url,
             format!("/api/v1/computer-view/sessions/{id}/screenshot")
+        );
+    }
+    // PNG mínimo (assinatura + lixo): a rota só confere os bytes iniciais, não decodifica.
+    const PNG: &[u8] = &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3];
+
+    fn app_com_relay() -> (Router, crate::webrtc_relay::WebRtcRelayState) {
+        let relay = crate::webrtc_relay::WebRtcRelayState::new();
+        let app = create_computer_view_router(ComputerViewHandle::new().with_relay(relay.clone()));
+        (app, relay)
+    }
+
+    async fn empurrar(app: &Router, id: &str, corpo: Vec<u8>) -> StatusCode {
+        app.clone()
+            .oneshot(
+                Request::post(format!("/computer-view/sessions/{id}/frame"))
+                    .header("content-type", "application/octet-stream")
+                    .body(Body::from(corpo))
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
+            .status()
+    }
+
+    #[tokio::test]
+    async fn frame_empurrado_chega_ao_espectador_do_relay() {
+        use base64::Engine as _;
+        let (app, relay) = app_com_relay();
+        let id = create(&app).await;
+        // Um espectador ligado ao canal da sessão (o que o WebSocket do cockpit faz).
+        let mut rx = relay.get_or_create_channel(&id).unwrap().subscribe();
+
+        assert_eq!(empurrar(&app, &id, PNG.to_vec()).await, StatusCode::OK);
+
+        match rx.try_recv().expect("o frame não chegou ao relay") {
+            crate::webrtc_relay::RelayServerMsg::Frame { data, .. } => {
+                let bytes = base64::engine::general_purpose::STANDARD
+                    .decode(data)
+                    .unwrap();
+                assert_eq!(bytes, PNG);
+            }
+            outro => panic!("mensagem inesperada: {outro:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn frame_recusa_o_que_nao_e_imagem_e_sessao_inexistente() {
+        let (app, _relay) = app_com_relay();
+        let id = create(&app).await;
+        assert_eq!(
+            empurrar(&app, &id, b"<html>nao sou imagem</html>".to_vec()).await,
+            StatusCode::UNSUPPORTED_MEDIA_TYPE
+        );
+        assert_eq!(
+            empurrar(&app, "nao-existe", PNG.to_vec()).await,
+            StatusCode::NOT_FOUND
+        );
+        // Sessão encerrada também deixa de aceitar frames.
+        let del = app
+            .clone()
+            .oneshot(
+                Request::delete(format!("/computer-view/sessions/{id}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(del.status(), StatusCode::NO_CONTENT);
+        assert_eq!(
+            empurrar(&app, &id, PNG.to_vec()).await,
+            StatusCode::NOT_FOUND
+        );
+    }
+
+    #[tokio::test]
+    async fn frame_passa_do_limite_e_relay_desligado() {
+        let (app, _relay) = app_com_relay();
+        let id = create(&app).await;
+        let mut grande = PNG.to_vec();
+        grande.resize(MAX_FRAME_BYTES + 1, 0);
+        assert_eq!(
+            empurrar(&app, &id, grande).await,
+            StatusCode::PAYLOAD_TOO_LARGE
+        );
+        // Sem relay ligado (ComputerViewHandle::new() puro), a rota diz que não há para onde mandar.
+        let sem = test_app();
+        let id2 = create(&sem).await;
+        assert_eq!(
+            empurrar(&sem, &id2, PNG.to_vec()).await,
+            StatusCode::SERVICE_UNAVAILABLE
         );
     }
 }
