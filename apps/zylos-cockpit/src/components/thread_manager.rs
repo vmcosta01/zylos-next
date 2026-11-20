@@ -105,7 +105,7 @@ pub fn ThreadManager() -> impl IntoView {
     view! {
         <div class="thread-manager">
             <div class="thread-manager-header">
-                <h3 class="thread-manager-title">"💬 Threads"</h3>
+                <h3 class="thread-manager-title"><i class="ph ph-chats-circle" aria-hidden="true"></i>" Threads"</h3>
                 <button class="thread-create-btn" on:click=on_create title="Nova thread">"+"</button>
             </div>
 
@@ -190,7 +190,7 @@ pub fn ThreadManager() -> impl IntoView {
                                                     draft.set(name_ren.clone());
                                                     editing.set(Some(id_ren.clone()));
                                                 }
-                                            >"✎"</button>
+                                            ><i class="ph ph-pencil-simple" aria-hidden="true"></i></button>
                                             <button class="thread-action-btn" title="Mover para cima"
                                                 on:click=move |ev| { ev.stop_propagation(); move_by(snap_up.clone(), id_up.clone(), true) }
                                             >"↑"</button>
@@ -206,7 +206,7 @@ pub fn ThreadManager() -> impl IntoView {
                                                     }
                                                     act(Box::pin(async move { delete_thread(&id).await }));
                                                 }
-                                            >"✕"</button>
+                                            ><i class="ph ph-x" aria-hidden="true"></i></button>
                                         </div>
                                     </div>
                                 }

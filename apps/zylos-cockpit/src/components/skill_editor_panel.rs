@@ -405,7 +405,7 @@ pub fn SkillEditorPanel() -> impl IntoView {
                     // Validação local antes de enviar
                     let errs = validate_yaml_preview(&yaml);
                     if !errs.is_empty() {
-                        status.set(Some(format!("❌ Validação falhou: {}", errs[0])));
+                        status.set(Some(format!("Validação falhou: {}", errs[0])));
                         gloo_timers::future::TimeoutFuture::new(3000).await;
                         status.set(None);
                         return;
@@ -417,7 +417,7 @@ pub fn SkillEditorPanel() -> impl IntoView {
                     ) {
                         Ok(u) => u,
                         Err(e) => {
-                            status.set(Some(format!("❌ {e}")));
+                            status.set(Some(e));
                             return;
                         }
                     };
@@ -436,9 +436,9 @@ pub fn SkillEditorPanel() -> impl IntoView {
                         .send()
                         .await
                     {
-                        Ok(resp) if resp.ok() => status.set(Some("✅ Salvo com sucesso".into())),
-                        Ok(resp) => status.set(Some(format!("❌ Erro HTTP {}", resp.status()))),
-                        Err(e) => status.set(Some(format!("❌ Falha de conexão: {:?}", e))),
+                        Ok(resp) if resp.ok() => status.set(Some("Salvo com sucesso".into())),
+                        Ok(resp) => status.set(Some(format!("Erro HTTP {}", resp.status()))),
+                        Err(e) => status.set(Some(format!("Falha de conexão: {:?}", e))),
                     }
                     gloo_timers::future::TimeoutFuture::new(3000).await;
                     status.set(None);
@@ -487,7 +487,7 @@ pub fn SkillEditorPanel() -> impl IntoView {
                     <button class="skill-toolbar-btn" on:click=move |_| add_step()>{"+ Add Step"}</button>
                     <button class="skill-toolbar-btn" on:click=move |_| undo()>{"↩ Undo"}</button>
                     <button class="skill-toolbar-btn" on:click=move |_| redo()>{"↪ Redo"}</button>
-                    <button class="skill-toolbar-btn skill-toolbar-btn-primary" on:click=move |_| save_to_backend()>{"💾 Save to Backend"}</button>
+                    <button class="skill-toolbar-btn skill-toolbar-btn-primary" on:click=move |_| save_to_backend()><i class="ph ph-floppy-disk" aria-hidden="true"></i>" Save to Backend"</button>
                     {move || {
                         if let Some(msg) = save_status.get() {
                             view! { <span class="save-status">{msg}</span> }.into_any()
@@ -508,7 +508,7 @@ pub fn SkillEditorPanel() -> impl IntoView {
                     } else if let Some(err) = error_msg.get() {
                         view! {
                             <div class="skill-editor-empty">
-                                <span class="error-icon">{"⚠️"}</span>
+                                <span class="error-icon"><i class="ph ph-warning" aria-hidden="true"></i></span>
                                 <span>{err}</span>
                             </div>
                         }.into_any()

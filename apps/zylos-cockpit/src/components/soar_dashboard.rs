@@ -305,7 +305,7 @@ fn SoarOverview(playbooks: Vec<PlaybookSummary>, validation: ValidationResult) -
             {if !validation.warnings.is_empty() {
                 view! {
                     <div class="soar-alerts">
-                        <h3>"⚠️ Alertas de Validação"</h3>
+                        <h3><i class="ph ph-warning" aria-hidden="true"></i>" Alertas de Validação"</h3>
                         <ul>
                             {validation.warnings.iter().map(|w| {
                                 let msg = w.clone();
@@ -407,11 +407,11 @@ fn SoarValidationPanel(validation: ValidationResult) -> impl IntoView {
     };
 
     let health_label = if validation.errors.is_empty() && validation.warnings.is_empty() {
-        "✅ Sistema Saudável"
+        "Sistema Saudável"
     } else if validation.errors.is_empty() {
-        "⚠️ Avisos Presentes"
+        "Avisos Presentes"
     } else {
-        "❌ Erros Detectados"
+        "Erros Detectados"
     };
 
     view! {

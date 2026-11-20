@@ -196,7 +196,7 @@ pub fn SkinThemesPanel() -> impl IntoView {
     view! {
     <div class="skin-themes-panel">
     <div class="skin-themes-header">
-    <h3 class="skin-themes-title">"🎨 Temas Visuais"</h3>
+    <h3 class="skin-themes-title"><i class="ph ph-palette" aria-hidden="true"></i>" Temas Visuais"</h3>
     <span class="skin-themes-subtitle">"Escolha um tema para personalizar o cockpit"</span>
     </div>
 
@@ -232,7 +232,7 @@ pub fn SkinThemesPanel() -> impl IntoView {
     </div>
     {move || {
     if is_active() {
-    view! { <span class="skin-active-badge">"✓ Ativo"</span> }.into_any()
+    view! { <span class="skin-active-badge"><i class="ph ph-check" aria-hidden="true"></i>" Ativo"</span> }.into_any()
     } else {
     view! { <div></div> }.into_any()
     }

@@ -139,7 +139,7 @@ pub fn AgentAwarenessPanel() -> impl IntoView {
 
     view! {
         <div class="agent-awareness-panel p-4 space-y-4">
-            <h2 class="text-xl font-bold text-[var(--foreground)]">"🧠 Agent Awareness"</h2>
+            <h2 class="text-xl font-bold text-[var(--foreground)]"><i class="ph ph-brain" aria-hidden="true"></i>" Agent Awareness"</h2>
 
             {move || {
                 if loading.get() {
@@ -154,27 +154,27 @@ pub fn AgentAwarenessPanel() -> impl IntoView {
                             // Stats grid
                             <div class="grid grid-cols-3 gap-3">
                                 <div class="p-2 rounded border border-[var(--border)] bg-[var(--card)] text-center">
-                                    <div class="text-xs text-[var(--muted-foreground)]">"💤 Idle"</div>
+                                    <div class="text-xs text-[var(--muted-foreground)]"><i class="ph ph-moon" aria-hidden="true"></i>" Idle"</div>
                                     <div class="text-lg font-bold">{s.idle}</div>
                                 </div>
                                 <div class="p-2 rounded border border-[var(--border)] bg-[var(--card)] text-center">
-                                    <div class="text-xs text-[var(--muted-foreground)]">"🤔 Thinking"</div>
+                                    <div class="text-xs text-[var(--muted-foreground)]"><i class="ph ph-question" aria-hidden="true"></i>" Thinking"</div>
                                     <div class="text-lg font-bold">{s.thinking}</div>
                                 </div>
                                 <div class="p-2 rounded border border-[var(--border)] bg-[var(--card)] text-center">
-                                    <div class="text-xs text-[var(--muted-foreground)]">"⚡ Executing"</div>
+                                    <div class="text-xs text-[var(--muted-foreground)]"><i class="ph ph-lightning" aria-hidden="true"></i>" Executing"</div>
                                     <div class="text-lg font-bold">{s.executing}</div>
                                 </div>
                                 <div class="p-2 rounded border border-[var(--border)] bg-[var(--card)] text-center">
-                                    <div class="text-xs text-[var(--muted-foreground)]">"✋ Waiting"</div>
+                                    <div class="text-xs text-[var(--muted-foreground)]"><i class="ph ph-hand-palm" aria-hidden="true"></i>" Waiting"</div>
                                     <div class="text-lg font-bold text-[var(--color-info)]">{s.waiting_approval}</div>
                                 </div>
                                 <div class="p-2 rounded border border-[var(--border)] bg-[var(--card)] text-center">
-                                    <div class="text-xs text-[var(--muted-foreground)]">"❌ Error"</div>
+                                    <div class="text-xs text-[var(--muted-foreground)]"><i class="ph ph-x-circle" aria-hidden="true"></i>" Error"</div>
                                     <div class="text-lg font-bold text-[var(--color-error)]">{s.error}</div>
                                 </div>
                                 <div class="p-2 rounded border border-[var(--border)] bg-[var(--card)] text-center">
-                                    <div class="text-xs text-[var(--muted-foreground)]">"✅ Completed"</div>
+                                    <div class="text-xs text-[var(--muted-foreground)]"><i class="ph ph-check-circle" aria-hidden="true"></i>" Completed"</div>
                                     <div class="text-lg font-bold text-[var(--color-success)]">{s.completed}</div>
                                 </div>
                             </div>
@@ -184,7 +184,7 @@ pub fn AgentAwarenessPanel() -> impl IntoView {
                                 view! {
                                     <div class="p-3 rounded border border-[var(--color-error)] bg-[var(--card)]">
                                         <h3 class="text-sm font-bold text-[var(--color-error)] mb-2">
-                                            {"⚠️ Agents Requiring Attention ("}{s.attention_required}{")"}
+                                            <i class="ph ph-warning" aria-hidden="true"></i>{" Agents Requiring Attention ("}{s.attention_required}{")"}
                                         </h3>
                                         <ul class="space-y-1">
                                             {attention_agents.iter().map(|a| {
@@ -210,7 +210,7 @@ pub fn AgentAwarenessPanel() -> impl IntoView {
                                 }.into_any()
                             } else {
                                 view! {
-                                    <div class="text-sm text-[var(--color-success)]">"✅ No agents require attention"</div>
+                                    <div class="text-sm text-[var(--color-success)]"><i class="ph ph-check-circle" aria-hidden="true"></i>" No agents require attention"</div>
                                 }.into_any()
                             }}
                         </div>

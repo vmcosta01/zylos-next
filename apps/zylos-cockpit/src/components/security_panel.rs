@@ -99,7 +99,7 @@ pub fn SecurityPanel() -> impl IntoView {
 
     view! {
         <div class="security-panel p-4 space-y-4">
-            <h2 class="text-xl font-bold text-[var(--foreground)]">"🛡️ Security Dashboard"</h2>
+            <h2 class="text-xl font-bold text-[var(--foreground)]"><i class="ph ph-shield-check" aria-hidden="true"></i>" Security Dashboard"</h2>
 
             {move || {
                 if loading.get() {

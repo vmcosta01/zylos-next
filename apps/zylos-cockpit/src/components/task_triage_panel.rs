@@ -85,7 +85,7 @@ pub fn TaskTriagePanel() -> impl IntoView {
     view! {
         <div class="triage-panel">
             <div class="triage-header">
-                <h2 class="triage-title">"📋 Triagem de Tarefas"</h2>
+                <h2 class="triage-title"><i class="ph ph-clipboard-text" aria-hidden="true"></i>" Triagem de Tarefas"</h2>
                 <button
                     class="triage-refresh-btn"
                     on:click=move |_| {
@@ -106,7 +106,7 @@ pub fn TaskTriagePanel() -> impl IntoView {
                     }
                     title="Atualizar"
                 >
-                    "🔄"
+                    <i class="ph ph-arrows-clockwise" aria-hidden="true"></i>
                 </button>
             </div>
 
@@ -120,7 +120,7 @@ pub fn TaskTriagePanel() -> impl IntoView {
 
                 TriageState::Error(msg) => view! {
                     <div class="triage-error">
-                        <span>"⚠️ "</span>
+                        <span><i class="ph ph-warning" aria-hidden="true"></i></span>
                         <span>{msg.clone()}</span>
                     </div>
                 }.into_any(),
@@ -137,12 +137,12 @@ pub fn TaskTriagePanel() -> impl IntoView {
                             // Seção 1: Needs You
                             <div class="triage-section triage-section-critical">
                                 <div class="triage-section-header">
-                                    <span class="triage-section-icon">"🔴"</span>
+                                    <span class="triage-section-icon"><i class="ph ph-warning-circle" aria-hidden="true"></i></span>
                                     <span class="triage-section-name">"Precisa de Você"</span>
                                     <span class="triage-section-count">{ny_count}</span>
                                 </div>
                                 {if ny_count == 0 {
-                                    view! { <div class="triage-empty">"Nenhuma ação urgente pendente ✨"</div> }.into_any()
+                                    view! { <div class="triage-empty">"Nenhuma ação urgente pendente"</div> }.into_any()
                                 } else {
                                     view! {
                                         <ul class="triage-list">
@@ -170,12 +170,12 @@ pub fn TaskTriagePanel() -> impl IntoView {
                             // Seção 2: Errors
                             <div class="triage-section triage-section-error">
                                 <div class="triage-section-header">
-                                    <span class="triage-section-icon">"🔵"</span>
+                                    <span class="triage-section-icon"><i class="ph ph-info" aria-hidden="true"></i></span>
                                     <span class="triage-section-name">"Erros"</span>
                                     <span class="triage-section-count">{err_count}</span>
                                 </div>
                                 {if err_count == 0 {
-                                    view! { <div class="triage-empty">"Sem erros recentes 👍"</div> }.into_any()
+                                    view! { <div class="triage-empty">"Sem erros recentes"</div> }.into_any()
                                 } else {
                                     view! {
                                         <ul class="triage-list">
@@ -199,7 +199,7 @@ pub fn TaskTriagePanel() -> impl IntoView {
                             // Seção 3: Can Wait
                             <div class="triage-section triage-section-warning">
                                 <div class="triage-section-header">
-                                    <span class="triage-section-icon">"🟡"</span>
+                                    <span class="triage-section-icon"><i class="ph ph-clock-counter-clockwise" aria-hidden="true"></i></span>
                                     <span class="triage-section-name">"Pode Esperar"</span>
                                     <span class="triage-section-count">{cw_count}</span>
                                 </div>
@@ -231,7 +231,7 @@ pub fn TaskTriagePanel() -> impl IntoView {
                                     class="triage-section-header triage-section-collapsible"
                                     on:click=move |_| done_expanded.update(|v| *v = !*v)
                                 >
-                                    <span class="triage-section-icon">"✅"</span>
+                                    <span class="triage-section-icon"><i class="ph ph-check-circle" aria-hidden="true"></i></span>
                                     <span class="triage-section-name">"Concluídas (24h)"</span>
                                     <span class="triage-section-count">{done_count}</span>
                                     <span class="triage-collapse-indicator">

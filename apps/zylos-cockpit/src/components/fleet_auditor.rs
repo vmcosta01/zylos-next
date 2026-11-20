@@ -136,7 +136,7 @@ pub fn FleetAuditorPanel() -> impl IntoView {
     view! {
         <div class="fleet-auditor-panel">
             <div class="fleet-header">
-                <h3 class="fleet-title">"📊 Fleet Auditor"</h3>
+                <h3 class="fleet-title"><i class="ph ph-chart-line-up" aria-hidden="true"></i>" Fleet Auditor"</h3>
                 <div class="fleet-period-selector">
                     <For
                         each=move || vec![AuditPeriod::Last24h, AuditPeriod::Last7d, AuditPeriod::Last30d]
@@ -239,7 +239,7 @@ pub fn FleetAuditorPanel() -> impl IntoView {
                                                 <div class="fleet-bot-header">
                                                     <span class="fleet-bot-name">{name.clone()}</span>
                                                     {if has_alert {
-                                                        view! { <span class="fleet-alert-badge">"⚠️"</span> }.into_any()
+                                                        view! { <span class="fleet-alert-badge"><i class="ph ph-warning" aria-hidden="true"></i></span> }.into_any()
                                                     } else {
                                                         view! { <div></div> }.into_any()
                                                     }}

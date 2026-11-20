@@ -78,3 +78,12 @@
 .ph-game-controller::before { content: "\e26e"; }
 .ph-hand-waving::before { content: "\e580"; }
 .ph-clipboard-text::before { content: "\e198"; }
+.ph-arrows-clockwise::before { content: "\e094"; }
+.ph-broadcast::before { content: "\e0f2"; }
+.ph-floppy-disk::before { content: "\e248"; }
+.ph-gear::before { content: "\e270"; }
+.ph-question::before { content: "\e3e8"; }
+.ph-sword::before { content: "\e5ba"; }
+.ph-traffic-signal::before { content: "\e9aa"; }
+.ph-upload-simple::before { content: "\e4c0"; }
+.ph-wrench::before { content: "\e5d4"; }

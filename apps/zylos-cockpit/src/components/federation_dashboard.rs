@@ -122,7 +122,7 @@ pub fn FederationDashboard() -> impl IntoView {
     view! {
         <div class="federation-dashboard">
             <div class="fed-header">
-                <h3 class="fed-title">"🌐 Federation Dashboard"</h3>
+                <h3 class="fed-title"><i class="ph ph-globe-hemisphere-west" aria-hidden="true"></i>" Federation Dashboard"</h3>
                 <span class="fed-subtitle">"HLC · VectorClock · Conflict Resolution"</span>
             </div>
 
@@ -170,7 +170,7 @@ pub fn FederationDashboard() -> impl IntoView {
 
                         // Nodes grid
                         <div class="fed-section">
-                            <h4 class="fed-section-title">"📡 Nós Federados"</h4>
+                            <h4 class="fed-section-title"><i class="ph ph-broadcast" aria-hidden="true"></i>" Nós Federados"</h4>
                             <div class="fed-nodes-grid">
                                 <For
                                     each=move || nodes.clone()
@@ -253,10 +253,10 @@ pub fn FederationDashboard() -> impl IntoView {
 
                         // Conflicts
                         <div class="fed-section">
-                            <h4 class="fed-section-title">"⚔️ Conflitos"</h4>
+                            <h4 class="fed-section-title"><i class="ph ph-sword" aria-hidden="true"></i>" Conflitos"</h4>
                             {if conflicts.is_empty() {
                                 view! {
-                                    <div class="fed-no-conflicts">"Nenhum conflito pendente ✨"</div>
+                                    <div class="fed-no-conflicts">"Nenhum conflito pendente"</div>
                                 }.into_any()
                             } else {
                                 view! {
@@ -299,7 +299,7 @@ pub fn FederationDashboard() -> impl IntoView {
                                                         <div class="fed-conflict-header">
                                                             <span class="fed-conflict-resource">{cresource.clone()}</span>
                                                             <span class="fed-conflict-status">
-                                                                {if cresolved { "✅ Resolvido" } else { "⚠️ Pendente" }}
+                                                                {if cresolved { "Resolvido" } else { "Pendente" }}
                                                             </span>
                                                         </div>
                                                         <div class="fed-conflict-nodes">

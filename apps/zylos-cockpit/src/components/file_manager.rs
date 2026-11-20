@@ -114,7 +114,7 @@ pub fn FileManager() -> impl IntoView {
     view! {
     <div class="file-manager">
     <div class="file-manager-header">
-    <h3 class="file-manager-title">"📁 Gerenciador de Arquivos"</h3>
+    <h3 class="file-manager-title"><i class="ph ph-folder-simple" aria-hidden="true"></i>" Gerenciador de Arquivos"</h3>
     <button
     class="file-upload-btn"
     on:click=move |_| {
@@ -123,7 +123,7 @@ pub fn FileManager() -> impl IntoView {
     }
     title="Upload arquivo"
     >
-    "📤 Upload"
+    <i class="ph ph-upload-simple" aria-hidden="true"></i>" Upload"
     </button>
     </div>
 

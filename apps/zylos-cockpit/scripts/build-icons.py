@@ -25,6 +25,7 @@ palette buildings globe-hemisphere-west plugs-connected tray pulse
 sun moon circle-half caret-down caret-right caret-left x check warning-circle shield-warning
 magnifying-glass plus arrows-out-simple hand-grabbing camera list folder
 check-circle x-circle info warning clock-counter-clockwise file-text game-controller hand-waving clipboard-text
+arrows-clockwise broadcast floppy-disk gear question sword traffic-signal upload-simple wrench
 """.split()
 
 css = (SRC / "phosphor-full.css").read_text(encoding="utf-8")
