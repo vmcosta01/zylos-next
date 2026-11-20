@@ -1965,3 +1965,23 @@ body {
 .file-action-btn:focus-visible { outline: 2px solid var(--color-text-primary); outline-offset: 2px; }
 @media (hover: hover) and (pointer: fine) { .file-action-btn:hover { background: var(--color-bg-tertiary); } }
 .file-error { margin: var(--space-3) 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--color-status-error); border-radius: var(--radius-md); color: var(--color-status-error); font-size: var(--text-sm); }
+
+/* Federação: nós sondados (o estado vai em texto; a cor só reforça) */
+.federation-dashboard { max-width: 960px; margin-inline: auto; width: 100%; display: grid; gap: var(--space-4); }
+.fed-title { margin: 0; display: flex; align-items: center; gap: var(--space-2); font-size: 23px; line-height: 30px; font-weight: 600; letter-spacing: -0.01em; }
+.fed-subtitle { margin: calc(var(--space-2) * -1) 0 0; color: var(--color-text-secondary); font-size: var(--text-sm); }
+.fed-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-3); }
+.fed-summary-card { display: grid; gap: 2px; padding: var(--space-3) var(--space-4); background: var(--color-bg-secondary); border: 1px solid var(--color-border-default); border-radius: var(--radius-lg); }
+.fed-summary-label { font-size: var(--text-xs); color: var(--color-text-secondary); }
+.fed-summary-value { font-size: var(--text-lg); font-weight: 600; font-variant-numeric: tabular-nums; }
+.fed-node-list { list-style: none; display: grid; gap: var(--space-2); }
+.fed-node { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4); background: var(--color-bg-secondary); border: 1px solid var(--color-border-default); border-radius: var(--radius-lg); }
+.fed-node-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.fed-node-name { font-weight: 600; overflow-wrap: anywhere; }
+.fed-node-meta { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); font-size: var(--text-sm); color: var(--color-text-secondary); overflow-wrap: anywhere; }
+.fed-node-error { font-size: var(--text-sm); color: var(--color-status-error); }
+.fed-status { padding: 0 10px; border-radius: var(--radius-full); font-size: var(--text-xs); line-height: 22px; font-weight: 560; background: var(--color-bg-tertiary); }
+.fed-status::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: var(--radius-full); background: currentColor; vertical-align: 1px; }
+.fed-status-online { color: var(--color-status-success); }
+.fed-status-degraded { color: var(--color-status-warning); }
+.fed-status-offline { color: var(--color-status-error); }

@@ -13,6 +13,7 @@ pub mod config;
 pub mod crdt_sync;
 pub mod evidence_api;
 pub mod failures_api;
+pub mod federation_api;
 pub mod files_api;
 pub mod goals_api;
 pub mod hermes_api;
@@ -173,6 +174,9 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
         tracing::warn!(error = %e, "gravador de falhas não iniciou");
     }
     let failures = failures_api::create_failures_router(failures_store);
+    // Federação: nós de `ZYLOS_FEDERATION_PEERS`, sondados pelo health de cada um.
+    let federation =
+        federation_api::create_federation_router(federation_api::FederationState::do_ambiente());
     // Arquivos do cockpit: pasta `ZYLOS_FILES_DIR` (padrão `data/files`).
     let files = files_api::create_files_router(files_api::FilesState::do_ambiente());
     let sse = create_sse_router(state.event_bus.clone(), approval_store);
@@ -365,6 +369,7 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
                 .merge(approvals)
                 .merge(spaces)
                 .merge(failures)
+                .merge(federation)
                 .merge(files)
                 .merge(agents_api::create_agents_router(state.swarm.clone()))
                 .merge(subagents_api::create_subagents_router(state.swarm.clone()))
