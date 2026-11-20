@@ -116,6 +116,7 @@ pub fn App() -> impl IntoView {
                 gateway_status=gateway_status
                 active_tab=active_tab
                 set_active_tab=set_active_tab
+                open_palette=palette_open.write_only()
             />
 
             <div class="shell-body">

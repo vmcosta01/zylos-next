@@ -1430,7 +1430,7 @@ body {
   .header-tabs { display: none; }
   .bottom-tabs {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     position: fixed;
     inset: auto 0 0 0;
     z-index: var(--z-header);
@@ -1922,3 +1922,8 @@ body {
 /* Estado do agente: o texto "trabalhando" diz o estado; a cor só reforça */
 .rail-item .meta-working { color: var(--color-status-success); font-weight: 560; }
 .rail-item .meta-working::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: var(--radius-full); background: currentColor; vertical-align: 1px; }
+
+/* Avatares: a legenda de divisões quebra de linha em vez de estourar a tela */
+.agent-division-legend { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin-top: var(--space-4); font-size: var(--text-xs); color: var(--color-text-secondary); }
+.agent-division-legend .legend-item { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.agent-division-legend .legend-dot { width: 8px; height: 8px; flex: none; border-radius: var(--radius-full); }
