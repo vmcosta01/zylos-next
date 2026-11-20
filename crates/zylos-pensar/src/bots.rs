@@ -17,6 +17,23 @@ struct BotToml {
     provedor: String,
     #[serde(default)]
     modelo: Option<String>,
+    /// Como o bot aparece na tela (o `nome` da pasta continua sendo o identificador).
+    #[serde(default)]
+    nome_exibicao: Option<String>,
+}
+
+/// Mais caracteres que isto no nome de exibição: o resto é cortado.
+pub const LIMITE_NOME_EXIBICAO: usize = 40;
+
+/// Nome de exibição pronto para a tela: sem espaço nas pontas, no máximo
+/// [`LIMITE_NOME_EXIBICAO`] caracteres; vazio ou com caractere de controle (quebra de linha,
+/// escape de terminal) vira `None` e a tela usa o nome da pasta.
+fn limpar_nome_exibicao(bruto: &str) -> Option<String> {
+    let t = bruto.trim();
+    if t.is_empty() || t.chars().any(char::is_control) {
+        return None;
+    }
+    Some(t.chars().take(LIMITE_NOME_EXIBICAO).collect())
 }
 
 /// Um bot lido do disco.
@@ -25,6 +42,7 @@ pub struct Bot {
     pub nome: String,
     pub provedor: String,
     pub modelo: Option<String>,
+    pub nome_exibicao: Option<String>,
     pub alma: String,
 }
 
@@ -74,6 +92,7 @@ pub fn carregar(pasta_bots: &Path, nome: &str) -> Result<Bot, ErroBot> {
         nome: nome.to_string(),
         provedor: cfg.provedor.trim().to_string(),
         modelo,
+        nome_exibicao: cfg.nome_exibicao.as_deref().and_then(limpar_nome_exibicao),
         alma,
     })
 }
@@ -87,6 +106,8 @@ pub struct InfoBot {
     pub nome: String,
     pub provedor: Option<String>,
     pub modelo: Option<String>,
+    /// Nome para mostrar, se o `bot.toml` define um; senão a tela usa `nome`.
+    pub nome_exibicao: Option<String>,
     /// Por que o bot não pode responder (sem `bot.toml`, sem `ALMA.md`, ...), quando não pode.
     pub problema: Option<String>,
 }
@@ -112,12 +133,14 @@ pub fn listar(pasta_bots: &Path) -> Vec<InfoBot> {
                 nome,
                 provedor: Some(b.provedor),
                 modelo: b.modelo,
+                nome_exibicao: b.nome_exibicao,
                 problema: None,
             },
             Err(e) => InfoBot {
                 nome,
                 provedor: None,
                 modelo: None,
+                nome_exibicao: None,
                 problema: Some(match e {
                     ErroBot::MalFeito(m) => m,
                     ErroBot::NomeInvalido => "nome inválido".to_string(),
@@ -167,6 +190,59 @@ mod testes {
         if let Some(a) = alma {
             std::fs::write(d.join("ALMA.md"), a).unwrap();
         }
+    }
+
+    #[test]
+    fn nome_de_exibicao_e_limpo_e_opcional() {
+        let t = tempfile::tempdir().unwrap();
+        bot(
+            t.path(),
+            "vigia",
+            "provedor = \"nvidia\"\nnome_exibicao = \"  Vigia da Noite \"\n",
+            Some(b"a"),
+        );
+        bot(t.path(), "arq", "provedor = \"openai\"\n", Some(b"a"));
+        bot(
+            t.path(),
+            "linha",
+            "provedor = \"openai\"\nnome_exibicao = \"a\\nb\"\n",
+            Some(b"a"),
+        );
+        bot(
+            t.path(),
+            "comprido",
+            &format!(
+                "provedor = \"openai\"\nnome_exibicao = \"{}\"\n",
+                "x".repeat(100)
+            ),
+            Some(b"a"),
+        );
+        bot(
+            t.path(),
+            "vazio",
+            "provedor = \"openai\"\nnome_exibicao = \"   \"\n",
+            Some(b"a"),
+        );
+        let l = listar(t.path());
+        let por = |n: &str| {
+            l.iter()
+                .find(|b| b.nome == n)
+                .unwrap()
+                .nome_exibicao
+                .clone()
+        };
+        assert_eq!(por("vigia").as_deref(), Some("Vigia da Noite"));
+        assert_eq!(por("arq"), None);
+        assert_eq!(
+            por("linha"),
+            None,
+            "caractere de controle: usa o nome da pasta"
+        );
+        assert_eq!(
+            por("comprido").unwrap().chars().count(),
+            LIMITE_NOME_EXIBICAO
+        );
+        assert_eq!(por("vazio"), None);
     }
 
     #[test]
