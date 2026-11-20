@@ -1580,3 +1580,27 @@ body {
 .spaces-new input { flex: 1 1 100px; }
 .spaces-new button { flex: 0 0 auto; min-height: 36px; white-space: nowrap; }
 .spaces-hint { overflow-wrap: anywhere; }
+
+/* ── Memória por Space ── */
+.memory-timeline { display: flex; flex-direction: column; gap: var(--space-4); max-width: 720px; }
+.memory-heading { margin: 0; font-size: var(--text-lg); font-weight: 600; }
+.memory-form { display: flex; flex-direction: column; gap: var(--space-2); align-items: flex-start; }
+.memory-title-input, .memory-note-input {
+  width: 100%; padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-strong); border-radius: var(--radius-md);
+  background: var(--color-bg-secondary); color: var(--color-text-primary); font: inherit; font-size: var(--text-sm);
+}
+.memory-note-input { resize: vertical; min-height: 4.5rem; }
+.memory-notes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.memory-note {
+  border: 1px solid var(--color-border-default); border-radius: var(--radius-md);
+  padding: var(--space-3); background: var(--color-bg-secondary);
+  display: flex; flex-direction: column; gap: var(--space-2);
+}
+.memory-note-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.memory-note-head .muted { font-size: var(--text-xs); flex: 1; }
+.memory-note-body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--text-sm); }
+.memory-note-delete {
+  border: 0; background: transparent; color: var(--color-status-error); font: inherit;
+  font-size: var(--text-xs); cursor: pointer; min-height: 32px; padding: 0 var(--space-2);
+}

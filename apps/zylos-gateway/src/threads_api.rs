@@ -14,7 +14,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use axum::{
-    extract::{Path as UrlPath, State},
+    extract::{Path as UrlPath, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::{get, patch},
@@ -22,6 +22,9 @@ use axum::{
 };
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
+
+/// Space que enxerga todas as conversas (espelha `spaces_api::GENERAL_ID`).
+const GENERAL_SPACE: &str = "geral";
 
 /// Thread como devolvida pela API.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -40,6 +43,8 @@ pub struct ThreadView {
     pub last_message_at: Option<String>,
     /// Criação (RFC 3339).
     pub created_at: String,
+    /// Space dono da conversa (`geral` por padrão).
+    pub space_id: String,
 }
 
 /// Mensagem de uma thread.
@@ -104,7 +109,8 @@ impl ThreadsStore {
                 name TEXT NOT NULL,
                 bot_id TEXT NOT NULL DEFAULT '',
                 position INTEGER NOT NULL,
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL,
+                space_id TEXT NOT NULL DEFAULT 'geral'
             );
             CREATE TABLE IF NOT EXISTS chat_messages (
                 id TEXT PRIMARY KEY,
@@ -116,6 +122,16 @@ impl ThreadsStore {
             CREATE INDEX IF NOT EXISTS idx_chat_messages_thread
                 ON chat_messages(thread_id, created_at);"#,
         )?;
+        // Bancos criados antes dos Spaces não têm a coluna.
+        let tem_space: bool = conn
+            .prepare("SELECT 1 FROM pragma_table_info('chat_threads') WHERE name = 'space_id'")?
+            .exists([])?;
+        if !tem_space {
+            conn.execute(
+                "ALTER TABLE chat_threads ADD COLUMN space_id TEXT NOT NULL DEFAULT 'geral'",
+                [],
+            )?;
+        }
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
         })
@@ -137,7 +153,8 @@ impl ThreadsStore {
             .query_row(
                 r#"SELECT t.id, t.name, t.bot_id, t.position, t.created_at,
                       (SELECT COUNT(*) FROM chat_messages m WHERE m.thread_id = t.id),
-                      (SELECT MAX(created_at) FROM chat_messages m WHERE m.thread_id = t.id)
+                      (SELECT MAX(created_at) FROM chat_messages m WHERE m.thread_id = t.id),
+                      t.space_id
                FROM chat_threads t WHERE t.id = ?1"#,
                 params![id],
                 row_to_thread,
@@ -145,22 +162,42 @@ impl ThreadsStore {
             .optional()?)
     }
 
-    /// Lista todas as threads por posição.
+    /// Lista as threads por posição (todas).
     pub fn list(&self) -> Result<Vec<ThreadView>, ThreadsError> {
+        self.list_in_space(None)
+    }
+
+    /// Lista as threads de um Space; `None` ou `geral` devolve todas (o Geral enxerga tudo).
+    pub fn list_in_space(&self, space: Option<&str>) -> Result<Vec<ThreadView>, ThreadsError> {
+        let filtro = space.filter(|s| !s.is_empty() && *s != GENERAL_SPACE);
         let conn = self.lock();
         let mut st = conn.prepare(
             r#"SELECT t.id, t.name, t.bot_id, t.position, t.created_at,
                   (SELECT COUNT(*) FROM chat_messages m WHERE m.thread_id = t.id),
-                  (SELECT MAX(created_at) FROM chat_messages m WHERE m.thread_id = t.id)
-           FROM chat_threads t ORDER BY t.position ASC, t.created_at ASC"#,
+                  (SELECT MAX(created_at) FROM chat_messages m WHERE m.thread_id = t.id),
+                  t.space_id
+           FROM chat_threads t
+           WHERE (?1 IS NULL OR t.space_id = ?1)
+           ORDER BY t.position ASC, t.created_at ASC"#,
         )?;
-        let rows = st.query_map([], row_to_thread)?;
+        let rows = st.query_map(params![filtro], row_to_thread)?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
-    /// Cria uma thread no fim da lista.
+    /// Cria uma thread no fim da lista, no Space Geral.
     pub fn create(&self, name: &str, bot_id: &str) -> Result<ThreadView, ThreadsError> {
+        self.create_in_space(name, bot_id, GENERAL_SPACE)
+    }
+
+    /// Cria uma thread no fim da lista, dentro de um Space.
+    pub fn create_in_space(
+        &self,
+        name: &str,
+        bot_id: &str,
+        space: &str,
+    ) -> Result<ThreadView, ThreadsError> {
         let name = valid_name(name)?;
+        let space = valid_space(space)?;
         let conn = self.lock();
         let next: i64 = conn.query_row(
             "SELECT COALESCE(MAX(position) + 1, 0) FROM chat_threads",
@@ -169,8 +206,8 @@ impl ThreadsStore {
         )?;
         let id = uuid::Uuid::new_v4().to_string();
         conn.execute(
-            "INSERT INTO chat_threads (id, name, bot_id, position, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![id, name, bot_id, next, chrono::Utc::now().to_rfc3339()],
+            "INSERT INTO chat_threads (id, name, bot_id, position, created_at, space_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![id, name, bot_id, next, chrono::Utc::now().to_rfc3339(), space],
         )?;
         Self::get_with(&conn, &id)?.ok_or(ThreadsError::NotFound)
     }
@@ -305,6 +342,19 @@ fn valid_name(name: &str) -> Result<String, ThreadsError> {
     Ok(n.to_string())
 }
 
+fn valid_space(space: &str) -> Result<String, ThreadsError> {
+    let s = space.trim();
+    let ok = !s.is_empty()
+        && s.len() <= 64
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+    if ok {
+        Ok(s.to_string())
+    } else {
+        Err(ThreadsError::Invalid("space inválido".into()))
+    }
+}
+
 fn row_to_thread(r: &rusqlite::Row<'_>) -> rusqlite::Result<ThreadView> {
     let count: i64 = r.get(5)?;
     Ok(ThreadView {
@@ -315,6 +365,7 @@ fn row_to_thread(r: &rusqlite::Row<'_>) -> rusqlite::Result<ThreadView> {
         created_at: r.get(4)?,
         message_count: count.max(0) as usize,
         last_message_at: r.get(6)?,
+        space_id: r.get(7)?,
     })
 }
 
@@ -328,6 +379,17 @@ pub struct CreateThreadRequest {
     /// Bot associado (opcional).
     #[serde(default)]
     pub bot_id: Option<String>,
+    /// Space dono (padrão `geral`).
+    #[serde(default)]
+    pub space_id: Option<String>,
+}
+
+/// Query de `GET /threads`.
+#[derive(Debug, Deserialize)]
+pub struct ListQuery {
+    /// Filtra pelo Space (`geral` ou ausente = todas).
+    #[serde(default)]
+    pub space: Option<String>,
 }
 
 /// Corpo de `PATCH /threads/:id`.
@@ -373,8 +435,8 @@ async fn run<T: Send + 'static>(
         .unwrap_or_else(|e| Err(ThreadsError::Invalid(format!("tarefa abortada: {e}"))))
 }
 
-async fn list_threads(State(s): State<ThreadsStore>) -> Response {
-    match run(move || s.list()).await {
+async fn list_threads(State(s): State<ThreadsStore>, Query(q): Query<ListQuery>) -> Response {
+    match run(move || s.list_in_space(q.space.as_deref())).await {
         Ok(threads) => Json(serde_json::json!({ "threads": threads })).into_response(),
         Err(e) => err_response(e),
     }
@@ -385,7 +447,8 @@ async fn create_thread(
     Json(req): Json<CreateThreadRequest>,
 ) -> Response {
     let bot = req.bot_id.unwrap_or_default();
-    match run(move || s.create(&req.name, &bot)).await {
+    let space = req.space_id.unwrap_or_else(|| GENERAL_SPACE.to_string());
+    match run(move || s.create_in_space(&req.name, &bot, &space)).await {
         Ok(t) => (StatusCode::CREATED, Json(t)).into_response(),
         Err(e) => err_response(e),
     }
@@ -480,6 +543,65 @@ mod tests {
             serde_json::from_slice(&bytes).unwrap()
         };
         (status, v)
+    }
+
+    #[tokio::test]
+    async fn threads_por_space() {
+        let app = app();
+        let (_, a) = call(
+            &app,
+            "POST",
+            "/threads",
+            Some(r#"{"name":"A","space_id":"juridico"}"#),
+        )
+        .await;
+        assert_eq!(a["space_id"], "juridico");
+        call(
+            &app,
+            "POST",
+            "/threads",
+            Some(r#"{"name":"B","space_id":"ops"}"#),
+        )
+        .await;
+        let (_, c) = call(&app, "POST", "/threads", Some(r#"{"name":"C"}"#)).await;
+        assert_eq!(c["space_id"], "geral");
+
+        let (_, j) = call(&app, "GET", "/threads?space=juridico", None).await;
+        assert_eq!(j["threads"].as_array().unwrap().len(), 1);
+        assert_eq!(j["threads"][0]["name"], "A");
+        let (_, g) = call(&app, "GET", "/threads?space=geral", None).await;
+        assert_eq!(g["threads"].as_array().unwrap().len(), 3);
+        let (_, t) = call(&app, "GET", "/threads", None).await;
+        assert_eq!(t["threads"].as_array().unwrap().len(), 3);
+        let (st, _) = call(
+            &app,
+            "POST",
+            "/threads",
+            Some(r#"{"name":"D","space_id":"a b"}"#),
+        )
+        .await;
+        assert_eq!(st, StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn migra_banco_sem_coluna_space() {
+        let dir = std::env::temp_dir().join(format!("zylos-thr-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("t.db");
+        {
+            let c = Connection::open(&path).unwrap();
+            c.execute_batch(
+                "CREATE TABLE chat_threads (id TEXT PRIMARY KEY, name TEXT NOT NULL, bot_id TEXT NOT NULL DEFAULT '', position INTEGER NOT NULL, created_at TEXT NOT NULL);
+                 INSERT INTO chat_threads VALUES ('x','Antiga','',0,'2026-01-01T00:00:00Z');",
+            )
+            .unwrap();
+        }
+        let store = ThreadsStore::open(path.to_str().unwrap()).unwrap();
+        let l = store.list().unwrap();
+        assert_eq!(l.len(), 1);
+        assert_eq!(l[0].space_id, "geral");
+        drop(store);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[tokio::test]

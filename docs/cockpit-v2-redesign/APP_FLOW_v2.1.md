@@ -260,7 +260,7 @@ Mantido da v2.0 com as mudanças de [DESIGN_SYSTEM_v2.1.md §6.8](./DESIGN_SYSTE
 | Eventos SSE de aprovação e alerta | **Feitos** no gateway (`ApprovalRequested`, `ApprovalResolved`, `ApprovalTimeout`, `SentinelAlert`) |
 | Painel Computador inline | **Feito** como cartão no chat; WS e lease funcionam. Frames reais e latência não testados |
 | Endpoint de lease | **Já existia** (`/computer-view/sessions/:id/control`), mas as rotas `{id}` do axum 0.7 respondiam 404; corrigido |
-| Spaces e Rail de Spaces | **Feitos**: `GET/POST /spaces`, `PUT/DELETE /spaces/:id`, Rail na sidebar, filtro por agente. Conversas e memória por Space **não** |
+| Spaces e Rail de Spaces | **Feitos**: `GET/POST /spaces`, `PUT/DELETE /spaces/:id`, Rail na sidebar, filtro por agente. **Conversas e memória por Space também**: threads têm `space_id` (`GET /threads?space=`, `POST /threads {space_id}`); o chat guarda uma conversa por (Space, bot) e a recarrega; notas de memória em `GET/POST /memory/entries`, `DELETE /memory/entries/:key` (namespace `space:<id>`, banco `ZYLOS_MEMORY_DB`). O Geral enxerga tudo |
 | "Resolvido por você e pelos agentes" | **Parcial**: "Resolvido por regras" (`GET /approvals/handled`) com **Revogar regra**; sem `Desfazer` (a ação já foi liberada) |
 | Redirecionamento 302 das rotas antigas | **Não feito**: o cockpit navega por estado, não por rotas de URL |
 | Mapeamento dos 40+ componentes às telas novas | Parcial: as 34 abas antigas continuam na sidebar |

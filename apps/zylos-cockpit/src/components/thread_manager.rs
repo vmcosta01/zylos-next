@@ -28,6 +28,13 @@ pub struct Thread {
     pub message_count: usize,
     #[serde(default)]
     pub last_message_at: Option<String>,
+    /// Space dono da conversa (gateways antigos não mandam: vale o Geral).
+    #[serde(default = "default_space")]
+    pub space_id: String,
+}
+
+fn default_space() -> String {
+    crate::spaces::GENERAL_ID.to_string()
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -233,7 +240,12 @@ async fn send(req: gloo_net::http::Request) -> Result<gloo_net::http::Response, 
 
 async fn fetch_threads() -> Result<Vec<Thread>, String> {
     use gloo_net::http::Request;
-    let req = crate::auth::authed(Request::get(&threads_url("")?))
+    // O Space ativo filtra a lista (o Geral mostra todas).
+    let suffix = format!(
+        "?space={}",
+        crate::auth::url_encode(&crate::spaces::stored_active())
+    );
+    let req = crate::auth::authed(Request::get(&threads_url(&suffix)?))
         .build()
         .map_err(|e| format!("{e:?}"))?;
     let r: ThreadsResponse = send(req)
@@ -247,7 +259,7 @@ async fn fetch_threads() -> Result<Vec<Thread>, String> {
 async fn create_thread(name: &str) -> Result<Thread, String> {
     use gloo_net::http::Request;
     let req = crate::auth::authed(Request::post(&threads_url("")?))
-        .json(&serde_json::json!({ "name": name }))
+        .json(&serde_json::json!({ "name": name, "space_id": crate::spaces::stored_active() }))
         .map_err(|e| format!("{e:?}"))?;
     send(req).await?.json().await.map_err(|e| format!("{e:?}"))
 }
@@ -290,6 +302,7 @@ mod tests {
             position: pos,
             message_count: 0,
             last_message_at: None,
+            space_id: "geral".into(),
         }
     }
 

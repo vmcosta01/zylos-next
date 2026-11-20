@@ -92,11 +92,8 @@ fn default_bots() -> Vec<BotEntry> {
 }
 
 fn now_ms() -> u64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64
+    // `SystemTime::now()` dá panic no wasm ("time not implemented on this platform").
+    js_sys::Date::now() as u64
 }
 
 async fn send_question(bot_name: &str, question: &str) -> Result<String, String> {
@@ -123,6 +120,78 @@ async fn send_question(bot_name: &str, question: &str) -> Result<String, String>
         .ok_or_else(|| "Resposta sem campo 'resposta'".into())
 }
 
+/// Mensagem guardada no gateway → mensagem do chat (`system` e desconhecidos viram Sistema).
+fn to_chat(m: crate::chat_store::StoredMessage) -> ChatMessage {
+    let role = match m.role.as_str() {
+        "user" => MessageRole::User,
+        "assistant" => MessageRole::Bot,
+        _ => MessageRole::System,
+    };
+    // RFC 3339 → ms; se não vier, 0 (a ordem já é a da lista).
+    let timestamp_ms = js_sys::Date::parse(&m.created_at);
+    ChatMessage {
+        role,
+        content: m.content,
+        timestamp_ms: if timestamp_ms.is_nan() {
+            0
+        } else {
+            timestamp_ms as u64
+        },
+        model: None,
+    }
+}
+
+/// Conversa guardada do (Space, bot): id da thread e mensagens; `None` se ainda não começou.
+async fn load_conversation(
+    space: &str,
+    bot: &str,
+) -> Result<Option<(String, Vec<ChatMessage>)>, String> {
+    let Some(thread) = crate::chat_store::load_thread(space, bot).await? else {
+        return Ok(None);
+    };
+    let msgs = crate::chat_store::load_messages(&thread.id).await?;
+    Ok(Some((thread.id, msgs.into_iter().map(to_chat).collect())))
+}
+
+/// Id da thread do (Space, bot): a já carregada ou uma nova, criada na primeira mensagem.
+async fn ensure_thread(
+    current: RwSignal<Option<String>>,
+    space: &str,
+    bot: &str,
+    display: &str,
+) -> Option<String> {
+    if let Some(id) = current.get_untracked() {
+        return Some(id);
+    }
+    match crate::chat_store::create_thread(space, bot, display).await {
+        Ok(t) => {
+            current.set(Some(t.id.clone()));
+            Some(t.id)
+        }
+        Err(e) => {
+            let _ = crate::ui_error::report("conversa", &e);
+            None
+        }
+    }
+}
+
+/// Guarda a mensagem no gateway; falha não interrompe o chat, só acende o aviso.
+async fn persist(thread: Option<&str>, role: &str, content: &str, warning: RwSignal<bool>) {
+    let ok = match thread {
+        Some(id) => match crate::chat_store::save_message(id, role, content).await {
+            Ok(()) => true,
+            Err(e) => {
+                let _ = crate::ui_error::report("conversa", &e);
+                false
+            }
+        },
+        None => false,
+    };
+    if !ok {
+        warning.set(true);
+    }
+}
+
 /// Componente ChatPanel para o cockpit.
 #[component]
 pub fn ChatPanel() -> impl IntoView {
@@ -132,6 +201,47 @@ pub fn ChatPanel() -> impl IntoView {
     let input_text = RwSignal::new(String::new());
     let bots = RwSignal::new(default_bots());
     let error_msg = RwSignal::new(None::<String>);
+    // Conversa guardada no gateway: uma por (Space, bot).
+    let thread_id = RwSignal::new(None::<String>);
+    let save_warning = RwSignal::new(false);
+    let spaces = crate::spaces::use_spaces();
+    let active_space = move || {
+        spaces
+            .map(|s| s.active_id.get_untracked())
+            .unwrap_or_else(|| crate::spaces::GENERAL_ID.to_string())
+    };
+
+    // Trocar de bot ou de Space carrega a conversa daquele par.
+    Effect::new(move |_| {
+        let bot = selected_bot.get();
+        let space = spaces
+            .map(|s| s.active_id.get())
+            .unwrap_or_else(|| crate::spaces::GENERAL_ID.to_string());
+        messages.set(Vec::new());
+        thread_id.set(None);
+        save_warning.set(false);
+        let Some(bot) = bot else { return };
+        spawn_local(async move {
+            let loaded = load_conversation(&space, &bot).await;
+            // Descarta o resultado se a seleção mudou enquanto carregava.
+            let ainda_atual = selected_bot.get_untracked().as_deref() == Some(bot.as_str())
+                && active_space() == space;
+            if !ainda_atual {
+                return;
+            }
+            match loaded {
+                Ok(Some((id, msgs))) => {
+                    thread_id.set(Some(id));
+                    messages.set(msgs);
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    let _ = crate::ui_error::report("conversa", &e);
+                }
+            }
+            state.set(ChatState::Active);
+        });
+    });
 
     // Scroll to bottom when messages change
     let scroll_ref = NodeRef::<leptos::html::Div>::new();
@@ -160,21 +270,40 @@ pub fn ChatPanel() -> impl IntoView {
         state.set(ChatState::Loading);
         error_msg.set(None);
 
+        let space = active_space();
+        let display = bots
+            .get_untracked()
+            .iter()
+            .find(|b| b.name == bot_name)
+            .map(|b| b.display_name.clone())
+            .unwrap_or_else(|| bot_name.clone());
         spawn_local(async move {
+            // Mesma seleção de quando enviou? Senão a resposta só é guardada, não mostrada.
+            let ainda_atual = || {
+                selected_bot.get_untracked().as_deref() == Some(bot_name.as_str())
+                    && active_space() == space
+            };
+            let tid = ensure_thread(thread_id, &space, &bot_name, &display).await;
+            persist(tid.as_deref(), "user", &text, save_warning).await;
             match send_question(&bot_name, &text).await {
                 Ok(answer) => {
-                    let bot_msg = ChatMessage {
-                        role: MessageRole::Bot,
-                        content: answer,
-                        timestamp_ms: now_ms(),
-                        model: None,
-                    };
-                    messages.update(|m| m.push(bot_msg));
-                    state.set(ChatState::Active);
+                    persist(tid.as_deref(), "assistant", &answer, save_warning).await;
+                    if ainda_atual() {
+                        let bot_msg = ChatMessage {
+                            role: MessageRole::Bot,
+                            content: answer,
+                            timestamp_ms: now_ms(),
+                            model: None,
+                        };
+                        messages.update(|m| m.push(bot_msg));
+                        state.set(ChatState::Active);
+                    }
                 }
                 Err(e) => {
-                    error_msg.set(Some(e.clone()));
-                    state.set(ChatState::Error(e));
+                    if ainda_atual() {
+                        error_msg.set(Some(e.clone()));
+                        state.set(ChatState::Error(e));
+                    }
                 }
             }
         });
@@ -349,6 +478,12 @@ pub fn ChatPanel() -> impl IntoView {
 
                 // Computador do agente inline (ADR-003)
                 <super::inline_computer::InlineComputers />
+
+                {move || save_warning.get().then(|| view! {
+                    <div class="error-banner" role="status">
+                        <p>"Não foi possível guardar esta conversa no gateway. Ela some ao recarregar."</p>
+                    </div>
+                })}
 
                 // Input area (design-system: .chat-input-area)
                 <div class="chat-input-area">

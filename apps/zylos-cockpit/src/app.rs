@@ -11,8 +11,8 @@ use wasm_bindgen_futures::spawn_local;
 use crate::benchmarks::BenchmarkPanel;
 use crate::components::{
     provide_theme, provide_toast_store, ActivityPanel, AgentsPanel, ChatPanel, CollapsibleSidebar,
-    CommandPalette, ExtraHost, GatewayStatus, HitlApprovalPanel, InboxPanel, ToastContainer,
-    TranslucentHeader,
+    CommandPalette, ExtraHost, GatewayStatus, HitlApprovalPanel, InboxPanel, SpaceScopedHost,
+    ToastContainer, TranslucentHeader,
 };
 use crate::i18n::{provide_i18n, use_i18n, Locale};
 use crate::streaming::{provide_stream, LiveEventFeed, StreamConfig};
@@ -255,7 +255,7 @@ fn TabContent(tab: Tab) -> impl IntoView {
         }
         .into_any(),
         Tab::Tasks => view! { <ExtraHost tab=Tab::Tasks /> }.into_any(),
-        Tab::Memory => view! { <ExtraHost tab=Tab::Memory /> }.into_any(),
+        Tab::Memory => view! { <SpaceScopedHost tab=Tab::Memory /> }.into_any(),
         Tab::Goals => view! { <ExtraHost tab=Tab::Goals /> }.into_any(),
         Tab::Personalities => view! { <ExtraHost tab=Tab::Personalities /> }.into_any(),
         Tab::SwarmDag => view! { <ExtraHost tab=Tab::SwarmDag /> }.into_any(),
@@ -285,7 +285,7 @@ fn TabContent(tab: Tab) -> impl IntoView {
         Tab::SkillEvolution => view! { <ExtraHost tab=Tab::SkillEvolution /> }.into_any(),
         Tab::EmployeeGovernance => view! { <ExtraHost tab=Tab::EmployeeGovernance /> }.into_any(),
         Tab::TaskTriage => view! { <ExtraHost tab=Tab::TaskTriage /> }.into_any(),
-        Tab::Threads => view! { <ExtraHost tab=Tab::Threads /> }.into_any(),
+        Tab::Threads => view! { <SpaceScopedHost tab=Tab::Threads /> }.into_any(),
         Tab::Subagents => view! { <ExtraHost tab=Tab::Subagents /> }.into_any(),
         Tab::Files => view! { <ExtraHost tab=Tab::Files /> }.into_any(),
         Tab::Voice => view! { <ExtraHost tab=Tab::Voice /> }.into_any(),

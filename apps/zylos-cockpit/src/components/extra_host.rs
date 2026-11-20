@@ -99,6 +99,19 @@ pub fn ExtraHost(tab: Tab) -> impl IntoView {
     }
 }
 
+/// Como [`ExtraHost`], mas remonta o painel quando o Space ativo muda: o módulo extras não
+/// recebe o contexto de Spaces, então o painel relê o Space escolhido ao montar.
+#[component]
+pub fn SpaceScopedHost(tab: Tab) -> impl IntoView {
+    let spaces = crate::spaces::use_spaces();
+    move || {
+        if let Some(s) = spaces {
+            let _ = s.active_id.get();
+        }
+        view! { <ExtraHost tab=tab /> }
+    }
+}
+
 /// Desmonta a instância no módulo extras (`ExtraHandle.free()`).
 fn free(handle: &JsValue) {
     if let Ok(f) = js_sys::Reflect::get(handle, &JsValue::from_str("free")) {

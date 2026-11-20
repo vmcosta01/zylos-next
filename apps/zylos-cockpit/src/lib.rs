@@ -29,6 +29,9 @@ pub mod approvals_sync;
 
 pub mod spaces;
 
+/// Conversas dos bots guardadas por Space.
+pub mod chat_store;
+
 pub mod auth;
 
 pub mod components;

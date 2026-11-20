@@ -75,7 +75,7 @@ pub use agent_card::{AgentCard, AgentInfo, AgentStatus};
 pub use chat_panel::ChatPanel;
 pub use employee_governance_panel::EmployeeGovernancePanel;
 pub use evidence_ledger_panel::EvidenceLedgerPanel;
-pub use extra_host::ExtraHost;
+pub use extra_host::{ExtraHost, SpaceScopedHost};
 pub use goals_panel::GoalsPanel;
 pub use hitl_approval_panel::{
     approve_all_pending, fetch_handled, pending_approvals_count, pending_approvals_count_where,

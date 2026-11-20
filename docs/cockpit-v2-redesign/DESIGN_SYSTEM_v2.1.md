@@ -290,7 +290,7 @@ Removidos da v2.0: elevação de 2px no hover do cartão, "ripple" no clique, en
 - Palette sem animação; hover do card de agente sem elevação; 12 faixas laterais coloridas viraram borda completa.
 
 **Divergências em relação à especificação:**
-- Spaces filtram por **nome de agente** (bot_id). Não há ainda conversas nem memória por Space: o filtro vale para aprovações e bots.
+- Spaces filtram por **nome de agente** (bot_id). Conversas (threads e chat) e notas de memória também são por Space; o Geral mostra tudo. O painel de Threads e o de Memória (módulo extras, sem o contexto de Spaces) leem o Space de `localStorage` e remontam quando ele muda (`SpaceScopedHost`).
 - "Resolvido por regras" substitui "Resolvido por você e pelos agentes": só o que uma regra liberou é registrado, e o controle é **Revogar regra**. `Desfazer` não existe porque a ação já foi liberada.
 - Activity mostra decisões da pessoa (recibos de 7 dias) e os avisos do SSE **desta sessão** (em memória).
 - Avatares-personagem (D5): ficou o monograma/ícone; os personagens não foram produzidos.

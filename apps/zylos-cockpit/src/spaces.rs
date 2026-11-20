@@ -53,11 +53,12 @@ impl SpacesCtx {
 
     /// Escolhe o Space ativo e guarda a escolha.
     pub fn select(&self, id: &str) {
-        self.active_id.set(id.to_string());
+        // Primeiro o armazenamento: painéis do módulo extras lêem o Space dali ao remontar.
         #[cfg(target_arch = "wasm32")]
         if let Some(s) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
             let _ = s.set_item(STORAGE_KEY, id);
         }
+        self.active_id.set(id.to_string());
     }
 
     /// Recarrega a lista do gateway; se o Space ativo sumiu, volta ao "Geral".
@@ -69,13 +70,52 @@ impl SpacesCtx {
                 if !list.iter().any(|s| s.id == id) {
                     ctx.select(GENERAL_ID);
                 }
+                store_names(&list);
                 ctx.list.set(list);
             }
         });
     }
 }
 
-fn stored_active() -> String {
+const NAMES_KEY: &str = "zylos-space-names";
+
+/// Guarda `id → nome` para o módulo extras mostrar nomes em vez de ids.
+#[cfg_attr(not(target_arch = "wasm32"), allow(unused_variables))]
+fn store_names(list: &[SpaceView]) {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let map: std::collections::HashMap<&str, &str> = list
+            .iter()
+            .map(|s| (s.id.as_str(), s.name.as_str()))
+            .collect();
+        if let (Some(st), Ok(json)) = (
+            web_sys::window().and_then(|w| w.local_storage().ok().flatten()),
+            serde_json::to_string(&map),
+        ) {
+            let _ = st.set_item(NAMES_KEY, &json);
+        }
+    }
+}
+
+/// Nome do Space pelo id (o próprio id se o nome não estiver guardado).
+pub fn stored_space_name(id: &str) -> String {
+    #[cfg(target_arch = "wasm32")]
+    if let Some(name) = web_sys::window()
+        .and_then(|w| w.local_storage().ok().flatten())
+        .and_then(|s| s.get_item(NAMES_KEY).ok().flatten())
+        .and_then(|j| serde_json::from_str::<std::collections::HashMap<String, String>>(&j).ok())
+        .and_then(|mut m| m.remove(id))
+    {
+        return name;
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = NAMES_KEY;
+    id.to_string()
+}
+
+/// Space escolhido, lido do `localStorage` (Geral se não houver). O módulo extras não recebe
+/// o contexto de Spaces, então os painéis dele usam isto ao montar.
+pub fn stored_active() -> String {
     #[cfg(target_arch = "wasm32")]
     {
         if let Some(v) = web_sys::window()
