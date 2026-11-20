@@ -300,7 +300,11 @@ pub fn SkillEditorPanel() -> impl IntoView {
                         error_msg.set(Some("Nenhuma skill encontrada no backend".into()));
                     }
                 } else {
-                    error_msg.set(Some("Resposta inesperada da API".into()));
+                    error_msg.set(Some(
+                        "O gateway respondeu sem a lista de contratos de skills: a rota \
+                         /hermes/skill-evolution/contracts ainda é só um esqueleto do módulo."
+                            .into(),
+                    ));
                 }
             }
             Err(e) => {

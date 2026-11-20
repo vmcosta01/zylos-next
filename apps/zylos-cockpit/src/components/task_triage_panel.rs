@@ -371,10 +371,50 @@ async fn fetch_errors() -> Result<Vec<TriageItem>, String> {
     Ok(body.failures.into_iter().map(failure_item).collect())
 }
 
+/// Um objetivo (goal) do gateway, só com o que a Triagem usa.
+#[derive(Debug, Clone, Deserialize)]
+struct GoalRow {
+    id: String,
+    title: String,
+    #[serde(default)]
+    owner: Option<String>,
+    status: String,
+    #[serde(default)]
+    priority: String,
+    #[serde(default)]
+    created_at: String,
+}
+
+/// Objetivos em andamento (`active` e `on_track`) viram itens de "Pode Esperar".
+/// `at_risk` e `blocked` não entram aqui: pedem atenção e ainda não têm seção própria.
+fn objetivos_em_andamento(goals: Vec<GoalRow>) -> Vec<TriageItem> {
+    goals
+        .into_iter()
+        .filter(|g| g.status == "active" || g.status == "on_track")
+        .map(|g| TriageItem {
+            id: format!("goal-{}", g.id),
+            title: g.title,
+            description: g.owner.map(|o| format!("Responsável: {o}")),
+            priority: if g.priority.is_empty() {
+                "medium".into()
+            } else {
+                g.priority
+            },
+            source: "goal".into(),
+            action_url: None,
+            created_at: g.created_at,
+        })
+        .collect()
+}
+
 async fn fetch_can_wait() -> Result<Vec<TriageItem>, String> {
-    // Placeholder: tasks em andamento virão do zylos-goals/tasks quando integrados
-    // Por agora, retorna lista vazia
-    Ok(vec![])
+    // Objetivos em andamento no gateway (`GET /api/v1/goals`).
+    #[derive(Deserialize)]
+    struct GoalsResp {
+        goals: Vec<GoalRow>,
+    }
+    let r: GoalsResp = crate::gateway_http::get_json("/api/v1/goals").await?;
+    Ok(objetivos_em_andamento(r.goals))
 }
 
 async fn fetch_done() -> Result<Vec<TriageItem>, String> {
@@ -426,6 +466,44 @@ async fn fetch_done() -> Result<Vec<TriageItem>, String> {
 #[cfg(test)]
 mod testes_falhas {
     use super::*;
+
+    #[test]
+    fn so_objetivo_em_andamento_vira_pode_esperar() {
+        let g = |id: &str, status: &str| GoalRow {
+            id: id.into(),
+            title: format!("Meta {id}"),
+            owner: Some("tech-lead".into()),
+            status: status.into(),
+            priority: "high".into(),
+            created_at: "2026-11-20T10:00:00Z".into(),
+        };
+        let itens = objetivos_em_andamento(vec![
+            g("1", "active"),
+            g("2", "on_track"),
+            g("3", "blocked"),
+            g("4", "at_risk"),
+            g("5", "completed"),
+            g("6", "draft"),
+            g("7", "cancelled"),
+        ]);
+        let ids: Vec<_> = itens.iter().map(|i| i.id.as_str()).collect();
+        assert_eq!(ids, ["goal-1", "goal-2"]);
+        assert_eq!(itens[0].source, "goal");
+        assert_eq!(
+            itens[0].description.as_deref(),
+            Some("Responsável: tech-lead")
+        );
+        assert_eq!(itens[0].priority, "high");
+    }
+
+    #[test]
+    fn resposta_de_goals_do_gateway_le() {
+        let r: Vec<GoalRow> = serde_json::from_str(
+            r#"[{"id":"g1","title":"Lançar MVP","owner":null,"status":"active","priority":"medium","created_at":"2026-11-20T10:00:00Z","extra":1}]"#,
+        )
+        .unwrap();
+        assert_eq!(objetivos_em_andamento(r)[0].description, None);
+    }
 
     #[test]
     fn falha_do_gateway_vira_item_de_erro() {
