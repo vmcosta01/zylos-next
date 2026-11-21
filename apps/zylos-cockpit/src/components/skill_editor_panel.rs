@@ -242,7 +242,14 @@ fn generate_yaml_preview(skill: &SkillDef) -> String {
         for s in &skill.steps {
             out.push_str(&format!("  - id: {}\n", s.id));
             out.push_str(&format!("    type: {:?}\n", s.step_type));
-            out.push_str(&format!("    content: |\n      {}\n", s.content));
+            out.push_str("    content: |\n");
+            // Toda linha do conteúdo recua 6 espaços (antes só a primeira: o resto virava YAML quebrado).
+            if s.content.is_empty() {
+                out.push_str("      \n");
+            }
+            for linha in s.content.lines() {
+                out.push_str(&format!("      {linha}\n"));
+            }
             if !s.params.is_empty() {
                 out.push_str("    params:\n");
                 for (k, v) in &s.params {
@@ -258,6 +265,133 @@ fn generate_yaml_preview(skill: &SkillDef) -> String {
         }
     }
     out
+}
+
+/// O que o editor sabe reler do YAML que ele mesmo gera (nome, descrição e categoria vêm da lista).
+#[derive(Debug, Clone, PartialEq)]
+struct YamlLido {
+    triggers: Vec<String>,
+    steps: Vec<SkillStep>,
+    validators: Vec<String>,
+}
+
+fn tipo_do_passo(t: &str) -> Option<StepType> {
+    match t {
+        "Action" => Some(StepType::Action),
+        "Condition" => Some(StepType::Condition),
+        "Validate" => Some(StepType::Validate),
+        "Transform" => Some(StepType::Transform),
+        _ => None,
+    }
+}
+
+/// Lê de volta o YAML gerado por [`generate_yaml_preview`]. **Recusa** (Err) qualquer coisa fora
+/// desse formato em vez de adivinhar: quem chama então desliga o Save daquela skill, porque salvar
+/// uma versão relida pela metade apagaria os passos originais.
+fn parse_skill_yaml(yaml: &str) -> Result<YamlLido, String> {
+    #[derive(PartialEq)]
+    enum Secao {
+        Topo,
+        Triggers,
+        Steps,
+        Validators,
+    }
+    let mut secao = Secao::Topo;
+    let mut lido = YamlLido {
+        triggers: vec![],
+        steps: vec![],
+        validators: vec![],
+    };
+    // Estado dentro de um passo: lendo o bloco `content: |` ou os `params:`.
+    let (mut em_content, mut em_params) = (false, false);
+    let mut conteudo: Vec<String> = vec![];
+    let fecha_conteudo = |passo: &mut SkillStep, linhas: &mut Vec<String>| {
+        passo.content = linhas.join("\n");
+        linhas.clear();
+    };
+    for (n, linha) in yaml.lines().enumerate() {
+        let erro = |m: &str| format!("linha {}: {m}", n + 1);
+        if linha.trim().is_empty() && !em_content {
+            continue;
+        }
+        if em_content {
+            if let Some(texto) = linha.strip_prefix("      ") {
+                conteudo.push(texto.to_string());
+                continue;
+            }
+            em_content = false;
+            if let Some(p) = lido.steps.last_mut() {
+                fecha_conteudo(p, &mut conteudo);
+            }
+        }
+        if !linha.starts_with(' ') {
+            em_params = false;
+            secao = match linha {
+                "triggers:" => Secao::Triggers,
+                "steps:" => Secao::Steps,
+                "validators:" => Secao::Validators,
+                l if l.starts_with("name:")
+                    || l.starts_with("description:")
+                    || l.starts_with("category:") =>
+                {
+                    Secao::Topo
+                }
+                _ => return Err(erro("campo desconhecido")),
+            };
+            continue;
+        }
+        match secao {
+            Secao::Topo => return Err(erro("recuo inesperado")),
+            Secao::Triggers => lido.triggers.push(
+                linha
+                    .strip_prefix("  - ")
+                    .ok_or_else(|| erro("trigger mal formado"))?
+                    .to_string(),
+            ),
+            Secao::Validators => lido.validators.push(
+                linha
+                    .strip_prefix("  - ")
+                    .ok_or_else(|| erro("validator mal formado"))?
+                    .to_string(),
+            ),
+            Secao::Steps => {
+                if let Some(id) = linha.strip_prefix("  - id: ") {
+                    em_params = false;
+                    lido.steps.push(SkillStep {
+                        id: id.to_string(),
+                        step_type: StepType::Action,
+                        content: String::new(),
+                        params: vec![],
+                    });
+                    continue;
+                }
+                let passo = lido.steps.last_mut().ok_or_else(|| erro("passo sem id"))?;
+                if let Some(t) = linha.strip_prefix("    type: ") {
+                    passo.step_type =
+                        tipo_do_passo(t).ok_or_else(|| erro("tipo de passo desconhecido"))?;
+                    em_params = false;
+                } else if linha == "    content: |" {
+                    em_content = true;
+                    em_params = false;
+                } else if linha == "    params:" {
+                    em_params = true;
+                } else if let (true, Some(kv)) = (em_params, linha.strip_prefix("      ")) {
+                    let (k, v) = kv
+                        .split_once(": ")
+                        .ok_or_else(|| erro("parâmetro mal formado"))?;
+                    passo.params.push((k.to_string(), v.to_string()));
+                } else {
+                    return Err(erro("linha de passo desconhecida"));
+                }
+            }
+        }
+    }
+    if em_content {
+        if let Some(p) = lido.steps.last_mut() {
+            fecha_conteudo(p, &mut conteudo);
+        }
+    }
+    Ok(lido)
 }
 
 /// Validação básica do YAML gerado.
@@ -291,6 +425,10 @@ pub fn SkillEditorPanel() -> impl IntoView {
     let undo_stack = RwSignal::new(Vec::<SkillDef>::new());
     let redo_stack = RwSignal::new(Vec::<SkillDef>::new());
     let save_status = RwSignal::new(None::<String>);
+    // Skills salvas cujos passos já foram relidos do gateway (só elas podem ser salvas de novo) e
+    // as que não puderam ser relidas, com o motivo (Save desligado para não apagar os passos).
+    let carregadas = RwSignal::new(std::collections::HashSet::<String>::new());
+    let bloqueadas = RwSignal::new(std::collections::HashMap::<String, String>::new());
 
     // Carregar skills do Hermes
     spawn_local(async move {
@@ -341,6 +479,54 @@ pub fn SkillEditorPanel() -> impl IntoView {
                 validation_errors.set(validate_yaml_preview(&yaml));
             }
         }
+    });
+
+    // Ao selecionar uma skill já salva, lê o YAML dela no gateway e recupera os passos.
+    Effect::new(move |_| {
+        let Some(idx) = selected_idx.get() else {
+            return;
+        };
+        let Some(skill) = skills.with_untracked(|v| v.get(idx).cloned()) else {
+            return;
+        };
+        if skill.id.starts_with(PREFIXO_NOVA)
+            || carregadas.with_untracked(|c| c.contains(&skill.name))
+            || bloqueadas.with_untracked(|b| b.contains_key(&skill.name))
+        {
+            return;
+        }
+        let nome = skill.name;
+        spawn_local(async move {
+            let url = crate::gateway_http::api_url(&format!(
+                "/api/v1/skills/contracts/{}",
+                nome.replace(' ', "%20")
+            ))
+            .unwrap_or_default();
+            let lido = match fetch_json::<serde_json::Value>(&url).await {
+                Ok(v) => match v.get("yaml").and_then(|y| y.as_str()) {
+                    Some(y) => parse_skill_yaml(y),
+                    None => Err("a resposta não tem o campo yaml".to_string()),
+                },
+                Err(e) => Err(format!("não consegui ler a skill no gateway ({e})")),
+            };
+            match lido {
+                Ok(l) => {
+                    skills.update(|v| {
+                        if let Some(s) = v.iter_mut().find(|s| s.name == nome) {
+                            s.triggers = l.triggers;
+                            s.steps = l.steps;
+                            s.validators = l.validators;
+                        }
+                    });
+                    carregadas.update(|c| {
+                        c.insert(nome);
+                    });
+                }
+                Err(motivo) => bloqueadas.update(|b| {
+                    b.insert(nome, motivo);
+                }),
+            }
+        });
     });
 
     let nova_skill = move || {
@@ -455,6 +641,23 @@ pub fn SkillEditorPanel() -> impl IntoView {
             let current = skills.get_untracked();
             if let Some(skill) = current.get(idx).cloned() {
                 let status = save_status;
+                let salva_do_gateway = !skill.id.starts_with(PREFIXO_NOVA);
+                // Salvar uma skill cujos passos não foram relidos gravaria um YAML sem eles e
+                // apagaria os originais: só salva depois de relê-los com sucesso.
+                if salva_do_gateway && !carregadas.get_untracked().contains(&skill.name) {
+                    let motivo = bloqueadas.get_untracked().get(&skill.name).cloned();
+                    status.set(Some(match motivo {
+                        Some(m) => format!(
+                            "Save desligado: os passos desta skill não puderam ser lidos ({m})"
+                        ),
+                        None => "Aguarde: os passos desta skill ainda estão carregando".into(),
+                    }));
+                    spawn_local(async move {
+                        gloo_timers::future::TimeoutFuture::new(4000).await;
+                        status.set(None);
+                    });
+                    return;
+                }
                 spawn_local(async move {
                     let yaml = generate_yaml_preview(&skill);
 
@@ -490,7 +693,21 @@ pub fn SkillEditorPanel() -> impl IntoView {
                         .send()
                         .await
                     {
-                        Ok(resp) if resp.ok() => status.set(Some("Salvo com sucesso".into())),
+                        Ok(resp) if resp.ok() => {
+                            status.set(Some("Salvo com sucesso".into()));
+                            // Skill nova que acabou de ir para o gateway passa a ser uma skill
+                            // salva comum: o nome deixa de ser editável e os passos já são os atuais.
+                            if !salva_do_gateway {
+                                skills.update(|v| {
+                                    if let Some(s) = v.iter_mut().find(|s| s.id == skill.id) {
+                                        s.id = s.name.clone();
+                                    }
+                                });
+                                carregadas.update(|c| {
+                                    c.insert(skill.name.clone());
+                                });
+                            }
+                        }
                         Ok(resp) => status.set(Some(format!("Erro HTTP {}", resp.status()))),
                         Err(e) => status.set(Some(format!("Falha de conexão: {:?}", e))),
                     }
@@ -666,6 +883,73 @@ mod tests {
             triggers: vec![],
             steps: vec![],
             validators: vec![],
+        }
+    }
+
+    fn skill_completa() -> SkillDef {
+        SkillDef {
+            id: "deploy".into(),
+            name: "deploy".into(),
+            description: "Publica".into(),
+            category: "ci".into(),
+            triggers: vec!["on_push".into(), "manual".into()],
+            steps: vec![
+                SkillStep {
+                    id: "s1".into(),
+                    step_type: StepType::Action,
+                    content: "echo um\n\necho tres".into(),
+                    params: vec![
+                        ("timeout".into(), "30".into()),
+                        ("url".into(), "a: b".into()),
+                    ],
+                },
+                SkillStep {
+                    id: "s2".into(),
+                    step_type: StepType::Condition,
+                    content: String::new(),
+                    params: vec![],
+                },
+                SkillStep {
+                    id: "s3".into(),
+                    step_type: StepType::Transform,
+                    content: "uma linha".into(),
+                    params: vec![],
+                },
+            ],
+            validators: vec!["exit_code == 0".into()],
+        }
+    }
+
+    #[test]
+    fn o_yaml_gerado_volta_igual_ao_que_foi() {
+        let original = skill_completa();
+        let lido = parse_skill_yaml(&generate_yaml_preview(&original)).unwrap();
+        assert_eq!(lido.triggers, original.triggers);
+        assert_eq!(lido.steps, original.steps);
+        assert_eq!(lido.validators, original.validators);
+    }
+
+    #[test]
+    fn skill_sem_passos_nem_extras_tambem_volta() {
+        let mut s = skill_completa();
+        s.triggers.clear();
+        s.steps.clear();
+        s.validators.clear();
+        let lido = parse_skill_yaml(&generate_yaml_preview(&s)).unwrap();
+        assert!(lido.triggers.is_empty() && lido.steps.is_empty() && lido.validators.is_empty());
+    }
+
+    #[test]
+    fn yaml_fora_do_formato_do_editor_e_recusado_em_vez_de_adivinhado() {
+        for ruim in [
+            "name: x\nfoo: bar\n",                             // campo desconhecido
+            "name: x\nsteps:\n  - id: s1\n    type: Magica\n", // tipo desconhecido
+            "name: x\nsteps:\n    type: Action\n",             // passo sem id
+            "name: x\nsteps:\n  - id: s1\n    extra: 1\n",     // linha de passo desconhecida
+            "name: x\ntriggers:\n  nao-e-lista\n",             // trigger mal formado
+            "name: x\n  recuado: 1\n",                         // recuo no topo
+        ] {
+            assert!(parse_skill_yaml(ruim).is_err(), "devia recusar: {ruim:?}");
         }
     }
 
