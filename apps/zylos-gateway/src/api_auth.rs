@@ -126,7 +126,7 @@ fn token_do_pedido(req: &Request) -> Option<String> {
     None
 }
 
-fn eh_admin(c: &Claims) -> bool {
+pub(crate) fn eh_admin(c: &Claims) -> bool {
     c.roles.iter().any(|r| r.eq_ignore_ascii_case("admin"))
 }
 
@@ -163,7 +163,13 @@ pub async fn exigir_auth(State(st): State<ApiAuth>, mut req: Request, next: Next
         if !eh_admin(&claims) {
             return negar(StatusCode::FORBIDDEN, "aprovação exige papel admin");
         }
-        // Sobrescreve a autoria do corpo com o sub do token.
+        // Sobrescreve a autoria do corpo com o sub do token. Na concessão de controle remoto o dono
+        // inclui o tenant (`tenant:sub`): o mesmo `sub` em outro tenant não é o mesmo dono.
+        let autor = if campo == "user_id" {
+            crate::remote_input::dono_da_concessao(&claims)
+        } else {
+            claims.sub.clone()
+        };
         let (partes, corpo) = req.into_parts();
         let bytes = match axum::body::to_bytes(corpo, MAX_DECISION_BODY).await {
             Ok(b) => b,
@@ -171,7 +177,7 @@ pub async fn exigir_auth(State(st): State<ApiAuth>, mut req: Request, next: Next
         };
         let novo = match serde_json::from_slice::<serde_json::Value>(&bytes) {
             Ok(serde_json::Value::Object(mut m)) => {
-                m.insert(campo.into(), serde_json::Value::String(claims.sub.clone()));
+                m.insert(campo.into(), serde_json::Value::String(autor));
                 serde_json::to_vec(&m).unwrap_or_else(|_| bytes.to_vec())
             }
             _ => return negar(StatusCode::BAD_REQUEST, "corpo JSON inválido"),
