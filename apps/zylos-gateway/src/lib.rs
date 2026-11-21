@@ -315,7 +315,9 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
         channels_store,
     ));
     // O mesmo relay serve o WebSocket do cockpit e a rota onde o agente empurra frames.
-    let computer_view_base = computer_view_api::ComputerViewHandle::new();
+    // Servidores VNC a que o gateway pode se conectar (ZYLOS_VNC_ALLOW_HOSTS; vazia = nenhum).
+    let computer_view_base = computer_view_api::ComputerViewHandle::new()
+        .with_vnc_permitidos(computer_view_api::vnc_permitidos_do_ambiente());
     #[cfg_attr(not(feature = "input-injection"), allow(unused_mut))]
     let mut relay_state = webrtc_relay::WebRtcRelayState::new();
     // Entrada remota (cliques e teclas): desligada por padrão; ver `remote_input` para as travas.

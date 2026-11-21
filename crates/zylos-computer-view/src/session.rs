@@ -307,7 +307,7 @@ fn capture_primary_monitor() -> Result<image::RgbaImage, String> {
 }
 
 /// Codifica uma imagem RGBA como PNG.
-pub(crate) fn encode_png(img: &image::RgbaImage) -> Result<Vec<u8>, String> {
+pub fn encode_png(img: &image::RgbaImage) -> Result<Vec<u8>, String> {
     use image::ImageEncoder;
     let mut out = Vec::new();
     image::codecs::png::PngEncoder::new(&mut out)

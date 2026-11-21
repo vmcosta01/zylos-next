@@ -36,6 +36,9 @@ use zylos_computer_view::{
 #[derive(Clone)]
 pub struct ComputerViewHandle {
     pub manager: Arc<ComputerSessionManager>,
+    /// Servidores VNC (`host:porta`) a que o gateway pode se conectar para uma sessão com
+    /// `vnc_endpoint`. Vazio (padrão) = o gateway nunca abre conexão VNC: o endpoint fica só guardado.
+    pub vnc_permitidos: Arc<Vec<String>>,
     /// Relay por onde os frames chegam ao cockpit; sem ele a rota de frames responde 503.
     pub relay: Option<crate::webrtc_relay::WebRtcRelayState>,
 }
@@ -48,8 +51,15 @@ impl ComputerViewHandle {
     pub fn new() -> Self {
         Self {
             manager: Arc::new(ComputerSessionManager::new(30)), // 30 min default lease
+            vnc_permitidos: Arc::new(Vec::new()),
             relay: None,
         }
+    }
+
+    /// Servidores VNC permitidos (`host:porta`, sem diferenciar maiúsculas).
+    pub fn with_vnc_permitidos(mut self, hosts: Vec<String>) -> Self {
+        self.vnc_permitidos = Arc::new(hosts);
+        self
     }
 
     /// Liga o relay (o mesmo estado do `webrtc_relay`) para a rota de frames funcionar.
@@ -144,6 +154,94 @@ pub fn spawn_captura_local(handle: ComputerViewHandle, intervalo: std::time::Dur
             .await;
         }
     });
+}
+
+/// Variável com a lista de servidores VNC permitidos (`host:porta`, separados por vírgula).
+pub const VNC_PERMITIDOS_ENV: &str = "ZYLOS_VNC_ALLOW_HOSTS";
+
+/// Lê `ZYLOS_VNC_ALLOW_HOSTS` (padrão: vazia = nenhuma conexão VNC).
+pub fn vnc_permitidos_do_ambiente() -> Vec<String> {
+    std::env::var(VNC_PERMITIDOS_ENV)
+        .unwrap_or_default()
+        .split(',')
+        .map(|h| h.trim().to_ascii_lowercase())
+        .filter(|h| !h.is_empty())
+        .collect()
+}
+
+/// `host:porta` de um `vnc_endpoint` (`vnc://host`, `vnc://host:porta`), se estiver na lista de
+/// permitidos. A URL vem do cliente que cria a sessão, então **só se conecta a quem o operador
+/// listou**: sem isso este seria um jeito de fazer o gateway conectar em qualquer endereço (SSRF).
+pub fn alvo_vnc(endpoint: &str, permitidos: &[String]) -> Option<String> {
+    let resto = endpoint.strip_prefix("vnc://")?;
+    let resto = resto.trim_end_matches('/');
+    if resto.is_empty() || resto.contains(['/', '@', '?', '#', ' ']) {
+        return None;
+    }
+    let hp = if resto.contains(':') {
+        resto.to_ascii_lowercase()
+    } else {
+        format!("{}:5900", resto.to_ascii_lowercase())
+    };
+    permitidos.contains(&hp).then_some(hp)
+}
+
+/// Intervalo mínimo entre quadros publicados (o VNC pode mandar muito mais rápido que o cockpit
+/// precisa).
+const INTERVALO_QUADRO: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// Lê o framebuffer de um servidor VNC e publica os quadros no relay até a sessão acabar ou o
+/// servidor cair. Falha vira um aviso `error` no relay e a sessão passa a `error`.
+async fn rfb_para_o_relay(handle: ComputerViewHandle, id: String, alvo: String) {
+    use zylos_computer_view::rfb::ClienteRfb;
+    let Some(relay) = handle.relay.clone() else {
+        return;
+    };
+    let falhou = |motivo: String| {
+        tracing::warn!(session = %id, motivo = %motivo, "sessão VNC encerrada por erro");
+        if let Some(tx) = relay.get_or_create_channel(&id) {
+            let _ = tx.send(crate::webrtc_relay::RelayServerMsg::Error {
+                message: format!("VNC: {motivo}"),
+            });
+        }
+        let _ = handle.manager.update_state(&id, SessionState::Error);
+    };
+    let tcp = match tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        tokio::net::TcpStream::connect(&alvo),
+    )
+    .await
+    {
+        Ok(Ok(t)) => t,
+        Ok(Err(e)) => return falhou(format!("não conectou ({})", e.kind())),
+        Err(_) => return falhou("tempo esgotado ao conectar".into()),
+    };
+    let mut cli = match ClienteRfb::conectar(tcp).await {
+        Ok(c) => c,
+        Err(e) => return falhou(e.to_string()),
+    };
+    loop {
+        // A sessão foi encerrada (ou sumiu): para de ler.
+        match handle.manager.get_session(&id) {
+            Some(s) if s.state != SessionState::Terminated.as_str() => {}
+            _ => return,
+        }
+        let inicio = std::time::Instant::now();
+        let quadro = match cli.proximo_quadro().await {
+            Ok(q) => q,
+            Err(e) => return falhou(e.to_string()),
+        };
+        let png = match tokio::task::spawn_blocking(move || quadro.png()).await {
+            Ok(Ok(p)) => p,
+            _ => return falhou("falha ao codificar o quadro".into()),
+        };
+        if relay.publish_frame(&id, &png).is_some() {
+            ativar_se_conectando(&handle, &id);
+        }
+        if let Some(resta) = INTERVALO_QUADRO.checked_sub(inicio.elapsed()) {
+            tokio::time::sleep(resta).await;
+        }
+    }
 }
 
 /// Maior frame aceito (PNG/JPEG de uma tela inteira cabe com folga).
@@ -261,7 +359,12 @@ async fn create_session(
         vnc_endpoint: body.vnc_endpoint,
         metadata: Some(body.metadata),
     };
+    let vnc = req.vnc_endpoint.clone();
     let session = handle.manager.create_session(req);
+    // Sessão com servidor VNC permitido: o gateway passa a ler o framebuffer dele.
+    if let Some(alvo) = vnc.and_then(|u| alvo_vnc(&u, &handle.vnc_permitidos)) {
+        tokio::spawn(rfb_para_o_relay(handle.clone(), session.id.clone(), alvo));
+    }
     (
         StatusCode::CREATED,
         Json(serde_json::json!({ "session": session })),
@@ -611,6 +714,32 @@ mod tests {
         // Outro frame não desfaz o controle humano.
         assert_eq!(empurrar(&app, &id, PNG.to_vec()).await, StatusCode::OK);
         assert_eq!(estado(&app, &id).await, "user_control");
+    }
+
+    #[test]
+    fn so_conecta_em_vnc_que_o_operador_listou() {
+        let p = vec!["10.0.0.5:5900".to_string(), "sala.local:5901".to_string()];
+        assert_eq!(
+            alvo_vnc("vnc://10.0.0.5", &p).as_deref(),
+            Some("10.0.0.5:5900")
+        );
+        assert_eq!(
+            alvo_vnc("vnc://10.0.0.5:5900/", &p).as_deref(),
+            Some("10.0.0.5:5900")
+        );
+        assert_eq!(
+            alvo_vnc("vnc://SALA.local:5901", &p).as_deref(),
+            Some("sala.local:5901")
+        );
+        // Fora da lista, porta diferente, outro esquema, partes extras: nada.
+        assert_eq!(alvo_vnc("vnc://10.0.0.6", &p), None);
+        assert_eq!(alvo_vnc("vnc://10.0.0.5:5901", &p), None);
+        assert_eq!(alvo_vnc("http://10.0.0.5:5900", &p), None);
+        assert_eq!(alvo_vnc("vnc://user@10.0.0.5", &p), None);
+        assert_eq!(alvo_vnc("vnc://10.0.0.5:5900/x", &p), None);
+        assert_eq!(alvo_vnc("vnc://", &p), None);
+        // Lista vazia (padrão): nunca.
+        assert_eq!(alvo_vnc("vnc://10.0.0.5", &[]), None);
     }
 
     #[tokio::test]
