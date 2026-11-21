@@ -71,6 +71,19 @@ pub fn ligada_por_env() -> bool {
     ligada_valor(std::env::var(ENTRADA_ENV).ok().as_deref())
 }
 
+/// O dono da concessão de controle é o par tenant + usuário (`tenant:sub`), não só o `sub`: o mesmo
+/// `sub` em outro tenant é outra pessoa. É o valor gravado em `ControlLease.user_id` (no login, pelo
+/// middleware) e o que o relay passa a [`Entrada`] a cada evento.
+pub fn dono_da_concessao(c: &zylos_auth::Claims) -> String {
+    format!("{}:{}", c.tenant_id, c.sub)
+}
+
+/// Só administrador usa a entrada remota (o mesmo papel exigido para assumir o controle). Sem login
+/// (`None`) não há o que conferir aqui: a [`Entrada`] já recusa quem não tem usuário.
+pub fn pode_injetar(c: Option<&zylos_auth::Claims>) -> bool {
+    c.is_none_or(crate::api_auth::eh_admin)
+}
+
 /// Quem de fato mexe no mouse e no teclado.
 pub trait InjetorEntrada: Send + Sync {
     fn clique(&self, x: i32, y: i32, botao: &str) -> Result<(), String>;
@@ -824,6 +837,22 @@ mod tests {
         let (sx, sy) = escalar_para_o_sistema((cx, cy), captura, sistema).unwrap();
         eprintln!("centro da captura ({cx},{cy}) → ({sx},{sy}) no sistema");
         assert!((sx - sistema.0 / 2).abs() <= 1 && (sy - sistema.1 / 2).abs() <= 1);
+    }
+
+    #[test]
+    fn o_dono_da_concessao_inclui_o_tenant_e_so_admin_injeta() {
+        use zylos_auth::Claims;
+        let t1 = Claims::new("alice".into(), "t1".into(), vec!["admin".into()], 600);
+        let t2 = Claims::new("alice".into(), "t2".into(), vec!["admin".into()], 600);
+        assert_eq!(dono_da_concessao(&t1), "t1:alice");
+        assert_ne!(dono_da_concessao(&t1), dono_da_concessao(&t2));
+        assert!(pode_injetar(Some(&t1)));
+        let leitor = Claims::new("alice".into(), "t1".into(), vec!["viewer".into()], 600);
+        assert!(!pode_injetar(Some(&leitor)));
+        let sem_papel = Claims::new("alice".into(), "t1".into(), vec![], 600);
+        assert!(!pode_injetar(Some(&sem_papel)));
+        // Sem login não há o que conferir aqui (a Entrada recusa quem não tem usuário).
+        assert!(pode_injetar(None));
     }
 
     #[test]
