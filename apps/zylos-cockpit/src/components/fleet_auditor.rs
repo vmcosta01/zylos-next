@@ -75,6 +75,13 @@ pub struct Totais {
     pub tokens: Option<u64>,
     /// Soma do custo dos bots que têm custo; `None` se nenhum tem.
     pub custo_usd: Option<f64>,
+    /// Há resposta bem-sucedida sem preço: o total de custo está incompleto.
+    pub custo_parcial: bool,
+}
+
+/// Respostas bem-sucedidas de um bot (as que podem ter custo).
+fn respondidas(b: &BotMetrics) -> u64 {
+    b.total_actions.saturating_sub(b.failed_actions)
 }
 
 pub fn somar(bots: &[BotMetrics]) -> Totais {
@@ -97,6 +104,8 @@ pub fn somar(bots: &[BotMetrics]) -> Totais {
             .iter()
             .any(|b| b.cost_usd.is_some())
             .then(|| bots.iter().filter_map(|b| b.cost_usd).sum()),
+        custo_parcial: bots.iter().any(|b| b.cost_covered_actions < respondidas(b))
+            && bots.iter().any(|b| b.cost_usd.is_some()),
     }
 }
 
@@ -129,6 +138,8 @@ fn tokens(v: Option<u64>) -> String {
 fn usd(v: Option<f64>) -> String {
     match v {
         None => "—".into(),
+        // Positivo mas menor que a menor casa mostrada: nunca "US$ 0.0000" para quem gastou algo.
+        Some(c) if c > 0.0 && c < 0.0001 => "< US$ 0.0001".into(),
         Some(c) if c < 0.01 => format!("US$ {c:.4}"),
         Some(c) => format!("US$ {c:.2}"),
     }
@@ -136,7 +147,7 @@ fn usd(v: Option<f64>) -> String {
 
 /// Custo de um bot; avisa quando só parte das respostas bem-sucedidas tinha preço.
 fn custo_do_bot(b: &BotMetrics) -> String {
-    let respondidas = b.total_actions.saturating_sub(b.failed_actions);
+    let respondidas = respondidas(b);
     match b.cost_usd {
         Some(_) if b.cost_covered_actions < respondidas => format!(
             "{} (parcial: {} de {})",
@@ -215,7 +226,10 @@ pub fn FleetAuditorPanel() -> impl IntoView {
                         </div>
                         <div class="ledger-card">
                             <span class="ledger-label">"Custo"</span>
-                            <span class="ledger-value">{usd(t.custo_usd)}</span>
+                            <span class="ledger-value">
+                                {usd(t.custo_usd)}
+                                {t.custo_parcial.then_some(" (parcial)")}
+                            </span>
                         </div>
                     </div>
                 })
@@ -337,7 +351,27 @@ mod tests {
     }
 
     #[test]
+    fn total_de_custo_avisa_quando_falta_preco_em_algum_bot() {
+        let r: FleetResp = serde_json::from_str(
+            r#"{"since":"x","bots":[
+                {"bot_id":"a","bot_name":"A","total_actions":2,"failed_actions":0,"success_rate_pct":100.0,"avg_response_ms":5,"cost_usd":1.0,"cost_covered_actions":2},
+                {"bot_id":"b","bot_name":"B","total_actions":1,"failed_actions":0,"success_rate_pct":100.0,"avg_response_ms":5,"cost_usd":null,"cost_covered_actions":0},
+                {"bot_id":"c","bot_name":"C","total_actions":3,"failed_actions":3,"success_rate_pct":0.0,"avg_response_ms":5}
+            ]}"#,
+        )
+        .unwrap();
+        // Só A: completo. Com B (1 resposta sem preço): parcial. C só falhou: nada a precificar.
+        assert!(!somar(&r.bots[..1]).custo_parcial);
+        assert!(somar(&r.bots).custo_parcial);
+        assert!(!somar(&r.bots[2..]).custo_parcial);
+        // Ninguém tem custo: sem total, e "parcial" não se aplica.
+        assert_eq!(somar(&r.bots[1..2]).custo_usd, None);
+        assert!(!somar(&r.bots[1..2]).custo_parcial);
+    }
+
+    #[test]
     fn dolar_nao_arredonda_o_pequeno_para_zero() {
+        assert_eq!(usd(Some(0.00002)), "< US$ 0.0001");
         assert_eq!(usd(None), "—");
         assert_eq!(usd(Some(0.000105)), "US$ 0.0001");
         assert_eq!(usd(Some(0.0)), "US$ 0.0000");

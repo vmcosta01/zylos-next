@@ -86,7 +86,14 @@ impl Precos {
         let mut por_modelo = HashMap::new();
         for (nome, preco) in a.modelos {
             if preco.valido() {
-                por_modelo.insert(nome.trim().to_ascii_lowercase(), preco);
+                // Maiúsculas não diferenciam; duas chaves que só diferem nelas deixariam o preço
+                // dependente da ordem do HashMap (muda a cada execução): melhor recusar a tabela.
+                let chave = nome.trim().to_ascii_lowercase();
+                if por_modelo.insert(chave.clone(), preco).is_some() {
+                    return Err(format!(
+                        "preço duplicado para \"{chave}\" (maiúsculas não diferenciam)"
+                    ));
+                }
             } else {
                 tracing::warn!(modelo = %nome, "preço inválido ignorado (negativo, infinito ou absurdo)");
             }
@@ -158,6 +165,18 @@ mod tests {
     fn sem_preco_nao_ha_custo_nunca_zero() {
         assert_eq!(tabela().custo_usd("x", "desconhecido", 10, 10), None);
         assert_eq!(Precos::default().custo_usd("x", "modelo-a", 10, 10), None);
+    }
+
+    #[test]
+    fn chaves_que_so_diferem_por_maiusculas_sao_recusadas() {
+        let e = Precos::de_json(
+            r#"{"modelos":{
+                "Modelo-A":{"entrada_por_milhao_usd":1.0,"saida_por_milhao_usd":1.0},
+                "modelo-a":{"entrada_por_milhao_usd":9.0,"saida_por_milhao_usd":9.0}
+            }}"#,
+        )
+        .unwrap_err();
+        assert!(e.contains("duplicado"), "{e}");
     }
 
     #[test]

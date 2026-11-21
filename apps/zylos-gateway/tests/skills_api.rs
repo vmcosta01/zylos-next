@@ -48,6 +48,41 @@ fn reservas_de(dir: &std::path::Path, nome: &str) -> Vec<std::path::PathBuf> {
 }
 
 #[tokio::test]
+async fn nome_que_so_difere_por_maiusculas_e_recusado() {
+    let d = tempfile::tempdir().unwrap();
+    let app = app(d.path());
+    let (st, _) = chamar(
+        &app,
+        Method::POST,
+        "/api/v1/skills/contracts",
+        Some(json!({"name":"deploy","yaml":"a\n"})),
+    )
+    .await;
+    assert_eq!(st, StatusCode::CREATED);
+    let (st, _) = chamar(
+        &app,
+        Method::POST,
+        "/api/v1/skills/contracts",
+        Some(json!({"name":"Deploy","yaml":"b\n"})),
+    )
+    .await;
+    assert_eq!(st, StatusCode::CONFLICT);
+    // A skill original continua intacta e é a única.
+    let (_, v) = chamar(&app, Method::GET, "/api/v1/skills/contracts", None).await;
+    assert_eq!(v["contracts"].as_array().unwrap().len(), 1);
+    assert_eq!(v["contracts"][0]["name"], "deploy");
+    // Atualizar com o MESMO nome continua funcionando.
+    let (st, _) = chamar(
+        &app,
+        Method::POST,
+        "/api/v1/skills/contracts",
+        Some(json!({"name":"deploy","yaml":"c\n"})),
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK);
+}
+
+#[tokio::test]
 async fn varios_saves_seguidos_nao_perdem_o_original() {
     // O editor ainda recarrega só nome/descrição/categoria: o 2º Save grava um YAML sem os
     // passos. Com uma reserva só, o 3º Save apagava o original; agora cada versão fica guardada.
