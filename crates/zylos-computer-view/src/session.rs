@@ -295,15 +295,35 @@ impl Default for ComputerSessionManager {
     }
 }
 
-/// Captura o monitor primário (ou o primeiro disponível).
-fn capture_primary_monitor() -> Result<image::RgbaImage, String> {
+/// O monitor primário (ou o primeiro disponível): o mesmo que a captura fotografa.
+fn monitor_primario() -> Result<xcap::Monitor, String> {
     let monitors = xcap::Monitor::all()
         .map_err(|e| format!("screen capture unavailable (no display?): {e}"))?;
-    let monitor = monitors
+    monitors
         .iter()
         .find(|m| m.is_primary().unwrap_or(false))
         .or_else(|| monitors.first())
-        .ok_or_else(|| "screen capture unavailable: no monitor found".to_string())?;
+        .cloned()
+        .ok_or_else(|| "screen capture unavailable: no monitor found".to_string())
+}
+
+/// Tamanho, em pixels, da imagem que [`ComputerSessionManager::capture_screenshot`] devolve para o
+/// monitor primário. É o espaço das coordenadas que o cockpit manda nos cliques: com a tela
+/// ampliada pelo Windows (125%, 150%...) é MAIOR que o tamanho "lógico" que o sistema usa para
+/// posicionar o mouse.
+pub fn tamanho_do_monitor_primario() -> Result<(u32, u32), String> {
+    let m = monitor_primario()?;
+    let w = m.width().map_err(|e| format!("monitor sem largura: {e}"))?;
+    let h = m.height().map_err(|e| format!("monitor sem altura: {e}"))?;
+    if w == 0 || h == 0 {
+        return Err("monitor com tamanho zero".into());
+    }
+    Ok((w, h))
+}
+
+/// Captura o monitor primário (ou o primeiro disponível).
+fn capture_primary_monitor() -> Result<image::RgbaImage, String> {
+    let monitor = monitor_primario()?;
     let img = monitor
         .capture_image()
         .map_err(|e| format!("screen capture failed: {e}"))?;
@@ -578,6 +598,21 @@ mod tests {
         let back = image::load_from_memory(&png).unwrap().to_rgba8();
         assert_eq!(back.dimensions(), (3, 2));
         assert_eq!(back.get_pixel(2, 1), &image::Rgba([10, 20, 30, 255]));
+    }
+
+    /// Precisa de monitor (não roda no CI): `cargo test -p zylos-computer-view -- --ignored`.
+    /// Confere que o tamanho que o injetor usa é o da imagem que a captura entrega.
+    #[test]
+    #[ignore = "precisa de um monitor"]
+    fn tamanho_do_monitor_bate_com_o_da_captura() {
+        let img = capture_primary_monitor().expect("captura");
+        let (w, h) = tamanho_do_monitor_primario().expect("tamanho");
+        eprintln!(
+            "captura {}x{}, tamanho informado {w}x{h}",
+            img.width(),
+            img.height()
+        );
+        assert_eq!((w, h), img.dimensions());
     }
 
     #[test]
