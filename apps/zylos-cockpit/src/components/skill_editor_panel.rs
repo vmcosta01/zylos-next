@@ -30,6 +30,27 @@ async fn fetch_json<T: for<'de> Deserialize<'de>>(url: &str) -> Result<T, String
     Err(last_err)
 }
 
+/// Prefixo do `id` de uma skill criada aqui e ainda não salva no gateway (o nome é editável).
+const PREFIXO_NOVA: &str = "nova:";
+
+/// Primeiro nome `nova-skill`, `nova-skill-2`, ... que ainda não existe na lista (sem diferenciar
+/// maiúsculas: o gateway recusa nomes que só diferem nelas).
+fn nome_livre(skills: &[SkillDef]) -> String {
+    let existe = |n: &str| skills.iter().any(|s| s.name.eq_ignore_ascii_case(n));
+    let mut n = 1;
+    loop {
+        let c = if n == 1 {
+            "nova-skill".to_string()
+        } else {
+            format!("nova-skill-{n}")
+        };
+        if !existe(&c) {
+            return c;
+        }
+        n += 1;
+    }
+}
+
 /// Tipo de step dentro de uma skill.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -293,14 +314,8 @@ pub fn SkillEditorPanel() -> impl IntoView {
                             })
                         })
                         .collect();
-                    if !mapped.is_empty() {
-                        skills.set(mapped);
-                    } else {
-                        error_msg.set(Some(
-                            "Nenhuma skill salva ainda: monte uma e use Save to Backend para guardá-la no gateway."
-                                .into(),
-                        ));
-                    }
+                    // Lista vazia não é erro: o botão "+ Nova skill" cria a primeira.
+                    skills.set(mapped);
                 } else {
                     error_msg.set(Some(
                         "O gateway respondeu sem a lista de skills (campo `contracts`): atualize o gateway."
@@ -327,6 +342,42 @@ pub fn SkillEditorPanel() -> impl IntoView {
             }
         }
     });
+
+    let nova_skill = move || {
+        let nome = nome_livre(&skills.get_untracked());
+        let idx = skills.get_untracked().len();
+        skills.update(|v| {
+            v.push(SkillDef {
+                id: format!("{PREFIXO_NOVA}{nome}"),
+                name: nome,
+                description: String::new(),
+                category: String::new(),
+                triggers: vec![],
+                steps: vec![],
+                validators: vec![],
+            })
+        });
+        selected_idx.set(Some(idx));
+        error_msg.set(None);
+    };
+
+    // O nome só é editável enquanto a skill ainda não foi para o gateway (uma skill salva é
+    // identificada pelo nome; renomear criaria outra).
+    let nome_editavel = Memo::new(move |_| {
+        selected_idx
+            .get()
+            .and_then(|i| skills.with(|v| v.get(i).map(|s| s.id.starts_with(PREFIXO_NOVA))))
+            .unwrap_or(false)
+    });
+    let renomear = move |novo: String| {
+        if let Some(idx) = selected_idx.get_untracked() {
+            skills.update(|v| {
+                if let Some(s) = v.get_mut(idx).filter(|s| s.id.starts_with(PREFIXO_NOVA)) {
+                    s.name = novo;
+                }
+            });
+        }
+    };
 
     let add_step = move || {
         if let Some(idx) = selected_idx.get_untracked() {
@@ -453,14 +504,17 @@ pub fn SkillEditorPanel() -> impl IntoView {
     view! {
         <div class="skill-editor-panel">
             <div class="skill-list-pane">
-                <div class="skill-list-header">{"Skills"}</div>
+                <div class="skill-list-header">
+                    {"Skills "}
+                    <button class="skill-toolbar-btn" on:click=move |_| nova_skill()>{"+ Nova skill"}</button>
+                </div>
                 <div class="skill-list-items">
                     <For
                         each=move || {
                             let s = skills.get();
                             s.into_iter().enumerate().collect::<Vec<_>>()
                         }
-                        key=|(idx, _)| *idx
+                        key=|(idx, s)| (*idx, s.name.clone())
                         children=move |(idx, skill)| {
                             let idx_copy = idx;
                             let is_selected = move || selected_idx.get() == Some(idx_copy);
@@ -487,6 +541,21 @@ pub fn SkillEditorPanel() -> impl IntoView {
 
             <div class="skill-editor-pane">
                 <div class="skill-toolbar">
+                    {move || nome_editavel.get().then(|| view! {
+                        <input
+                            class="skill-name-input"
+                            type="text"
+                            aria-label="Nome da skill"
+                            maxlength="100"
+                            prop:value=move || {
+                                selected_idx
+                                    .get()
+                                    .and_then(|i| skills.with(|v| v.get(i).map(|s| s.name.clone())))
+                                    .unwrap_or_default()
+                            }
+                            on:input=move |ev| renomear(event_target_value(&ev))
+                        />
+                    })}
                     <button class="skill-toolbar-btn" on:click=move |_| add_step()>{"+ Add Step"}</button>
                     <button class="skill-toolbar-btn" on:click=move |_| undo()>{"↩ Undo"}</button>
                     <button class="skill-toolbar-btn" on:click=move |_| redo()>{"↪ Redo"}</button>
@@ -518,7 +587,7 @@ pub fn SkillEditorPanel() -> impl IntoView {
                     } else if selected_idx.get().is_none() {
                         view! {
                             <div class="skill-editor-empty">
-                                {"Selecione uma skill na lista à esquerda"}
+                                {"Selecione uma skill na lista à esquerda ou crie uma com + Nova skill"}
                             </div>
                         }.into_any()
                     } else {
@@ -587,6 +656,29 @@ pub fn SkillEditorPanel() -> impl IntoView {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn def(nome: &str) -> SkillDef {
+        SkillDef {
+            id: nome.into(),
+            name: nome.into(),
+            description: String::new(),
+            category: String::new(),
+            triggers: vec![],
+            steps: vec![],
+            validators: vec![],
+        }
+    }
+
+    #[test]
+    fn nome_livre_pula_os_que_ja_existem_sem_diferenciar_maiusculas() {
+        assert_eq!(nome_livre(&[]), "nova-skill");
+        assert_eq!(nome_livre(&[def("deploy")]), "nova-skill");
+        assert_eq!(nome_livre(&[def("nova-skill")]), "nova-skill-2");
+        assert_eq!(
+            nome_livre(&[def("Nova-Skill"), def("nova-skill-2")]),
+            "nova-skill-3"
+        );
+    }
 
     #[test]
     fn test_generate_yaml_preview_basic() {

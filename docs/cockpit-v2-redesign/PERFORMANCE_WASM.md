@@ -7,8 +7,14 @@ servido com brotli (como o Cloudflare Pages).
 
 | Cenário | Performance | FCP | LCP | TBT | CLS |
 |---|---|---|---|---|---|
-| Lighthouse **desktop** | 99 | 0,6 s | **0,8 s** | 0 ms | 0 |
-| Lighthouse **mobile** (4G lento + CPU 4x, simulado) | 84 a 91 | 1,1 a 3,0 s | **3,5 a 3,9 s** | 40 a 50 ms | 0 |
+| Lighthouse **desktop** | 99 | 0,6 s | **0,80 a 0,85 s** | 0 ms | 0,02 |
+| Lighthouse **mobile** (4G lento + CPU 4x, simulado) | 82 a 87 | 0,9 a 2,9 s | **3,89 a 3,95 s** | 65 a 100 ms | 0 |
+
+Fonte (3 rodadas cada, mediana arquivada): `docs/fase11-reports/lighthouse-2026-11-20-desktop.json`
+e `lighthouse-2026-11-20-mobile.json`, Lighthouse 13.6, `dist/` de `trunk build --release` servido com
+brotli e com o gateway de verdade atrás (o elemento do LCP é `div.empty-state-text`, "Selecione um
+bot...", do Chat já montado, não o HTML estático). Medições anteriores (2026-11-20, mobile 3,5 a
+3,9 s) não tinham o JSON arquivado; estas as substituem.
 
 O módulo principal tem 1,02 MB bruto (cerca de 333 KB com brotli). A meta "LCP < 2 s" dos
 documentos (PRD, TESTING, EVALUATION) é para 3G/mobile: **no desktop já se cumpre; no mobile
@@ -18,9 +24,9 @@ simulado não**.
 
 | Onde | Meta | Medido | Situação |
 |---|---|---|---|
-| Desktop | LCP < 2 s | 0,8 s | cumprida |
-| Mobile simulado (4G lento + CPU 4x) | LCP <= 4 s | 3,5 a 3,9 s | cumprida, com pouca folga |
-| Mobile simulado | LCP < 2 s (meta original) | 3,5 a 3,9 s | **não alcançável** neste framework (ver Conclusão) |
+| Desktop | LCP < 2 s | 0,80 a 0,85 s | cumprida |
+| Mobile simulado (4G lento + CPU 4x) | LCP <= 4 s | 3,89 a 3,95 s | cumprida **por 0,05 s**: qualquer crescimento do wasm estoura |
+| Mobile simulado | LCP < 2 s (meta original) | 3,89 a 3,95 s | **não alcançável** neste framework (ver Conclusão) |
 
 A meta original "LCP < 2 s" (PRD, TESTING, EVALUATION, IMPLEMENTATION_PLAN, runbook) valia para
 tudo e foi dividida em duas. É uma decisão de produto: para voltar à meta única basta reverter o
@@ -35,8 +41,8 @@ Não é uma medição que contradiga esta, e o próprio relatório tem dois prob
 - O **JSON salvo ao lado dele** (mesmo Lighthouse 12.8.2, mesmo estrangulamento) diz performance
   **0,87**, LCP **1,39 s** e TBT 481 ms: o resumo em texto não bate com o arquivo que o sustenta (e a
   mensagem do commit, "mediana 81", não bate com nenhum dos dois).
-- O elemento do LCP nesse JSON é o `<p>` do **banner de erro estático** ("Connection lost") que o
-  `index.html` desenha antes do wasm carregar, medido **sem gateway**. Isso mede a velocidade do HTML
+- O elemento do LCP nesse JSON é o `<p>` do **banner estático** ("Aguardando resposta do Zylos
+  Gateway...", `index.html`) que o HTML desenha antes do wasm carregar, medido **sem gateway**. Isso mede a velocidade do HTML
   estático, não o momento em que o cockpit fica usável. O número desta página mede o app montado.
 
 Os dois números são verdadeiros para o que medem; só o desta página responde "quando o painel

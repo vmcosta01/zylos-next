@@ -127,6 +127,18 @@ fn listar(dir: &Path) -> Vec<Skill> {
     skills
 }
 
+/// Existe uma skill cujo nome é igual a `nome` ignorando maiúsculas, mas não idêntico?
+fn colide_por_maiusculas(dir: &Path, nome: &str) -> bool {
+    let Ok(entradas) = std::fs::read_dir(dir) else {
+        return false;
+    };
+    entradas
+        .filter_map(Result::ok)
+        .filter_map(|e| e.file_name().into_string().ok())
+        .filter_map(|f| f.strip_suffix(".json").map(str::to_string))
+        .any(|existente| existente != nome && existente.to_lowercase() == nome.to_lowercase())
+}
+
 /// Copia o arquivo atual para `<nome>.json.<data-hora>.bak` e apaga as reservas mais antigas além
 /// de `MAX_BACKUPS`. Erro aqui impede o Save: sem reserva não se sobrescreve.
 fn guardar_reserva(dir: &Path, nome: &str, atual: &Path) -> Result<(), String> {
@@ -189,6 +201,14 @@ async fn post_contract(State(st): State<SkillsState>, Json(mut s): Json<Skill>) 
     let r = tokio::task::spawn_blocking(move || -> Result<bool, String> {
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
         let destino = caminho(&dir, &s.name).ok_or("nome inválido")?;
+        // "Deploy" e "deploy" viram o MESMO arquivo no Windows/macOS: recusa o nome que só difere
+        // por maiúsculas de uma skill que já existe, em qualquer sistema (o comportamento não
+        // pode depender de onde o gateway roda).
+        if colide_por_maiusculas(&dir, &s.name) {
+            return Err(
+                "colisao: já existe uma skill com esse nome (maiúsculas não diferenciam)".into(),
+            );
+        }
         let novo = !destino.exists();
         if novo && listar(&dir).len() >= MAX_SKILLS {
             return Err("limite de skills atingido".into());
@@ -220,6 +240,10 @@ async fn post_contract(State(st): State<SkillsState>, Json(mut s): Json<Skill>) 
             };
             (status, Json(serde_json::json!({ "saved": true }))).into_response()
         }
+        Ok(Err(e)) if e.starts_with("colisao") => problema(
+            StatusCode::CONFLICT,
+            "já existe uma skill com esse nome (maiúsculas não diferenciam)",
+        ),
         Ok(Err(e)) if e.contains("limite") => {
             problema(StatusCode::CONFLICT, "limite de skills atingido")
         }
