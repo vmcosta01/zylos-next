@@ -81,7 +81,6 @@ pub struct ClienteRfb<S> {
     altura: u32,
     /// Framebuffer em RGBA, atualizado a cada retângulo.
     fb: Vec<u8>,
-    pediu: bool,
 }
 
 async fn ler<S: AsyncRead + Unpin>(s: &mut S, buf: &mut [u8]) -> Result<(), ErroRfb> {
@@ -214,7 +213,6 @@ impl<S: AsyncRead + AsyncWrite + Unpin> ClienteRfb<S> {
             altura,
             // Começa opaco e preto: pixel nunca recebido não vira transparente.
             fb: [0u8, 0, 0, 255].repeat((largura as usize) * (altura as usize)),
-            pediu: false,
         })
     }
 
@@ -236,13 +234,15 @@ impl<S: AsyncRead + AsyncWrite + Unpin> ClienteRfb<S> {
 
     /// Pede uma atualização e espera o próximo `FramebufferUpdate`, devolvendo o quadro inteiro.
     pub async fn proximo_quadro(&mut self) -> Result<Quadro, ErroRfb> {
-        let mut req = vec![3u8, u8::from(self.pediu)];
+        // Sempre quadro inteiro (incremental = 0): um servidor pode ficar indefinidamente sem
+        // responder a um pedido incremental quando a tela não muda (RFC 6143 §7.5.3), e isso
+        // estouraria o limite de leitura e derrubaria a sessão com a tela apenas parada.
+        let mut req = vec![3u8, 0];
         req.extend_from_slice(&0u16.to_be_bytes());
         req.extend_from_slice(&0u16.to_be_bytes());
         req.extend_from_slice(&(self.largura as u16).to_be_bytes());
         req.extend_from_slice(&(self.altura as u16).to_be_bytes());
         enviar(&mut self.stream, &req).await?;
-        self.pediu = true;
 
         loop {
             match ler_u8(&mut self.stream).await? {

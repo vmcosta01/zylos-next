@@ -31,6 +31,79 @@ async fn chamar(app: &Router, m: Method, uri: &str, corpo: Option<Value>) -> (St
     (st, serde_json::from_slice(&b).unwrap_or(Value::Null))
 }
 
+/// Reservas (`<nome>.json.<data-hora>.bak`) de uma skill, da mais antiga para a mais nova.
+fn reservas_de(dir: &std::path::Path, nome: &str) -> Vec<std::path::PathBuf> {
+    let prefixo = format!("{nome}.json.");
+    let mut v: Vec<_> = std::fs::read_dir(dir)
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter(|e| {
+            let f = e.file_name().to_string_lossy().to_string();
+            f.starts_with(&prefixo) && f.ends_with(".bak")
+        })
+        .map(|e| e.path())
+        .collect();
+    v.sort();
+    v
+}
+
+#[tokio::test]
+async fn varios_saves_seguidos_nao_perdem_o_original() {
+    // O editor ainda recarrega só nome/descrição/categoria: o 2º Save grava um YAML sem os
+    // passos. Com uma reserva só, o 3º Save apagava o original; agora cada versão fica guardada.
+    let d = tempfile::tempdir().unwrap();
+    let app = app(d.path());
+    let salvar = |yaml: &'static str| {
+        let app = app.clone();
+        async move {
+            chamar(
+                &app,
+                Method::POST,
+                "/api/v1/skills/contracts",
+                Some(json!({"name":"deploy","description":"d","category":"ci","yaml":yaml})),
+            )
+            .await
+            .0
+        }
+    };
+    assert_eq!(salvar("ORIGINAL com passos\n").await, StatusCode::CREATED);
+    assert_eq!(salvar("vazio 1\n").await, StatusCode::OK);
+    assert_eq!(salvar("vazio 2\n").await, StatusCode::OK);
+    let conteudos: Vec<String> = reservas_de(d.path(), "deploy")
+        .iter()
+        .map(|p| {
+            serde_json::from_slice::<Value>(&std::fs::read(p).unwrap()).unwrap()["yaml"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        })
+        .collect();
+    assert_eq!(conteudos.len(), 2, "{conteudos:?}");
+    assert!(
+        conteudos.iter().any(|c| c.starts_with("ORIGINAL")),
+        "o original não sobreviveu: {conteudos:?}"
+    );
+}
+
+#[tokio::test]
+async fn so_as_reservas_mais_recentes_ficam_e_nao_aparecem_na_lista() {
+    let d = tempfile::tempdir().unwrap();
+    let app = app(d.path());
+    for i in 0..15 {
+        let (st, _) = chamar(
+            &app,
+            Method::POST,
+            "/api/v1/skills/contracts",
+            Some(json!({"name":"s","yaml":format!("v{i}\n")})),
+        )
+        .await;
+        assert!(st == StatusCode::CREATED || st == StatusCode::OK);
+    }
+    assert_eq!(reservas_de(d.path(), "s").len(), 10);
+    let (_, v) = chamar(&app, Method::GET, "/api/v1/skills/contracts", None).await;
+    assert_eq!(v["contracts"].as_array().unwrap().len(), 1);
+}
+
 #[tokio::test]
 async fn salva_lista_le_atualiza_e_apaga() {
     let d = tempfile::tempdir().unwrap();
@@ -90,9 +163,9 @@ async fn salva_lista_le_atualiza_e_apaga() {
     .await;
     assert_eq!(v["description"], "novo");
     // A versão anterior ficou de reserva e não vira skill na listagem.
-    let reserva: Value =
-        serde_json::from_slice(&std::fs::read(d.path().join("Hello World.json.bak")).unwrap())
-            .unwrap();
+    let reservas = reservas_de(d.path(), "Hello World");
+    assert_eq!(reservas.len(), 1);
+    let reserva: Value = serde_json::from_slice(&std::fs::read(&reservas[0]).unwrap()).unwrap();
     assert_eq!(reserva["yaml"], "name: hello\nsteps: []\n");
     assert_eq!(reserva["description"], "diz oi");
     let (_, v) = chamar(&app, Method::GET, "/api/v1/skills/contracts", None).await;

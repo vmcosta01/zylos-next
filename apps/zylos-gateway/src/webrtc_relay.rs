@@ -216,9 +216,10 @@ struct Avisos {
 }
 
 impl Avisos {
-    fn avisar(&mut self, tx: &broadcast::Sender<RelayServerMsg>, texto: String) {
+    /// O aviso vai só para a conexão que mandou o evento (não para os outros espectadores).
+    fn avisar(&mut self, tx: &tokio::sync::mpsc::Sender<RelayServerMsg>, texto: String) {
         if self.ultimo.as_deref() != Some(texto.as_str()) {
-            let _ = tx.send(RelayServerMsg::Error {
+            let _ = tx.try_send(RelayServerMsg::Error {
                 message: texto.clone(),
             });
             self.ultimo = Some(texto);
@@ -244,13 +245,19 @@ async fn handle_ws_socket(
 
     let (mut sink, mut stream) = socket.split();
     let mut rx = tx.subscribe();
+    // Canal só desta conexão: avisos de recusa não vão para os outros espectadores.
+    let (aviso_tx, mut aviso_rx) = tokio::sync::mpsc::channel::<RelayServerMsg>(16);
 
     // Clones para cada task + cleanup pós-select
     let session_id_send = session_id.clone();
     let session_id_cleanup = session_id.clone();
     let send_task = tokio::spawn(async move {
         loop {
-            match rx.recv().await {
+            let recebida = tokio::select! {
+                r = rx.recv() => r,
+                Some(m) = aviso_rx.recv() => Ok(m),
+            };
+            match recebida {
                 Ok(msg) => {
                     let json = match serde_json::to_string(&msg) {
                         Ok(j) => j,
@@ -278,6 +285,8 @@ async fn handle_ws_socket(
     let recv_task = tokio::spawn(async move {
         let mut limite = crate::remote_input::LimiteDeTaxa::new();
         let mut avisos = Avisos::default();
+        // Teclas que ESTA conexão apertou e ainda não soltou: soltas à força quando ela acaba.
+        let mut apertadas = std::collections::HashSet::<String>::new();
         while let Some(Ok(msg)) = stream.next().await {
             match msg {
                 Message::Text(text) => {
@@ -286,7 +295,7 @@ async fn handle_ws_socket(
                             RelayClientMsg::Click { x, y, button } => {
                                 info!(session_id = %session_id_for_recv, x, y, button = %button, "Remote click received");
                                 if !limite.permite() {
-                                    avisos.avisar(&tx, "Eventos demais por segundo".into());
+                                    avisos.avisar(&aviso_tx, "Eventos demais por segundo".into());
                                 } else if let Some(e) = &entrada {
                                     match e.clique(
                                         &session_id_for_recv,
@@ -296,11 +305,11 @@ async fn handle_ws_socket(
                                         &button,
                                     ) {
                                         Ok(()) => avisos.limpar(),
-                                        Err(r) => avisos.avisar(&tx, r.texto()),
+                                        Err(r) => avisos.avisar(&aviso_tx, r.texto()),
                                     }
                                 } else {
                                     avisos.avisar(
-                                        &tx,
+                                        &aviso_tx,
                                         "Entrada remota desligada neste gateway".into(),
                                     );
                                 }
@@ -309,9 +318,18 @@ async fn handle_ws_socket(
                                 info!(session_id = %session_id_for_recv, x, y, action = %action, "Remote touch received");
                             }
                             RelayClientMsg::Key { code, pressed } => {
-                                info!(session_id = %session_id_for_recv, code = %code, pressed, "Remote key received");
+                                // O código da tecla NÃO vai para o log: seria senha digitada em texto puro.
+                                info!(session_id = %session_id_for_recv, pressed, "Remote key received");
+                                if let (false, Some(e)) = (pressed, &entrada) {
+                                    // Soltar uma tecla que esta conexão apertou nunca é recusado
+                                    // (nem pelo limite de taxa): senão ela fica presa no sistema.
+                                    if apertadas.remove(&code) {
+                                        let _ = e.soltar(&code);
+                                        continue;
+                                    }
+                                }
                                 if !limite.permite() {
-                                    avisos.avisar(&tx, "Eventos demais por segundo".into());
+                                    avisos.avisar(&aviso_tx, "Eventos demais por segundo".into());
                                 } else if let Some(e) = &entrada {
                                     match e.tecla(
                                         &session_id_for_recv,
@@ -319,12 +337,17 @@ async fn handle_ws_socket(
                                         &code,
                                         pressed,
                                     ) {
-                                        Ok(()) => avisos.limpar(),
-                                        Err(r) => avisos.avisar(&tx, r.texto()),
+                                        Ok(()) => {
+                                            avisos.limpar();
+                                            if pressed {
+                                                apertadas.insert(code);
+                                            }
+                                        }
+                                        Err(r) => avisos.avisar(&aviso_tx, r.texto()),
                                     }
                                 } else {
                                     avisos.avisar(
-                                        &tx,
+                                        &aviso_tx,
                                         "Entrada remota desligada neste gateway".into(),
                                     );
                                 }
@@ -343,6 +366,12 @@ async fn handle_ws_socket(
                 }
                 Message::Close(_) => break,
                 _ => {}
+            }
+        }
+        // Conexão acabou: solta qualquer tecla que ficou apertada.
+        if let Some(e) = &entrada {
+            for tecla in &apertadas {
+                let _ = e.soltar(tecla);
             }
         }
     });
