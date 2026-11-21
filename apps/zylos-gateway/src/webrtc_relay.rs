@@ -319,7 +319,7 @@ async fn handle_ws_socket(
     // Task para ler mensagens do cliente (controle/ping)
     let session_id_for_recv = session_id.clone();
     let entrada = state.entrada.clone();
-    let usuario_recv = claims.as_ref().map(|c| c.sub.clone());
+    let usuario_recv = claims.as_ref().map(crate::remote_input::dono_da_concessao);
     let verificador = state.verificador.clone();
     let mut recv_task = tokio::spawn(async move {
         let mut limite = crate::remote_input::LimiteDeTaxa::new();
@@ -346,6 +346,16 @@ async fn handle_ws_socket(
                                 // Dá tempo de o aviso sair antes de a conexão ser fechada.
                                 tokio::time::sleep(std::time::Duration::from_millis(150)).await;
                                 break;
+                            }
+                            RelayClientMsg::Click { .. } | RelayClientMsg::Key { .. }
+                                if !crate::remote_input::pode_injetar(claims.as_ref()) =>
+                            {
+                                // Só admin assume o controle; um token sem esse papel (mesmo com o
+                                // mesmo dono) não injeta nada.
+                                avisos.avisar(
+                                    &aviso_tx,
+                                    "Só administrador usa a entrada remota".into(),
+                                );
                             }
                             RelayClientMsg::Click { x, y, button } => {
                                 info!(session_id = %session_id_for_recv, x, y, button = %button, "Remote click received");

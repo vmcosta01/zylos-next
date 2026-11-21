@@ -90,10 +90,14 @@ async fn subir(com_entrada: bool, auth_obrigatoria: bool) -> Ambiente {
 }
 
 fn token(a: &Ambiente, usuario: &str, roles: &[&str]) -> String {
+    token_em(a, "t1", usuario, roles)
+}
+
+fn token_em(a: &Ambiente, tenant: &str, usuario: &str, roles: &[&str]) -> String {
     a.svc
         .create_token(&CreateTokenRequest {
             user_id: usuario.into(),
-            tenant_id: "t1".into(),
+            tenant_id: tenant.into(),
             roles: roles.iter().map(|r| r.to_string()).collect(),
             name: None,
         })
@@ -192,7 +196,10 @@ async fn so_o_dono_da_concessao_injeta_e_o_dono_vem_do_jwt() {
         .unwrap()
         .control_lease
         .unwrap();
-    assert_eq!(lease.user_id, "alice", "o dono vem do JWT, não do corpo");
+    assert_eq!(
+        lease.user_id, "t1:alice",
+        "o dono (tenant:sub) vem do JWT, não do corpo"
+    );
 
     // Bob (outro admin, com a conexão dele) tenta clicar: recusado, nada injetado.
     let mut ws_bob = conectar(&a, &id, &bob).await;
@@ -333,7 +340,7 @@ async fn soltar_tecla_passa_depois_da_enxurrada_e_depois_de_perder_o_controle() 
     tecla(&mut ws, "Shift", true).await;
     tokio::time::sleep(Duration::from_millis(300)).await;
     assert!(registrado(&a).contains(&"tecla Shift true".to_string()));
-    a.handle.manager.release_control(&id, "alice").unwrap();
+    a.handle.manager.release_control(&id, "t1:alice").unwrap();
     tecla(&mut ws, "Shift", false).await;
     tokio::time::sleep(Duration::from_millis(400)).await;
     let r = registrado(&a);
@@ -489,7 +496,7 @@ async fn so_uma_sessao_por_vez_usa_o_mouse_e_o_teclado_da_maquina() {
     assert_eq!(registrado(&a), vec!["clique 1,1 left".to_string()]);
 
     // Alice larga o controle: a vez passa ao Bob.
-    a.handle.manager.release_control(&s1, "alice").unwrap();
+    a.handle.manager.release_control(&s1, "t1:alice").unwrap();
     clicar(&mut ws_b, 3).await;
     tokio::time::sleep(Duration::from_millis(300)).await;
     assert_eq!(
@@ -605,4 +612,46 @@ async fn toque_avisa_que_nao_e_suportado_e_nao_injeta() {
     assert!(aviso(&mut ws).await.to_lowercase().contains("toque"));
     tokio::time::sleep(Duration::from_millis(200)).await;
     assert!(registrado(&a).is_empty(), "toque não vira clique");
+}
+
+#[tokio::test]
+async fn mesmo_sub_em_outro_tenant_nao_e_o_mesmo_dono() {
+    let a = subir(true, true).await;
+    let id = nova_sessao(&a.handle);
+    let alice_t1 = token_em(&a, "t1", "alice", &["admin"]);
+    let alice_t2 = token_em(&a, "t2", "alice", &["admin"]);
+    assert_eq!(assumir(&a, &id, &alice_t1, "{}").await, 200);
+
+    // A "alice" do tenant t2 tem o mesmo `sub` e é admin, mas não é a dona da concessão do t1.
+    let mut ws_t2 = conectar(&a, &id, &alice_t2).await;
+    clicar(&mut ws_t2, 7).await;
+    assert!(aviso(&mut ws_t2).await.contains("outra pessoa"));
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert!(registrado(&a).is_empty(), "outro tenant não injeta");
+
+    // A dona de verdade segue injetando.
+    let mut ws_t1 = conectar(&a, &id, &alice_t1).await;
+    clicar(&mut ws_t1, 10).await;
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(registrado(&a), vec!["clique 10,1 left".to_string()]);
+}
+
+#[tokio::test]
+async fn mesmo_dono_sem_papel_admin_nao_injeta() {
+    let a = subir(true, true).await;
+    let id = nova_sessao(&a.handle);
+    let admin = token(&a, "alice", &["admin"]);
+    // Mesmo tenant e mesmo `sub`, mas um token emitido só com papel de leitura.
+    let leitor = token(&a, "alice", &["viewer"]);
+    assert_eq!(assumir(&a, &id, &admin, "{}").await, 200);
+
+    let mut ws = conectar(&a, &id, &leitor).await;
+    clicar(&mut ws, 5).await;
+    assert!(aviso(&mut ws)
+        .await
+        .to_lowercase()
+        .contains("administrador"));
+    tecla(&mut ws, "a", true).await;
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert!(registrado(&a).is_empty(), "sem papel admin nada é injetado");
 }
