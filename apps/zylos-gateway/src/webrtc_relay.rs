@@ -195,10 +195,19 @@ impl Default for WebRtcRelayState {
 /// de tokens revogados (logout). Sem login (`claims` ausente) não há o que conferir: a entrada já
 /// recusa quem não tem usuário.
 fn login_vale(svc: Option<&zylos_auth::TokenService>, claims: Option<&zylos_auth::Claims>) -> bool {
+    login_vale_em(svc, claims, now_millis())
+}
+
+/// [`login_vale`] com o relógio (em ms) injetado, para testar sem esperar nem mexer na hora do sistema.
+fn login_vale_em(
+    svc: Option<&zylos_auth::TokenService>,
+    claims: Option<&zylos_auth::Claims>,
+    agora_ms: u64,
+) -> bool {
     let Some(c) = claims else {
         return true;
     };
-    let agora = (now_millis() / 1000) as i64;
+    let agora = (agora_ms / 1000) as i64;
     if c.exp <= agora {
         return false;
     }
@@ -215,11 +224,18 @@ fn nao_volta(marca: &std::sync::atomic::AtomicU64, agora: u64) -> u64 {
 
 fn now_millis() -> u64 {
     static MARCA: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    let agora = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-    nao_volta(&MARCA, agora)
+    now_millis_com(&MARCA, || {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64
+    })
+}
+
+/// Lê o relógio (`sistema`) e passa a leitura por [`nao_volta`]. Separada de [`now_millis`] para o
+/// teste trocar o relógio do sistema por um que recua.
+fn now_millis_com(marca: &std::sync::atomic::AtomicU64, sistema: impl FnOnce() -> u64) -> u64 {
+    nao_volta(marca, sistema())
 }
 
 /// Handler de upgrade WebSocket para relay de computer view.
@@ -499,6 +515,30 @@ mod tests {
         // O relógio do sistema recuou 4 s: continua valendo a maior leitura.
         assert_eq!(nao_volta(&marca, 5_000), 9_000);
         assert_eq!(nao_volta(&marca, 9_500), 9_500);
+    }
+
+    #[test]
+    fn token_vencido_continua_recusado_se_o_relogio_do_sistema_recuar() {
+        use std::sync::atomic::AtomicU64;
+        use zylos_auth::{Claims, TokenConfig, TokenService};
+        let svc = TokenService::new(TokenConfig {
+            secret: "relay-relogio-test-secret-0123456789abcdef".into(),
+            ..TokenConfig::default()
+        })
+        .unwrap();
+        let mut c = Claims::new("u".into(), "t".into(), vec![], 600);
+        c.exp = 1_000;
+        let marca = AtomicU64::new(0);
+        // Relógio do sistema em 999 s: o token ainda vale.
+        let agora = now_millis_com(&marca, || 999_000);
+        assert!(login_vale_em(Some(&svc), Some(&c), agora));
+        // Passa de 1000 s: venceu.
+        let agora = now_millis_com(&marca, || 1_001_000);
+        assert!(!login_vale_em(Some(&svc), Some(&c), agora));
+        // O relógio do sistema recua para 500 s (NTP, hora mudada à mão): segue vencido.
+        let agora = now_millis_com(&marca, || 500_000);
+        assert_eq!(agora, 1_001_000, "a leitura não pode andar para trás");
+        assert!(!login_vale_em(Some(&svc), Some(&c), agora));
     }
 
     #[test]
