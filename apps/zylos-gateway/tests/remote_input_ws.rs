@@ -561,3 +561,48 @@ async fn screenshot_nao_fotografa_o_computador_sem_a_captura_local_nem_em_sessao
     );
     assert_eq!(get("nao-existe".into()).await, 404);
 }
+
+#[tokio::test]
+async fn ping_depois_do_logout_tambem_derruba_a_conexao() {
+    let a = subir(true, true).await;
+    let id = nova_sessao(&a.handle);
+    let alice = token(&a, "alice", &["admin"]);
+    assert_eq!(assumir(&a, &id, &alice, "{}").await, 200);
+    let mut ws = conectar(&a, &id, &alice).await;
+    a.svc.revoke_token(&alice).unwrap();
+    // Só ping: antes do conserto, isto mantinha a conexão viva para sempre.
+    ws.send(Message::Text(
+        serde_json::json!({"type":"ping","ts":1}).to_string(),
+    ))
+    .await
+    .unwrap();
+    let fim = tokio::time::timeout(Duration::from_secs(2), async {
+        while let Some(m) = ws.next().await {
+            if m.is_err() {
+                return;
+            }
+        }
+    })
+    .await;
+    assert!(
+        fim.is_ok(),
+        "ping com token revogado deveria fechar a conexão"
+    );
+}
+
+#[tokio::test]
+async fn toque_avisa_que_nao_e_suportado_e_nao_injeta() {
+    let a = subir(true, true).await;
+    let id = nova_sessao(&a.handle);
+    let alice = token(&a, "alice", &["admin"]);
+    assert_eq!(assumir(&a, &id, &alice, "{}").await, 200);
+    let mut ws = conectar(&a, &id, &alice).await;
+    ws.send(Message::Text(
+        serde_json::json!({"type":"touch","x":1,"y":1,"action":"start"}).to_string(),
+    ))
+    .await
+    .unwrap();
+    assert!(aviso(&mut ws).await.to_lowercase().contains("toque"));
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert!(registrado(&a).is_empty(), "toque não vira clique");
+}

@@ -62,8 +62,13 @@ pub fn decidir_porta(pedida: bool, captura_local: bool, injetor_compilado: bool)
     }
 }
 
+/// Só o valor `1` (com ou sem espaços ao redor) liga; ausente ou qualquer outra coisa, não.
+pub fn ligada_valor(v: Option<&str>) -> bool {
+    v.is_some_and(|v| v.trim() == "1")
+}
+
 pub fn ligada_por_env() -> bool {
-    std::env::var(ENTRADA_ENV).is_ok_and(|v| v.trim() == "1")
+    ligada_valor(std::env::var(ENTRADA_ENV).ok().as_deref())
 }
 
 /// Quem de fato mexe no mouse e no teclado.
@@ -119,6 +124,9 @@ impl Recusa {
     }
 }
 
+/// A tecla de espaço, chamada pelo nome para não depender de um `" "` que some num diff.
+pub const TECLA_ESPACO: &str = " ";
+
 /// Teclas aceitas: um caractere visível (letra, número, pontuação comum) ou um nome da lista.
 pub fn tecla_permitida(code: &str) -> bool {
     const NOMES: &[&str] = &[
@@ -138,7 +146,7 @@ pub fn tecla_permitida(code: &str) -> bool {
         "Shift",
         "Control",
         "Alt",
-        " ",
+        TECLA_ESPACO,
     ];
     if NOMES.contains(&code) {
         return true;
@@ -198,6 +206,14 @@ impl Entrada {
         }
     }
 
+    /// Trava o estado da máquina. Se alguma thread entrou em pânico segurando a trava, seguimos com
+    /// o que ficou (`into_inner`) em vez de propagar o pânico: o estado é só "quem manda, o que está
+    /// apertado, o ritmo", e derrubar o gateway inteiro (ou deixar a entrada travada com teclas
+    /// apertadas) é pior que um dono ou contador momentaneamente desatualizado.
+    fn estado(&self) -> std::sync::MutexGuard<'_, Estado> {
+        self.estado.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
     /// A sessão ainda tem controle humano válido (concessão não vencida)?
     fn controle_vivo(&self, session_id: &str) -> bool {
         self.manager.get_session(session_id).is_some_and(|s| {
@@ -210,7 +226,7 @@ impl Entrada {
     /// anterior largou), solta o que o dono anterior deixou apertado e aplica o limite de taxa.
     fn tomar_a_vez(&self, session_id: &str, usuario: Option<&str>) -> Result<(), Recusa> {
         let u = usuario.unwrap_or_default();
-        let mut st = self.estado.lock().unwrap_or_else(|e| e.into_inner());
+        let mut st = self.estado();
         let sou_eu = st
             .dono
             .as_ref()
@@ -288,7 +304,7 @@ impl Entrada {
             return Err(Recusa::TeclaNaoPermitida);
         }
         self.tomar_a_vez(session_id, usuario)?;
-        let mut st = self.estado.lock().unwrap_or_else(|e| e.into_inner());
+        let mut st = self.estado();
         if apertada && forma_atalho_bloqueado(&st.apertadas, tecla) {
             return Err(Recusa::AtalhoBloqueado);
         }
@@ -309,19 +325,16 @@ impl Entrada {
         if !tecla_permitida(tecla) {
             return Err(Recusa::TeclaNaoPermitida);
         }
-        self.estado
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .apertadas
-            .retain(|a| a != tecla);
+        self.estado().apertadas.retain(|a| a != tecla);
         self.injetor.tecla(tecla, false).map_err(Recusa::Falha)
     }
 }
 
-/// Limite de eventos por segundo de uma conexão (janela fixa de 1 s).
+/// Limite de eventos por segundo (janela deslizante: em QUALQUER intervalo de 1 s cabem no máximo
+/// [`EVENTOS_POR_SEGUNDO`]; a janela fixa deixava passar o dobro na virada).
 pub struct LimiteDeTaxa {
-    inicio: Instant,
-    contados: usize,
+    /// Instantes dos eventos aceitos na última janela, do mais antigo ao mais novo.
+    aceitos: std::collections::VecDeque<Instant>,
 }
 
 impl Default for LimiteDeTaxa {
@@ -333,19 +346,31 @@ impl Default for LimiteDeTaxa {
 impl LimiteDeTaxa {
     pub fn new() -> Self {
         Self {
-            inicio: Instant::now(),
-            contados: 0,
+            aceitos: std::collections::VecDeque::with_capacity(EVENTOS_POR_SEGUNDO),
         }
     }
 
     /// `true` se este evento cabe na janela atual.
     pub fn permite(&mut self) -> bool {
-        if self.inicio.elapsed() >= Duration::from_secs(1) {
-            self.inicio = Instant::now();
-            self.contados = 0;
+        self.permite_em(Instant::now())
+    }
+
+    /// Como [`Self::permite`], com o instante dado (para testar sem dormir). Evento recusado não
+    /// ocupa vaga na janela.
+    fn permite_em(&mut self, agora: Instant) -> bool {
+        let janela = Duration::from_secs(1);
+        while self
+            .aceitos
+            .front()
+            .is_some_and(|t| agora.saturating_duration_since(*t) >= janela)
+        {
+            self.aceitos.pop_front();
         }
-        self.contados += 1;
-        self.contados <= EVENTOS_POR_SEGUNDO
+        if self.aceitos.len() >= EVENTOS_POR_SEGUNDO {
+            return false;
+        }
+        self.aceitos.push_back(agora);
+        true
     }
 }
 
@@ -626,6 +651,104 @@ mod tests {
         assert!(l.permite(), "janela nova");
     }
 
+    #[test]
+    fn janela_deslizante_nunca_deixa_passar_o_dobro_na_virada() {
+        let t0 = Instant::now();
+        let mut l = LimiteDeTaxa::new();
+        // 60 eventos no fim da primeira janela (t0 + 900 ms)...
+        let fim = t0 + Duration::from_millis(900);
+        assert_eq!(
+            (0..EVENTOS_POR_SEGUNDO)
+                .filter(|_| l.permite_em(fim))
+                .count(),
+            60
+        );
+        // ...e logo depois da virada da janela fixa (t0 + 1010 ms) nada novo cabe: só 110 ms depois.
+        let virada = t0 + Duration::from_millis(1010);
+        assert!(
+            !l.permite_em(virada),
+            "a janela fixa deixaria passar 60 aqui"
+        );
+        // Passado 1 s do primeiro lote, a vaga volta.
+        assert!(l.permite_em(t0 + Duration::from_millis(1900)));
+        // Recusado não ocupa vaga: depois do lote vencer, cabem 60 de novo.
+        let mut l2 = LimiteDeTaxa::new();
+        for _ in 0..500 {
+            l2.permite_em(t0);
+        }
+        let depois = t0 + Duration::from_millis(1000);
+        assert_eq!((0..100).filter(|_| l2.permite_em(depois)).count(), 60);
+    }
+
+    #[test]
+    fn varias_threads_juntas_nao_passam_de_60_por_segundo() {
+        let (m, ativa, _) = sessao_com_controle();
+        assumir(&m, &ativa);
+        let falso = Arc::new(Falso::default());
+        let e = Arc::new(Entrada::new(falso.clone(), m));
+        let aceitos = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let mut hs = Vec::new();
+        for _ in 0..8 {
+            let (e, ativa, aceitos) = (e.clone(), ativa.clone(), aceitos.clone());
+            hs.push(std::thread::spawn(move || {
+                for x in 0..50 {
+                    if e.clique(&ativa, Some("u1"), x, 1, "left").is_ok() {
+                        aceitos.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    }
+                }
+            }));
+        }
+        for h in hs {
+            h.join().unwrap();
+        }
+        // 400 tentativas quase simultâneas: no máximo uma janela cheia (ou duas se a rodada cruzou 1 s).
+        let n = aceitos.load(std::sync::atomic::Ordering::SeqCst);
+        assert!(
+            (EVENTOS_POR_SEGUNDO..=2 * EVENTOS_POR_SEGUNDO).contains(&n),
+            "aceitos: {n}"
+        );
+        assert_eq!(
+            falso.0.lock().unwrap().len(),
+            n,
+            "o injetor recebeu só o que foi aceito"
+        );
+    }
+
+    #[test]
+    fn trava_envenenada_nao_derruba_a_entrada() {
+        let (m, ativa, _) = sessao_com_controle();
+        assumir(&m, &ativa);
+        let falso = Arc::new(Falso::default());
+        let e = Arc::new(Entrada::new(falso.clone(), m));
+        let e2 = e.clone();
+        // Uma thread entra em pânico segurando a trava do estado.
+        let _ = std::thread::spawn(move || {
+            let _g = e2.estado();
+            panic!("pânico de propósito");
+        })
+        .join();
+        assert!(e.estado.is_poisoned());
+        assert!(e.clique(&ativa, Some("u1"), 1, 1, "left").is_ok());
+        assert!(e.tecla(&ativa, Some("u1"), "a", true).is_ok());
+        assert!(e.soltar("a").is_ok());
+    }
+
+    #[test]
+    fn a_tecla_de_espaco_e_aceita_pelo_nome() {
+        assert_eq!(TECLA_ESPACO, " ");
+        assert!(tecla_permitida(TECLA_ESPACO));
+    }
+
+    #[test]
+    fn so_o_valor_1_liga_pela_variavel() {
+        assert!(!ligada_valor(None));
+        assert!(ligada_valor(Some("1")));
+        assert!(ligada_valor(Some(" 1 ")));
+        for v in ["", "0", "true", "11", "yes"] {
+            assert!(!ligada_valor(Some(v)), "{v:?}");
+        }
+    }
+
     /// Duas sessões ativas, cada uma com um dono diferente (`u1` e `u2`).
     fn duas_sessoes() -> (Arc<ComputerSessionManager>, String, String) {
         let (m, a, b) = sessao_com_controle();
@@ -809,12 +932,5 @@ mod tests {
             .filter(|(p, c, i)| decidir_porta(*p, *c, *i) == Porta::Ligar)
             .count();
         assert_eq!(ligam, 1);
-    }
-
-    #[test]
-    fn desligada_por_padrao() {
-        if std::env::var(ENTRADA_ENV).is_err() {
-            assert!(!ligada_por_env());
-        }
     }
 }
