@@ -109,8 +109,11 @@ pub fn TranslucentHeader(
                 <AuthHeaderButton />
             </div>
         </header>
-        <nav class="bottom-tabs" role="tablist" aria-label="Navegação principal (celular)">
-            <PrimaryTabs active_tab=active_tab set_active_tab=set_active_tab pending=pending />
+        // O tablist só pode ter abas como filhos (ARIA): o botão "Áreas" fica fora dele.
+        <nav class="bottom-tabs" aria-label="Navegação principal (celular)">
+            <div class="bottom-tabs-list" role="tablist" aria-label="Abas principais">
+                <PrimaryTabs active_tab=active_tab set_active_tab=set_active_tab pending=pending />
+            </div>
             // No celular não há Ctrl+K nem lateral: este botão abre a busca de áreas.
             <button class="primary-tab" type="button" on:click=move |_| open_palette.set(true)>
                 <i class="ph ph-squares-four" aria-hidden="true"></i>

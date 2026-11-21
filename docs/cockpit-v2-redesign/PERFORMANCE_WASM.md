@@ -16,6 +16,12 @@ brotli e com o gateway de verdade atrás (o elemento do LCP é `div.empty-state-
 bot...", do Chat já montado, não o HTML estático). Medições anteriores (2026-11-20, mobile 3,5 a
 3,9 s) não tinham o JSON arquivado; estas as substituem.
 
+Nova rodada em 2026-11-21, depois de corrigir a acessibilidade do mobile (`lighthouse-2026-11-21-*.json`,
+mesmo método): **Accessibility 100 no mobile e no desktop**; desktop LCP 0,81 a 0,85 s; mobile
+simulado LCP 3,90 s em 2 de 3 rodadas (perf 83). A terceira rodada mobile deu perf 100 e LCP 0,76 s
+(FCP = LCP): outlier em que outro elemento foi escolhido como LCP, descartado pela mediana; ele
+mostra que o LCP mobile é sensível a qual elemento pinta primeiro, não que o limite foi superado.
+
 O módulo principal tem 1,02 MB bruto (cerca de 333 KB com brotli). A meta "LCP < 2 s" dos
 documentos (PRD, TESTING, EVALUATION) é para 3G/mobile: **no desktop já se cumpre; no mobile
 simulado não**.
