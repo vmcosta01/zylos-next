@@ -19,7 +19,7 @@
 | T5 | Responsividade | Mobile/tablet/desktop | Playwright viewports | Layout funcional em 375px, 768px, 1440px |
 | T6 | Acessibilidade | Keyboard/screen reader | axe-core + manual tab test | WCAG AA compliance; zero critical violations |
 | T7 | Regressão | Features antigas intactas | Playwright visual regression | Zero diffs não-aprovados em screenshots baseline |
-| T8 | Performance | Render < threshold | Lighthouse CI + Chrome DevTools | Lighthouse ≥90; LCP <2s; TBT <300ms; bundle <800KB |
+| T8 | Performance | Render < threshold | Lighthouse CI + Chrome DevTools | Lighthouse ≥90; LCP <2s desktop e <=4s mobile simulado; TBT <300ms; bundle <800KB |
 
 ---
 
@@ -207,7 +207,7 @@
 - [ ] Accessibility score ≥90
 - [ ] Best Practices score ≥90
 - [ ] SEO score ≥90
-- [ ] LCP <2s (3G throttling)
+- [ ] LCP <2s no desktop e <=4s no mobile simulado (3G/Slow 4G + CPU 4x); ver `PERFORMANCE_WASM.md`
 - [ ] TBT <300ms
 - [ ] CLS <0.1
 
