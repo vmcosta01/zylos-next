@@ -11,7 +11,8 @@
 //!
 //! ### Client → Server
 //! - `{"type":"click","x":100,"y":200,"button":"left"}`
-//! - `{"type":"touch","x":100,"y":200,"action":"start"}`
+//! - `{"type":"touch","x":100,"y":200,"action":"start"}` (aceito, mas **não suportado**: o gateway
+//!   responde com um aviso `error` e não injeta nada)
 //! - `{"type":"key","code":"Enter","pressed":true}`
 //! - `{"type":"ping","ts":1234567890}`
 //!
@@ -172,13 +173,14 @@ impl WebRtcRelayState {
     }
 
     pub fn cleanup_session(&self, session_id: &str) {
-        if let Some((_, tx)) = self.sessions.remove(session_id) {
-            if tx.receiver_count() == 0 {
-                info!(session_id = %session_id, "WebRTC relay channel cleaned up");
-            } else {
-                // Re-inserir se ainda há consumidores
-                self.sessions.insert(session_id.to_string(), tx);
-            }
+        // Conferir e remover numa operação só (sob a trava do shard): remover, olhar e reinserir
+        // deixava uma janela em que uma reconexão criava um canal novo, depois sobrescrito.
+        if self
+            .sessions
+            .remove_if(session_id, |_, tx| tx.receiver_count() == 0)
+            .is_some()
+        {
+            info!(session_id = %session_id, "WebRTC relay channel cleaned up");
         }
     }
 }
@@ -203,11 +205,21 @@ fn login_vale(svc: Option<&zylos_auth::TokenService>, claims: Option<&zylos_auth
     !svc.is_some_and(|s| s.is_revoked(&c.jti))
 }
 
+/// Relógio que nunca anda para trás: se o relógio do sistema recuar (ajuste de NTP, hora mudada à
+/// mão), devolve a maior leitura já vista. Sem isso um token vencido voltaria a parecer válido.
+fn nao_volta(marca: &std::sync::atomic::AtomicU64, agora: u64) -> u64 {
+    marca
+        .fetch_max(agora, std::sync::atomic::Ordering::Relaxed)
+        .max(agora)
+}
+
 fn now_millis() -> u64 {
-    SystemTime::now()
+    static MARCA: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let agora = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
-        .as_millis() as u64
+        .as_millis() as u64;
+    nao_volta(&MARCA, agora)
 }
 
 /// Handler de upgrade WebSocket para relay de computer view.
@@ -319,7 +331,9 @@ async fn handle_ws_socket(
                 Message::Text(text) => {
                     if let Ok(client_msg) = serde_json::from_str::<RelayClientMsg>(&text) {
                         match client_msg {
-                            RelayClientMsg::Click { .. } | RelayClientMsg::Key { .. }
+                            RelayClientMsg::Click { .. }
+                            | RelayClientMsg::Key { .. }
+                            | RelayClientMsg::Ping { .. }
                                 if !login_vale(verificador.as_ref(), claims.as_ref()) =>
                             {
                                 // Logout, token revogado ou vencido: a conexão já aberta não vale mais.
@@ -356,7 +370,12 @@ async fn handle_ws_socket(
                                 }
                             }
                             RelayClientMsg::Touch { x, y, action } => {
-                                info!(session_id = %session_id_for_recv, x, y, action = %action, "Remote touch received");
+                                // Toque ainda não vira entrada no computador: avisar em vez de calar.
+                                info!(session_id = %session_id_for_recv, x, y, action = %action, "Remote touch received (não suportado)");
+                                avisos.avisar(
+                                    &aviso_tx,
+                                    "Toque ainda não é suportado: use o mouse e o teclado".into(),
+                                );
                             }
                             RelayClientMsg::Key { code, pressed } => {
                                 // O código da tecla NÃO vai para o log: seria senha digitada em texto puro.
@@ -459,6 +478,57 @@ mod tests {
         // Sem serviço de tokens, vale só a validade.
         assert!(login_vale(None, Some(&viva)));
         assert!(!login_vale(None, Some(&vencida)));
+    }
+
+    #[test]
+    fn relogio_que_recua_nao_faz_token_vencido_voltar_a_valer() {
+        use std::sync::atomic::AtomicU64;
+        let marca = AtomicU64::new(0);
+        assert_eq!(nao_volta(&marca, 5_000), 5_000);
+        assert_eq!(nao_volta(&marca, 9_000), 9_000);
+        // O relógio do sistema recuou 4 s: continua valendo a maior leitura.
+        assert_eq!(nao_volta(&marca, 5_000), 9_000);
+        assert_eq!(nao_volta(&marca, 9_500), 9_500);
+    }
+
+    #[test]
+    fn limpar_com_espectador_ligado_nunca_troca_o_canal_dele() {
+        use std::sync::Arc;
+        let estado = Arc::new(WebRtcRelayState::new());
+        let tx = estado.get_or_create_channel("s").unwrap();
+        let mut rx = tx.subscribe();
+        // Uma thread limpa sem parar enquanto outra reconecta: a conferência tem de ser atômica.
+        // Se a sessão sumir do mapa por um instante, a reconexão cria um canal novo e quem já
+        // estava ligado fica falando com um canal que ninguém mais publica.
+        let limpa = {
+            let e = estado.clone();
+            std::thread::spawn(move || {
+                for _ in 0..200_000 {
+                    e.cleanup_session("s");
+                }
+            })
+        };
+        for _ in 0..200_000 {
+            let atual = estado.get_or_create_channel("s").unwrap();
+            assert!(
+                atual.same_channel(&tx),
+                "a reconexão recebeu um canal diferente do de quem já estava ligado"
+            );
+        }
+        limpa.join().unwrap();
+        tx.send(RelayServerMsg::Error {
+            message: "oi".into(),
+        })
+        .unwrap();
+        assert!(rx.try_recv().is_ok());
+    }
+
+    #[test]
+    fn limpar_sem_espectador_remove_o_canal() {
+        let estado = WebRtcRelayState::new();
+        let _ = estado.get_or_create_channel("s").unwrap();
+        estado.cleanup_session("s");
+        assert!(estado.sessions.is_empty());
     }
 
     #[test]
