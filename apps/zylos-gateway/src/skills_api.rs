@@ -7,9 +7,11 @@
 //! - `POST   /skills/contracts`         cria ou atualiza `{ name, description, category, yaml }`
 //! - `DELETE /skills/contracts/:name`   apaga
 //!
-//! Ao atualizar uma skill, a versão anterior fica em `<nome>.json.bak` (uma só, a mais recente): o
-//! editor ainda não recarrega os passos de uma skill salva, então salvar de novo pode empobrecer o
-//! YAML, e este arquivo é a rede de segurança. Ele não aparece na listagem.
+//! Ao atualizar uma skill, a versão anterior fica em `<nome>.json.<data-hora>.bak` (as `MAX_BACKUPS`
+//! mais recentes): o editor ainda não recarrega os passos de uma skill salva, então salvar de novo
+//! pode empobrecer o YAML, e estes arquivos são a rede de segurança (um só `.bak` era sobrescrito
+//! pelo segundo Save e o original se perdia). Se a cópia falhar, o Save falha: não se sobrescreve
+//! sem reserva. Eles não aparecem na listagem.
 //!
 //! O gateway só guarda: o YAML é do editor (que o valida na tela); aqui não é executado nem
 //! interpretado. Nomes só aceitam letras, dígitos, `.`, `_`, `-` e espaço, sem ponto inicial (o nome
@@ -32,6 +34,8 @@ const MAX_YAML: usize = 64 * 1024;
 const MAX_DESC: usize = 2000;
 const MAX_CATEGORIA: usize = 60;
 const MAX_NOME: usize = 100;
+/// Versões anteriores guardadas por skill.
+const MAX_BACKUPS: usize = 10;
 
 #[derive(Clone)]
 pub struct SkillsState {
@@ -123,6 +127,27 @@ fn listar(dir: &Path) -> Vec<Skill> {
     skills
 }
 
+/// Copia o arquivo atual para `<nome>.json.<data-hora>.bak` e apaga as reservas mais antigas além
+/// de `MAX_BACKUPS`. Erro aqui impede o Save: sem reserva não se sobrescreve.
+fn guardar_reserva(dir: &Path, nome: &str, atual: &Path) -> Result<(), String> {
+    let prefixo = format!("{nome}.json.");
+    let marca = chrono::Utc::now().format("%Y%m%dT%H%M%S%9f");
+    std::fs::copy(atual, dir.join(format!("{prefixo}{marca}.bak")))
+        .map_err(|e| format!("reserva falhou: {e}"))?;
+    let mut reservas: Vec<String> = std::fs::read_dir(dir)
+        .map_err(|e| e.to_string())?
+        .filter_map(Result::ok)
+        .filter_map(|e| e.file_name().into_string().ok())
+        .filter(|f| f.starts_with(&prefixo) && f.ends_with(".bak"))
+        .collect();
+    reservas.sort();
+    let sobra = reservas.len().saturating_sub(MAX_BACKUPS);
+    for velha in reservas.into_iter().take(sobra) {
+        let _ = std::fs::remove_file(dir.join(velha));
+    }
+    Ok(())
+}
+
 async fn get_contracts(State(st): State<SkillsState>) -> Response {
     let dir = st.dir.clone();
     match tokio::task::spawn_blocking(move || listar(&dir)).await {
@@ -168,9 +193,9 @@ async fn post_contract(State(st): State<SkillsState>, Json(mut s): Json<Skill>) 
         if novo && listar(&dir).len() >= MAX_SKILLS {
             return Err("limite de skills atingido".into());
         }
-        // Atualização: guarda a versão anterior (substitui a cópia anterior, se houver).
+        // Atualização: guarda a versão anterior numa cópia nova (nunca sobrescreve outra reserva).
         if !novo {
-            let _ = std::fs::copy(&destino, dir.join(format!("{}.json.bak", s.name)));
+            guardar_reserva(&dir, &s.name, &destino)?;
         }
         // Escrita atômica: arquivo temporário na mesma pasta, depois renomeia por cima.
         let tmp = dir.join(format!(".{}.tmp", uuid::Uuid::new_v4()));

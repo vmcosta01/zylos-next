@@ -49,6 +49,8 @@ pub enum Recusa {
     BotaoInvalido,
     TeclaNaoPermitida,
     CoordenadaInvalida,
+    /// A tela da sessão vem de outro computador (VNC): clicar aqui acertaria a máquina errada.
+    SessaoRemota,
     Falha(String),
 }
 
@@ -64,6 +66,9 @@ impl Recusa {
             Self::BotaoInvalido => "Botão do mouse não permitido".into(),
             Self::TeclaNaoPermitida => "Tecla não permitida".into(),
             Self::CoordenadaInvalida => "Coordenada fora do limite".into(),
+            Self::SessaoRemota => {
+                "Esta sessão mostra a tela de outro computador (VNC): a entrada remota só vale para a tela deste computador".into()
+            }
             Self::Falha(e) => format!("Falha ao enviar a entrada: {e}"),
         }
     }
@@ -123,6 +128,10 @@ impl Entrada {
             .get_session(session_id)
             .filter(|s| s.state == SessionState::UserControl.as_str())
             .ok_or(Recusa::SessaoSemControle)?;
+        // A entrada vai para o computador do gateway; numa sessão VNC a tela é de outro.
+        if sessao.vnc_url.is_some() {
+            return Err(Recusa::SessaoRemota);
+        }
         let lease = sessao
             .control_lease
             .filter(|l| !l.is_expired())
@@ -163,6 +172,15 @@ impl Entrada {
             return Err(Recusa::TeclaNaoPermitida);
         }
         self.injetor.tecla(tecla, apertada).map_err(Recusa::Falha)
+    }
+
+    /// Solta uma tecla que esta conexão apertou. **Não exige controle nem conta na taxa**: perder o
+    /// controle (ou estourar o limite) com uma tecla apertada a deixaria presa no sistema.
+    pub fn soltar(&self, tecla: &str) -> Result<(), Recusa> {
+        if !tecla_permitida(tecla) {
+            return Err(Recusa::TeclaNaoPermitida);
+        }
+        self.injetor.tecla(tecla, false).map_err(Recusa::Falha)
     }
 }
 
@@ -372,6 +390,52 @@ mod tests {
         assert_eq!(
             e.clique(&ativa, u1, 1, 1, "left"),
             Err(Recusa::SessaoSemControle)
+        );
+    }
+
+    #[test]
+    fn sessao_vnc_nunca_recebe_entrada_no_computador_do_gateway() {
+        let m = Arc::new(ComputerSessionManager::new(30));
+        let id = m
+            .create_session(zylos_computer_view::schema::CreateSessionRequest {
+                bot_id: "b".into(),
+                vnc_endpoint: Some("vnc://10.0.0.5:5900".into()),
+                metadata: None,
+            })
+            .id;
+        m.update_state(&id, SessionState::Active).unwrap();
+        assumir(&m, &id);
+        let falso = Arc::new(Falso::default());
+        let e = Entrada::new(falso.clone(), m);
+        assert_eq!(
+            e.clique(&id, Some("u1"), 100, 100, "left"),
+            Err(Recusa::SessaoRemota)
+        );
+        assert_eq!(
+            e.tecla(&id, Some("u1"), "a", true),
+            Err(Recusa::SessaoRemota)
+        );
+        assert!(falso.0.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn soltar_funciona_depois_de_perder_o_controle() {
+        let (m, ativa, _) = sessao_com_controle();
+        assumir(&m, &ativa);
+        let falso = Arc::new(Falso::default());
+        let e = Entrada::new(falso.clone(), m.clone());
+        assert_eq!(e.tecla(&ativa, Some("u1"), "Shift", true), Ok(()));
+        m.release_control(&ativa, "u1").unwrap();
+        // Apertar agora é recusado; soltar não.
+        assert!(e.tecla(&ativa, Some("u1"), "a", true).is_err());
+        assert_eq!(e.soltar("Shift"), Ok(()));
+        assert_eq!(e.soltar("Meta"), Err(Recusa::TeclaNaoPermitida));
+        assert_eq!(
+            *falso.0.lock().unwrap(),
+            vec![
+                "tecla Shift true".to_string(),
+                "tecla Shift false".to_string()
+            ]
         );
     }
 

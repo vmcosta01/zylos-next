@@ -10,6 +10,9 @@ use dashmap::DashMap;
 use std::sync::Arc;
 use uuid::Uuid;
 
+/// Maior duração de uma concessão de controle (8 h), qualquer que seja o pedido.
+pub const MAX_LEASE_MINUTES: u64 = 8 * 60;
+
 /// Gerenciador de sessões de computer view
 #[derive(Clone)]
 pub struct ComputerSessionManager {
@@ -123,7 +126,11 @@ impl ComputerSessionManager {
                 }
             }
 
-            let duration = req.duration_minutes.unwrap_or(self.default_lease_minutes);
+            // Teto de 8 h: um valor enorme estourava a data (pânico) ou virava concessão já expirada.
+            let duration = req
+                .duration_minutes
+                .unwrap_or(self.default_lease_minutes)
+                .min(MAX_LEASE_MINUTES);
             let expires = chrono::Utc::now() + chrono::Duration::minutes(duration as i64);
 
             session.control_lease = Some(ControlLease {
@@ -386,6 +393,30 @@ mod tests {
         let lease = controlled.control_lease.unwrap();
         assert_eq!(lease.user_id, "user-1");
         assert_eq!(lease.reason.as_deref(), Some("Debugging"));
+    }
+
+    #[test]
+    fn duracao_da_concessao_tem_teto_e_nao_estoura() {
+        for pedido in [1_000_000_000u64, 1_000_000_000_000, u64::MAX] {
+            let mgr = ComputerSessionManager::default();
+            let session = mgr.create_session(sample_create_request());
+            mgr.update_state(&session.id, SessionState::Active).unwrap();
+            let s = mgr
+                .take_control(
+                    &session.id,
+                    TakeControlRequest {
+                        user_id: "u".into(),
+                        duration_minutes: Some(pedido),
+                        reason: None,
+                    },
+                )
+                .unwrap();
+            let lease = s.control_lease.unwrap();
+            let expira = chrono::DateTime::parse_from_rfc3339(&lease.expires_at).unwrap();
+            let limite = chrono::Utc::now() + chrono::Duration::minutes(MAX_LEASE_MINUTES as i64);
+            assert!(expira <= limite, "{pedido}: expira {expira}");
+            assert!(!lease.is_expired(), "{pedido}: nasceu expirada");
+        }
     }
 
     #[test]

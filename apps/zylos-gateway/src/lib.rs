@@ -323,7 +323,16 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
     #[cfg_attr(not(feature = "input-injection"), allow(unused_mut))]
     let mut relay_state = webrtc_relay::WebRtcRelayState::new();
     // Entrada remota (cliques e teclas): desligada por padrão; ver `remote_input` para as travas.
-    if remote_input::ligada_por_env() {
+    // Só vale para a tela DESTE computador: sem a captura local ligada, os quadros vêm de outro lugar
+    // (um agente que empurra imagens, outra máquina) e um clique acertaria o computador errado.
+    if remote_input::ligada_por_env() && !computer_view_api::captura_local_ligada() {
+        tracing::error!(
+            "{}=1, mas a captura local ({}) está desligada: a entrada remota continua desligada",
+            remote_input::ENTRADA_ENV,
+            computer_view_api::CAPTURA_LOCAL_ENV
+        );
+    }
+    if remote_input::ligada_por_env() && computer_view_api::captura_local_ligada() {
         #[cfg(feature = "input-injection")]
         match remote_input::InjetorReal::novo() {
             Ok(injetor) => {

@@ -300,3 +300,81 @@ async fn teclas_ruins_e_enxurrada_continuam_cortadas_para_o_dono() {
         "no máximo 60 por segundo (foram {n})"
     );
 }
+
+async fn tecla(ws: &mut Ws, code: &str, apertada: bool) {
+    ws.send(Message::Text(
+        serde_json::json!({"type":"key","code":code,"pressed":apertada}).to_string(),
+    ))
+    .await
+    .unwrap();
+}
+
+fn registrado(a: &Ambiente) -> Vec<String> {
+    a.falso.0.lock().unwrap().clone()
+}
+
+#[tokio::test]
+async fn soltar_tecla_passa_depois_da_enxurrada_e_depois_de_perder_o_controle() {
+    let a = subir(true, true).await;
+    let id = nova_sessao(&a.handle);
+    let alice = token(&a, "alice", &["admin"]);
+    assert_eq!(assumir(&a, &id, &alice, "{}").await, 200);
+    let mut ws = conectar(&a, &id, &alice).await;
+
+    // Aperta Control, estoura o limite de 60 eventos/s, e só então solta: o soltar não pode ser
+    // descartado pelo limite (a tecla ficaria presa no sistema).
+    tecla(&mut ws, "Control", true).await;
+    for i in 0..150 {
+        clicar(&mut ws, i).await;
+    }
+    tecla(&mut ws, "Control", false).await;
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    let r = registrado(&a);
+    assert!(r.contains(&"tecla Control true".to_string()), "{r:?}");
+    assert!(r.contains(&"tecla Control false".to_string()), "{r:?}");
+
+    // Aperta Shift, perde o controle, solta: o soltar passa mesmo assim.
+    tokio::time::sleep(Duration::from_millis(1200)).await; // nova janela de taxa
+    tecla(&mut ws, "Shift", true).await;
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert!(registrado(&a).contains(&"tecla Shift true".to_string()));
+    a.handle.manager.release_control(&id, "alice").unwrap();
+    tecla(&mut ws, "Shift", false).await;
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    let r = registrado(&a);
+    assert!(r.contains(&"tecla Shift false".to_string()), "{r:?}");
+}
+
+#[tokio::test]
+async fn conexao_que_cai_solta_as_teclas_que_deixou_apertadas() {
+    let a = subir(true, true).await;
+    let id = nova_sessao(&a.handle);
+    let alice = token(&a, "alice", &["admin"]);
+    assert_eq!(assumir(&a, &id, &alice, "{}").await, 200);
+    let mut ws = conectar(&a, &id, &alice).await;
+    tecla(&mut ws, "Alt", true).await;
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(registrado(&a), vec!["tecla Alt true".to_string()]);
+    drop(ws); // a conexão cai sem soltar a tecla
+    tokio::time::sleep(Duration::from_millis(600)).await;
+    assert_eq!(
+        registrado(&a),
+        vec!["tecla Alt true".to_string(), "tecla Alt false".to_string()]
+    );
+}
+
+#[tokio::test]
+async fn aviso_de_recusa_vai_so_para_quem_mandou_o_evento() {
+    let a = subir(true, true).await;
+    let id = nova_sessao(&a.handle);
+    let alice = token(&a, "alice", &["admin"]);
+    let bob = token(&a, "bob", &["admin"]);
+    assert_eq!(assumir(&a, &id, &alice, "{}").await, 200);
+    let mut ws_alice = conectar(&a, &id, &alice).await;
+    let mut ws_bob = conectar(&a, &id, &bob).await;
+    clicar(&mut ws_bob, 5).await;
+    assert!(aviso(&mut ws_bob).await.contains("outra pessoa"));
+    // Alice (a dona) não recebe nada por causa do clique do Bob.
+    let da_alice = tokio::time::timeout(Duration::from_millis(500), ws_alice.next()).await;
+    assert!(da_alice.is_err(), "Alice recebeu: {da_alice:?}");
+}

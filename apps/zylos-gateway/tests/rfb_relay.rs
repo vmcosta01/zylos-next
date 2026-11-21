@@ -19,6 +19,12 @@ const ALTURA: u16 = 4;
 /// Servidor RFB 3.8, sem autenticação, Raw: a cada pedido manda a tela toda em verde.
 /// Conta as conexões aceitas.
 async fn servidor_vnc(conexoes: Arc<AtomicUsize>) -> String {
+    servidor_vnc_com(conexoes, false).await
+}
+
+/// Com `ignora_incremental`, só responde a pedido de quadro inteiro (como um servidor real com a
+/// tela parada: não responde a um pedido incremental enquanto nada muda).
+async fn servidor_vnc_com(conexoes: Arc<AtomicUsize>, ignora_incremental: bool) -> String {
     let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let porta = l.local_addr().unwrap().port();
     tokio::spawn(async move {
@@ -53,6 +59,9 @@ async fn servidor_vnc(conexoes: Arc<AtomicUsize>) -> String {
                     let mut req = [0u8; 10];
                     if s.read_exact(&mut req).await.is_err() {
                         return;
+                    }
+                    if ignora_incremental && req[1] != 0 {
+                        continue;
                     }
                     let mut m = vec![0u8, 0, 0, 1];
                     for v in [0u16, 0, LARGURA, ALTURA] {
@@ -138,6 +147,38 @@ async fn sessao_com_vnc_permitido_vira_quadros_png_no_relay_e_fica_ativa() {
 }
 
 #[tokio::test]
+async fn tela_parada_nao_derruba_a_sessao() {
+    // O servidor só responde a pedido de quadro inteiro. O cliente tem de continuar recebendo
+    // quadros bem além do limite de leitura de 10 s do pedido incremental.
+    let conexoes = Arc::new(AtomicUsize::new(0));
+    let alvo = servidor_vnc_com(conexoes, true).await;
+    let relay = WebRtcRelayState::new();
+    let handle = ComputerViewHandle::new()
+        .with_vnc_permitidos(vec![alvo.clone()])
+        .with_relay(relay.clone());
+    let app = create_computer_view_router(handle.clone());
+    let id = criar(
+        &app,
+        &format!(r#"{{"bot_id":"b","vnc_endpoint":"vnc://{alvo}"}}"#),
+    )
+    .await;
+    let mut rx = relay.get_or_create_channel(&id).unwrap().subscribe();
+    let mut quadros = 0;
+    while quadros < 3 {
+        match tokio::time::timeout(Duration::from_secs(5), rx.recv())
+            .await
+            .expect("o servidor parou de receber quadros")
+            .unwrap()
+        {
+            RelayServerMsg::Frame { .. } => quadros += 1,
+            RelayServerMsg::Error { message } => panic!("erro do relay: {message}"),
+            _ => {}
+        }
+    }
+    assert_eq!(handle.manager.get_session(&id).unwrap().state, "active");
+}
+
+#[tokio::test]
 async fn vnc_fora_da_lista_nunca_e_conectado() {
     let conexoes = Arc::new(AtomicUsize::new(0));
     let alvo = servidor_vnc(conexoes.clone()).await;
@@ -187,11 +228,15 @@ async fn servidor_vnc_que_cai_vira_aviso_e_sessao_em_erro() {
     }
     assert_eq!(estado, "error");
     // O aviso (se o espectador já estava ligado) é uma categoria, nunca o endereço.
-    if let Ok(RelayServerMsg::Error { message }) = rx.try_recv() {
-        assert!(message.starts_with("VNC:"), "{message}");
-        assert!(
-            !message.contains(&alvo),
-            "o aviso não pode trazer o endereço"
-        );
+    // O aviso é publicado antes de a sessão virar `error`; o espectador já estava inscrito.
+    match rx.try_recv() {
+        Ok(RelayServerMsg::Error { message }) => {
+            assert!(message.starts_with("VNC:"), "{message}");
+            assert!(
+                !message.contains(&alvo),
+                "o aviso não pode trazer o endereço"
+            );
+        }
+        outro => panic!("esperava o aviso de erro do VNC, veio {outro:?}"),
     }
 }
