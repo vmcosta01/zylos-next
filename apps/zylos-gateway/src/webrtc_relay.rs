@@ -76,6 +76,9 @@ pub struct WebRtcRelayState {
     pub max_sessions: usize,
     /// Entrada remota (cliques e teclas). `None` = desligada: o relay só repassa imagem.
     pub entrada: Option<Arc<crate::remote_input::Entrada>>,
+    /// Serviço de tokens do gateway, para conferir de novo (a cada evento de entrada) se o login da
+    /// conexão ainda vale. `None` = gateway sem login (a entrada já recusa quem não tem usuário).
+    pub verificador: Option<zylos_auth::TokenService>,
 }
 
 impl WebRtcRelayState {
@@ -89,7 +92,21 @@ impl WebRtcRelayState {
             sessions: Arc::new(DashMap::new()),
             max_sessions,
             entrada: None,
+            verificador: None,
         }
+    }
+
+    /// Liga a conferência de login a cada evento de entrada (logout e expiração derrubam a conexão).
+    pub fn with_verificador(mut self, svc: Option<zylos_auth::TokenService>) -> Self {
+        self.verificador = svc;
+        self
+    }
+
+    /// A entrada remota está ligada? Se sim, os quadros de uma sessão local só podem vir da captura
+    /// do próprio gateway: um quadro empurrado por fora mostraria ao dono do controle uma tela que
+    /// não é a deste computador, e o clique dele cairia no lugar errado.
+    pub fn entrada_ligada(&self) -> bool {
+        self.entrada.is_some()
     }
 
     /// Liga a entrada remota (já com as travas de `remote_input`).
@@ -172,8 +189,19 @@ impl Default for WebRtcRelayState {
     }
 }
 
-unsafe impl Send for WebRtcRelayState {}
-unsafe impl Sync for WebRtcRelayState {}
+/// O login desta conexão ainda vale? Confere a validade (`exp`) e, havendo serviço de tokens, a lista
+/// de tokens revogados (logout). Sem login (`claims` ausente) não há o que conferir: a entrada já
+/// recusa quem não tem usuário.
+fn login_vale(svc: Option<&zylos_auth::TokenService>, claims: Option<&zylos_auth::Claims>) -> bool {
+    let Some(c) = claims else {
+        return true;
+    };
+    let agora = (now_millis() / 1000) as i64;
+    if c.exp <= agora {
+        return false;
+    }
+    !svc.is_some_and(|s| s.is_revoked(&c.jti))
+}
 
 fn now_millis() -> u64 {
     SystemTime::now()
@@ -191,7 +219,7 @@ async fn ws_computer_view(
 ) -> impl IntoResponse {
     // Quem é, segundo o JWT que o gateway JÁ verificou (nunca um campo mandado pelo cliente).
     // Sem login (gateway sem segredo, ou sem token) não há usuário: a entrada fica recusada.
-    let usuario: Option<String> = auth.map(|a| a.0.claims.sub.clone());
+    let claims = auth.map(|a| a.0.claims.clone());
     info!(session_id = %session_id, "WebSocket upgrade requested for computer-view relay");
     let Some(tx) = state.get_or_create_channel(&session_id) else {
         return (
@@ -203,10 +231,8 @@ async fn ws_computer_view(
     let session_id_clone = session_id.clone();
     let state_clone = state.clone();
 
-    ws.on_upgrade(move |socket| {
-        handle_ws_socket(socket, session_id_clone, tx, state_clone, usuario)
-    })
-    .into_response()
+    ws.on_upgrade(move |socket| handle_ws_socket(socket, session_id_clone, tx, state_clone, claims))
+        .into_response()
 }
 
 /// Evita repetir o mesmo aviso a cada evento (uma sequência de teclas recusadas gera um aviso só).
@@ -238,7 +264,7 @@ async fn handle_ws_socket(
     session_id: String,
     tx: broadcast::Sender<RelayServerMsg>,
     state: WebRtcRelayState,
-    usuario: Option<String>,
+    claims: Option<zylos_auth::Claims>,
 ) {
     use axum::extract::ws::Message;
     use futures_util::{SinkExt, StreamExt};
@@ -251,7 +277,7 @@ async fn handle_ws_socket(
     // Clones para cada task + cleanup pós-select
     let session_id_send = session_id.clone();
     let session_id_cleanup = session_id.clone();
-    let send_task = tokio::spawn(async move {
+    let mut send_task = tokio::spawn(async move {
         loop {
             let recebida = tokio::select! {
                 r = rx.recv() => r,
@@ -281,8 +307,9 @@ async fn handle_ws_socket(
     // Task para ler mensagens do cliente (controle/ping)
     let session_id_for_recv = session_id.clone();
     let entrada = state.entrada.clone();
-    let usuario_recv = usuario;
-    let recv_task = tokio::spawn(async move {
+    let usuario_recv = claims.as_ref().map(|c| c.sub.clone());
+    let verificador = state.verificador.clone();
+    let mut recv_task = tokio::spawn(async move {
         let mut limite = crate::remote_input::LimiteDeTaxa::new();
         let mut avisos = Avisos::default();
         // Teclas que ESTA conexão apertou e ainda não soltou: soltas à força quando ela acaba.
@@ -292,6 +319,20 @@ async fn handle_ws_socket(
                 Message::Text(text) => {
                     if let Ok(client_msg) = serde_json::from_str::<RelayClientMsg>(&text) {
                         match client_msg {
+                            RelayClientMsg::Click { .. } | RelayClientMsg::Key { .. }
+                                if !login_vale(verificador.as_ref(), claims.as_ref()) =>
+                            {
+                                // Logout, token revogado ou vencido: a conexão já aberta não vale mais.
+                                // Sair do laço solta as teclas que ela deixou apertadas.
+                                warn!(session_id = %session_id_for_recv, "Login da conexão não vale mais; fechando a entrada remota");
+                                avisos.avisar(
+                                    &aviso_tx,
+                                    "Seu login expirou ou foi encerrado: entre de novo".into(),
+                                );
+                                // Dá tempo de o aviso sair antes de a conexão ser fechada.
+                                tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+                                break;
+                            }
                             RelayClientMsg::Click { x, y, button } => {
                                 info!(session_id = %session_id_for_recv, x, y, button = %button, "Remote click received");
                                 if !limite.permite() {
@@ -377,8 +418,11 @@ async fn handle_ws_socket(
     });
 
     tokio::select! {
-        _ = send_task => {},
-        _ = recv_task => {},
+        // O cliente sumiu: `recv_task` segue sozinha até o fluxo acabar e solta as teclas apertadas.
+        _ = &mut send_task => {},
+        // Fim por nossa parte (cliente saiu, ou o login deixou de valer): sem isto a task de envio
+        // ficaria viva com o socket aberto, e o WebSocket não fecharia.
+        _ = &mut recv_task => send_task.abort(),
     }
 
     state.cleanup_session(&session_id_cleanup);
@@ -395,6 +439,27 @@ pub fn create_webrtc_relay_router(state: WebRtcRelayState) -> Router {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn login_vale_so_enquanto_nao_venceu_nem_foi_revogado() {
+        use zylos_auth::{Claims, TokenConfig, TokenService};
+        let svc = TokenService::new(TokenConfig {
+            secret: "relay-login-test-secret-0123456789abcdef".into(),
+            ..TokenConfig::default()
+        })
+        .unwrap();
+        let viva = Claims::new("u".into(), "t".into(), vec![], 600);
+        let vencida = Claims::new("u".into(), "t".into(), vec![], -5);
+        assert!(login_vale(Some(&svc), Some(&viva)));
+        assert!(!login_vale(Some(&svc), Some(&vencida)), "token vencido");
+        svc.revoke_jti(&viva.jti, viva.exp);
+        assert!(!login_vale(Some(&svc), Some(&viva)), "token revogado");
+        // Sem login (gateway local) não há o que conferir: a entrada já recusa quem não tem usuário.
+        assert!(login_vale(None, None));
+        // Sem serviço de tokens, vale só a validade.
+        assert!(login_vale(None, Some(&viva)));
+        assert!(!login_vale(None, Some(&vencida)));
+    }
 
     #[test]
     fn test_relay_state_new() {

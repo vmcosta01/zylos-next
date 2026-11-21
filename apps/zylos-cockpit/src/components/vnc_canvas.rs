@@ -109,6 +109,11 @@ pub fn VncStream(
     let has_frame = StoredValue::new(false);
     // O WebSocket aberto pelo efeito abaixo, para mandar cliques e teclas quando se está no controle.
     let ws_slot: StoredValue<Option<WebSocket>> = StoredValue::new(None);
+    // Tecla física (`code`) -> o que ela mandou ao apertar (`key`). Ao soltar, vai o MESMO texto:
+    // "a", Shift, soltar o Shift e depois o "a" daria `key()` = "a" em um e "A" no outro, e a tecla
+    // ficaria apertada no computador.
+    let apertadas: StoredValue<std::collections::HashMap<String, String>> =
+        StoredValue::new(std::collections::HashMap::new());
 
     // Descobrir sessão ativa se não foi fornecida.
     if session_id.is_none() {
@@ -400,13 +405,19 @@ pub fn VncStream(
                     on:keydown=move |ev: web_sys::KeyboardEvent| {
                         if controlling.get_untracked() {
                             ev.prevent_default();
-                            enviar_tecla(ws_slot, &ev.key(), true);
+                            let tecla = apertadas
+                                .try_update_value(|m| tecla_ao_apertar(m, &ev.code(), &ev.key()))
+                                .unwrap_or_else(|| ev.key());
+                            enviar_tecla(ws_slot, &tecla, true);
                         }
                     }
                     on:keyup=move |ev: web_sys::KeyboardEvent| {
                         if controlling.get_untracked() {
                             ev.prevent_default();
-                            enviar_tecla(ws_slot, &ev.key(), false);
+                            let tecla = apertadas
+                                .try_update_value(|m| tecla_ao_soltar(m, &ev.code(), &ev.key()))
+                                .unwrap_or_else(|| ev.key());
+                            enviar_tecla(ws_slot, &tecla, false);
                         }
                     }>
             </canvas>
@@ -584,6 +595,29 @@ fn enviar_clique(slot: StoredValue<Option<WebSocket>>, ev: &web_sys::MouseEvent,
     mandar(slot, json_clique(x, y, botao));
 }
 
+/// Anota o que a tecla física `code` mandou ao ser apertada. Com a tecla já apertada (repetição do
+/// teclado) continua valendo o texto do primeiro aperto.
+fn tecla_ao_apertar(
+    apertadas: &mut std::collections::HashMap<String, String>,
+    code: &str,
+    key: &str,
+) -> String {
+    apertadas
+        .entry(code.to_string())
+        .or_insert_with(|| key.to_string())
+        .clone()
+}
+
+/// O texto a mandar ao soltar a tecla física `code`: o mesmo do aperto. Sem aperto anotado (o foco
+/// entrou com a tecla já pressionada), vale o `key` do próprio evento.
+fn tecla_ao_soltar(
+    apertadas: &mut std::collections::HashMap<String, String>,
+    code: &str,
+    key: &str,
+) -> String {
+    apertadas.remove(code).unwrap_or_else(|| key.to_string())
+}
+
 fn enviar_tecla(slot: StoredValue<Option<WebSocket>>, tecla: &str, apertada: bool) {
     mandar(slot, json_tecla(tecla, apertada));
 }
@@ -617,6 +651,22 @@ fn blob_from_base64(b64: &str) -> Option<Blob> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn soltar_manda_o_mesmo_texto_do_aperto_mesmo_com_o_shift_solto_antes() {
+        let mut m = std::collections::HashMap::new();
+        // Shift apertado, depois "A" (key = "A" porque o Shift está apertado).
+        assert_eq!(tecla_ao_apertar(&mut m, "ShiftLeft", "Shift"), "Shift");
+        assert_eq!(tecla_ao_apertar(&mut m, "KeyA", "A"), "A");
+        // Repetição do teclado não troca o texto anotado.
+        assert_eq!(tecla_ao_apertar(&mut m, "KeyA", "a"), "A");
+        // O Shift é solto primeiro; ao soltar o A o navegador diz key = "a", mas vai "A".
+        assert_eq!(tecla_ao_soltar(&mut m, "ShiftLeft", "Shift"), "Shift");
+        assert_eq!(tecla_ao_soltar(&mut m, "KeyA", "a"), "A");
+        // Sem aperto anotado, vale o key do evento.
+        assert_eq!(tecla_ao_soltar(&mut m, "KeyB", "b"), "b");
+        assert!(m.is_empty());
+    }
 
     #[test]
     fn coordenada_proporcional_ao_tamanho_do_quadro() {

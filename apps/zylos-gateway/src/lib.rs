@@ -99,6 +99,24 @@ where
     panic!("failed to open {what}: {last}");
 }
 
+/// Span de cada requisição HTTP para o log: método e CAMINHO, nunca a query string. Nos WebSockets o
+/// navegador manda o JWT em `?access_token=`, e o span padrão do `tower-http` gravaria a URL inteira.
+pub fn span_sem_query<B>(req: &axum::http::Request<B>) -> tracing::Span {
+    tracing::debug_span!("request", method = %req.method(), path = %req.uri().path())
+}
+
+type FazSpan = fn(&axum::http::Request<axum::body::Body>) -> tracing::Span;
+type CamadaDeLog = tower_http::trace::TraceLayer<
+    tower_http::classify::SharedClassifier<tower_http::classify::ServerErrorsAsFailures>,
+    FazSpan,
+>;
+
+/// Camada de log de requisições do gateway (usa [`span_sem_query`]).
+pub fn camada_de_log() -> CamadaDeLog {
+    tower_http::trace::TraceLayer::new_for_http()
+        .make_span_with(span_sem_query::<axum::body::Body> as FazSpan)
+}
+
 /// Build the consolidated API gateway router
 pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
     // Sub-routers that consume their own state internally return Router<()>
@@ -320,39 +338,48 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
     // Servidores VNC a que o gateway pode se conectar (ZYLOS_VNC_ALLOW_HOSTS; vazia = nenhum).
     let computer_view_base = computer_view_api::ComputerViewHandle::new()
         .with_vnc_permitidos(computer_view_api::vnc_permitidos_do_ambiente());
+    let auth_state = auth_api::AuthState::from_env();
     #[cfg_attr(not(feature = "input-injection"), allow(unused_mut))]
-    let mut relay_state = webrtc_relay::WebRtcRelayState::new();
+    let mut relay_state = webrtc_relay::WebRtcRelayState::new()
+        // Logout e token vencido derrubam a entrada de uma conexão que já estava aberta.
+        .with_verificador(auth_state.token_service());
     // Entrada remota (cliques e teclas): desligada por padrão; ver `remote_input` para as travas.
     // Só vale para a tela DESTE computador: sem a captura local ligada, os quadros vêm de outro lugar
     // (um agente que empurra imagens, outra máquina) e um clique acertaria o computador errado.
-    if remote_input::ligada_por_env() && !computer_view_api::captura_local_ligada() {
-        tracing::error!(
+    match remote_input::decidir_porta(
+        remote_input::ligada_por_env(),
+        computer_view_api::captura_local_ligada(),
+        cfg!(feature = "input-injection"),
+    ) {
+        remote_input::Porta::Desligada => {}
+        remote_input::Porta::SemCaptura => tracing::error!(
             "{}=1, mas a captura local ({}) está desligada: a entrada remota continua desligada",
             remote_input::ENTRADA_ENV,
             computer_view_api::CAPTURA_LOCAL_ENV
-        );
-    }
-    if remote_input::ligada_por_env() && computer_view_api::captura_local_ligada() {
-        #[cfg(feature = "input-injection")]
-        match remote_input::InjetorReal::novo() {
-            Ok(injetor) => {
-                tracing::warn!(
-                    "entrada remota LIGADA ({}=1): quem assume o controle de uma sessão move o mouse e digita neste computador",
-                    remote_input::ENTRADA_ENV
-                );
-                relay_state =
-                    relay_state.with_entrada(std::sync::Arc::new(remote_input::Entrada::new(
-                        std::sync::Arc::new(injetor),
-                        computer_view_base.manager.clone(),
-                    )));
-            }
-            Err(e) => tracing::error!(error = %e, "entrada remota pedida, mas o injetor não subiu"),
-        }
-        #[cfg(not(feature = "input-injection"))]
-        tracing::error!(
+        ),
+        remote_input::Porta::SemInjetor => tracing::error!(
             "{}=1, mas este gateway foi compilado sem `--features input-injection`: a entrada remota continua desligada",
             remote_input::ENTRADA_ENV
-        );
+        ),
+        remote_input::Porta::Ligar => {
+            #[cfg(feature = "input-injection")]
+            match remote_input::InjetorReal::novo() {
+                Ok(injetor) => {
+                    tracing::warn!(
+                        "entrada remota LIGADA ({}=1): quem assume o controle de uma sessão move o mouse e digita neste computador",
+                        remote_input::ENTRADA_ENV
+                    );
+                    relay_state =
+                        relay_state.with_entrada(std::sync::Arc::new(remote_input::Entrada::new(
+                            std::sync::Arc::new(injetor),
+                            computer_view_base.manager.clone(),
+                        )));
+                }
+                Err(e) => {
+                    tracing::error!(error = %e, "entrada remota pedida, mas o injetor não subiu")
+                }
+            }
+        }
     }
     let computer_view_handle = computer_view_base.with_relay(relay_state.clone());
     // Opt-in: fotografa o monitor deste computador para quem assiste uma sessão local.
@@ -364,7 +391,6 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
     }
     let computer_view = computer_view_api::create_computer_view_router(computer_view_handle);
     let webrtc_relay = webrtc_relay::create_webrtc_relay_router(relay_state);
-    let auth_state = auth_api::AuthState::from_env();
     let api_auth_state = api_auth::ApiAuth::new(auth_state.token_service());
     if !api_auth_state.enforced() {
         tracing::warn!(
@@ -443,7 +469,7 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
         .layer(axum::middleware::from_fn(
             security_headers::security_headers,
         ))
-        .layer(tower_http::trace::TraceLayer::new_for_http())
+        .layer(camada_de_log())
         // F15: per-IP token-bucket rate limiter (ZYLOS_RATE_LIMIT_RPS, default 100).
         .layer(axum::middleware::from_fn_with_state(
             rate_limit::RateLimiter::from_env(),
@@ -492,4 +518,60 @@ pub fn build_router(state: AppState, handles: ApiHandles) -> Router {
         })
         // Camada mais externa: roda antes de tudo, inclusive da resposta de CORS ao preflight.
         .layer(axum::middleware::from_fn(local_guard::so_desta_maquina))
+}
+
+#[cfg(test)]
+mod testes_de_log {
+    use super::camada_de_log;
+    use std::io::Write;
+    use std::sync::{Arc, Mutex};
+    use tower::ServiceExt;
+
+    #[derive(Clone, Default)]
+    struct Saida(Arc<Mutex<Vec<u8>>>);
+
+    impl Write for Saida {
+        fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(b);
+            Ok(b.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn o_log_da_requisicao_nao_grava_a_query_string_onde_vai_o_jwt() {
+        let saida = Saida::default();
+        let escritor = saida.clone();
+        let sub = tracing_subscriber::fmt()
+            .with_writer(move || escritor.clone())
+            .with_max_level(tracing::Level::DEBUG)
+            .with_ansi(false)
+            .finish();
+        let _guarda = tracing::subscriber::set_default(sub);
+        let app = axum::Router::new()
+            .route("/x", axum::routing::get(|| async { "ok" }))
+            .layer(camada_de_log());
+        let resp = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/x?access_token=eyJ.SEGREDO.assinatura")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 200);
+        let texto = String::from_utf8(saida.0.lock().unwrap().clone()).unwrap();
+        assert!(
+            texto.contains("path=/x"),
+            "o log deveria ter o caminho: {texto}"
+        );
+        assert!(
+            !texto.contains("SEGREDO"),
+            "o JWT vazou para o log: {texto}"
+        );
+        assert!(!texto.contains("access_token"), "{texto}");
+    }
 }
