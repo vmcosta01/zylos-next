@@ -39,6 +39,9 @@ pub struct ComputerViewHandle {
     /// Servidores VNC (`host:porta`) a que o gateway pode se conectar para uma sessão com
     /// `vnc_endpoint`. Vazio (padrão) = o gateway nunca abre conexão VNC: o endpoint fica só guardado.
     pub vnc_permitidos: Arc<Vec<String>>,
+    /// Espera antes da 1ª nova tentativa quando um VNC que já funcionava cai (dobra a cada
+    /// tentativa, até 30 s). Existe como campo para os testes não esperarem segundos.
+    pub espera_reconexao: std::time::Duration,
     /// Relay por onde os frames chegam ao cockpit; sem ele a rota de frames responde 503.
     pub relay: Option<crate::webrtc_relay::WebRtcRelayState>,
 }
@@ -52,6 +55,7 @@ impl ComputerViewHandle {
         Self {
             manager: Arc::new(ComputerSessionManager::new(30)), // 30 min default lease
             vnc_permitidos: Arc::new(Vec::new()),
+            espera_reconexao: std::time::Duration::from_secs(1),
             relay: None,
         }
     }
@@ -59,6 +63,12 @@ impl ComputerViewHandle {
     /// Servidores VNC permitidos (`host:porta`, sem diferenciar maiúsculas).
     pub fn with_vnc_permitidos(mut self, hosts: Vec<String>) -> Self {
         self.vnc_permitidos = Arc::new(hosts);
+        self
+    }
+
+    /// Espera inicial entre tentativas de reconexão do VNC.
+    pub fn with_espera_reconexao(mut self, espera: std::time::Duration) -> Self {
+        self.espera_reconexao = espera;
         self
     }
 
@@ -190,56 +200,131 @@ pub fn alvo_vnc(endpoint: &str, permitidos: &[String]) -> Option<String> {
 /// precisa).
 const INTERVALO_QUADRO: std::time::Duration = std::time::Duration::from_millis(500);
 
-/// Lê o framebuffer de um servidor VNC e publica os quadros no relay até a sessão acabar ou o
-/// servidor cair. Falha vira um aviso `error` no relay e a sessão passa a `error`.
-async fn rfb_para_o_relay(handle: ComputerViewHandle, id: String, alvo: String) {
+/// Quantas vezes seguidas o gateway tenta reconectar um VNC que já tinha funcionado.
+const TENTATIVAS_RECONEXAO: u32 = 5;
+/// Teto da espera entre tentativas.
+const ESPERA_MAXIMA: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Como terminou uma conexão VNC.
+enum FimDaConexao {
+    /// A sessão foi encerrada (ou sumiu): não há o que reconectar.
+    SessaoAcabou,
+    /// Falhou; `houve_quadro` diz se esta conexão chegou a entregar algum quadro.
+    Falha { motivo: String, houve_quadro: bool },
+}
+
+/// Uma conexão VNC: conecta, lê quadros e os publica até a sessão acabar ou algo falhar.
+async fn uma_conexao_vnc(
+    handle: &ComputerViewHandle,
+    relay: &crate::webrtc_relay::WebRtcRelayState,
+    id: &str,
+    alvo: &str,
+) -> FimDaConexao {
     use zylos_computer_view::rfb::ClienteRfb;
-    let Some(relay) = handle.relay.clone() else {
-        return;
-    };
-    let falhou = |motivo: String| {
-        tracing::warn!(session = %id, motivo = %motivo, "sessão VNC encerrada por erro");
-        if let Some(tx) = relay.get_or_create_channel(&id) {
-            let _ = tx.send(crate::webrtc_relay::RelayServerMsg::Error {
-                message: format!("VNC: {motivo}"),
-            });
-        }
-        let _ = handle.manager.update_state(&id, SessionState::Error);
+    let falha = |motivo: String, houve_quadro: bool| FimDaConexao::Falha {
+        motivo,
+        houve_quadro,
     };
     let tcp = match tokio::time::timeout(
         std::time::Duration::from_secs(5),
-        tokio::net::TcpStream::connect(&alvo),
+        tokio::net::TcpStream::connect(alvo),
     )
     .await
     {
         Ok(Ok(t)) => t,
-        Ok(Err(e)) => return falhou(format!("não conectou ({})", e.kind())),
-        Err(_) => return falhou("tempo esgotado ao conectar".into()),
+        Ok(Err(e)) => return falha(format!("não conectou ({})", e.kind()), false),
+        Err(_) => return falha("tempo esgotado ao conectar".into(), false),
     };
     let mut cli = match ClienteRfb::conectar(tcp).await {
         Ok(c) => c,
-        Err(e) => return falhou(e.to_string()),
+        Err(e) => return falha(e.to_string(), false),
     };
+    let mut houve_quadro = false;
     loop {
         // A sessão foi encerrada (ou sumiu): para de ler.
-        match handle.manager.get_session(&id) {
+        match handle.manager.get_session(id) {
             Some(s) if s.state != SessionState::Terminated.as_str() => {}
-            _ => return,
+            _ => return FimDaConexao::SessaoAcabou,
         }
         let inicio = std::time::Instant::now();
         let quadro = match cli.proximo_quadro().await {
             Ok(q) => q,
-            Err(e) => return falhou(e.to_string()),
+            Err(e) => return falha(e.to_string(), houve_quadro),
         };
         let png = match tokio::task::spawn_blocking(move || quadro.png()).await {
             Ok(Ok(p)) => p,
-            _ => return falhou("falha ao codificar o quadro".into()),
+            _ => return falha("falha ao codificar o quadro".into(), houve_quadro),
         };
-        if relay.publish_frame(&id, &png).is_some() {
-            ativar_se_conectando(&handle, &id);
+        if relay.publish_frame(id, &png).is_some() {
+            ativar_se_conectando(handle, id);
         }
+        houve_quadro = true;
         if let Some(resta) = INTERVALO_QUADRO.checked_sub(inicio.elapsed()) {
             tokio::time::sleep(resta).await;
+        }
+    }
+}
+
+/// Lê o framebuffer de um servidor VNC e publica os quadros no relay até a sessão acabar.
+///
+/// - Falha **antes de qualquer quadro** (endereço errado, servidor que recusa): a sessão vai para
+///   `error` na hora, porque é problema de configuração e tentar de novo não resolve.
+/// - Falha **depois de o VNC já ter funcionado** (servidor reiniciou, rede caiu): reconecta até
+///   `TENTATIVAS_RECONEXAO` vezes com espera crescente, avisando o cockpit a cada tentativa; só se
+///   todas falharem a sessão vai para `error`. Uma conexão que volta a entregar quadros zera a conta.
+async fn rfb_para_o_relay(handle: ComputerViewHandle, id: String, alvo: String) {
+    let Some(relay) = handle.relay.clone() else {
+        return;
+    };
+    let avisa = |texto: String| {
+        if let Some(tx) = relay.get_or_create_channel(&id) {
+            let _ = tx.send(crate::webrtc_relay::RelayServerMsg::Error { message: texto });
+        }
+    };
+    let falhou = |motivo: String| {
+        tracing::warn!(session = %id, motivo = %motivo, "sessão VNC encerrada por erro");
+        avisa(format!("VNC: {motivo}"));
+        let _ = handle.manager.update_state(&id, SessionState::Error);
+    };
+    let mut ja_funcionou = false;
+    let mut tentativas = 0u32;
+    loop {
+        match uma_conexao_vnc(&handle, &relay, &id, &alvo).await {
+            FimDaConexao::SessaoAcabou => return,
+            FimDaConexao::Falha {
+                motivo,
+                houve_quadro,
+            } => {
+                if houve_quadro {
+                    ja_funcionou = true;
+                    tentativas = 0; // voltou a funcionar: a contagem recomeça
+                }
+                if !ja_funcionou {
+                    return falhou(motivo);
+                }
+                tentativas += 1;
+                if tentativas > TENTATIVAS_RECONEXAO {
+                    return falhou(format!(
+                        "{motivo} (desisti após {TENTATIVAS_RECONEXAO} tentativas)"
+                    ));
+                }
+                avisa(format!(
+                    "VNC: conexão perdida ({motivo}); reconectando ({tentativas}/{TENTATIVAS_RECONEXAO})"
+                ));
+                let espera = handle
+                    .espera_reconexao
+                    .saturating_mul(1u32 << (tentativas - 1).min(10))
+                    .min(ESPERA_MAXIMA);
+                tokio::time::sleep(espera).await;
+                // A sessão pode ter sido encerrada durante a espera.
+                if !handle
+                    .manager
+                    .get_session(&id)
+                    .is_some_and(|s| s.state != SessionState::Terminated.as_str())
+                {
+                    return;
+                }
+            }
         }
     }
 }

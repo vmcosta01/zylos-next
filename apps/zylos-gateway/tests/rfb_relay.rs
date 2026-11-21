@@ -19,12 +19,20 @@ const ALTURA: u16 = 4;
 /// Servidor RFB 3.8, sem autenticação, Raw: a cada pedido manda a tela toda em verde.
 /// Conta as conexões aceitas.
 async fn servidor_vnc(conexoes: Arc<AtomicUsize>) -> String {
-    servidor_vnc_com(conexoes, false).await
+    servidor_vnc_com(conexoes, false, None, false).await
 }
 
 /// Com `ignora_incremental`, só responde a pedido de quadro inteiro (como um servidor real com a
 /// tela parada: não responde a um pedido incremental enquanto nada muda).
-async fn servidor_vnc_com(conexoes: Arc<AtomicUsize>, ignora_incremental: bool) -> String {
+///
+/// `quadros_por_conexao`: depois de mandar esse tanto de quadros, derruba a conexão (servidor que
+/// reinicia). `so_uma_conexao`: depois da 1ª conexão fecha o listener (o servidor "morre").
+async fn servidor_vnc_com(
+    conexoes: Arc<AtomicUsize>,
+    ignora_incremental: bool,
+    quadros_por_conexao: Option<usize>,
+    so_uma_conexao: bool,
+) -> String {
     let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let porta = l.local_addr().unwrap().port();
     tokio::spawn(async move {
@@ -55,6 +63,7 @@ async fn servidor_vnc_com(conexoes: Arc<AtomicUsize>, ignora_incremental: bool) 
                 if s.read_exact(&mut lixo).await.is_err() {
                     return;
                 }
+                let mut enviados = 0usize;
                 loop {
                     let mut req = [0u8; 10];
                     if s.read_exact(&mut req).await.is_err() {
@@ -73,8 +82,15 @@ async fn servidor_vnc_com(conexoes: Arc<AtomicUsize>, ignora_incremental: bool) 
                     if s.write_all(&m).await.is_err() {
                         return;
                     }
+                    enviados += 1;
+                    if quadros_por_conexao.is_some_and(|n| enviados >= n) {
+                        return;
+                    }
                 }
             });
+            if so_uma_conexao {
+                return; // o listener é descartado: novas conexões são recusadas
+            }
         }
     });
     format!("127.0.0.1:{porta}")
@@ -151,7 +167,7 @@ async fn tela_parada_nao_derruba_a_sessao() {
     // O servidor só responde a pedido de quadro inteiro. O cliente tem de continuar recebendo
     // quadros bem além do limite de leitura de 10 s do pedido incremental.
     let conexoes = Arc::new(AtomicUsize::new(0));
-    let alvo = servidor_vnc_com(conexoes, true).await;
+    let alvo = servidor_vnc_com(conexoes, true, None, false).await;
     let relay = WebRtcRelayState::new();
     let handle = ComputerViewHandle::new()
         .with_vnc_permitidos(vec![alvo.clone()])
@@ -176,6 +192,94 @@ async fn tela_parada_nao_derruba_a_sessao() {
         }
     }
     assert_eq!(handle.manager.get_session(&id).unwrap().state, "active");
+}
+
+#[tokio::test]
+async fn vnc_que_reinicia_e_reconectado_e_a_sessao_continua_ativa() {
+    // O servidor derruba a conexão a cada 2 quadros. Como o VNC já tinha funcionado, o gateway
+    // reconecta (com espera curta no teste) e os quadros continuam chegando; a sessão não vira erro.
+    let conexoes = Arc::new(AtomicUsize::new(0));
+    let alvo = servidor_vnc_com(conexoes.clone(), false, Some(2), false).await;
+    let relay = WebRtcRelayState::new();
+    let handle = ComputerViewHandle::new()
+        .with_vnc_permitidos(vec![alvo.clone()])
+        .with_espera_reconexao(Duration::from_millis(20))
+        .with_relay(relay.clone());
+    let app = create_computer_view_router(handle.clone());
+    let id = criar(
+        &app,
+        &format!(r#"{{"bot_id":"b","vnc_endpoint":"vnc://{alvo}"}}"#),
+    )
+    .await;
+    let mut rx = relay.get_or_create_channel(&id).unwrap().subscribe();
+    let (mut quadros, mut avisos_de_reconexao) = (0, 0);
+    // 14 quadros = 7 conexões de 2 quadros: mais que as 5 tentativas seguidas permitidas, então só
+    // passa se a contagem de tentativas zera quando uma conexão volta a entregar quadros.
+    while quadros < 14 {
+        match tokio::time::timeout(Duration::from_secs(8), rx.recv())
+            .await
+            .expect("os quadros pararam de chegar")
+            .unwrap()
+        {
+            RelayServerMsg::Frame { .. } => quadros += 1,
+            RelayServerMsg::Error { message } => {
+                assert!(message.contains("reconectando"), "{message}");
+                assert!(
+                    !message.contains(&alvo),
+                    "o aviso não pode trazer o endereço"
+                );
+                avisos_de_reconexao += 1;
+            }
+            _ => {}
+        }
+    }
+    assert!(
+        conexoes.load(Ordering::SeqCst) >= 7,
+        "reconectou ao menos 6 vezes"
+    );
+    assert!(avisos_de_reconexao >= 6);
+    assert_eq!(handle.manager.get_session(&id).unwrap().state, "active");
+}
+
+#[tokio::test]
+async fn vnc_que_morre_de_vez_desiste_apos_as_tentativas_e_a_sessao_vira_erro() {
+    let conexoes = Arc::new(AtomicUsize::new(0));
+    let alvo = servidor_vnc_com(conexoes.clone(), false, Some(1), true).await;
+    let relay = WebRtcRelayState::new();
+    let handle = ComputerViewHandle::new()
+        .with_vnc_permitidos(vec![alvo.clone()])
+        .with_espera_reconexao(Duration::from_millis(10))
+        .with_relay(relay.clone());
+    let app = create_computer_view_router(handle.clone());
+    let id = criar(
+        &app,
+        &format!(r#"{{"bot_id":"b","vnc_endpoint":"vnc://{alvo}"}}"#),
+    )
+    .await;
+    let mut rx = relay.get_or_create_channel(&id).unwrap().subscribe();
+    let mut ultimo_aviso = String::new();
+    let mut estado = String::new();
+    // No Windows, conectar numa porta fechada leva ~2 s por tentativa (5 tentativas).
+    for _ in 0..300 {
+        while let Ok(m) = rx.try_recv() {
+            if let RelayServerMsg::Error { message } = m {
+                ultimo_aviso = message;
+            }
+        }
+        estado = handle.manager.get_session(&id).unwrap().state;
+        if estado == "error" {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    assert_eq!(estado, "error", "último aviso: {ultimo_aviso}");
+    while let Ok(m) = rx.try_recv() {
+        if let RelayServerMsg::Error { message } = m {
+            ultimo_aviso = message;
+        }
+    }
+    assert!(ultimo_aviso.contains("desisti"), "{ultimo_aviso}");
+    assert!(!ultimo_aviso.contains(&alvo));
 }
 
 #[tokio::test]
