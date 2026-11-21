@@ -90,6 +90,8 @@ pub struct Resposta {
     pub duracao_ms: u64,
     /// Tokens (entrada + saída) que o provedor informou; `None` se não informou.
     pub tokens: Option<u64>,
+    /// Entrada e saída separadas, quando o provedor informou as duas (base do custo em dinheiro).
+    pub uso: Option<linguas::Uso>,
 }
 
 /// Tudo o que pode dar errado. Nenhuma variante carrega o valor de uma chave.
@@ -287,7 +289,7 @@ pub async fn perguntar(
     let chave = chave_do_provedor(cfg, provedor, ambiente)?;
 
     let inicio = Instant::now();
-    let (texto, tokens) = linguas::perguntar(
+    let (texto, tokens, uso) = linguas::perguntar(
         cliente,
         linguas::Pedido {
             provedor,
@@ -307,5 +309,6 @@ pub async fn perguntar(
         modelo,
         duracao_ms: inicio.elapsed().as_millis() as u64,
         tokens,
+        uso,
     })
 }

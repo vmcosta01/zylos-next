@@ -260,6 +260,23 @@ Cross-reference: [HANDOFF_FASE8.md](../../docs/handoffs/HANDOFF_FASE8.md), [MODU
 
 Cross-reference: [HANDOFF_FASE9.md](../../docs/handoffs/HANDOFF_FASE9.md), [TRACKRECORD_FASE9.md](../../docs/TRACKRECORD_FASE9.md)
 
+## Custo em dólares na Frota (`ZYLOS_PRECOS_FILE`)
+
+O gateway não sabe preços (variam por contrato e mudam). `GET /api/v1/fleet/metrics` só devolve
+`cost_usd` quando o operador aponta `ZYLOS_PRECOS_FILE` para um JSON com o preço por milhão de
+tokens de cada modelo:
+
+```json
+{ "modelos": {
+  "claude-sonnet-5-5":  { "entrada_por_milhao_usd": 3.0, "saida_por_milhao_usd": 15.0 },
+  "anthropic/claude-x": { "entrada_por_milhao_usd": 1.0, "saida_por_milhao_usd": 5.0 }
+} }
+```
+
+A chave é o nome do modelo ou `provedor/modelo` (este vence). Sem arquivo, sem o modelo na tabela,
+ou com um provedor que informa só `total_tokens` (sem a divisão entrada/saída), `cost_usd` é `null`
+e o painel mostra "—": nunca um zero. `cost_covered_actions` diz de quantas respostas vem o valor.
+
 ## Runbooks
 
 - [`zylos-gateway.runbook.yaml`](../../docs/soar/runbooks/zylos-gateway.runbook.yaml)
