@@ -12,12 +12,19 @@
 //!    curta (letras, números, pontuação comum, Enter, Backspace, Tab, Esc, setas, Home/End,
 //!    PageUp/PageDown, Delete, Shift, Control, Alt). A tecla Windows/Meta e qualquer nome fora da
 //!    lista são recusados.
-//! 4. **Coordenadas limitadas** (0 a 16384) e **taxa limitada** (60 eventos por segundo por conexão).
+//! 4. **Coordenadas limitadas** (0 a 16384) e **taxa limitada**: 60 eventos por segundo no total,
+//!    somando todas as conexões (a máquina tem um mouse e um teclado só).
+//! 5. **Um dono por vez na máquina.** Duas sessões com controle ao mesmo tempo não intercalam
+//!    teclas: quem injetou por último segura a máquina enquanto o controle dele valer e ele tiver
+//!    mandado algo nos últimos [`POSSE_OCIOSA`]. Quando o dono muda, as teclas que o anterior deixou
+//!    apertadas são soltas antes do primeiro evento do novo.
+//! 6. **Atalhos que fogem da janela estão fora**: Ctrl+Esc, Ctrl+Shift+Esc, Alt+Esc e Alt+Tab
+//!    (menu Iniciar, Gerenciador de Tarefas, troca de janela), em qualquer ordem de aperto.
 //!
 //! O injetor é um trait: os testes usam um falso que só anota o que receberia, então nenhum teste
 //! mexe no mouse ou no teclado de verdade.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use zylos_computer_view::schema::SessionState;
@@ -27,8 +34,33 @@ use zylos_computer_view::session::ComputerSessionManager;
 pub const ENTRADA_ENV: &str = "ZYLOS_COMPUTER_VIEW_INPUT";
 /// Maior coordenada aceita (px do quadro).
 pub const COORD_MAX: i32 = 16_384;
-/// Eventos de entrada por segundo, por conexão.
+/// Eventos de entrada por segundo (somando todas as conexões: o computador tem um teclado só).
 pub const EVENTOS_POR_SEGUNDO: usize = 60;
+/// Depois de quanto tempo sem eventos o dono da máquina deixa outra sessão assumir a injeção.
+pub const POSSE_OCIOSA: Duration = Duration::from_secs(30);
+
+/// O que fazer com a entrada remota, dadas as três travas (variável, captura local, feature).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Porta {
+    /// Ninguém pediu a entrada: segue desligada, sem aviso.
+    Desligada,
+    /// Pedida, mas a captura local está desligada: os quadros viriam de outro lugar.
+    SemCaptura,
+    /// Pedida, mas o gateway foi compilado sem o injetor real.
+    SemInjetor,
+    Ligar,
+}
+
+/// Decide se a entrada liga. Só liga com as TRÊS travas: `ZYLOS_COMPUTER_VIEW_INPUT=1`,
+/// `ZYLOS_COMPUTER_VIEW_CAPTURE=1` e o gateway compilado com `--features input-injection`.
+pub fn decidir_porta(pedida: bool, captura_local: bool, injetor_compilado: bool) -> Porta {
+    match (pedida, captura_local, injetor_compilado) {
+        (false, _, _) => Porta::Desligada,
+        (true, false, _) => Porta::SemCaptura,
+        (true, true, false) => Porta::SemInjetor,
+        (true, true, true) => Porta::Ligar,
+    }
+}
 
 pub fn ligada_por_env() -> bool {
     std::env::var(ENTRADA_ENV).is_ok_and(|v| v.trim() == "1")
@@ -51,6 +83,12 @@ pub enum Recusa {
     CoordenadaInvalida,
     /// A tela da sessão vem de outro computador (VNC): clicar aqui acertaria a máquina errada.
     SessaoRemota,
+    /// Outra sessão está com o mouse e o teclado desta máquina agora.
+    MaquinaOcupada,
+    /// Mais de 60 eventos por segundo na máquina.
+    EventosDemais,
+    /// Ctrl+Esc, Alt+Tab e parentes: abrem o menu Iniciar, o Gerenciador de Tarefas, a troca de janela.
+    AtalhoBloqueado,
     Falha(String),
 }
 
@@ -68,6 +106,13 @@ impl Recusa {
             Self::CoordenadaInvalida => "Coordenada fora do limite".into(),
             Self::SessaoRemota => {
                 "Esta sessão mostra a tela de outro computador (VNC): a entrada remota só vale para a tela deste computador".into()
+            }
+            Self::MaquinaOcupada => {
+                "Outra sessão está usando o mouse e o teclado deste computador agora".into()
+            }
+            Self::EventosDemais => "Eventos demais por segundo".into(),
+            Self::AtalhoBloqueado => {
+                "Atalho bloqueado (Ctrl+Esc, Alt+Esc, Alt+Tab): abre menus do sistema".into()
             }
             Self::Falha(e) => format!("Falha ao enviar a entrada: {e}"),
         }
@@ -113,11 +158,81 @@ pub fn botao_valido(b: &str) -> bool {
 pub struct Entrada {
     injetor: Arc<dyn InjetorEntrada>,
     manager: Arc<ComputerSessionManager>,
+    estado: Mutex<Estado>,
+}
+
+/// O que vale para a máquina inteira (não para uma conexão): quem manda, o que está apertado, o ritmo.
+struct Estado {
+    /// (sessão, usuário) que injetou por último.
+    dono: Option<(String, String)>,
+    ultimo_evento: Option<Instant>,
+    /// Teclas apertadas e ainda não soltas, de qualquer conexão.
+    apertadas: Vec<String>,
+    limite: LimiteDeTaxa,
+}
+
+/// `true` se apertar `tecla` agora, com `apertadas` já seguradas, abriria um atalho do sistema.
+fn forma_atalho_bloqueado(apertadas: &[String], tecla: &str) -> bool {
+    let tem = |t: &str| apertadas.iter().any(|a| a == t);
+    match tecla {
+        "Escape" => tem("Control") || tem("Alt"),
+        "Tab" => tem("Alt"),
+        // Na ordem inversa (Esc/Tab já seguradas e depois o modificador) o resultado é o mesmo.
+        "Control" => tem("Escape"),
+        "Alt" => tem("Escape") || tem("Tab"),
+        _ => false,
+    }
 }
 
 impl Entrada {
     pub fn new(injetor: Arc<dyn InjetorEntrada>, manager: Arc<ComputerSessionManager>) -> Self {
-        Self { injetor, manager }
+        Self {
+            injetor,
+            manager,
+            estado: Mutex::new(Estado {
+                dono: None,
+                ultimo_evento: None,
+                apertadas: Vec::new(),
+                limite: LimiteDeTaxa::new(),
+            }),
+        }
+    }
+
+    /// A sessão ainda tem controle humano válido (concessão não vencida)?
+    fn controle_vivo(&self, session_id: &str) -> bool {
+        self.manager.get_session(session_id).is_some_and(|s| {
+            s.state == SessionState::UserControl.as_str()
+                && s.control_lease.is_some_and(|l| !l.is_expired())
+        })
+    }
+
+    /// Depois de `autorizar`: garante que esta sessão/usuário é o dono da máquina (ou que o dono
+    /// anterior largou), solta o que o dono anterior deixou apertado e aplica o limite de taxa.
+    fn tomar_a_vez(&self, session_id: &str, usuario: Option<&str>) -> Result<(), Recusa> {
+        let u = usuario.unwrap_or_default();
+        let mut st = self.estado.lock().unwrap_or_else(|e| e.into_inner());
+        let sou_eu = st
+            .dono
+            .as_ref()
+            .is_some_and(|(s, uu)| s == session_id && uu == u);
+        if !sou_eu {
+            if let Some((outra, _)) = &st.dono {
+                let ativo = st.ultimo_evento.is_some_and(|t| t.elapsed() < POSSE_OCIOSA);
+                if outra != session_id && ativo && self.controle_vivo(outra) {
+                    return Err(Recusa::MaquinaOcupada);
+                }
+            }
+            // Troca de dono: nada do anterior pode sobrar apertado (viraria Ctrl+C do novo).
+            for t in std::mem::take(&mut st.apertadas) {
+                let _ = self.injetor.tecla(&t, false);
+            }
+            st.dono = Some((session_id.to_string(), u.to_string()));
+        }
+        if !st.limite.permite() {
+            return Err(Recusa::EventosDemais);
+        }
+        st.ultimo_evento = Some(Instant::now());
+        Ok(())
     }
 
     /// A sessão tem controle humano ativo, com a concessão ainda válida, e `usuario` (o `sub` do
@@ -157,6 +272,7 @@ impl Entrada {
         if !(0..=COORD_MAX).contains(&x) || !(0..=COORD_MAX).contains(&y) {
             return Err(Recusa::CoordenadaInvalida);
         }
+        self.tomar_a_vez(session_id, usuario)?;
         self.injetor.clique(x, y, botao).map_err(Recusa::Falha)
     }
 
@@ -171,7 +287,20 @@ impl Entrada {
         if !tecla_permitida(tecla) {
             return Err(Recusa::TeclaNaoPermitida);
         }
-        self.injetor.tecla(tecla, apertada).map_err(Recusa::Falha)
+        self.tomar_a_vez(session_id, usuario)?;
+        let mut st = self.estado.lock().unwrap_or_else(|e| e.into_inner());
+        if apertada && forma_atalho_bloqueado(&st.apertadas, tecla) {
+            return Err(Recusa::AtalhoBloqueado);
+        }
+        self.injetor.tecla(tecla, apertada).map_err(Recusa::Falha)?;
+        if apertada {
+            if !st.apertadas.iter().any(|a| a == tecla) {
+                st.apertadas.push(tecla.to_string());
+            }
+        } else {
+            st.apertadas.retain(|a| a != tecla);
+        }
+        Ok(())
     }
 
     /// Solta uma tecla que esta conexão apertou. **Não exige controle nem conta na taxa**: perder o
@@ -180,6 +309,11 @@ impl Entrada {
         if !tecla_permitida(tecla) {
             return Err(Recusa::TeclaNaoPermitida);
         }
+        self.estado
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .apertadas
+            .retain(|a| a != tecla);
         self.injetor.tecla(tecla, false).map_err(Recusa::Falha)
     }
 }
@@ -490,6 +624,191 @@ mod tests {
         assert_eq!(aceitos, EVENTOS_POR_SEGUNDO);
         std::thread::sleep(Duration::from_millis(1050));
         assert!(l.permite(), "janela nova");
+    }
+
+    /// Duas sessões ativas, cada uma com um dono diferente (`u1` e `u2`).
+    fn duas_sessoes() -> (Arc<ComputerSessionManager>, String, String) {
+        let (m, a, b) = sessao_com_controle();
+        m.update_state(&b, SessionState::Active).unwrap();
+        assumir(&m, &a);
+        m.take_control(
+            &b,
+            zylos_computer_view::schema::TakeControlRequest {
+                user_id: "u2".into(),
+                duration_minutes: Some(5),
+                reason: None,
+            },
+        )
+        .unwrap();
+        (m, a, b)
+    }
+
+    #[test]
+    fn atalhos_do_sistema_sao_recusados_em_qualquer_ordem() {
+        let (m, ativa, _) = sessao_com_controle();
+        assumir(&m, &ativa);
+        let falso = Arc::new(Falso::default());
+        let e = Entrada::new(falso.clone(), m);
+        let u = Some("u1");
+        let p = |t: &str| e.tecla(&ativa, u, t, true);
+        let s = |t: &str| e.tecla(&ativa, u, t, false);
+
+        // Ctrl+Esc, Ctrl+Shift+Esc, Alt+Esc, Alt+Tab.
+        assert_eq!(p("Control"), Ok(()));
+        assert_eq!(p("Escape"), Err(Recusa::AtalhoBloqueado));
+        assert_eq!(p("Shift"), Ok(()));
+        assert_eq!(p("Escape"), Err(Recusa::AtalhoBloqueado));
+        assert_eq!(s("Shift"), Ok(()));
+        assert_eq!(s("Control"), Ok(()));
+        assert_eq!(p("Alt"), Ok(()));
+        assert_eq!(p("Tab"), Err(Recusa::AtalhoBloqueado));
+        assert_eq!(p("Escape"), Err(Recusa::AtalhoBloqueado));
+        assert_eq!(s("Alt"), Ok(()));
+        // Ordem inversa: Esc/Tab já apertadas e só depois o modificador.
+        assert_eq!(p("Escape"), Ok(()));
+        assert_eq!(p("Control"), Err(Recusa::AtalhoBloqueado));
+        assert_eq!(p("Alt"), Err(Recusa::AtalhoBloqueado));
+        assert_eq!(s("Escape"), Ok(()));
+        assert_eq!(p("Tab"), Ok(()));
+        assert_eq!(p("Alt"), Err(Recusa::AtalhoBloqueado));
+        assert_eq!(s("Tab"), Ok(()));
+        // Sem modificador (ou depois de soltá-lo), Esc e Tab continuam funcionando; Ctrl+Tab não é bloqueado.
+        assert_eq!(p("Escape"), Ok(()));
+        assert_eq!(s("Escape"), Ok(()));
+        assert_eq!(p("Control"), Ok(()));
+        assert_eq!(p("Tab"), Ok(()));
+
+        // Só chegou ao injetor o que NÃO armava um atalho; cada recusa acima ficou de fora.
+        let esperado: Vec<String> = [
+            "Control true",
+            "Shift true",
+            "Shift false",
+            "Control false",
+            "Alt true",
+            "Alt false",
+            "Escape true",
+            "Escape false",
+            "Tab true",
+            "Tab false",
+            "Escape true",
+            "Escape false",
+            "Control true",
+            "Tab true",
+        ]
+        .iter()
+        .map(|x| format!("tecla {x}"))
+        .collect();
+        assert_eq!(*falso.0.lock().unwrap(), esperado);
+    }
+
+    #[test]
+    fn so_uma_sessao_por_vez_segura_a_maquina_e_a_vez_passa_quando_o_dono_larga() {
+        let (m, a, b) = duas_sessoes();
+        let falso = Arc::new(Falso::default());
+        let e = Entrada::new(falso.clone(), m.clone());
+        assert_eq!(e.clique(&a, Some("u1"), 1, 1, "left"), Ok(()));
+        // u2 tem controle válido na outra sessão, mas a máquina está com u1.
+        assert_eq!(
+            e.clique(&b, Some("u2"), 2, 2, "left"),
+            Err(Recusa::MaquinaOcupada)
+        );
+        assert_eq!(
+            e.tecla(&b, Some("u2"), "x", true),
+            Err(Recusa::MaquinaOcupada)
+        );
+        assert_eq!(
+            *falso.0.lock().unwrap(),
+            vec!["clique 1,1 left".to_string()]
+        );
+        // u1 larga o controle: a vez passa para u2.
+        m.release_control(&a, "u1").unwrap();
+        assert_eq!(e.clique(&b, Some("u2"), 3, 3, "left"), Ok(()));
+        assert_eq!(
+            *falso.0.lock().unwrap(),
+            vec!["clique 1,1 left".to_string(), "clique 3,3 left".to_string()]
+        );
+    }
+
+    #[test]
+    fn dono_ocioso_perde_a_vez() {
+        let (m, a, b) = duas_sessoes();
+        let e = Entrada::new(Arc::new(Falso::default()), m);
+        assert_eq!(e.clique(&a, Some("u1"), 1, 1, "left"), Ok(()));
+        // Faz de conta que o último evento foi há mais que POSSE_OCIOSA.
+        e.estado.lock().unwrap().ultimo_evento = Some(Instant::now() - POSSE_OCIOSA * 2);
+        assert_eq!(e.clique(&b, Some("u2"), 2, 2, "left"), Ok(()));
+    }
+
+    #[test]
+    fn troca_de_dono_solta_antes_as_teclas_que_o_anterior_deixou_apertadas() {
+        let (m, a, _) = sessao_com_controle();
+        assumir(&m, &a);
+        let falso = Arc::new(Falso::default());
+        let e = Entrada::new(falso.clone(), m.clone());
+        assert_eq!(e.tecla(&a, Some("u1"), "Control", true), Ok(()));
+        // u1 perde o controle e u2 assume a MESMA sessão.
+        m.release_control(&a, "u1").unwrap();
+        m.take_control(
+            &a,
+            zylos_computer_view::schema::TakeControlRequest {
+                user_id: "u2".into(),
+                duration_minutes: Some(5),
+                reason: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(e.tecla(&a, Some("u2"), "c", true), Ok(()));
+        assert_eq!(
+            *falso.0.lock().unwrap(),
+            vec![
+                "tecla Control true".to_string(),
+                "tecla Control false".to_string(),
+                "tecla c true".to_string()
+            ],
+            "o Control do u1 é solto antes do primeiro evento do u2 (senão virava Ctrl+C)"
+        );
+    }
+
+    #[test]
+    fn limite_de_60_por_segundo_vale_para_a_maquina_toda() {
+        let (m, ativa, _) = sessao_com_controle();
+        assumir(&m, &ativa);
+        let e = Entrada::new(Arc::new(Falso::default()), m);
+        let aceitos = (0..EVENTOS_POR_SEGUNDO + 40)
+            .filter(|i| e.clique(&ativa, Some("u1"), *i as i32, 1, "left").is_ok())
+            .count();
+        assert_eq!(aceitos, EVENTOS_POR_SEGUNDO);
+        assert_eq!(
+            e.clique(&ativa, Some("u1"), 1, 1, "left"),
+            Err(Recusa::EventosDemais)
+        );
+        // Soltar uma tecla segue passando mesmo estourado.
+        assert_eq!(e.soltar("Shift"), Ok(()));
+    }
+
+    #[test]
+    fn a_entrada_so_liga_com_as_tres_travas() {
+        for pedida in [false, true] {
+            for captura in [false, true] {
+                for injetor in [false, true] {
+                    let esperado = match (pedida, captura, injetor) {
+                        (false, _, _) => Porta::Desligada,
+                        (true, false, _) => Porta::SemCaptura,
+                        (true, true, false) => Porta::SemInjetor,
+                        (true, true, true) => Porta::Ligar,
+                    };
+                    assert_eq!(decidir_porta(pedida, captura, injetor), esperado);
+                }
+            }
+        }
+        // Só UMA combinação liga.
+        let ligam = [false, true]
+            .iter()
+            .flat_map(|p| [false, true].iter().map(move |c| (*p, *c)))
+            .flat_map(|(p, c)| [false, true].iter().map(move |i| (p, c, *i)))
+            .filter(|(p, c, i)| decidir_porta(*p, *c, *i) == Porta::Ligar)
+            .count();
+        assert_eq!(ligam, 1);
     }
 
     #[test]

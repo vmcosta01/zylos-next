@@ -254,6 +254,12 @@ fn parece_imagem(b: &[u8]) -> bool {
 
 /// `POST /computer-view/sessions/:id/frame` — o agente empurra o quadro atual da tela (corpo =
 /// bytes de um PNG ou JPEG). O gateway não captura nada: só entrega ao cockpit pelo relay.
+///
+/// **Com a entrada remota ligada, numa sessão local (sem VNC), este caminho é recusado**: o dono do
+/// controle clica olhando para o quadro, e um quadro de fora (de qualquer token, não só de admin)
+/// poderia mostrar uma tela falsa e fazer o clique cair em outro lugar deste computador. Nessas
+/// sessões só a captura do próprio gateway publica quadros (`publish_frame` chamado direto, sem
+/// passar por aqui).
 async fn push_frame(
     State(handle): State<ComputerViewHandle>,
     Path(id): Path<String>,
@@ -264,7 +270,19 @@ async fn push_frame(
             .into_response();
     };
     match handle.manager.get_session(&id) {
-        Some(s) if s.state != SessionState::Terminated.as_str() => {}
+        Some(s) if s.state != SessionState::Terminated.as_str() => {
+            if relay.entrada_ligada() && s.vnc_url.is_none() {
+                return error_response(
+                    StatusCode::FORBIDDEN,
+                    "frames_externos_recusados",
+                    Some(
+                        "com a entrada remota ligada, a tela desta sessão vem só da captura local do gateway"
+                            .into(),
+                    ),
+                )
+                .into_response();
+            }
+        }
         _ => {
             return error_response(
                 StatusCode::NOT_FOUND,
@@ -422,10 +440,42 @@ async fn release_control(
 }
 
 /// `GET /computer-view/sessions/{id}/screenshot` — captura tela atual como PNG binário.
+///
+/// Fotografa o monitor DESTE computador, então só responde com a captura local ligada
+/// (`ZYLOS_COMPUTER_VIEW_CAPTURE=1`) e numa sessão que não seja VNC (a tela dela é de outro lugar).
 async fn get_screenshot(
     State(handle): State<ComputerViewHandle>,
     Path(id): Path<String>,
 ) -> Response {
+    match handle.manager.get_session(&id) {
+        None => {
+            return error_response(
+                StatusCode::NOT_FOUND,
+                "session_not_found",
+                Some(format!("Session '{id}' not found")),
+            )
+            .into_response()
+        }
+        Some(s) if s.vnc_url.is_some() => {
+            return error_response(
+                StatusCode::CONFLICT,
+                "screenshot_session_remote",
+                Some("esta sessão mostra a tela de outro computador (VNC)".into()),
+            )
+            .into_response()
+        }
+        Some(_) => {}
+    }
+    if !captura_local_ligada() {
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "captura_local_desligada",
+            Some(format!(
+                "a captura da tela deste computador está desligada ({CAPTURA_LOCAL_ENV}=1 liga)"
+            )),
+        )
+        .into_response();
+    }
     match handle.manager.capture_screenshot(&id) {
         Ok(data) => {
             let bytes: Vec<u8> =

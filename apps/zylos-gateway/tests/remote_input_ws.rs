@@ -58,7 +58,8 @@ async fn subir(com_entrada: bool, auth_obrigatoria: bool) -> Ambiente {
     .unwrap();
     let handle = ComputerViewHandle::new();
     let falso = Arc::new(Falso::default());
-    let mut relay = WebRtcRelayState::new();
+    // O MESMO serviço (e a mesma lista de revogados) no middleware e no relay, como no gateway real.
+    let mut relay = WebRtcRelayState::new().with_verificador(auth_obrigatoria.then(|| svc.clone()));
     if com_entrada {
         relay = relay.with_entrada(Arc::new(Entrada::new(
             falso.clone(),
@@ -72,13 +73,7 @@ async fn subir(com_entrada: bool, auth_obrigatoria: bool) -> Ambiente {
             create_computer_view_router(h).merge(create_webrtc_relay_router(relay)),
         )
         .layer(axum::middleware::from_fn_with_state(
-            ApiAuth::new(auth_obrigatoria.then(|| {
-                TokenService::new(TokenConfig {
-                    secret: SEGREDO.into(),
-                    ..TokenConfig::default()
-                })
-                .unwrap()
-            })),
+            ApiAuth::new(auth_obrigatoria.then(|| svc.clone())),
             exigir_auth,
         ));
     let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -377,4 +372,192 @@ async fn aviso_de_recusa_vai_so_para_quem_mandou_o_evento() {
     // Alice (a dona) não recebe nada por causa do clique do Bob.
     let da_alice = tokio::time::timeout(Duration::from_millis(500), ws_alice.next()).await;
     assert!(da_alice.is_err(), "Alice recebeu: {da_alice:?}");
+}
+
+async fn empurrar_quadro(a: &Ambiente, id: &str, tok: &str, corpo: &'static [u8]) -> u16 {
+    reqwest::Client::new()
+        .post(format!(
+            "{}/api/v1/computer-view/sessions/{id}/frame",
+            a.http
+        ))
+        .bearer_auth(tok)
+        .body(corpo)
+        .send()
+        .await
+        .unwrap()
+        .status()
+        .as_u16()
+}
+
+/// PNG mínimo: a rota só confere os bytes iniciais.
+const PNG_FALSO: &[u8] = &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3];
+
+fn sessao_vnc(h: &ComputerViewHandle) -> String {
+    let id = h
+        .manager
+        .create_session(CreateSessionRequest {
+            bot_id: "b".into(),
+            vnc_endpoint: Some("vnc://10.0.0.5:5900".into()),
+            metadata: None,
+        })
+        .id;
+    h.manager.update_state(&id, SessionState::Active).unwrap();
+    id
+}
+
+#[tokio::test]
+async fn com_a_entrada_ligada_quadro_de_fora_nao_chega_a_quem_tem_o_controle() {
+    let a = subir(true, true).await;
+    let id = nova_sessao(&a.handle);
+    let alice = token(&a, "alice", &["admin"]);
+    let mallory = token(&a, "mallory", &[]); // leitor, sem admin
+    assert_eq!(assumir(&a, &id, &alice, "{}").await, 200);
+    let mut ws_alice = conectar(&a, &id, &alice).await;
+
+    // O leitor tenta mostrar uma tela falsa à dona do controle: recusado.
+    assert_eq!(empurrar_quadro(&a, &id, &mallory, PNG_FALSO).await, 403);
+    // Nem o admin consegue empurrar: nessa sessão a tela vem só da captura do gateway.
+    assert_eq!(empurrar_quadro(&a, &id, &alice, PNG_FALSO).await, 403);
+    let recebido = tokio::time::timeout(Duration::from_millis(500), ws_alice.next()).await;
+    assert!(recebido.is_err(), "Alice recebeu um quadro: {recebido:?}");
+}
+
+#[tokio::test]
+async fn quadro_de_fora_segue_valendo_em_sessao_vnc_e_com_a_entrada_desligada() {
+    // Entrada ligada, mas a sessão é VNC: a entrada nunca injeta nela, então o quadro é aceito.
+    let a = subir(true, true).await;
+    let vnc = sessao_vnc(&a.handle);
+    let tok = token(&a, "alice", &["admin"]);
+    assert_eq!(empurrar_quadro(&a, &vnc, &tok, PNG_FALSO).await, 200);
+    // Entrada desligada: nada é injetado, o agente pode empurrar quadros como antes.
+    let b = subir(false, true).await;
+    let id = nova_sessao(&b.handle);
+    let tok_b = token(&b, "bob", &[]);
+    assert_eq!(empurrar_quadro(&b, &id, &tok_b, PNG_FALSO).await, 200);
+}
+
+#[tokio::test]
+async fn logout_derruba_a_conexao_que_ja_estava_aberta() {
+    let a = subir(true, true).await;
+    let id = nova_sessao(&a.handle);
+    let alice = token(&a, "alice", &["admin"]);
+    assert_eq!(assumir(&a, &id, &alice, "{}").await, 200);
+    let mut ws = conectar(&a, &id, &alice).await;
+    clicar(&mut ws, 1).await;
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(registrado(&a), vec!["clique 1,1 left".to_string()]);
+
+    // Logout: o token entra na lista de revogados.
+    a.svc.revoke_token(&alice).unwrap();
+    clicar(&mut ws, 2).await;
+    tecla(&mut ws, "a", true).await;
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    assert_eq!(
+        registrado(&a),
+        vec!["clique 1,1 left".to_string()],
+        "depois do logout nada mais é injetado"
+    );
+    // E a conexão foi fechada pelo gateway.
+    let fim = tokio::time::timeout(Duration::from_secs(2), async {
+        while let Some(m) = ws.next().await {
+            if m.is_err() {
+                return;
+            }
+        }
+    })
+    .await;
+    assert!(fim.is_ok(), "a conexão deveria ter sido fechada");
+}
+
+#[tokio::test]
+async fn so_uma_sessao_por_vez_usa_o_mouse_e_o_teclado_da_maquina() {
+    let a = subir(true, true).await;
+    let s1 = nova_sessao(&a.handle);
+    let s2 = nova_sessao(&a.handle);
+    let alice = token(&a, "alice", &["admin"]);
+    let bob = token(&a, "bob", &["admin"]);
+    assert_eq!(assumir(&a, &s1, &alice, "{}").await, 200);
+    assert_eq!(assumir(&a, &s2, &bob, "{}").await, 200);
+    let mut ws_a = conectar(&a, &s1, &alice).await;
+    let mut ws_b = conectar(&a, &s2, &bob).await;
+
+    clicar(&mut ws_a, 1).await;
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    // Bob tem controle válido na outra sessão, mas a máquina está com a Alice.
+    clicar(&mut ws_b, 2).await;
+    assert!(aviso(&mut ws_b).await.contains("Outra sessão"));
+    assert_eq!(registrado(&a), vec!["clique 1,1 left".to_string()]);
+
+    // Alice larga o controle: a vez passa ao Bob.
+    a.handle.manager.release_control(&s1, "alice").unwrap();
+    clicar(&mut ws_b, 3).await;
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(
+        registrado(&a),
+        vec!["clique 1,1 left".to_string(), "clique 3,1 left".to_string()]
+    );
+}
+
+#[tokio::test]
+async fn varias_conexoes_do_mesmo_dono_dividem_o_limite_de_60_por_segundo() {
+    let a = subir(true, true).await;
+    let id = nova_sessao(&a.handle);
+    let alice = token(&a, "alice", &["admin"]);
+    assert_eq!(assumir(&a, &id, &alice, "{}").await, 200);
+    let mut conexoes = Vec::new();
+    for _ in 0..5 {
+        conexoes.push(conectar(&a, &id, &alice).await);
+    }
+    for ws in conexoes.iter_mut() {
+        for i in 0..100 {
+            clicar(ws, i).await;
+        }
+    }
+    tokio::time::sleep(Duration::from_millis(600)).await;
+    let n = registrado(&a).len();
+    assert!(
+        (1..=60).contains(&n),
+        "5 conexões não podem multiplicar o limite (foram {n})"
+    );
+}
+
+#[tokio::test]
+async fn atalhos_que_abrem_menus_do_sistema_nao_passam_pelo_websocket() {
+    let a = subir(true, true).await;
+    let id = nova_sessao(&a.handle);
+    let alice = token(&a, "alice", &["admin"]);
+    assert_eq!(assumir(&a, &id, &alice, "{}").await, 200);
+    let mut ws = conectar(&a, &id, &alice).await;
+    tecla(&mut ws, "Control", true).await;
+    tecla(&mut ws, "Shift", true).await;
+    tecla(&mut ws, "Escape", true).await;
+    assert!(aviso(&mut ws).await.contains("Atalho bloqueado"));
+    tecla(&mut ws, "Shift", false).await;
+    tecla(&mut ws, "Control", false).await;
+    tecla(&mut ws, "Alt", true).await;
+    tecla(&mut ws, "Tab", true).await;
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    let r = registrado(&a);
+    assert!(!r.contains(&"tecla Escape true".to_string()), "{r:?}");
+    assert!(!r.contains(&"tecla Tab true".to_string()), "{r:?}");
+}
+
+#[tokio::test]
+async fn screenshot_nao_fotografa_o_computador_sem_a_captura_local_nem_em_sessao_vnc() {
+    // Só este teste mexe nesta variável (cada arquivo de teste é um processo próprio).
+    std::env::remove_var(zylos_gateway::computer_view_api::CAPTURA_LOCAL_ENV);
+    let a = subir(false, false).await;
+    let local = nova_sessao(&a.handle);
+    let vnc = sessao_vnc(&a.handle);
+    let get = |id: String| {
+        let url = format!("{}/api/v1/computer-view/sessions/{id}/screenshot", a.http);
+        async move { reqwest::get(url).await.unwrap().status().as_u16() }
+    };
+    assert_eq!(get(local).await, 403, "captura local desligada");
+    assert_eq!(
+        get(vnc).await,
+        409,
+        "a tela da sessão VNC não é a deste computador"
+    );
+    assert_eq!(get("nao-existe".into()).await, 404);
 }
