@@ -387,6 +387,29 @@ impl LimiteDeTaxa {
     }
 }
 
+/// Converte um ponto do espaço da IMAGEM capturada (pixels físicos; é o que o cockpit manda) para o
+/// espaço em que o sistema posiciona o mouse (`sistema`, pixels "lógicos"). Com a tela ampliada pelo
+/// Windows (125%, 150%, 200%) os dois tamanhos diferem; sem a conversão o clique cai mais longe da
+/// origem do que o ponto clicado (ex.: 150% → o clique em 960 cai em 1440). Devolve `None` se algum
+/// tamanho for zero ou negativo (nada a calcular: melhor recusar que clicar no lugar errado).
+pub fn escalar_para_o_sistema(
+    (x, y): (i32, i32),
+    captura: (u32, u32),
+    sistema: (i32, i32),
+) -> Option<(i32, i32)> {
+    let (cw, ch) = (i64::from(captura.0), i64::from(captura.1));
+    let (sw, sh) = (i64::from(sistema.0), i64::from(sistema.1));
+    if cw <= 0 || ch <= 0 || sw <= 0 || sh <= 0 {
+        return None;
+    }
+    // Regra de três com arredondamento ao mais próximo, e dentro da tela (0..=tamanho-1).
+    let eixo = |v: i32, de: i64, para: i64| -> i32 {
+        let v = i64::from(v).max(0);
+        ((v * para * 2 + de) / (2 * de)).min(para - 1) as i32
+    };
+    Some((eixo(x, cw, sw), eixo(y, ch, sh)))
+}
+
 /// Injetor real (enigo). Só existe com `--features input-injection`.
 #[cfg(feature = "input-injection")]
 pub struct InjetorReal {
@@ -416,6 +439,14 @@ impl InjetorEntrada for InjetorReal {
             .enigo
             .lock()
             .map_err(|_| "injetor travado".to_string())?;
+        // O ponto vem em pixels da imagem capturada; o sistema posiciona o mouse no tamanho dele
+        // (que difere com escala de DPI). Medido a cada clique: a resolução pode mudar.
+        // ATALHO: enumera os monitores a cada clique (cliques humanos, no máximo 60/s); se pesar,
+        // guardar o tamanho e refazer só quando o `main_display` mudar.
+        let captura = zylos_computer_view::session::tamanho_do_monitor_primario()?;
+        let sistema = e.main_display().map_err(|e| e.to_string())?;
+        let (x, y) = escalar_para_o_sistema((x, y), captura, sistema)
+            .ok_or_else(|| "não consegui medir a tela para posicionar o clique".to_string())?;
         e.move_mouse(x, y, Coordinate::Abs)
             .map_err(|e| e.to_string())?;
         e.button(b, Direction::Click).map_err(|e| e.to_string())
@@ -744,6 +775,68 @@ mod tests {
         assert!(e.clique(&ativa, Some("u1"), 1, 1, "left").is_ok());
         assert!(e.tecla(&ativa, Some("u1"), "a", true).is_ok());
         assert!(e.soltar("a").is_ok());
+    }
+
+    #[test]
+    fn clique_na_escala_do_windows_cai_onde_o_usuario_clicou() {
+        // 100%: nada muda.
+        let cem = ((1920, 1080), (1920, 1080));
+        assert_eq!(
+            escalar_para_o_sistema((960, 540), cem.0, cem.1),
+            Some((960, 540))
+        );
+        // 150%: a captura tem 1920x1080 e o sistema posiciona o mouse em 1280x720.
+        let cento_e_cinquenta = ((1920, 1080), (1280, 720));
+        let esc = |p| escalar_para_o_sistema(p, cento_e_cinquenta.0, cento_e_cinquenta.1);
+        assert_eq!(
+            esc((960, 540)),
+            Some((640, 360)),
+            "o centro continua no centro"
+        );
+        assert_eq!(esc((0, 0)), Some((0, 0)));
+        assert_eq!(
+            esc((1919, 1079)),
+            Some((1279, 719)),
+            "o último pixel é o último pixel"
+        );
+        // 125% (1920x1080 → 1536x864) e 200% (3840x2160 → 1920x1080).
+        assert_eq!(
+            escalar_para_o_sistema((960, 540), (1920, 1080), (1536, 864)),
+            Some((768, 432))
+        );
+        assert_eq!(
+            escalar_para_o_sistema((1920, 1080), (3840, 2160), (1920, 1080)),
+            Some((960, 540))
+        );
+        // Arredonda ao mais próximo (0,67 → 1; 1,33 → 1), não para baixo.
+        assert_eq!(esc((1, 1)), Some((1, 1)));
+        assert_eq!(esc((2, 2)), Some((1, 1)));
+        // Fora da tela é puxado para dentro; tamanho zero ou negativo é recusado.
+        assert_eq!(esc((5000, 5000)), Some((1279, 719)));
+        assert_eq!(esc((-4, -4)), Some((0, 0)));
+        assert_eq!(escalar_para_o_sistema((1, 1), (0, 1080), (1280, 720)), None);
+        assert_eq!(escalar_para_o_sistema((1, 1), (1920, 1080), (0, 720)), None);
+        assert_eq!(
+            escalar_para_o_sistema((1, 1), (1920, 1080), (-1, 720)),
+            None
+        );
+    }
+
+    /// Mede a tela REAL desta máquina (não move o mouse nem clica): `cargo test -p zylos-gateway
+    /// --features input-injection -- --ignored mede_a_tela`. Precisa de monitor.
+    #[cfg(feature = "input-injection")]
+    #[test]
+    #[ignore = "precisa de um monitor"]
+    fn mede_a_tela_real_e_o_centro_da_captura_cai_no_centro_do_sistema() {
+        use enigo::Mouse;
+        let captura = zylos_computer_view::session::tamanho_do_monitor_primario().unwrap();
+        let e = enigo::Enigo::new(&enigo::Settings::default()).unwrap();
+        let sistema = e.main_display().unwrap();
+        eprintln!("captura {captura:?}, sistema (enigo) {sistema:?}");
+        let (cx, cy) = (captura.0 as i32 / 2, captura.1 as i32 / 2);
+        let (sx, sy) = escalar_para_o_sistema((cx, cy), captura, sistema).unwrap();
+        eprintln!("centro da captura ({cx},{cy}) → ({sx},{sy}) no sistema");
+        assert!((sx - sistema.0 / 2).abs() <= 1 && (sy - sistema.1 / 2).abs() <= 1);
     }
 
     #[test]
