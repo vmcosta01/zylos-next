@@ -119,7 +119,7 @@ Medido em `trunk build --release`, Lighthouse mobile padrão (Slow 4G, CPU 4x), 
 
 O módulo extras (1,6 MB bruto, 508 KB em brotli) só é baixado ao abrir uma aba secundária. Detalhes em `DECISIONS.md` (ADR-011).
 
-- [x] Lighthouse Mobile Performance ≥90: **91**. Accessibility 100 no desktop e **90 no mobile** (falham `aria-required-children` e `target-size`, a corrigir), Best Practices 100. **SEO 63**: o `robots.txt` bloqueia indexação, de propósito (painel privado); liberar a indexação é decisão sua
+- [x] Lighthouse Mobile Performance ≥90: **91**. Accessibility 100 no desktop e no mobile (em 2026-11-20 o mobile deu 90, por `aria-required-children` e `target-size`; corrigido e medido de novo em 2026-11-21, `lighthouse-2026-11-21-*.json`), Best Practices 100. **SEO 63**: o `robots.txt` bloqueia indexação, de propósito (painel privado); liberar a indexação é decisão sua
 - [x] LCP <2s no desktop: **0,80 a 0,85 s** no Lighthouse desktop (`docs/fase11-reports/lighthouse-2026-11-20-desktop.json`)
 - [x] LCP <=4s no mobile simulado (Slow 4G + CPU 4x): **3,89 a 3,95 s**, quase no limite (`lighthouse-2026-11-20-mobile.json`; a tabela acima, de uma medição anterior sem JSON arquivado, dizia 3,5 s). A meta original "<2s em 3G" não é alcançável sem trocar de framework ou pré-renderizar; foi revista em 2026-11-20 (`PERFORMANCE_WASM.md`)
 - [x] TBT <300ms: **40 ms**

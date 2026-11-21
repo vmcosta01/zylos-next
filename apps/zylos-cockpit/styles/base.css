@@ -1242,9 +1242,18 @@ body {
   color: var(--color-text-tertiary);
   font-size: var(--text-lg);
   cursor: pointer;
+  /* Alvo de toque de pelo menos 24x24 px (WCAG 2.5.8); 44 em tela de toque. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
   padding: 0 var(--space-1);
   line-height: 1;
   transition: color var(--transition-fast);
+}
+@media (pointer: coarse) {
+  .toast-close { min-width: 44px; min-height: 44px; }
 }
 .toast-close:hover { color: var(--color-text-primary); }
 
@@ -1437,6 +1446,12 @@ body {
     background: var(--color-bg-primary);
     border-top: 1px solid var(--color-border-default);
     padding-bottom: env(safe-area-inset-bottom);
+  }
+  /* As 3 abas ocupam as 3 primeiras colunas; o botão "Áreas" fica na 4ª. */
+  .bottom-tabs-list {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-column: span 3;
   }
   .bottom-tabs .primary-tab {
     flex-direction: column;
